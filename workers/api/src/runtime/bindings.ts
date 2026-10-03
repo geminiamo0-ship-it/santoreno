@@ -53,6 +53,7 @@ export interface QueueBatchLike<T = unknown> {
 
 export interface SantoBindings {
   SANTO_ENV?: SantoEnvironment;
+  INFRA_SMOKE_TOKEN?: string;
   CONTROL_DB?: D1DatabaseLike;
   CONTENT_BUCKET?: R2BucketLike;
   TENANT_METER?: DurableObjectNamespaceLike;

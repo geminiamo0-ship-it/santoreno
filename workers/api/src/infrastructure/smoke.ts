@@ -14,7 +14,6 @@ type BindingStatus = z.infer<typeof InfrastructureBindingStatusSchema>;
 
 async function checkDurableObject(
   namespace: DurableObjectNamespaceLike | undefined,
-  name: string,
 ): Promise<BindingStatus> {
   if (!namespace) {
     return "missing";
@@ -68,8 +67,8 @@ export async function runInfrastructureSmoke(
     }
   }
 
-  bindings.tenantMeterDo = await checkDurableObject(env.TENANT_METER, "TenantMeterDO");
-  bindings.conversationDo = await checkDurableObject(env.CONVERSATION, "ConversationDO");
+  bindings.tenantMeterDo = await checkDurableObject(env.TENANT_METER);
+  bindings.conversationDo = await checkDurableObject(env.CONVERSATION);
 
   if (env.EVENT_QUEUE) {
     eventId = crypto.randomUUID();

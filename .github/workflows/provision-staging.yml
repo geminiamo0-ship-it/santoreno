@@ -1,0 +1,293 @@
+name: Provision Staging
+
+on:
+  push:
+    branches:
+      - infra/issue-2-staging-provision
+    paths:
+      - .github/workflows/provision-staging.yml
+      - workers/api/**
+      - config/environments/staging.json
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+  checks: read
+
+concurrency:
+  group: santo-staging-provision
+  cancel-in-progress: false
+
+jobs:
+  provision-staging:
+    name: provision-staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      GH_TOKEN: ${{ github.token }}
+      NO_COLOR: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Wait for Verify on this commit
+        if: github.event_name == 'push'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          for attempt in $(seq 1 60); do
+            checks="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/check-runs")"
+            policy="$(jq -r '[.check_runs[] | select(.name == "repository-policy") | .conclusion] | map(select(. != null)) | .[0] // ""' <<<"$checks")"
+            quality="$(jq -r '[.check_runs[] | select(.name == "code-quality") | .conclusion] | map(select(. != null)) | .[0] // ""' <<<"$checks")"
+
+            if [[ "$policy" == "success" && "$quality" == "success" ]]; then
+              echo "Verify is green for ${GITHUB_SHA}."
+              exit 0
+            fi
+
+            for conclusion in "$policy" "$quality"; do
+              case "$conclusion" in
+                failure|cancelled|timed_out|action_required|startup_failure|stale)
+                  echo "Verify failed for ${GITHUB_SHA}: repository-policy=${policy}, code-quality=${quality}"
+                  exit 1
+                  ;;
+              esac
+            done
+
+            echo "Waiting for Verify: repository-policy=${policy:-pending}, code-quality=${quality:-pending}"
+            sleep 10
+          done
+
+          echo "Timed out waiting for Verify on ${GITHUB_SHA}."
+          exit 1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Validate Cloudflare credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${CLOUDFLARE_ACCOUNT_ID:-}" || { echo "CLOUDFLARE_ACCOUNT_ID is missing"; exit 1; }
+          test -n "${CLOUDFLARE_API_TOKEN:-}" || { echo "CLOUDFLARE_API_TOKEN is missing"; exit 1; }
+          cd workers/api
+          pnpm exec wrangler whoami
+
+      - name: Ensure staging D1 database
+        id: d1
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd workers/api
+
+          pnpm exec wrangler d1 list --json > /tmp/d1-list.json
+          d1_id="$(node <<'NODE'
+          const fs = require('fs');
+          const databases = JSON.parse(fs.readFileSync('/tmp/d1-list.json', 'utf8'));
+          const database = databases.find((item) => item.name === 'santo-control-plane-staging');
+          process.stdout.write(database?.uuid ?? database?.id ?? database?.database_id ?? '');
+          NODE
+          )"
+
+          if [[ -z "$d1_id" ]]; then
+            pnpm exec wrangler d1 create santo-control-plane-staging
+            pnpm exec wrangler d1 list --json > /tmp/d1-list.json
+            d1_id="$(node <<'NODE'
+          const fs = require('fs');
+          const databases = JSON.parse(fs.readFileSync('/tmp/d1-list.json', 'utf8'));
+          const database = databases.find((item) => item.name === 'santo-control-plane-staging');
+          process.stdout.write(database?.uuid ?? database?.id ?? database?.database_id ?? '');
+          NODE
+            )"
+          fi
+
+          test -n "$d1_id" || { echo "Could not resolve staging D1 UUID"; exit 1; }
+          echo "Resolved staging D1 database."
+          echo "d1_id=$d1_id" >> "$GITHUB_OUTPUT"
+
+      - name: Ensure staging R2 bucket
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd workers/api
+          if ! pnpm exec wrangler r2 bucket info santo-content-staging --json >/tmp/r2-info.json 2>/tmp/r2-info.err; then
+            pnpm exec wrangler r2 bucket create santo-content-staging
+          fi
+          pnpm exec wrangler r2 bucket info santo-content-staging --json >/tmp/r2-info.json
+
+      - name: Ensure staging Queue
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd workers/api
+          pnpm exec wrangler queues list | tee /tmp/queues.txt
+          if ! grep -Fq "santo-events-staging" /tmp/queues.txt; then
+            pnpm exec wrangler queues create santo-events-staging
+          fi
+          pnpm exec wrangler queues list | grep -F "santo-events-staging"
+
+      - name: Verify AI Search namespace
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd workers/api
+          pnpm exec wrangler ai-search namespace get default --json > /tmp/ai-search-namespace.json
+          node -e "const n=require('/tmp/ai-search-namespace.json'); if (!n) process.exit(1)"
+
+      - name: Inject real staging D1 UUID into runner config
+        env:
+          D1_DATABASE_ID: ${{ steps.d1.outputs.d1_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('fs');
+          const path = 'workers/api/wrangler.toml';
+          const databaseId = process.env.D1_DATABASE_ID;
+          let text = fs.readFileSync(path, 'utf8');
+          const stagingStart = text.indexOf('[env.staging]');
+          const productionStart = text.indexOf('[env.production]');
+
+          if (!databaseId || stagingStart < 0 || productionStart < 0) {
+            throw new Error('Cannot patch staging D1 binding');
+          }
+
+          let staging = text.slice(stagingStart, productionStart);
+          const block = `[[env.staging.d1_databases]]\nbinding = "CONTROL_DB"\ndatabase_name = "santo-control-plane-staging"\ndatabase_id = "${databaseId}"\nmigrations_dir = "migrations"\n\n`;
+
+          if (staging.includes('[[env.staging.d1_databases]]')) {
+            staging = staging.replace(
+              /(\[\[env\.staging\.d1_databases\]\][\s\S]*?database_id = ")[^"]+("[\s\S]*?migrations_dir = "migrations"\n\n)/,
+              `$1${databaseId}$2`,
+            );
+          } else {
+            const marker = '[env.staging.secrets]\nrequired = ["INFRA_SMOKE_TOKEN"]\n\n';
+            if (!staging.includes(marker)) {
+              throw new Error('Staging secret marker not found');
+            }
+            staging = staging.replace(marker, `${marker}${block}`);
+          }
+
+          text = `${text.slice(0, stagingStart)}${staging}${text.slice(productionStart)}`;
+          fs.writeFileSync(path, text);
+          NODE
+
+      - name: Apply staging D1 migration
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd workers/api
+          pnpm exec wrangler d1 migrations apply CONTROL_DB --env staging --remote
+
+      - name: Deploy staging Worker
+        id: deploy
+        shell: bash
+        run: |
+          set -euo pipefail
+          smoke_token="$(openssl rand -hex 32)"
+          printf '{"INFRA_SMOKE_TOKEN":"%s"}\n' "$smoke_token" > /tmp/staging-secrets.json
+          chmod 600 /tmp/staging-secrets.json
+
+          cd workers/api
+          pnpm exec wrangler deploy --env staging --secrets-file /tmp/staging-secrets.json | tee /tmp/deploy.txt
+
+          worker_url="$(grep -Eo 'https://[A-Za-z0-9.-]+\.workers\.dev' /tmp/deploy.txt | tail -n 1)"
+          test -n "$worker_url" || { echo "Could not determine staging workers.dev URL"; exit 1; }
+
+          echo "worker_url=$worker_url" >> "$GITHUB_OUTPUT"
+          echo "smoke_token=$smoke_token" >> "$GITHUB_OUTPUT"
+
+      - name: Verify staging health and bindings
+        env:
+          WORKER_URL: ${{ steps.deploy.outputs.worker_url }}
+          INFRA_SMOKE_TOKEN: ${{ steps.deploy.outputs.smoke_token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          health="$(curl --fail --silent --show-error --retry 10 --retry-delay 2 "${WORKER_URL}/health")"
+          jq -e '.service == "santo-api" and .status == "ok"' <<<"$health" >/dev/null
+
+          smoke="$(curl --fail --silent --show-error \
+            -H "x-santo-infra-smoke-token: ${INFRA_SMOKE_TOKEN}" \
+            "${WORKER_URL}/__infra/smoke")"
+          jq -e '
+            .environment == "staging" and
+            .status == "ok" and
+            .bindings.controlDatabase == "ok" and
+            .bindings.contentBucket == "ok" and
+            .bindings.tenantMeterDo == "ok" and
+            .bindings.conversationDo == "ok" and
+            .bindings.eventQueue == "queued" and
+            .bindings.analyticsEngine == "ok" and
+            .bindings.aiSearch == "ok" and
+            (.eventId | type == "string" and length > 0)
+          ' <<<"$smoke" >/dev/null
+
+          event_id="$(jq -r '.eventId' <<<"$smoke")"
+          processed="false"
+          for attempt in $(seq 1 30); do
+            queue_status="$(curl --fail --silent --show-error \
+              -H "x-santo-infra-smoke-token: ${INFRA_SMOKE_TOKEN}" \
+              "${WORKER_URL}/__infra/queue-smoke/${event_id}")"
+            processed="$(jq -r '.processed' <<<"$queue_status")"
+            [[ "$processed" == "true" ]] && break
+            sleep 2
+          done
+
+          [[ "$processed" == "true" ]] || { echo "Queue smoke event was not consumed"; exit 1; }
+          printf '%s\n' "$health" > /tmp/staging-health.json
+          printf '%s\n' "$smoke" > /tmp/staging-smoke.json
+
+      - name: Write staging evidence
+        env:
+          D1_DATABASE_ID: ${{ steps.d1.outputs.d1_id }}
+          WORKER_URL: ${{ steps.deploy.outputs.worker_url }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -n \
+            --arg commit "$GITHUB_SHA" \
+            --arg d1DatabaseId "$D1_DATABASE_ID" \
+            --arg workerUrl "$WORKER_URL" \
+            --slurpfile health /tmp/staging-health.json \
+            --slurpfile smoke /tmp/staging-smoke.json \
+            '{
+              commit: $commit,
+              d1DatabaseId: $d1DatabaseId,
+              workerUrl: $workerUrl,
+              health: $health[0],
+              smoke: $smoke[0]
+            }' > staging-evidence.json
+
+          {
+            echo "## Santo staging provisioning"
+            echo
+            echo "- Commit: \`${GITHUB_SHA}\`"
+            echo "- Worker: \`${WORKER_URL}\`"
+            echo "- D1: \`santo-control-plane-staging\`"
+            echo "- R2: \`santo-content-staging\`"
+            echo "- Queue: \`santo-events-staging\`"
+            echo "- Health: passed"
+            echo "- D1/R2/DO/Queue/Analytics/AI Search smoke: passed"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload staging evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: santo-staging-evidence
+          path: staging-evidence.json
+          if-no-files-found: error
+          retention-days: 14

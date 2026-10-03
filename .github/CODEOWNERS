@@ -1,0 +1,10 @@
+# Default owner for all Santo code and configuration.
+* @geminiamo0-ship-it
+
+# Sensitive architecture and delivery surfaces.
+/.github/ @geminiamo0-ship-it
+/docs/ @geminiamo0-ship-it
+/database/ @geminiamo0-ship-it
+/infrastructure/ @geminiamo0-ship-it
+/workers/ @geminiamo0-ship-it
+/packages/contracts/ @geminiamo0-ship-it

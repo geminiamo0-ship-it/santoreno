@@ -12,7 +12,9 @@ Santo is a standalone B2B2C medical AI SaaS platform. Customer sites embed Santo
 
 Customer production databases remain untouched. Integration is API-based only.
 
-**Phase 0 is complete.** PR **#11** is merged to `main`, and post-merge GitHub Actions `Verify` run **37155527270** passed. The pnpm/Turborepo workspace, minimal portal/API/widget/contracts packages, strict tooling, CI, and runtime smoke checks are now the verified baseline.
+**Phase 0 is complete.** PR **#11** is merged to `main`, and post-merge GitHub Actions `Verify` run **37155527270** passed. The pnpm/Turborepo workspace, minimal portal/API/widget/contracts packages, strict tooling, CI, and runtime smoke checks are the verified baseline.
+
+**Phase 1 is in progress.** PR **#13** establishes the repository/local Cloudflare foundation and passed GitHub Actions `Verify` run **37156837942** on commit `f2221ea6f511c9bf2fb735ff23285d895b5cbdc0`. Local verification now proves the D1 migration, D1 access, R2 access, both SQLite Durable Object bindings, Queue enqueue/dequeue, Analytics Engine dispatch, Worker boot, and `/health`. Issue #2 is **not complete** until the real staging resources are provisioned in an authenticated Cloudflare account, the real staging D1 UUID is configured, staging deploy/migration succeeds, and the remote smoke checks including AI Search pass.
 
 ## 2. Source-of-truth documents
 
@@ -107,6 +109,18 @@ No fabricated citations are permitted.
 - No direct customer database access
 - All Santo global medical libraries are available to all customers
 
+### Phase 1 stable Cloudflare binding contract
+
+- `CONTROL_DB` → D1 control plane
+- `CONTENT_BUCKET` → R2 content/assets
+- `TENANT_METER` → SQLite Durable Object namespace
+- `CONVERSATION` → SQLite Durable Object namespace
+- `EVENT_QUEUE` → Cloudflare Queue
+- `USAGE_ANALYTICS` → Workers Analytics Engine dataset
+- `AI_SEARCH` → Cloudflare AI Search namespace
+
+Environment-specific resource names and the no-secrets rule are documented in `docs/CLOUDFLARE_FOUNDATION.md` and `config/environments/`.
+
 ## 6. Core architecture rules
 
 - Tenant identity must come from authenticated context, never arbitrary browser input.
@@ -148,14 +162,24 @@ Whenever work is completed:
 - GitHub Actions `.github/workflows/verify.yml` added as the mandatory verification gate.
 - README exposes the live `Verify` badge and verification rule.
 - Repository-admin follow-up for actual `main` protection is tracked in Issue #10 because the connected integration cannot write branch-protection settings.
-- **Phase 0 / Issue #1 is complete and merged via PR #11.** The repository now has a pinned pnpm workspace and lockfile, Turborepo, strict shared TypeScript config, Oxlint + Prettier, a minimal React Router/Vite portal shell, a minimal Hono Worker, shared Zod contracts, and a minimal Lit `<santo-ai>` package.
-- The Phase 0 `Verify` gate runs frozen install, lint, typecheck, tests, build, and `pnpm smoke`. Smoke verifies the portal boots, the local Worker boots and serves the expected `/health` response, and portal/Worker/widget artifacts exist.
-- PR acceptance `Verify` run `37155454786` passed on the final branch state.
-- Post-merge `main` `Verify` run `37155527270` passed for merge commit `defcd8ff951c118387c3ffe7d3d61198a1840bb0`.
+- **Phase 0 / Issue #1 is complete and merged via PR #11.** The repository has a pinned pnpm workspace and lockfile, Turborepo, strict shared TypeScript config, Oxlint + Prettier, a minimal React Router/Vite portal shell, a minimal Hono Worker, shared Zod contracts, and a minimal Lit `<santo-ai>` package.
+- Post-merge Phase 0 `main` `Verify` run `37155527270` passed for merge commit `defcd8ff951c118387c3ffe7d3d61198a1840bb0`.
+- **Phase 1 repository/local foundation is implemented in PR #13 and locally acceptance-verified.** The Worker has stable D1/R2/DO/Queue/Analytics/AI Search binding contracts, SQLite-backed `TenantMeterDO` and `ConversationDO` namespace declarations, the first D1 migration, non-production infrastructure smoke endpoints, and explicit local/staging/production resource manifests.
+- P1 local `Verify` run `37156837942` passed on commit `f2221ea6f511c9bf2fb735ff23285d895b5cbdc0`: frozen install, lint, typecheck, tests, Wrangler dry-run build, D1 migration, Worker boot, D1/R2/DO/Queue/Analytics smoke, and queue-consumer persistence all passed.
+- AI Search is intentionally not simulated locally; its staging/production binding is configured for remote verification. No staging/production D1 UUID has been fabricated or committed.
 
 ## 9. Next action
 
-Start **Issue #2 — P1 Provision Cloudflare foundation and bindings**.
+Continue **Issue #2 — P1**. Do **not** start Issue #3 yet.
+
+The remaining gate is authenticated Cloudflare staging provisioning:
+
+1. Create/confirm `santo-control-plane-staging`, `santo-content-staging`, `santo-events-staging`, the two SQLite Durable Object namespaces, Analytics Engine binding, and AI Search namespace.
+2. Write the real staging D1 UUID into the staging Wrangler binding; never invent or reuse an ID.
+3. Deploy `santo-api-staging`.
+4. Apply the D1 migration remotely.
+5. Verify `/health` and staging infrastructure smoke for D1, R2, both DOs, Queue enqueue/dequeue, Analytics Engine, and AI Search.
+6. Only then mark Issue #2 complete and advance the roadmap to Issue #3.
 
 Do not skip directly to portal UI, billing, complete widget UX, tenancy, session exchange, quota, or advanced AI features out of documented order.
 
@@ -163,7 +187,7 @@ Do not skip directly to portal UI, billing, complete widget UX, tenancy, session
 
 The workflow `.github/workflows/verify.yml` is the default machine-verification gate.
 
-With the Phase 0 workspace present, it requires:
+It requires:
 
 ```text
 pnpm install --frozen-lockfile
@@ -174,7 +198,7 @@ pnpm build
 pnpm smoke
 ```
 
-The smoke gate verifies the Phase 0 runtime acceptance criteria, not just compilation: portal boot, local Worker boot with `/health`, and expected build artifacts including the Lit widget output.
+The smoke gate verifies the Phase 0 runtime baseline plus the Phase 1 local Cloudflare foundation: portal boot, Worker boot with `/health`, D1 migration/access, R2 read/write/delete, both Durable Object bindings, Queue enqueue/dequeue with D1 receipt persistence, Analytics Engine dispatch, and expected build artifacts. AI Search is explicitly skipped locally and must be verified against the remote staging binding.
 
 A step is not considered complete until its relevant automated verification passes and the result is recorded in the issue/PR.
 

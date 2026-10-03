@@ -12,7 +12,7 @@ Santo is a standalone B2B2C medical AI SaaS platform. Customer sites embed Santo
 
 Customer production databases remain untouched. Integration is API-based only.
 
-Phase 0 bootstrap is acceptance-verified in PR **#11**. The pnpm/Turborepo workspace, minimal portal/API/widget/contracts packages, strict tooling, CI, and runtime smoke checks are in place. Issue #1 remains open only until the verified PR is merged and the post-merge `main` `Verify` run is confirmed green.
+**Phase 0 is complete.** PR **#11** is merged to `main`, and post-merge GitHub Actions `Verify` run **37155527270** passed. The pnpm/Turborepo workspace, minimal portal/API/widget/contracts packages, strict tooling, CI, and runtime smoke checks are now the verified baseline.
 
 ## 2. Source-of-truth documents
 
@@ -148,13 +148,14 @@ Whenever work is completed:
 - GitHub Actions `.github/workflows/verify.yml` added as the mandatory verification gate.
 - README exposes the live `Verify` badge and verification rule.
 - Repository-admin follow-up for actual `main` protection is tracked in Issue #10 because the connected integration cannot write branch-protection settings.
-- **Phase 0 / Issue #1 acceptance passed on PR #11.** The repository now has a pinned pnpm workspace and lockfile, Turborepo, strict shared TypeScript config, Oxlint + Prettier, a minimal React Router/Vite portal shell, a minimal Hono Worker, shared Zod contracts, and a minimal Lit `<santo-ai>` package.
-- The Phase 0 `Verify` gate now runs frozen install, lint, typecheck, tests, build, and `pnpm smoke`. Smoke verifies the portal boots, the local Worker boots and serves the expected `/health` response, and portal/Worker/widget artifacts exist.
-- GitHub Actions `Verify` run `37155321198` passed for Phase 0 commit `7c2f029dd6e2ca563aeb2e69abff2452beeb58d8`.
+- **Phase 0 / Issue #1 is complete and merged via PR #11.** The repository now has a pinned pnpm workspace and lockfile, Turborepo, strict shared TypeScript config, Oxlint + Prettier, a minimal React Router/Vite portal shell, a minimal Hono Worker, shared Zod contracts, and a minimal Lit `<santo-ai>` package.
+- The Phase 0 `Verify` gate runs frozen install, lint, typecheck, tests, build, and `pnpm smoke`. Smoke verifies the portal boots, the local Worker boots and serves the expected `/health` response, and portal/Worker/widget artifacts exist.
+- PR acceptance `Verify` run `37155454786` passed on the final branch state.
+- Post-merge `main` `Verify` run `37155527270` passed for merge commit `defcd8ff951c118387c3ffe7d3d61198a1840bb0`.
 
 ## 9. Next action
 
-After PR #11 is merged and the post-merge `main` `Verify` is green, close **Issue #1** and start **Issue #2 — P1 Provision Cloudflare foundation and bindings**.
+Start **Issue #2 — P1 Provision Cloudflare foundation and bindings**.
 
 Do not skip directly to portal UI, billing, complete widget UX, tenancy, session exchange, quota, or advanced AI features out of documented order.
 

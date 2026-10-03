@@ -53,9 +53,7 @@ async function waitForService(name, url, validate, processInfo) {
     await delay(300);
   }
 
-  throw new Error(
-    `${name} did not become ready: ${lastError.message}\n${processInfo.getOutput()}`,
-  );
+  throw new Error(`${name} did not become ready: ${lastError.message}\n${processInfo.getOutput()}`);
 }
 
 function stopProcess(processInfo) {

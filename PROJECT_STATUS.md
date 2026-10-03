@@ -12,6 +12,8 @@ Santo is a standalone B2B2C medical AI SaaS platform. Customer sites embed Santo
 
 Customer production databases remain untouched. Integration is API-based only.
 
+Phase 0 bootstrap is acceptance-verified in PR **#11**. The pnpm/Turborepo workspace, minimal portal/API/widget/contracts packages, strict tooling, CI, and runtime smoke checks are in place. Issue #1 remains open only until the verified PR is merged and the post-merge `main` `Verify` run is confirmed green.
+
 ## 2. Source-of-truth documents
 
 Read in this order before implementation:
@@ -28,7 +30,7 @@ Read in this order before implementation:
 
 Do not reorder these without documenting the reason.
 
-- [ ] **#1 — P0:** Bootstrap Santoreno monorepo and CI
+- [x] **#1 — P0:** Bootstrap Santoreno monorepo and CI
 - [ ] **#2 — P1:** Provision Cloudflare foundation and bindings
 - [ ] **#3 — P2:** Minimal B2B auth, tenancy, and tenant isolation
 - [ ] **#4 — P3:** Customer server credentials and domain controls
@@ -144,23 +146,23 @@ Whenever work is completed:
 - `CONTRIBUTING.md` added with branch, PR, Conventional Commit, and definition-of-done rules.
 - Main-branch protection requirements documented in `docs/BRANCH_PROTECTION.md`.
 - GitHub Actions `.github/workflows/verify.yml` added as the mandatory verification gate.
-- README now exposes the live `Verify` badge and verification rule.
+- README exposes the live `Verify` badge and verification rule.
 - Repository-admin follow-up for actual `main` protection is tracked in Issue #10 because the connected integration cannot write branch-protection settings.
-- GitHub Actions verification has been observed green on multiple `main` pushes, including run `37153806882` for commit `cb63436ff175f31df0b5b49e3efd7639b82a4f37`.
-
-No implementation phase (#1–#7) has been marked complete yet.
+- **Phase 0 / Issue #1 acceptance passed on PR #11.** The repository now has a pinned pnpm workspace and lockfile, Turborepo, strict shared TypeScript config, Oxlint + Prettier, a minimal React Router/Vite portal shell, a minimal Hono Worker, shared Zod contracts, and a minimal Lit `<santo-ai>` package.
+- The Phase 0 `Verify` gate now runs frozen install, lint, typecheck, tests, build, and `pnpm smoke`. Smoke verifies the portal boots, the local Worker boots and serves the expected `/health` response, and portal/Worker/widget artifacts exist.
+- GitHub Actions `Verify` run `37155321198` passed for Phase 0 commit `7c2f029dd6e2ca563aeb2e69abff2452beeb58d8`.
 
 ## 9. Next action
 
-Start with **Issue #1 — P0 Bootstrap Santoreno monorepo and CI**.
+After PR #11 is merged and the post-merge `main` `Verify` is green, close **Issue #1** and start **Issue #2 — P1 Provision Cloudflare foundation and bindings**.
 
-Do not skip directly to portal UI, billing, complete widget UX, or advanced AI features.
+Do not skip directly to portal UI, billing, complete widget UX, tenancy, session exchange, quota, or advanced AI features out of documented order.
 
 ## 10. Verification policy
 
 The workflow `.github/workflows/verify.yml` is the default machine-verification gate.
 
-It currently verifies repository policy and safety controls. Once Phase 0 creates the pnpm workspace, it automatically requires:
+With the Phase 0 workspace present, it requires:
 
 ```text
 pnpm install --frozen-lockfile
@@ -168,7 +170,10 @@ pnpm lint
 pnpm typecheck
 pnpm test
 pnpm build
+pnpm smoke
 ```
+
+The smoke gate verifies the Phase 0 runtime acceptance criteria, not just compilation: portal boot, local Worker boot with `/health`, and expected build artifacts including the Lit widget output.
 
 A step is not considered complete until its relevant automated verification passes and the result is recorded in the issue/PR.
 

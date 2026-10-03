@@ -12,6 +12,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "oxlint . && pnpm format:check",
+    "smoke": "node scripts/smoke.mjs",
     "test": "turbo run test",
     "typecheck": "turbo run typecheck"
   },

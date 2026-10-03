@@ -1,20 +1,14 @@
 import type {
-  InfrastructureBindingStatusSchema,
+  InfrastructureBindingStatus,
   InfrastructureSmokeResponse,
-} from "@santo/contracts";
-import type { z } from "zod";
-
-import type {
-  DurableObjectNamespaceLike,
-  SantoBindings,
   SantoEnvironment,
-} from "../runtime/bindings";
+} from "@santo/contracts";
 
-type BindingStatus = z.infer<typeof InfrastructureBindingStatusSchema>;
+import type { DurableObjectNamespaceLike, SantoBindings } from "../runtime/bindings";
 
 async function checkDurableObject(
   namespace: DurableObjectNamespaceLike | undefined,
-): Promise<BindingStatus> {
+): Promise<InfrastructureBindingStatus> {
   if (!namespace) {
     return "missing";
   }
@@ -107,7 +101,7 @@ export async function runInfrastructureSmoke(
     }
   }
 
-  const requiredStatuses: BindingStatus[] = [
+  const requiredStatuses: InfrastructureBindingStatus[] = [
     bindings.controlDatabase,
     bindings.contentBucket,
     bindings.tenantMeterDo,

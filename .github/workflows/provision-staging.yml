@@ -1,5 +1,6 @@
 name: Provision Staging
 
+# Branch push is temporary for the Issue #2 acceptance run and is removed before merge.
 on:
   push:
     branches:

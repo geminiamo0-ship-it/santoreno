@@ -15,11 +15,42 @@ Before changing code, read:
 5. [`CONTRIBUTING.md`](./CONTRIBUTING.md) — branch, PR, verification, and definition-of-done rules.
 6. GitHub Issue **#8** — implementation roadmap.
 
+## Development
+
+Requirements:
+
+- Node.js 22
+- Corepack enabled
+- pnpm pinned by the root `packageManager` field
+
+From the repository root:
+
+```bash
+corepack enable
+pnpm install
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm build
+pnpm dev
+```
+
+Phase 0 workspace layout:
+
+```text
+apps/portal          minimal React Router portal shell
+workers/api          minimal Hono Cloudflare Worker
+packages/contracts   shared validated contracts
+packages/widget      minimal Lit custom element
+```
+
+Copy `.env.example` only when local public configuration is needed. Secrets belong in deployment secret stores and must never be committed.
+
 ## Verification rule
 
 Every meaningful implementation step must pass GitHub Actions **Verify** before it is marked complete.
 
-Once Phase 0 creates the pnpm workspace, the workflow requires frozen install, lint, typecheck, tests, and build.
+The Phase 0 workspace makes frozen install, lint, typecheck, tests, and build mandatory in that workflow.
 
 ## Current implementation focus
 

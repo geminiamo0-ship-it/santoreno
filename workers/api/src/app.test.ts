@@ -12,4 +12,38 @@ describe("Santo API bootstrap", () => {
       status: "ok",
     });
   });
+
+  it("hides staging infrastructure smoke without the smoke token", async () => {
+    const response = await app.request(
+      "/__infra/smoke",
+      {},
+      {
+        SANTO_ENV: "staging",
+        INFRA_SMOKE_TOKEN: "expected-token",
+      },
+    );
+
+    expect(response.status).toBe(404);
+  });
+
+  it("accepts the staging smoke token before checking bindings", async () => {
+    const response = await app.request(
+      "/__infra/smoke",
+      {
+        headers: {
+          "x-santo-infra-smoke-token": "expected-token",
+        },
+      },
+      {
+        SANTO_ENV: "staging",
+        INFRA_SMOKE_TOKEN: "expected-token",
+      },
+    );
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({
+      environment: "staging",
+      status: "degraded",
+    });
+  });
 });

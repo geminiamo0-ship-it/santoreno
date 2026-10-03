@@ -14,7 +14,7 @@ Customer production databases remain untouched. Integration is API-based only.
 
 **Phase 0 is complete.** PR **#11** is merged to `main`, and post-merge GitHub Actions `Verify` run **37155527270** passed. The pnpm/Turborepo workspace, minimal portal/API/widget/contracts packages, strict tooling, CI, and runtime smoke checks are the verified baseline.
 
-**Phase 1 is in progress.** PR **#13** establishes the repository/local Cloudflare foundation and passed GitHub Actions `Verify` run **37156837942** on commit `f2221ea6f511c9bf2fb735ff23285d895b5cbdc0`. Local verification now proves the D1 migration, D1 access, R2 access, both SQLite Durable Object bindings, Queue enqueue/dequeue, Analytics Engine dispatch, Worker boot, and `/health`. Issue #2 is **not complete** until the real staging resources are provisioned in an authenticated Cloudflare account, the real staging D1 UUID is configured, staging deploy/migration succeeds, and the remote smoke checks including AI Search pass.
+**Phase 1 is in progress.** PR **#13** is merged to `main` as `1c1f33d4cc84c1f7c5855db3c7b8f151c8b53354`, and post-merge GitHub Actions run **37157031087** passed. The repository/local Cloudflare foundation is therefore verified on `main`: D1 migration/access, R2 access, both SQLite Durable Object bindings, Queue enqueue/dequeue with D1 receipt persistence, Analytics Engine dispatch, Worker boot, and `/health` all pass locally. Issue #2 is **not complete** until the real staging resources are provisioned in an authenticated Cloudflare account, the real staging D1 UUID is configured, staging deploy/migration succeeds, and the remote smoke checks including AI Search pass.
 
 ## 2. Source-of-truth documents
 
@@ -164,8 +164,9 @@ Whenever work is completed:
 - Repository-admin follow-up for actual `main` protection is tracked in Issue #10 because the connected integration cannot write branch-protection settings.
 - **Phase 0 / Issue #1 is complete and merged via PR #11.** The repository has a pinned pnpm workspace and lockfile, Turborepo, strict shared TypeScript config, Oxlint + Prettier, a minimal React Router/Vite portal shell, a minimal Hono Worker, shared Zod contracts, and a minimal Lit `<santo-ai>` package.
 - Post-merge Phase 0 `main` `Verify` run `37155527270` passed for merge commit `defcd8ff951c118387c3ffe7d3d61198a1840bb0`.
-- **Phase 1 repository/local foundation is implemented in PR #13 and locally acceptance-verified.** The Worker has stable D1/R2/DO/Queue/Analytics/AI Search binding contracts, SQLite-backed `TenantMeterDO` and `ConversationDO` namespace declarations, the first D1 migration, non-production infrastructure smoke endpoints, and explicit local/staging/production resource manifests.
-- P1 local `Verify` run `37156837942` passed on commit `f2221ea6f511c9bf2fb735ff23285d895b5cbdc0`: frozen install, lint, typecheck, tests, Wrangler dry-run build, D1 migration, Worker boot, D1/R2/DO/Queue/Analytics smoke, and queue-consumer persistence all passed.
+- **Phase 1 repository/local foundation is merged via PR #13 as `1c1f33d4cc84c1f7c5855db3c7b8f151c8b53354` and acceptance-verified on `main`.** The Worker has stable D1/R2/DO/Queue/Analytics/AI Search binding contracts, SQLite-backed `TenantMeterDO` and `ConversationDO` namespace declarations, the first D1 migration, non-production infrastructure smoke endpoints, and explicit local/staging/production resource manifests.
+- Final PR-branch `Verify` run `37156901666` passed on `78ff49101d4498d976521fab76319dfb209d9beb`: frozen install, lint, typecheck, tests, Wrangler dry-run build, D1 migration, Worker boot, D1/R2/DO/Queue/Analytics smoke, and queue-consumer persistence all passed.
+- Post-merge `main` run `37157031087` passed for `1c1f33d4cc84c1f7c5855db3c7b8f151c8b53354`, confirming both `repository-policy` and `code-quality` green after merge.
 - AI Search is intentionally not simulated locally; its staging/production binding is configured for remote verification. No staging/production D1 UUID has been fabricated or committed.
 
 ## 9. Next action

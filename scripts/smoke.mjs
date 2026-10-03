@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { access } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
@@ -56,6 +56,23 @@ async function waitForService(name, url, validate, processInfo) {
   throw new Error(`${name} did not become ready: ${lastError.message}\n${processInfo.getOutput()}`);
 }
 
+async function waitForQueueEvent(eventId) {
+  const deadline = Date.now() + 15_000;
+
+  while (Date.now() < deadline) {
+    const response = await fetch(`http://127.0.0.1:8787/__infra/queue-smoke/${eventId}`);
+    if (response.ok) {
+      const body = await response.json();
+      if (body.processed === true) {
+        return;
+      }
+    }
+    await delay(250);
+  }
+
+  throw new Error(`Queue smoke event ${eventId} was not consumed`);
+}
+
 function stopProcess(processInfo) {
   if (processInfo.child.exitCode === null) {
     processInfo.child.kill("SIGTERM");
@@ -67,6 +84,12 @@ await Promise.all([
   access(join(root, "workers/api/dist/index.js")),
   access(join(root, "packages/widget/dist/index.js")),
 ]);
+
+execFileSync(pnpm, ["--filter", "@santo/api", "run", "d1:migrate:local"], {
+  cwd: root,
+  env: { ...process.env, CI: "1" },
+  stdio: "inherit",
+});
 
 const portal = startProcess([
   "--filter",
@@ -112,7 +135,23 @@ try {
     ),
   ]);
 
-  console.log("Bootstrap smoke checks passed");
+  const infrastructureResponse = await fetch("http://127.0.0.1:8787/__infra/smoke");
+  const infrastructure = await infrastructureResponse.json();
+
+  if (!infrastructureResponse.ok || infrastructure.status !== "ok") {
+    throw new Error(`Infrastructure smoke failed: ${JSON.stringify(infrastructure)}`);
+  }
+
+  if (infrastructure.bindings.aiSearch !== "skipped") {
+    throw new Error("Local AI Search binding must be skipped rather than simulated");
+  }
+
+  if (typeof infrastructure.eventId !== "string") {
+    throw new Error("Infrastructure smoke did not enqueue a queue event");
+  }
+
+  await waitForQueueEvent(infrastructure.eventId);
+  console.log("Bootstrap and Cloudflare foundation smoke checks passed");
 } finally {
   stopProcess(portal);
   stopProcess(worker);

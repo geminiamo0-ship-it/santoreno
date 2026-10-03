@@ -1,3 +1,13 @@
 {
-  "environment": "local"
+  "environment": "local",
+  "cloudflare": {
+    "worker": "santo-api",
+    "controlDatabase": "santo-control-plane-local",
+    "contentBucket": "santo-content-local",
+    "tenantMeterDo": "TenantMeterDO",
+    "conversationDo": "ConversationDO",
+    "eventQueue": "santo-events-local",
+    "analyticsDataset": "santo_usage_local",
+    "aiSearchNamespace": null
+  }
 }

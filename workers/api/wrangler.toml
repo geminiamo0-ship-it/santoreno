@@ -4,3 +4,116 @@ compatibility_date = "2026-09-14"
 
 [dev]
 port = 8787
+
+[vars]
+SANTO_ENV = "local"
+
+[[d1_databases]]
+binding = "CONTROL_DB"
+database_name = "santo-control-plane-local"
+database_id = "00000000-0000-0000-0000-000000000001"
+preview_database_id = "CONTROL_DB"
+migrations_dir = "migrations"
+
+[[r2_buckets]]
+binding = "CONTENT_BUCKET"
+bucket_name = "santo-content-local"
+preview_bucket_name = "santo-content-local"
+
+[durable_objects]
+bindings = [
+  { name = "TENANT_METER", class_name = "TenantMeterDO" },
+  { name = "CONVERSATION", class_name = "ConversationDO" },
+]
+
+[exports.TenantMeterDO]
+type = "durable-object"
+storage = "sqlite"
+
+[exports.ConversationDO]
+type = "durable-object"
+storage = "sqlite"
+
+[[queues.producers]]
+binding = "EVENT_QUEUE"
+queue = "santo-events-local"
+
+[[queues.consumers]]
+queue = "santo-events-local"
+max_batch_size = 10
+max_batch_timeout = 1
+max_retries = 2
+
+[[analytics_engine_datasets]]
+binding = "USAGE_ANALYTICS"
+dataset = "santo_usage_local"
+
+# Remote environments intentionally omit CONTROL_DB until the real D1 UUIDs are
+# provisioned. The remaining bindings are name-based and can be declared now.
+[env.staging]
+name = "santo-api-staging"
+
+[env.staging.vars]
+SANTO_ENV = "staging"
+
+[[env.staging.r2_buckets]]
+binding = "CONTENT_BUCKET"
+bucket_name = "santo-content-staging"
+
+[env.staging.durable_objects]
+bindings = [
+  { name = "TENANT_METER", class_name = "TenantMeterDO" },
+  { name = "CONVERSATION", class_name = "ConversationDO" },
+]
+
+[[env.staging.queues.producers]]
+binding = "EVENT_QUEUE"
+queue = "santo-events-staging"
+
+[[env.staging.queues.consumers]]
+queue = "santo-events-staging"
+max_batch_size = 10
+max_batch_timeout = 1
+max_retries = 2
+
+[[env.staging.analytics_engine_datasets]]
+binding = "USAGE_ANALYTICS"
+dataset = "santo_usage_staging"
+
+[[env.staging.ai_search_namespaces]]
+binding = "AI_SEARCH"
+namespace = "default"
+
+[env.production]
+name = "santo-api"
+
+[env.production.vars]
+SANTO_ENV = "production"
+
+[[env.production.r2_buckets]]
+binding = "CONTENT_BUCKET"
+bucket_name = "santo-content"
+
+[env.production.durable_objects]
+bindings = [
+  { name = "TENANT_METER", class_name = "TenantMeterDO" },
+  { name = "CONVERSATION", class_name = "ConversationDO" },
+]
+
+[[env.production.queues.producers]]
+binding = "EVENT_QUEUE"
+queue = "santo-events"
+
+[[env.production.queues.consumers]]
+queue = "santo-events"
+max_batch_size = 10
+max_batch_timeout = 1
+max_retries = 2
+
+[[env.production.analytics_engine_datasets]]
+binding = "USAGE_ANALYTICS"
+dataset = "santo_usage"
+
+[[env.production.ai_search_namespaces]]
+binding = "AI_SEARCH"
+namespace = "default"

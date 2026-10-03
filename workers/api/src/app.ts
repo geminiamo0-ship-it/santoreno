@@ -10,7 +10,10 @@ import type { SantoBindings } from "./runtime/bindings";
 
 export const app = new Hono<{ Bindings: SantoBindings }>();
 
-function isInfrastructureSmokeAuthorized(env: SantoBindings, providedToken?: string): boolean {
+function isInfrastructureSmokeAuthorized(
+  env: SantoBindings,
+  providedToken?: string,
+): boolean {
   if (env.SANTO_ENV === "production") {
     return false;
   }

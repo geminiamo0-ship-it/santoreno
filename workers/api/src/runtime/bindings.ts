@@ -1,7 +1,4 @@
-import type { SantoEnvironmentSchema } from "@santo/contracts";
-import type { z } from "zod";
-
-export type SantoEnvironment = z.infer<typeof SantoEnvironmentSchema>;
+import type { SantoEnvironment } from "@santo/contracts";
 
 export interface D1PreparedStatementLike {
   bind(...values: unknown[]): D1PreparedStatementLike;

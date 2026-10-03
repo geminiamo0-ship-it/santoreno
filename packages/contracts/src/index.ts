@@ -8,6 +8,7 @@ export const HealthResponseSchema = z.object({
 export type HealthResponse = z.infer<typeof HealthResponseSchema>;
 
 export const SantoEnvironmentSchema = z.enum(["local", "staging", "production"]);
+export type SantoEnvironment = z.infer<typeof SantoEnvironmentSchema>;
 
 export const InfrastructureBindingStatusSchema = z.enum([
   "ok",
@@ -16,6 +17,7 @@ export const InfrastructureBindingStatusSchema = z.enum([
   "missing",
   "error",
 ]);
+export type InfrastructureBindingStatus = z.infer<typeof InfrastructureBindingStatusSchema>;
 
 export const InfrastructureSmokeResponseSchema = z.object({
   environment: SantoEnvironmentSchema,

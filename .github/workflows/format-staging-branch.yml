@@ -36,7 +36,6 @@ jobs:
           workers/api/src/app.ts
           workers/api/src/app.test.ts
           workers/api/src/runtime/bindings.ts
-          workers/api/wrangler.toml
           .github/workflows/provision-staging.yml
 
       - name: Commit formatting
@@ -45,7 +44,7 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add workers/api/src/app.ts workers/api/src/app.test.ts workers/api/src/runtime/bindings.ts workers/api/wrangler.toml .github/workflows/provision-staging.yml
+          git add workers/api/src/app.ts workers/api/src/app.test.ts workers/api/src/runtime/bindings.ts .github/workflows/provision-staging.yml
           if git diff --cached --quiet; then
             echo "No formatting changes required."
             exit 0

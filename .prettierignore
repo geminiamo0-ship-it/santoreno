@@ -4,3 +4,4 @@ coverage
 .turbo
 .wrangler
 pnpm-lock.yaml
+SANTO_MASTER_PLAN.md

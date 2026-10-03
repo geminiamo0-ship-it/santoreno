@@ -16,6 +16,8 @@ Customer production databases remain untouched. Integration is API-based only.
 
 **Phase 1 is in progress.** PR **#13** is merged to `main` as `1c1f33d4cc84c1f7c5855db3c7b8f151c8b53354`, and post-merge GitHub Actions run **37157031087** passed. The repository/local Cloudflare foundation is therefore verified on `main`: D1 migration/access, R2 access, both SQLite Durable Object bindings, Queue enqueue/dequeue with D1 receipt persistence, Analytics Engine dispatch, Worker boot, and `/health` all pass locally. Issue #2 is **not complete** until the real staging resources are provisioned in an authenticated Cloudflare account, the real staging D1 UUID is configured, staging deploy/migration succeeds, and the remote smoke checks including AI Search pass.
 
+**Current P1 blocker:** PR **#15** adds the verified remote staging provisioning gate. Commit `315d25e633e651c05292e443f1b0eef580379c19` passed `Verify` run **37158504560**, but staging provisioning run **37158502226** stopped before creating or changing any Cloudflare resource because `wrangler whoami` returned Cloudflare API error **9109 — Invalid access token**. The GitHub repository secret `CLOUDFLARE_API_TOKEN` must be replaced with the raw value of a valid Cloudflare API Token for the account referenced by `CLOUDFLARE_ACCOUNT_ID`; do not advance to Issue #3 until the remote gate is rerun and passes.
+
 ## 2. Source-of-truth documents
 
 Read in this order before implementation:
@@ -168,12 +170,15 @@ Whenever work is completed:
 - Final PR-branch `Verify` run `37156901666` passed on `78ff49101d4498d976521fab76319dfb209d9beb`: frozen install, lint, typecheck, tests, Wrangler dry-run build, D1 migration, Worker boot, D1/R2/DO/Queue/Analytics smoke, and queue-consumer persistence all passed.
 - Post-merge `main` run `37157031087` passed for `1c1f33d4cc84c1f7c5855db3c7b8f151c8b53354`, confirming both `repository-policy` and `code-quality` green after merge.
 - AI Search is intentionally not simulated locally; its staging/production binding is configured for remote verification. No staging/production D1 UUID has been fabricated or committed.
+- **PR #15 remote staging gate is code-verified but authentication-blocked.** `Verify` run `37158504560` passed on `315d25e633e651c05292e443f1b0eef580379c19`. Provisioning run `37158502226` then failed at `wrangler whoami` with Cloudflare error 9109 (`Invalid access token`) before any remote resource mutation; no staging acceptance item was marked complete from that run.
 
 ## 9. Next action
 
 Continue **Issue #2 — P1**. Do **not** start Issue #3 yet.
 
-The remaining gate is authenticated Cloudflare staging provisioning:
+First replace GitHub repository secret `CLOUDFLARE_API_TOKEN` with the raw value of a valid Cloudflare API Token for the account referenced by `CLOUDFLARE_ACCOUNT_ID` (no surrounding quotes and not a Global API Key). Then rerun the verified PR #15 staging gate.
+
+After authentication succeeds, the remaining gate is authenticated Cloudflare staging provisioning:
 
 1. Create/confirm `santo-control-plane-staging`, `santo-content-staging`, `santo-events-staging`, the two SQLite Durable Object namespaces, Analytics Engine binding, and AI Search namespace.
 2. Write the real staging D1 UUID into the staging Wrangler binding; never invent or reuse an ID.

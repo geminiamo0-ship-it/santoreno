@@ -1,0 +1,153 @@
+name: Verify
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  repository-policy:
+    name: repository-policy
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify required project-control files
+        shell: bash
+        run: |
+          set -euo pipefail
+          required=(
+            "README.md"
+            "PROJECT_STATUS.md"
+            "SANTO_MASTER_PLAN.md"
+            "AGENTS.md"
+            "CONTRIBUTING.md"
+            "docs/ENGINEERING_GUARDRAILS.md"
+            "docs/BRANCH_PROTECTION.md"
+            "docs/adr/TEMPLATE.md"
+            ".github/PULL_REQUEST_TEMPLATE.md"
+            ".github/CODEOWNERS"
+            ".github/dependabot.yml"
+          )
+
+          for file in "${required[@]}"; do
+            if [[ ! -f "$file" ]]; then
+              echo "Required file is missing: $file"
+              exit 1
+            fi
+            echo "OK: $file"
+          done
+
+      - name: Reject tracked secret files
+        shell: bash
+        run: |
+          set -euo pipefail
+          bad_files="$(git ls-files | grep -E '(^|/)(\.env|\.env\.(local|production|staging|development)|.*\.(pem|p12|pfx)|id_rsa|id_ed25519)$' || true)"
+          if [[ -n "$bad_files" ]]; then
+            echo "Potential secret files must not be tracked:"
+            echo "$bad_files"
+            exit 1
+          fi
+
+      - name: Reject unresolved merge markers
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git grep -n -E '^(<<<<<<<|>>>>>>>)' -- .; then
+            echo "Unresolved merge-conflict marker found."
+            exit 1
+          fi
+          echo "No unresolved merge markers found."
+
+      - name: Validate GitHub YAML syntax
+        shell: ruby {0}
+        run: |
+          require "yaml"
+          files = Dir[".github/**/*.yml", ".github/**/*.yaml"]
+          files.each do |file|
+            YAML.load_file(file)
+            puts "YAML OK: #{file}"
+          end
+
+  code-quality:
+    name: code-quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Detect code workspace
+        id: workspace
+        shell: bash
+        run: |
+          if [[ -f package.json ]]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "No package.json yet; code-quality checks will become mandatory when Phase 0 creates the workspace."
+          fi
+
+      - name: Setup Node.js
+        if: steps.workspace.outputs.exists == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Verify pnpm workspace contract
+        if: steps.workspace.outputs.exists == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f pnpm-lock.yaml || { echo "pnpm-lock.yaml is required"; exit 1; }
+          test -f pnpm-workspace.yaml || { echo "pnpm-workspace.yaml is required"; exit 1; }
+          node <<'NODE'
+          const pkg = require('./package.json');
+          if (!pkg.packageManager || !pkg.packageManager.startsWith('pnpm@')) {
+            throw new Error('package.json must pin pnpm using packageManager');
+          }
+          const required = ['lint', 'typecheck', 'test', 'build'];
+          for (const script of required) {
+            if (!pkg.scripts?.[script]) {
+              throw new Error(`Missing required root script: ${script}`);
+            }
+          }
+          console.log('Workspace contract OK');
+          NODE
+
+      - name: Enable Corepack
+        if: steps.workspace.outputs.exists == 'true'
+        run: corepack enable
+
+      - name: Install dependencies
+        if: steps.workspace.outputs.exists == 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        if: steps.workspace.outputs.exists == 'true'
+        run: pnpm lint
+
+      - name: Typecheck
+        if: steps.workspace.outputs.exists == 'true'
+        run: pnpm typecheck
+
+      - name: Test
+        if: steps.workspace.outputs.exists == 'true'
+        run: pnpm test
+
+      - name: Build
+        if: steps.workspace.outputs.exists == 'true'
+        run: pnpm build

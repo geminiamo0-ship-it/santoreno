@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "wrangler deploy --dry-run --outdir dist",
+    "d1:migrate:local": "wrangler d1 migrations apply santo-control-plane-local --local",
     "dev": "wrangler dev",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"

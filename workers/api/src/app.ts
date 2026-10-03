@@ -1,7 +1,14 @@
-import { HealthResponseSchema } from "@santo/contracts";
+import {
+  HealthResponseSchema,
+  InfrastructureSmokeResponseSchema,
+  QueueSmokeStatusResponseSchema,
+} from "@santo/contracts";
 import { Hono } from "hono";
 
-export const app = new Hono();
+import { runInfrastructureSmoke, wasQueueSmokeProcessed } from "./infrastructure/smoke";
+import type { SantoBindings } from "./runtime/bindings";
+
+export const app = new Hono<{ Bindings: SantoBindings }>();
 
 app.get("/", (context) => context.text("Santo API"));
 
@@ -12,4 +19,34 @@ app.get("/health", (context) => {
   });
 
   return context.json(response);
+});
+
+app.get("/__infra/smoke", async (context) => {
+  if (context.env.SANTO_ENV === "production") {
+    return context.notFound();
+  }
+
+  const response = InfrastructureSmokeResponseSchema.parse(
+    await runInfrastructureSmoke(context.env),
+  );
+
+  return context.json(response, response.status === "ok" ? 200 : 503);
+});
+
+app.get("/__infra/queue-smoke/:eventId", async (context) => {
+  if (context.env.SANTO_ENV === "production") {
+    return context.notFound();
+  }
+
+  const eventId = context.req.param("eventId");
+  const response = QueueSmokeStatusResponseSchema.safeParse({
+    eventId,
+    processed: await wasQueueSmokeProcessed(context.env, eventId),
+  });
+
+  if (!response.success) {
+    return context.json({ error: "INVALID_SMOKE_EVENT_ID" }, 400);
+  }
+
+  return context.json(response.data);
 });

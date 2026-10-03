@@ -1,3 +1,14 @@
 {
-  "environment": "staging"
+  "environment": "staging",
+  "cloudflare": {
+    "worker": "santo-api-staging",
+    "controlDatabase": "santo-control-plane-staging",
+    "controlDatabaseId": null,
+    "contentBucket": "santo-content-staging",
+    "tenantMeterDo": "TenantMeterDO",
+    "conversationDo": "ConversationDO",
+    "eventQueue": "santo-events-staging",
+    "analyticsDataset": "santo_usage_staging",
+    "aiSearchNamespace": "default"
+  }
 }

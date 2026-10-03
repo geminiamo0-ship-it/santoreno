@@ -52,9 +52,13 @@ dataset = "santo_usage_local"
 # provisioned. The remaining bindings are name-based and can be declared now.
 [env.staging]
 name = "santo-api-staging"
+workers_dev = true
 
 [env.staging.vars]
 SANTO_ENV = "staging"
+
+[env.staging.secrets]
+required = ["INFRA_SMOKE_TOKEN"]
 
 [[env.staging.r2_buckets]]
 binding = "CONTENT_BUCKET"

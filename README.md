@@ -1,5 +1,7 @@
 # Santo (`santoreno`)
 
+[![Verify](https://github.com/geminiamo0-ship-it/santoreno/actions/workflows/verify.yml/badge.svg)](https://github.com/geminiamo0-ship-it/santoreno/actions/workflows/verify.yml)
+
 Santo is a standalone multi-tenant medical AI SaaS platform designed to be embedded into external websites with minimal integration work.
 
 ## Start here
@@ -10,7 +12,14 @@ Before changing code, read:
 2. [`SANTO_MASTER_PLAN.md`](./SANTO_MASTER_PLAN.md) — complete architecture and product plan.
 3. [`docs/ENGINEERING_GUARDRAILS.md`](./docs/ENGINEERING_GUARDRAILS.md) — mandatory engineering/anti-spaghetti rules.
 4. [`AGENTS.md`](./AGENTS.md) — instructions for coding agents and AI assistants.
-5. GitHub Issue **#8** — implementation roadmap.
+5. [`CONTRIBUTING.md`](./CONTRIBUTING.md) — branch, PR, verification, and definition-of-done rules.
+6. GitHub Issue **#8** — implementation roadmap.
+
+## Verification rule
+
+Every meaningful implementation step must pass GitHub Actions **Verify** before it is marked complete.
+
+Once Phase 0 creates the pnpm workspace, the workflow requires frozen install, lint, typecheck, tests, and build.
 
 ## Current implementation focus
 

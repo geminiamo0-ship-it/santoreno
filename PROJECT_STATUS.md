@@ -20,8 +20,9 @@ Read in this order before implementation:
 2. `SANTO_MASTER_PLAN.md` — complete product/architecture plan.
 3. `docs/ENGINEERING_GUARDRAILS.md` — mandatory anti-spaghetti and quality rules.
 4. `AGENTS.md` — operational instructions for coding agents/AI assistants.
-5. GitHub Issue **#8** — ordered implementation roadmap and release gates.
-6. GitHub Issues **#1–#7** — active Phase 0–5 backlog plus first grounded AI vertical slice.
+5. `CONTRIBUTING.md` — branch/PR/verification workflow.
+6. GitHub Issue **#8** — ordered implementation roadmap and release gates.
+7. GitHub Issues **#1–#7** — active Phase 0–5 backlog plus first grounded AI vertical slice.
 
 ## 3. Active implementation order
 
@@ -125,6 +126,7 @@ Whenever work is completed:
 5. Update this `PROJECT_STATUS.md` checklist and the **Last completed work** section below.
 6. Record major architecture decisions in `docs/adr/` when they materially affect future implementation.
 7. Never claim a task is complete based only on code existing; required tests/gates must pass.
+8. Every meaningful code/infrastructure step must pass GitHub Actions `Verify` before it is marked complete.
 
 ## 8. Last completed work
 
@@ -132,7 +134,14 @@ Whenever work is completed:
 - `SANTO_MASTER_PLAN.md` committed to `main`.
 - GitHub backlog created for Phase 0–5 and the first grounded AI vertical slice: Issues #1–#7.
 - Umbrella roadmap and release gates created: Issue #8.
-- Engineering continuity/anti-spaghetti documentation is being established as part of Issue #9.
+- Engineering continuity/anti-spaghetti documentation established under Issue #9.
+- Pull request template added with architecture, verification, documentation, and rollback checks.
+- ADR template added at `docs/adr/TEMPLATE.md`.
+- `CODEOWNERS` added for repository ownership.
+- Dependabot configured for npm and GitHub Actions updates.
+- `CONTRIBUTING.md` added with branch, PR, Conventional Commit, and definition-of-done rules.
+- Main-branch protection requirements documented in `docs/BRANCH_PROTECTION.md`.
+- GitHub Actions `.github/workflows/verify.yml` added as the mandatory verification gate.
 
 No implementation phase (#1–#7) has been marked complete yet.
 
@@ -141,3 +150,21 @@ No implementation phase (#1–#7) has been marked complete yet.
 Start with **Issue #1 — P0 Bootstrap Santoreno monorepo and CI**.
 
 Do not skip directly to portal UI, billing, complete widget UX, or advanced AI features.
+
+## 10. Verification policy
+
+The workflow `.github/workflows/verify.yml` is the default machine-verification gate.
+
+It currently verifies repository policy and safety controls. Once Phase 0 creates the pnpm workspace, it automatically requires:
+
+```text
+pnpm install --frozen-lockfile
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm build
+```
+
+A step is not considered complete until its relevant automated verification passes and the result is recorded in the issue/PR.
+
+Branch protection/ruleset configuration is also required for `main` as documented in `docs/BRANCH_PROTECTION.md`. The currently connected GitHub integration does not expose a branch-protection write operation, so the actual repository setting must be enabled through an authorized GitHub administration surface and then verified separately.

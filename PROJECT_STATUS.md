@@ -40,6 +40,8 @@ Umbrella roadmap: **#8**.
 
 Engineering guardrails: **#9**.
 
+Repository administration / branch-protection task: **#10**.
+
 ## 4. Hard architecture gates
 
 ### Portal gate
@@ -142,6 +144,9 @@ Whenever work is completed:
 - `CONTRIBUTING.md` added with branch, PR, Conventional Commit, and definition-of-done rules.
 - Main-branch protection requirements documented in `docs/BRANCH_PROTECTION.md`.
 - GitHub Actions `.github/workflows/verify.yml` added as the mandatory verification gate.
+- README now exposes the live `Verify` badge and verification rule.
+- Repository-admin follow-up for actual `main` protection is tracked in Issue #10 because the connected integration cannot write branch-protection settings.
+- GitHub Actions verification has been observed green on multiple `main` pushes, including run `37153806882` for commit `cb63436ff175f31df0b5b49e3efd7639b82a4f37`.
 
 No implementation phase (#1–#7) has been marked complete yet.
 

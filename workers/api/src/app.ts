@@ -10,10 +10,7 @@ import type { SantoBindings } from "./runtime/bindings";
 
 export const app = new Hono<{ Bindings: SantoBindings }>();
 
-function isInfrastructureSmokeAuthorized(
-  env: SantoBindings,
-  providedToken?: string,
-): boolean {
+function isInfrastructureSmokeAuthorized(env: SantoBindings, providedToken?: string): boolean {
   if (env.SANTO_ENV === "production") {
     return false;
   }
@@ -39,10 +36,7 @@ app.get("/health", (context) => {
 
 app.get("/__infra/smoke", async (context) => {
   if (
-    !isInfrastructureSmokeAuthorized(
-      context.env,
-      context.req.header("x-santo-infra-smoke-token"),
-    )
+    !isInfrastructureSmokeAuthorized(context.env, context.req.header("x-santo-infra-smoke-token"))
   ) {
     return context.notFound();
   }
@@ -56,10 +50,7 @@ app.get("/__infra/smoke", async (context) => {
 
 app.get("/__infra/queue-smoke/:eventId", async (context) => {
   if (
-    !isInfrastructureSmokeAuthorized(
-      context.env,
-      context.req.header("x-santo-infra-smoke-token"),
-    )
+    !isInfrastructureSmokeAuthorized(context.env, context.req.header("x-santo-infra-smoke-token"))
   ) {
     return context.notFound();
   }

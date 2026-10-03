@@ -85,15 +85,11 @@ await Promise.all([
   access(join(root, "packages/widget/dist/index.js")),
 ]);
 
-execFileSync(
-  pnpm,
-  ["--filter", "@santo/api", "run", "d1:migrate:local"],
-  {
-    cwd: root,
-    env: { ...process.env, CI: "1" },
-    stdio: "inherit",
-  },
-);
+execFileSync(pnpm, ["--filter", "@santo/api", "run", "d1:migrate:local"], {
+  cwd: root,
+  env: { ...process.env, CI: "1" },
+  stdio: "inherit",
+});
 
 const portal = startProcess([
   "--filter",

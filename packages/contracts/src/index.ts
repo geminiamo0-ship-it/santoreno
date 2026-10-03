@@ -32,9 +32,7 @@ export const InfrastructureSmokeResponseSchema = z.object({
   }),
 });
 
-export type InfrastructureSmokeResponse = z.infer<
-  typeof InfrastructureSmokeResponseSchema
->;
+export type InfrastructureSmokeResponse = z.infer<typeof InfrastructureSmokeResponseSchema>;
 
 export const InfraSmokeQueueEventSchema = z.object({
   type: z.literal("infra.smoke"),

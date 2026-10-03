@@ -37,11 +37,7 @@ export interface QueueLike {
 }
 
 export interface AnalyticsEngineDatasetLike {
-  writeDataPoint(event: {
-    blobs?: string[];
-    doubles?: number[];
-    indexes?: string[];
-  }): void;
+  writeDataPoint(event: { blobs?: string[]; doubles?: number[]; indexes?: string[] }): void;
 }
 
 export interface AiSearchNamespaceLike {

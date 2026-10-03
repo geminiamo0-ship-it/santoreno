@@ -4,15 +4,15 @@ Issue #2 owns the first Santo Cloudflare infrastructure layer. This document rec
 
 ## Stable Worker bindings
 
-| Binding | Resource | Purpose |
-| --- | --- | --- |
-| `CONTROL_DB` | D1 | Santo control-plane relational data and migrations |
-| `CONTENT_BUCKET` | R2 | Santo-owned content/assets |
-| `TENANT_METER` | SQLite Durable Object | Future strongly consistent tenant quota state |
-| `CONVERSATION` | SQLite Durable Object | Future conversation coordination/state |
-| `EVENT_QUEUE` | Queue | Async Santo events and delivery work |
-| `USAGE_ANALYTICS` | Workers Analytics Engine | High-cardinality usage telemetry |
-| `AI_SEARCH` | AI Search namespace | Santo global retrieval namespace |
+| Binding           | Resource                 | Purpose                                            |
+| ----------------- | ------------------------ | -------------------------------------------------- |
+| `CONTROL_DB`      | D1                       | Santo control-plane relational data and migrations |
+| `CONTENT_BUCKET`  | R2                       | Santo-owned content/assets                         |
+| `TENANT_METER`    | SQLite Durable Object    | Future strongly consistent tenant quota state      |
+| `CONVERSATION`    | SQLite Durable Object    | Future conversation coordination/state             |
+| `EVENT_QUEUE`     | Queue                    | Async Santo events and delivery work               |
+| `USAGE_ANALYTICS` | Workers Analytics Engine | High-cardinality usage telemetry                   |
+| `AI_SEARCH`       | AI Search namespace      | Santo global retrieval namespace                   |
 
 ## Resource names
 

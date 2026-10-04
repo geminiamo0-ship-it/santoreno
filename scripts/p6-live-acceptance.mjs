@@ -85,7 +85,7 @@ async function cloudflareFetch(path, options = {}) {
     ...options,
     headers: {
       authorization: `Bearer ${token}`,
-      ...(options.headers ?? {}),
+      ...options.headers,
     },
   });
   const text = await response.text();
@@ -124,9 +124,7 @@ async function createAiSearchFixtureInstance() {
 }
 
 async function getAiSearchItem(itemId) {
-  return cloudflareFetch(
-    `/instances/${FIXTURE_INSTANCE_ID}/items/${encodeURIComponent(itemId)}`,
-  );
+  return cloudflareFetch(`/instances/${FIXTURE_INSTANCE_ID}/items/${encodeURIComponent(itemId)}`);
 }
 
 async function waitForIndexedItem(itemId, initialStatus) {
@@ -151,11 +149,7 @@ async function uploadAiSearchFixture() {
   let lastFailure = "unknown";
   for (let attempt = 1; attempt <= 8; attempt += 1) {
     const form = new FormData();
-    form.append(
-      "file",
-      new Blob([FIXTURE_CONTENT], { type: "text/markdown" }),
-      FIXTURE_ITEM_KEY,
-    );
+    form.append("file", new Blob([FIXTURE_CONTENT], { type: "text/markdown" }), FIXTURE_ITEM_KEY);
     form.append("wait_for_completion", "true");
 
     const result = await cloudflareFetch(`/instances/${FIXTURE_INSTANCE_ID}/items`, {
@@ -165,14 +159,21 @@ async function uploadAiSearchFixture() {
     if (result.status >= 200 && result.status < 300 && result.body?.success !== false) {
       const itemId = result.body?.result?.id;
       const status = result.body?.result?.status;
-      expect(typeof itemId === "string" && itemId.length > 0, "AI Search upload returned no item ID");
+      expect(
+        typeof itemId === "string" && itemId.length > 0,
+        "AI Search upload returned no item ID",
+      );
       expect(typeof status === "string", "AI Search upload returned no item status");
       await waitForIndexedItem(itemId, status);
       return;
     }
 
     lastFailure = `HTTP ${result.status} (${cloudflareErrorSummary(result.body)})`;
-    const retryable = result.status === 404 || result.status === 409 || result.status === 429 || result.status >= 500;
+    const retryable =
+      result.status === 404 ||
+      result.status === 409 ||
+      result.status === 429 ||
+      result.status >= 500;
     if (!retryable || attempt === 8) break;
     await sleep(2_000);
   }
@@ -263,7 +264,10 @@ async function verify() {
     typeof first.body?.answer === "string" && first.body.answer.length > 0,
     "AI answer is empty",
   );
-  expect(first.body.answer.includes("17"), "AI answer did not use the deterministic fixture evidence");
+  expect(
+    first.body.answer.includes("17"),
+    "AI answer did not use the deterministic fixture evidence",
+  );
   expect(
     Array.isArray(first.body?.citations) && first.body.citations.length > 0,
     "AI response has no citations",
@@ -276,7 +280,10 @@ async function verify() {
     ),
     "No returned citation resolved to the temporary AI Search fixture",
   );
-  expect(first.body?.usage?.unitsCharged === 1, "Successful grounded answer did not charge one unit");
+  expect(
+    first.body?.usage?.unitsCharged === 1,
+    "Successful grounded answer did not charge one unit",
+  );
   expect(
     first.body?.usage?.remaining === 0,
     "Successful grounded answer did not consume the user quota",

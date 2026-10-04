@@ -1,11 +1,16 @@
 import {
+  AllowedDomainsResponseSchema,
   ApiErrorResponseSchema,
   CreateTenantRequestSchema,
+  CredentialIssueResponseSchema,
   HealthResponseSchema,
   InfrastructureSmokeResponseSchema,
   PortalContextResponseSchema,
   QueueSmokeStatusResponseSchema,
+  ServerContextResponseSchema,
+  ServerCredentialMetadataSchema,
   TenantSchema,
+  UpdateAllowedDomainsRequestSchema,
   UpdateTenantRequestSchema,
 } from "@santo/contracts";
 import { Hono, type MiddlewareHandler } from "hono";
@@ -16,6 +21,12 @@ import {
   type PortalTokenVerifier,
   verifyWorkOSBearerToken,
 } from "./auth/workos";
+import { D1CredentialRepository, type CredentialRepository } from "./credentials/repository";
+import {
+  CredentialError,
+  ServerCredentialService,
+  type ServerPrincipal,
+} from "./credentials/service";
 import { runInfrastructureSmoke, wasQueueSmokeProcessed } from "./infrastructure/smoke";
 import type { SantoBindings } from "./runtime/bindings";
 import { D1TenantRepository, type TenantRepository } from "./tenancy/repository";
@@ -25,12 +36,14 @@ type SantoAppEnvironment = {
   Bindings: SantoBindings;
   Variables: {
     portalIdentity: PortalIdentity;
+    serverPrincipal: ServerPrincipal;
   };
 };
 
 export interface SantoAppDependencies {
   verifyPortalToken?: PortalTokenVerifier;
   tenantRepositoryFactory?: (env: SantoBindings) => TenantRepository;
+  credentialRepositoryFactory?: (env: SantoBindings) => CredentialRepository;
 }
 
 function isInfrastructureSmokeAuthorized(env: SantoBindings, providedToken?: string): boolean {
@@ -54,6 +67,14 @@ function createDefaultTenantRepository(env: SantoBindings): TenantRepository {
   return new D1TenantRepository(env.CONTROL_DB);
 }
 
+function createDefaultCredentialRepository(env: SantoBindings): CredentialRepository {
+  if (!env.CONTROL_DB) {
+    throw new CredentialError(503, "CREDENTIALS_NOT_CONFIGURED", "CONTROL_DB binding is required");
+  }
+
+  return new D1CredentialRepository(env.CONTROL_DB);
+}
+
 function errorPayload(error: string) {
   return ApiErrorResponseSchema.parse({ error });
 }
@@ -63,6 +84,8 @@ export function createApp(dependencies: SantoAppDependencies = {}) {
   const verifyPortalToken = dependencies.verifyPortalToken ?? verifyWorkOSBearerToken;
   const tenantRepositoryFactory =
     dependencies.tenantRepositoryFactory ?? createDefaultTenantRepository;
+  const credentialRepositoryFactory =
+    dependencies.credentialRepositoryFactory ?? createDefaultCredentialRepository;
 
   const requirePortalAuth: MiddlewareHandler<SantoAppEnvironment> = async (context, next) => {
     try {
@@ -81,6 +104,28 @@ export function createApp(dependencies: SantoAppDependencies = {}) {
   function tenantService(context: { env: SantoBindings }): TenantControlService {
     return new TenantControlService(tenantRepositoryFactory(context.env), context.env);
   }
+
+  function credentialService(context: { env: SantoBindings }): ServerCredentialService {
+    return new ServerCredentialService(
+      credentialRepositoryFactory(context.env),
+      tenantRepositoryFactory(context.env),
+    );
+  }
+
+  const requireServerAuth: MiddlewareHandler<SantoAppEnvironment> = async (context, next) => {
+    try {
+      const principal = await credentialService(context).authenticate(
+        context.req.header("authorization"),
+      );
+      context.set("serverPrincipal", principal);
+      await next();
+    } catch (error) {
+      if (error instanceof CredentialError) {
+        return context.json(errorPayload(error.code), error.status);
+      }
+      throw error;
+    }
+  };
 
   app.get("/", (context) => context.text("Santo API"));
 
@@ -129,6 +174,7 @@ export function createApp(dependencies: SantoAppDependencies = {}) {
 
   app.use("/v1/admin/*", requirePortalAuth);
   app.use("/v1/portal/*", requirePortalAuth);
+  app.use("/v1/server/*", requireServerAuth);
 
   app.post("/v1/admin/tenants", async (context) => {
     const parsed = CreateTenantRequestSchema.safeParse(await context.req.json().catch(() => null));
@@ -192,6 +238,122 @@ export function createApp(dependencies: SantoAppDependencies = {}) {
       return context.json(TenantSchema.parse(tenant));
     } catch (error) {
       if (error instanceof TenancyError) {
+        return context.json(errorPayload(error.code), error.status);
+      }
+      throw error;
+    }
+  });
+
+  app.post("/v1/portal/tenants/:tenantId/credentials", async (context) => {
+    const tenantId = context.req.param("tenantId");
+    try {
+      await tenantService(context).getTenant(context.get("portalIdentity"), tenantId);
+      const issued = await credentialService(context).createCredential(
+        tenantId,
+        context.get("portalIdentity").userId,
+      );
+      return context.json(CredentialIssueResponseSchema.parse(issued), 201);
+    } catch (error) {
+      if (error instanceof TenancyError || error instanceof CredentialError) {
+        return context.json(errorPayload(error.code), error.status);
+      }
+      throw error;
+    }
+  });
+
+  app.post("/v1/portal/tenants/:tenantId/credentials/:credentialId/rotate", async (context) => {
+    const tenantId = context.req.param("tenantId");
+    try {
+      await tenantService(context).getTenant(context.get("portalIdentity"), tenantId);
+      const issued = await credentialService(context).rotateCredential(
+        tenantId,
+        context.req.param("credentialId"),
+        context.get("portalIdentity").userId,
+      );
+      return context.json(CredentialIssueResponseSchema.parse(issued), 201);
+    } catch (error) {
+      if (error instanceof TenancyError || error instanceof CredentialError) {
+        return context.json(errorPayload(error.code), error.status);
+      }
+      throw error;
+    }
+  });
+
+  app.delete("/v1/portal/tenants/:tenantId/credentials/:credentialId", async (context) => {
+    const tenantId = context.req.param("tenantId");
+    try {
+      await tenantService(context).getTenant(context.get("portalIdentity"), tenantId);
+      const revoked = await credentialService(context).revokeCredential(
+        tenantId,
+        context.req.param("credentialId"),
+        context.get("portalIdentity").userId,
+      );
+      return context.json(ServerCredentialMetadataSchema.parse(revoked));
+    } catch (error) {
+      if (error instanceof TenancyError || error instanceof CredentialError) {
+        return context.json(errorPayload(error.code), error.status);
+      }
+      throw error;
+    }
+  });
+
+  app.get("/v1/portal/tenants/:tenantId/domains", async (context) => {
+    const tenantId = context.req.param("tenantId");
+    try {
+      await tenantService(context).getTenant(context.get("portalIdentity"), tenantId);
+      return context.json(
+        AllowedDomainsResponseSchema.parse(
+          await credentialService(context).getAllowedDomains(tenantId),
+        ),
+      );
+    } catch (error) {
+      if (error instanceof TenancyError || error instanceof CredentialError) {
+        return context.json(errorPayload(error.code), error.status);
+      }
+      throw error;
+    }
+  });
+
+  app.put("/v1/portal/tenants/:tenantId/domains", async (context) => {
+    const parsed = UpdateAllowedDomainsRequestSchema.safeParse(
+      await context.req.json().catch(() => null),
+    );
+    if (!parsed.success) {
+      return context.json(errorPayload("INVALID_ALLOWED_DOMAINS"), 400);
+    }
+
+    const tenantId = context.req.param("tenantId");
+    try {
+      await tenantService(context).getTenant(context.get("portalIdentity"), tenantId);
+      return context.json(
+        AllowedDomainsResponseSchema.parse(
+          await credentialService(context).replaceAllowedDomains(
+            tenantId,
+            parsed.data.domains,
+            context.get("portalIdentity").userId,
+          ),
+        ),
+      );
+    } catch (error) {
+      if (error instanceof TenancyError || error instanceof CredentialError) {
+        return context.json(errorPayload(error.code), error.status);
+      }
+      throw error;
+    }
+  });
+
+  app.get("/v1/server/tenants/:tenantId/context", (context) => {
+    try {
+      return context.json(
+        ServerContextResponseSchema.parse(
+          credentialService(context).assertTenant(
+            context.get("serverPrincipal"),
+            context.req.param("tenantId"),
+          ),
+        ),
+      );
+    } catch (error) {
+      if (error instanceof CredentialError) {
         return context.json(errorPayload(error.code), error.status);
       }
       throw error;

@@ -2,27 +2,27 @@
 
 > **Repository:** `geminiamo0-ship-it/santoreno`
 > **Product:** Santo
-> **Purpose:** This file is the first place any new developer, coding agent, or AI assistant should read before changing the repository.
+> **Purpose:** This is the first file a new developer, coding agent, or AI assistant should read before changing the repository.
 >
-> **Rule:** Update this file whenever meaningful work is completed, a gate passes/fails, architecture changes, or priorities change.
+> **Rule:** Update this file whenever meaningful work is completed, a gate passes/fails, architecture changes, or priorities change. GitHub code, issues, PRs, commits, and Actions are the source of truth if any prose becomes stale.
 
 ## 1. Current state
 
-Santo is a standalone B2B2C medical AI SaaS platform. Customer sites embed Santo while Santo centrally owns AI infrastructure, global medical knowledge, AI Search, quota enforcement, sources/citations, images, usage, security, and tenant administration.
+Santo is a standalone B2B2C medical AI SaaS platform. Customer sites integrate with Santo by API/widget while Santo centrally owns AI infrastructure, global medical knowledge, AI Search, quota enforcement, citations, assets, usage, security, and tenant administration. Customer production databases remain untouched.
 
-Customer production databases remain untouched. Integration is API-based only.
+**Phase 0 / Issue #1 is complete.** PR #11 established the pnpm/Turborepo workspace, portal/API/widget/contracts packages, strict tooling, CI, and runtime smoke baseline. Post-merge `Verify` run **37155527270** passed.
 
-**Phase 0 is complete.** PR **#11** is merged to `main`, and post-merge GitHub Actions `Verify` run **37155527270** passed. The pnpm/Turborepo workspace, minimal portal/API/widget/contracts packages, strict tooling, CI, and runtime smoke checks are the verified baseline.
+**Phase 1 / Issue #2 is complete.** PR #15 established the Cloudflare foundation and real staging bindings. Remote staging acceptance passed on commit `ae2d85c5a9f3658c23d1e3c82b3bda92c0d0defe` in run **37195022577**, with evidence artifact **11300284166** (`sha256:13c11eb101cce3d60a135a53f32848a0ce02e75da76aad68006c6d9a073593f2`). PR #15 was squash-merged as `3d519810e0f640261c378f1e6e6601aec68cde5f`; post-merge `Verify` **37195664585** passed.
 
-**Phase 1 / Issue #2 is complete.** The Cloudflare foundation is proven locally, remotely on staging, and after merge on `main`. Remote staging acceptance passed on commit `ae2d85c5a9f3658c23d1e3c82b3bda92c0d0defe` with provisioning run **37195022577** and machine-readable evidence artifact `santo-staging-evidence` (artifact **11300284166**, digest `sha256:13c11eb101cce3d60a135a53f32848a0ce02e75da76aad68006c6d9a073593f2`). Final branch `Verify` run **37195626441** passed, PR **#15** was squash-merged to `main` as `3d519810e0f640261c378f1e6e6601aec68cde5f`, and post-merge `Verify` run **37195664585** passed completely.
+The staging Worker is `santo-api-staging` at `https://santo-api-staging.geminiamo0.workers.dev`. Staging has verified D1, R2, both SQLite Durable Objects, Queue producer/consumer, Analytics Engine, and AI Search. The staging D1 UUID is `f875f14a-100a-4731-9e9e-1beed957fd16`.
 
-The deployed staging Worker is `santo-api-staging` at `https://santo-api-staging.geminiamo0.workers.dev`. Remote acceptance verified healthy `/health`, D1, R2, both SQLite Durable Objects, Queue enqueue/dequeue and consumption, Analytics Engine, and AI Search. The real staging D1 UUID is committed in `workers/api/wrangler.toml`. No production secrets are committed.
+**Phase 2 / Issue #3 is complete.** PR #17 implemented WorkOS RS256/JWKS verification, D1 tenants/memberships, minimal `super_admin`/`owner` authorization, tenant create/context/read/update APIs, and two-tenant fail-closed isolation. Final clean head `128a64ef4ea39c8fe947bd7d283ecb3c9af9442a` passed `Verify` **37203640840** and P2 staging acceptance **37203637755**. PR #17 was squash-merged as `a22218f2eba76c6b8f3cf4fbefec46bb3f2676ba`; post-merge `Verify` **37203749651** passed.
 
-**Phase 2 / Issue #3 is complete.** PR **#17** implemented the minimal B2B identity/tenancy foundation: WorkOS RS256/JWKS token verification, D1 tenant and membership persistence, minimal `super_admin`/`owner` authorization, tenant-create/context/read/update APIs, and two-tenant fail-closed isolation. Final clean PR head `128a64ef4ea39c8fe947bd7d283ecb3c9af9442a` passed `Verify` run **37203640840** and real P2 staging acceptance run **37203637755**. PR #17 was squash-merged to `main` as `a22218f2eba76c6b8f3cf4fbefec46bb3f2676ba`, and post-merge `Verify` run **37203749651** passed both `repository-policy` and `code-quality`.
+**Phase 3 / Issue #4 implementation and live acceptance are green on PR #19, but the phase is not closed yet.** The last code-clean head before this status update was `447f32672f84b23aa94b3dc563176c3706cec283`. It passed exact-head `Verify` **37209816647 (#131)** and exact-head `P3 Staging Acceptance` **37209812978 (#8)**. The live gate proved real WorkOS-backed MedPark auth, server-secret issue/authentication, wrong-tenant denial, rotation, revocation, allowed domains, `last_used_at`, hash-only D1 persistence, rotation lineage, security audit events, absence of plaintext secret in persisted evidence, and successful cleanup of D1/WorkOS fixtures.
 
-The real P2 staging gate authenticated temporary WorkOS staging identities, verified D1 migration `0002_tenancy.sql`, deployed `santo-api-staging`, created MedPark plus a second tenant, resolved the MedPark owner only to MedPark, proved cross-tenant reads and writes return 403, and cleaned up both D1 and WorkOS fixtures successfully. WorkOS multi-application token behavior is regression-covered: `client_id` identifies the Santo Staging application while `iss` references the environment's default AuthKit application. `WORKOS_API_KEY` remains CI-only and is never deployed to the Worker.
+The temporary one-shot P3 evidence workflow and fixer script were removed before those final clean-head gates. The final PR diff contains only permanent P3 implementation/testing/acceptance files.
 
-**Current active implementation issue:** **#4 — P3 customer server credentials and domain controls.** Issue #3 is closed as completed and Issue #8 marks P2 complete. Do not skip ahead to #5–#7 or full portal work until #4 meets its own acceptance criteria and verification gates.
+**Current gate:** this `PROJECT_STATUS.md` update creates a new PR head, so PR #19 must again pass `Verify` and `P3 Staging Acceptance` on that exact head. Only then may PR #19 be merged. After merge, the exact `main` merge commit must pass `Verify`; only after that do we close #4, mark it complete in #8, and activate #5.
 
 ## 2. Source-of-truth documents
 
@@ -33,8 +33,9 @@ Read in this order before implementation:
 3. `docs/ENGINEERING_GUARDRAILS.md` — mandatory anti-spaghetti and quality rules.
 4. `AGENTS.md` — operational instructions for coding agents/AI assistants.
 5. `CONTRIBUTING.md` — branch/PR/verification workflow.
-6. GitHub Issue **#8** — ordered implementation roadmap and release gates.
-7. GitHub Issues **#1–#7** — active Phase 0–5 backlog plus first grounded AI vertical slice.
+6. GitHub Issue #8 — ordered implementation roadmap and release gates.
+7. GitHub Issue #9 — engineering continuity/guardrails.
+8. The currently active implementation issue.
 
 ## 3. Active implementation order
 
@@ -43,31 +44,20 @@ Do not reorder these without documenting the reason.
 - [x] **#1 — P0:** Bootstrap Santoreno monorepo and CI
 - [x] **#2 — P1:** Provision Cloudflare foundation and bindings
 - [x] **#3 — P2:** Minimal B2B auth, tenancy, and tenant isolation
-- [ ] **#4 — P3:** Customer server credentials and domain controls — current active issue
+- [ ] **#4 — P3:** Customer server credentials and domain controls — acceptance green; merge/post-merge gate pending
 - [ ] **#5 — P4:** Implement `/v1/session/exchange` for external users
 - [ ] **#6 — P5:** Implement atomic `TenantMeterDO` quota engine
 - [ ] **#7 — Vertical Slice:** One minimal grounded AI endpoint
 
 Umbrella roadmap: **#8**.
 
-Engineering guardrails: **#9**.
-
-Repository administration / branch-protection task: **#10**.
+Repository administration / branch-protection follow-up: **#10**.
 
 ## 4. Hard architecture gates
 
 ### Portal gate
 
-**Do not build the full customer portal before #5 and #6 are proven.**
-
-Before that, portal work is limited to the smallest surfaces needed for:
-
-- admin authentication
-- tenant creation
-- tenant context
-- credential issuance/rotation testing
-
-Do not build polished Users, Plans, Usage, Branding, Billing, analytics dashboards, or elaborate navigation before the identity and quota gates pass.
+**Do not build the full customer portal before #5 and #6 are proven.** Before then, portal work is limited to the smallest surfaces needed for admin authentication, tenant creation/context, and credential issuance/rotation testing. Do not build polished Users, Plans, Usage, Branding, Billing, analytics dashboards, or elaborate navigation early.
 
 ### Quota gate
 
@@ -115,7 +105,7 @@ No fabricated citations are permitted.
 - Tests: Vitest + Playwright + integration/security/load suites
 - No Supabase dependency in Santo core
 - No direct customer database access
-- All Santo global medical libraries are available to all customers
+- Global Santo medical knowledge is shared across tenants
 
 ### Phase 1 stable Cloudflare binding contract
 
@@ -127,120 +117,94 @@ No fabricated citations are permitted.
 - `USAGE_ANALYTICS` → Workers Analytics Engine dataset
 - `AI_SEARCH` → Cloudflare AI Search namespace
 
-Environment-specific resource names and the no-secrets rule are documented in `docs/CLOUDFLARE_FOUNDATION.md` and `config/environments/`.
-
-### Phase 2 identity/tenancy foundation on PR #17
+### Phase 2 identity/tenancy foundation
 
 - Portal API bearer tokens are verified server-side as RS256 JWTs against WorkOS JWKS.
 - Token issuer, `client_id`, expiry/not-before, and subject are validated before tenant resolution.
-- WorkOS `org_id` maps to a Santo D1 tenant; WorkOS role claims are not trusted as the sole Santo authorization source.
-- Santo owner authorization requires an explicit `(tenant_id, workos_user_id)` membership record.
-- Santo `super_admin` bootstrap access is server-side configuration only and is never accepted from browser-supplied role/tenant fields.
-- Current tenant routes reject requested tenant IDs that differ from the authenticated Santo tenant context.
-- The minimal API surface is intentionally limited to tenant creation, authenticated context, tenant read, and tenant name update.
-- `WORKOS_API_KEY` is CI-only for temporary WorkOS staging-fixture creation/authentication and must never be deployed to the Worker. The Worker receives only the minimum auth-verification configuration needed for runtime validation.
+- WorkOS `org_id` maps to a Santo D1 tenant; WorkOS role claims are not the sole Santo authorization source.
+- Owner authorization requires explicit `(tenant_id, workos_user_id)` membership in D1.
+- `super_admin` bootstrap is server-side configuration only.
+- Current-tenant routes reject requested tenant IDs differing from authenticated Santo tenant context.
+- `WORKOS_API_KEY` is CI-only for temporary staging fixture creation/authentication and is never deployed to the Worker.
+
+### Phase 3 server-credential foundation on PR #19
+
+- Tenant server credentials are generated server-side with cryptographically secure randomness.
+- Plaintext is returned only at initial issue/rotation time; D1 stores only identification metadata and a verification hash.
+- Credential authentication resolves tenant identity server-side; caller-supplied tenant identity cannot override it.
+- Credential rotation revokes the old credential according to the defined transition policy and records lineage.
+- Explicit revocation denies subsequent use.
+- Successful credential authentication records `last_used_at`.
+- Tenant allowed domains are persisted in the control plane.
+- Security audit events cover credential create/rotate/revoke and domain updates.
+- The P3 PR does not add portal/widget secret handling; customer server secrets remain server-only.
+- Live staging acceptance queries D1 directly to prove hash-only persistence and required lifecycle/audit state.
 
 ## 6. Core architecture rules
 
-- Tenant identity must come from authenticated context, never arbitrary browser input.
+- Tenant identity comes from authenticated context, never arbitrary browser input.
 - Every external user lookup is scoped by `tenant_id + external_user_id`.
 - Quota is server-side, atomic, and idempotent.
 - Customer server secrets never enter browser bundles.
-- Browser code never receives Cloudflare, R2, AI Search, or model provider credentials.
-- No tenant-specific code forks or `if tenant === "medpark"` business logic.
+- Browser code never receives Cloudflare, R2, AI Search, model-provider, or customer server credentials.
+- No tenant-specific forks or `if tenant === "medpark"` business logic.
 - AI output is structured; never render arbitrary model-generated HTML.
 - Citations must resolve to retrieved source IDs.
-- Customer database stays untouched.
+- Customer production databases stay untouched.
+- Schema changes are migration-only.
 
 ## 7. Completion/update protocol
 
 Whenever work is completed:
 
 1. Update the relevant GitHub issue checklist.
-2. Add a concise issue comment with evidence: commit/PR/tests/result.
-3. Close the issue only when all acceptance criteria pass.
-4. Update Issue #8 if roadmap status or sequencing changed.
-5. Update this `PROJECT_STATUS.md` checklist and the **Last completed work** section below.
-6. Record major architecture decisions in `docs/adr/` when they materially affect future implementation.
-7. Never claim a task is complete based only on code existing; required tests/gates must pass.
-8. Every meaningful code/infrastructure step must pass GitHub Actions `Verify` before it is marked complete.
+2. Add a concise issue comment with commit/PR/test evidence.
+3. Keep the issue open until all acceptance, merge, and required post-merge gates pass.
+4. Update Issue #8 only when roadmap status/sequencing actually changes.
+5. Update this file when meaningful work or gate state changes.
+6. Record a new ADR only for a material architecture decision.
+7. Never claim completion because code merely exists; required tests/gates must pass.
+8. Every meaningful code/infrastructure step must pass GitHub Actions `Verify` before being marked complete.
+9. CI failure blocks progression; fix the actual failure instead of bypassing the gate.
 
 ## 8. Last completed work
 
-- Repository created: `geminiamo0-ship-it/santoreno`.
-- `SANTO_MASTER_PLAN.md` committed to `main`.
-- GitHub backlog created for Phase 0–5 and the first grounded AI vertical slice: Issues #1–#7.
-- Umbrella roadmap and release gates created: Issue #8.
-- Engineering continuity/anti-spaghetti documentation established under Issue #9.
-- Pull request template added with architecture, verification, documentation, and rollback checks.
-- ADR template added at `docs/adr/TEMPLATE.md`.
-- `CODEOWNERS` added for repository ownership.
-- Dependabot configured for npm and GitHub Actions updates.
-- `CONTRIBUTING.md` added with branch, PR, Conventional Commit, and definition-of-done rules.
-- Main-branch protection requirements documented in `docs/BRANCH_PROTECTION.md`.
-- GitHub Actions `.github/workflows/verify.yml` added as the mandatory verification gate.
-- README exposes the live `Verify` badge and verification rule.
-- Repository-admin follow-up for actual `main` protection is tracked in Issue #10 because the connected integration cannot write branch-protection settings.
-- **Phase 0 / Issue #1 is complete and merged via PR #11.** The repository has a pinned pnpm workspace and lockfile, Turborepo, strict shared TypeScript config, Oxlint + Prettier, a minimal React Router/Vite portal shell, a minimal Hono Worker, shared Zod contracts, and a minimal Lit `<santo-ai>` package.
-- Post-merge Phase 0 `main` `Verify` run `37155527270` passed for merge commit `defcd8ff951c118387c3ffe7d3d61198a1840bb0`.
-- **Phase 1 repository/local foundation was established via PR #13 as `1c1f33d4cc84c1f7c5855db3c7b8f151c8b53354`.** The Worker has stable D1/R2/DO/Queue/Analytics/AI Search binding contracts, SQLite-backed `TenantMeterDO` and `ConversationDO` namespace declarations, the first D1 migration, non-production infrastructure smoke endpoints, and explicit local/staging/production resource manifests.
-- Final PR-branch `Verify` run `37156901666` passed on `78ff49101d4498d976521fab76319dfb209d9beb`: frozen install, lint, typecheck, tests, Wrangler dry-run build, D1 migration, Worker boot, D1/R2/DO/Queue/Analytics smoke, and queue-consumer persistence all passed.
-- Post-merge `main` run `37157031087` passed for `1c1f33d4cc84c1f7c5855db3c7b8f151c8b53354`, confirming both `repository-policy` and `code-quality` green after merge.
-- AI Search is intentionally not simulated locally; its staging/production binding is configured for remote verification.
-- Cloudflare staging credentials are valid through repository secrets; `wrangler whoami` succeeds.
-- Real staging resources are provisioned: D1 `santo-control-plane-staging`, R2 `santo-content-staging`, Queue `santo-events-staging`, SQLite Durable Object namespaces for `TenantMeterDO` and `ConversationDO`, Analytics Engine dataset binding `santo_usage_staging`, and AI Search namespace `default`.
-- D1 migration `0001_infrastructure_smoke.sql` is applied remotely. The real staging D1 UUID `f875f14a-100a-4731-9e9e-1beed957fd16` is committed in `workers/api/wrangler.toml`.
-- Workers Analytics Engine is enabled for the Cloudflare account and `santo-api-staging` deploys successfully to `https://santo-api-staging.geminiamo0.workers.dev`.
-- **Remote staging acceptance passed on commit `ae2d85c5a9f3658c23d1e3c82b3bda92c0d0defe`.** `Verify` run **37195026053** passed, and provisioning run **37195022577** passed `/health` plus D1/R2/both DOs/Queue/Analytics/AI Search runtime smoke. Queue consumption was explicitly polled to completion.
-- Machine-readable evidence was uploaded as artifact **11300284166** (`santo-staging-evidence`), digest `sha256:13c11eb101cce3d60a135a53f32848a0ce02e75da76aad68006c6d9a073593f2`.
-- The staging gate includes explicit readiness loops for workers.dev route and secret propagation, preventing false failures during Cloudflare deployment propagation.
-- Temporary diagnostics were removed, and the staging provisioning workflow is retained as `workflow_dispatch` only so future account-side verification is explicit and still refuses to run until `Verify` is green for the selected commit.
-- Final PR #15 branch `Verify` run **37195626441** passed completely after restoring the full living handoff document.
-- **PR #15 was squash-merged to `main` as `3d519810e0f640261c378f1e6e6601aec68cde5f`.**
-- **Post-merge `main` Verify run `37195664585` passed completely:** repository policy, frozen install, lint, typecheck, tests, build, and smoke all green.
-- **Issue #2 was closed as completed** after all local, remote-staging, merge, and post-merge gates passed. Issue #8 now marks P1 complete and #3 as the active implementation issue.
-- **P2 repository/CI foundation is implemented on PR #17.** It adds WorkOS token verification, D1 tenant/membership schema and repository boundaries, minimal authorization services/routes, and strict shared tenant contracts without adding full portal UI.
-- **P2 isolation regression is proven in CI:** MedPark and a second tenant are created in the test harness; MedPark owner context resolves only MedPark; second-tenant reads and writes return 403; changing only `org_id` without a matching Santo membership still fails closed.
-- **Cloudflare-side P2 staging acceptance passed in run `37199366140`:** D1 migration `0002_tenancy.sql`, remote tenancy-table verification, Worker deploy, `/health`, unauthenticated auth boundary, and runtime binding smoke all passed.
-- **The staging infra smoke token was rotated and hardened:** generated per deployment, masked before entering the Actions environment, and verified with propagation retries; the previously exposed token is no longer reused.
-- **Real WorkOS staging acceptance is automated:** `scripts/p2-live-acceptance.mjs` creates temporary real WorkOS staging identities/organizations, authenticates them, exercises Super Admin/MedPark/second-tenant isolation against the deployed Worker, and removes fixtures afterward.
-- **Clean PR #17 Verify run `37203273368` (#104) passed completely** on commit `87d11f27aa38c865eee35f3779d64847c975f219`: repository policy, lint/format, typecheck, tests, build, and smoke all green.
-- **Real WorkOS staging acceptance passed in run `37203268976` on the same commit:** real WorkOS users and organizations authenticated successfully; Santo Super Admin created MedPark and a second tenant; MedPark owner resolved only MedPark; cross-tenant reads/writes returned 403; D1 and WorkOS fixtures were cleaned successfully.
-- **WorkOS multi-application issuer behavior is now regression-covered:** the token `client_id` is the Santo Staging application while `iss` references the environment default application. Staging config records the verified issuer explicitly and the Worker receives only public verification configuration, never `WORKOS_API_KEY`.
-- **Final clean PR #17 head `128a64ef4ea39c8fe947bd7d283ecb3c9af9442a` passed `Verify` run `37203640840` and P2 staging acceptance run `37203637755`.**
-- **PR #17 was squash-merged to `main` as `a22218f2eba76c6b8f3cf4fbefec46bb3f2676ba`.**
-- **Post-merge `main` Verify run `37203749651` passed completely** on the merge commit, with both `repository-policy` and `code-quality` green.
-- **Issue #3 was closed as completed and Issue #8 now marks P2 complete with #4 active.**
+- **Phase 0 / #1:** merged via PR #11; post-merge `Verify` **37155527270** green.
+- **Phase 1 / #2:** real Cloudflare staging foundation accepted; PR #15 merged as `3d519810e0f640261c378f1e6e6601aec68cde5f`; post-merge `Verify` **37195664585** green.
+- Phase 1 remote evidence artifact: **11300284166** (`santo-staging-evidence`), digest `sha256:13c11eb101cce3d60a135a53f32848a0ce02e75da76aad68006c6d9a073593f2`.
+- **Phase 2 / #3:** WorkOS auth, tenancy, membership, authorization, and strict cross-tenant isolation accepted live; PR #17 merged as `a22218f2eba76c6b8f3cf4fbefec46bb3f2676ba`; post-merge `Verify` **37203749651** green.
+- P2 real staging acceptance authenticated temporary WorkOS identities, created MedPark plus a second tenant, proved MedPark resolves only MedPark, proved cross-tenant read/write attempts return 403, and cleaned both D1 and WorkOS fixtures.
+- WorkOS multi-application issuer behavior is regression-covered: token `client_id` identifies the Santo Staging application while `iss` references the verified environment issuer.
+- **P3 / #4 repository implementation is on PR #19.** It adds D1 migration `0003_server_credentials.sql`, server credential repository/service/authentication routes, domain controls, lifecycle/audit tests, shared contracts, and a repeatable live staging acceptance harness.
+- **P3 final code-clean head `447f32672f84b23aa94b3dc563176c3706cec283` passed exact-head `Verify` `37209816647` (#131).**
+- **P3 live staging acceptance `37209812978` (#8) passed on the same exact head.** It verified real WorkOS-backed MedPark owner context, credential issue/auth/isolation, rotation/revocation, allowed domains, hash-only D1 storage, `last_used_at`, rotation lineage, audit events, and fixture cleanup.
+- Temporary one-shot P3 evidence tooling was removed before the clean-head gates. PR #19 now contains only permanent implementation/testing/acceptance files.
+- Issue #4 scope and acceptance checklists are checked with exact evidence, but the issue intentionally remains open until PR #19 merges and post-merge `main` Verify passes.
 
 ## 9. Next action
 
-Continue **Issue #4 — P3 customer server credentials and domain controls**. Do **not** start Issue #5 yet.
+**Do not start Issue #5 yet.**
 
-Implement the smallest clean credential foundation required by Issue #4: tenant credential metadata in D1, cryptographically secure server-secret generation, store only a safe verification form/hash, return plaintext only once at creation/rotation, credential ID/prefix, server-secret authentication middleware, `last_used_at`, rotation/revocation, allowed-domain configuration, audit events, and regression tests for invalid/revoked/wrong-tenant/rotated credentials.
+Because this status update changes PR #19's head, require both of these on the new exact head:
 
-The security invariants are mandatory: customer server secrets never enter browser bundles, secrets are never stored recoverably in D1, browser/public widget configuration contains no server credential, and tenant resolution comes only from authenticated server-secret context.
+1. GitHub Actions `Verify` — all required jobs green.
+2. `P3 Staging Acceptance` — full live gate green, including cleanup.
 
-For every meaningful step: implement the smallest coherent slice, add tests, require GitHub Actions `Verify`, update Issue #4 checklist/evidence, and keep this handoff current. Do not build the full customer portal; a minimal admin API/test surface is enough for this phase.
+If both pass, merge PR #19 using the repository's normal merge convention. Then require `Verify` green on the exact resulting `main` merge commit. Only after that:
 
-Keep #5 session exchange, #6 quota, full widget UX, billing, polished dashboards, and advanced AI features out of scope until their documented gates become active.
+- close Issue #4 as completed;
+- update Issue #8 to mark #4 complete and #5 active;
+- begin #5 from the verified `main` baseline;
+- update this living handoff on the #5 branch to record Phase 3 as fully complete and Phase 4 as active.
+
+No P4 code should be written before that sequence completes.
 
 ## 10. Verification policy
 
-The workflow `.github/workflows/verify.yml` is the default machine-verification gate.
+`.github/workflows/verify.yml` is the mandatory machine-verification gate. It includes the frozen install, lint/format policy, typecheck, tests, build, smoke checks, and repository policy checks required by the current repository.
 
-It requires:
+The local smoke gate verifies the Phase 0 runtime baseline plus the Phase 1 Cloudflare foundation: portal boot, Worker `/health`, D1 access/migrations, R2, both Durable Objects, Queue enqueue/dequeue with D1 receipt persistence, Analytics Engine dispatch, and expected build artifacts. AI Search is verified remotely rather than simulated locally.
 
-```text
-pnpm install --frozen-lockfile
-pnpm lint
-pnpm typecheck
-pnpm test
-pnpm build
-pnpm smoke
-```
+A step is not complete until its relevant automated verification passes and the evidence is recorded in GitHub.
 
-The smoke gate verifies the Phase 0 runtime baseline plus the Phase 1 local Cloudflare foundation: portal boot, Worker boot with `/health`, D1 migration/access, R2 read/write/delete, both Durable Object bindings, Queue enqueue/dequeue with D1 receipt persistence, Analytics Engine dispatch, and expected build artifacts. AI Search is explicitly skipped locally and is verified against the remote staging binding by the staging provisioning gate.
-
-A step is not considered complete until its relevant automated verification passes and the result is recorded in the issue/PR.
-
-Branch protection/ruleset configuration is also required for `main` as documented in `docs/BRANCH_PROTECTION.md`. The currently connected GitHub integration does not expose a branch-protection write operation, so the actual repository setting must be enabled through an authorized GitHub administration surface and then verified separately.
+Branch protection/ruleset configuration is still required for `main` as documented in `docs/BRANCH_PROTECTION.md`. The connected GitHub integration cannot write branch-protection settings, so that repository setting remains an authorized-admin follow-up tracked by Issue #10.

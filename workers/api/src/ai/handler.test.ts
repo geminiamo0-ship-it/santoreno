@@ -151,7 +151,11 @@ function externalUserRepository(): ExternalUserRepository {
   };
 }
 
-function request(token: string, idempotencyKey = "query-1"): Request {
+function request(
+  token: string,
+  idempotencyKey = "query-1",
+  query = "What is the normal serum sodium range?",
+): Request {
   return new Request("https://santo.test/v1/ai/query", {
     method: "POST",
     headers: {
@@ -159,7 +163,7 @@ function request(token: string, idempotencyKey = "query-1"): Request {
       "content-type": "application/json",
     },
     body: JSON.stringify({
-      query: "What is the normal serum sodium range?",
+      query,
       idempotency_key: idempotencyKey,
     }),
   });
@@ -292,5 +296,14 @@ describe("grounded AI handler", () => {
     expect(quota.used).toBe(1);
     expect(quota.reserveCalls).toBe(2);
     expect(quota.finalizeCalls).toBe(2);
+  });
+
+  it("does charge distinct queries even when a client reuses the same key", async () => {
+    const first = await handler()(request(token, "reused-key", "sodium"), env);
+    const second = await handler()(request(token, "reused-key", "potassium"), env);
+
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    expect(quota.used).toBe(2);
   });
 });

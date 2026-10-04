@@ -22,6 +22,9 @@ function modelText(raw: unknown): string | null {
   if (typeof response === "string") {
     return response;
   }
+  if (asRecord(response)) {
+    return JSON.stringify(response);
+  }
 
   const choices = root.choices;
   if (Array.isArray(choices) && choices.length > 0) {
@@ -72,6 +75,20 @@ function parseDraft(text: string): GroundedModelDraft {
   };
 }
 
+const groundedResponseSchema = {
+  type: "object",
+  properties: {
+    answer: { type: "string" },
+    citation_ids: {
+      type: "array",
+      items: { type: "string" },
+      maxItems: 5,
+    },
+  },
+  required: ["answer", "citation_ids"],
+  additionalProperties: false,
+} as const;
+
 export class CloudflareWorkersAiModel implements ModelPort {
   constructor(
     private readonly ai: WorkersAiLike | undefined,
@@ -90,10 +107,14 @@ export class CloudflareWorkersAiModel implements ModelPort {
           {
             role: "system",
             content:
-              "Return only the JSON object requested by the user prompt. Never invent source identifiers.",
+              "Return only the grounded JSON object requested by the user prompt. Never invent source identifiers.",
           },
           { role: "user", content: prompt },
         ],
+        response_format: {
+          type: "json_schema",
+          json_schema: groundedResponseSchema,
+        },
         temperature: 0.1,
         max_tokens: 900,
       });

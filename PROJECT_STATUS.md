@@ -20,9 +20,11 @@ Santo is a standalone B2B2C medical AI SaaS platform. Customer sites integrate w
 
 **Phase 4 / Issue #5 is complete.** PR #20 final head `de82949c612d7295433153f318c8b140fc48ecf7` passed exact-head `Verify` **37212527419 (#152)** and P4 Staging Acceptance **37212523930 (#4)**. PR #20 was squash-merged as `54300a908ea139731cfd2e433949b31517bae479`; exact post-merge `Verify` **37212761714 (#153)** passed. Final P4 handoff PR #21 was merged as `778939780a80d3b36a3b48e380192a25d0f39b94`; post-merge `Verify` **37213063804 (#155)** passed.
 
-**Phase 5 / Issue #6 implementation and live acceptance are green on PR #22, but the phase is not closed yet.** Clean candidate head `011b777a1f3840c3e32b9c80b51609ebe7097ce7` passed exact-head `Verify` **37214781630 (#167)** and exact-head `P5 Staging Acceptance` **37214779313 (#3)**. The live Cloudflare gate produced exactly **1 allowed / 99 denied** from 100 simultaneous reservations with one unit remaining and also proved idempotency, release/finalize terminal behavior, tenant-cap precedence, suspension/expiry denial, tenant isolation, and quota-cycle rollover.
+**Phase 5 / Issue #6 implementation and live acceptance are green on PR #22, but the phase is not closed yet.** Latest accepted implementation head `517f002940018996477e61ef7896e5d230f0b22f` passed exact-head `Verify` **37215785645 (#172)** and exact-head `P5 Staging Acceptance` **37215781824 (#8)**. The live Cloudflare gate again proved exactly **1 allowed / 99 denied** from 100 simultaneous reservations with one unit remaining, plus idempotency, release/finalize terminal behavior, tenant-cap precedence, suspension/expiry denial, tenant isolation, and quota-cycle rollover.
 
-**Current gate:** this handoff update changes PR #22's head. Require `Verify` and `P5 Staging Acceptance` green again on the resulting exact head. Only then mark PR #22 ready, squash-merge it, and require exact post-merge `main` `Verify`. Issue #6 stays open and #7 must not start until those gates pass.
+During finalization, CI also exposed and fixed two verification-quality issues without weakening runtime semantics: the P4 tampered-token regression now mutates a byte-significant Base64URL signature character deterministically, and the P5 staging infrastructure smoke uses a bounded deployment-propagation retry while still requiring HTTP 200, `status=ok`, and `TenantMeterDO=ok`. Both fixes are included in the accepted head above.
+
+**Current gate:** this handoff update changes PR #22's head once more. Require `Verify` and `P5 Staging Acceptance` green on the resulting exact documentation head. Only then mark PR #22 ready, squash-merge it, and require exact post-merge `main` `Verify`. Issue #6 stays open and #7 must not start until those gates pass.
 
 ## 2. Source-of-truth documents
 
@@ -68,7 +70,7 @@ Required result with exactly one unit remaining and 100 simultaneous reservation
 99 denied
 ```
 
-**Verified live on P5 candidate head `011b777...`: exactly `1 allowed / 99 denied`.**
+**Verified live repeatedly on P5, including accepted head `517f002...`: exactly `1 allowed / 99 denied`.**
 
 Also verified live:
 
@@ -158,6 +160,7 @@ No fabricated citations are permitted.
 - Session verification rechecks signature, claims, expiry, tenant state, and user state.
 - Same external ID in different tenants creates independent Santo users.
 - Signing keys, server secrets, and session tokens are not persisted in D1 or committed.
+- Tampered-token tests mutate a byte-significant signature character rather than a trailing Base64URL character whose unused padding bits could decode to unchanged signature bytes.
 
 ### P5 quota implementation on PR #22
 
@@ -174,6 +177,7 @@ No fabricated citations are permitted.
 - `DurableObjectQuotaService` is the narrow caller boundary; future AI/routes must not know SQL/DO internals.
 - Runtime smoke exercises real SQLite DO configure → reserve → replay → finalize → finalized-release denial.
 - P5 staging acceptance is protected, non-production-only, and exercises the deployed Cloudflare Durable Object directly.
+- Staging smoke tolerates only a bounded Cloudflare deployment-propagation window; it still fails unless the authenticated smoke endpoint converges to HTTP 200, `status=ok`, and `TenantMeterDO=ok`.
 - AI generation/search does not execute inside `TenantMeterDO`.
 - Do not introduce per-user DOs or sharding unless measured load tests later justify it.
 
@@ -214,10 +218,12 @@ Whenever work is completed:
 - P4 #5: PR #20 merged as `54300a908ea139731cfd2e433949b31517bae479`; post-merge `Verify` **37212761714 (#153)** green. Final handoff PR #21 merged as `778939780a80d3b36a3b48e380192a25d0f39b94`; post-merge `Verify` **37213063804 (#155)** green.
 - P5 branch `feat/issue-6-atomic-quota` was created from verified `main` `778939780a80d3b36a3b48e380192a25d0f39b94`.
 - P5 implemented strict shared quota contracts, authoritative SQLite `TenantMeterDO`, transactional reserve/finalize/release, idempotency, cycle/reset logic, tenant/user suspension and expiry, and a narrow quota service boundary.
-- Clean P5 candidate `011b777a1f3840c3e32b9c80b51609ebe7097ce7` passed `Verify` **37214781630 (#167)**.
-- The same exact head passed P5 Staging Acceptance **37214779313 (#3)** against `santo-api-staging` and the real `TENANT_METER` binding.
-- Live P5 result: `{"status":"passed","race":{"allowed":1,"denied":99},"idempotency":{"reserveReplay":true,"finalizeReplay":true,"conflictDenied":true},"release":{"remaining":2},"tenantCap":{"denialReason":"TENANT_EXHAUSTED"},"suspension":{"tenant":"TENANT_SUSPENDED","user":"USER_SUSPENDED","expired":"QUOTA_EXPIRED"},"isolation":{"isolated":true},"cycleReset":{"advanced":true}}`.
-- Temporary P5 formatter workflows were deleted before the accepted clean head.
+- Initial clean P5 candidate `011b777a1f3840c3e32b9c80b51609ebe7097ce7` passed `Verify` **37214781630 (#167)** and P5 Staging Acceptance **37214779313 (#3)**.
+- Finalization exposed a flaky P4 tampered-session regression caused by mutating the last Base64URL character; the test now changes a byte-significant signature character deterministically.
+- Finalization also exposed a staging-deployment propagation race where unauthenticated `/health` could reach the new Worker version before the new ephemeral smoke token converged globally. P5 smoke now retries for a bounded window while preserving the full strict assertion.
+- Latest accepted P5 implementation head `517f002940018996477e61ef7896e5d230f0b22f` passed exact-head `Verify` **37215785645 (#172)** and exact-head P5 Staging Acceptance **37215781824 (#8)**.
+- The latest live P5 run again proved the real `TENANT_METER` gate, including exactly `1 allowed / 99 denied` and all idempotency/isolation/suspension/cycle assertions.
+- Temporary P5 formatter workflows were deleted before accepted clean heads; no temporary formatter workflow is part of the intended final tree.
 - Issue #6 checklist and pre-merge evidence are updated; the issue intentionally remains open until merge + post-merge `main` verification.
 
 ## 9. Next action
@@ -245,7 +251,7 @@ Do not build full quota management UI, billing, analytics dashboards, broad port
 
 `.github/workflows/verify.yml` remains the mandatory repository gate: frozen install, lint/format, typecheck, tests, build, smoke, and repository policy.
 
-P5 additionally requires `.github/workflows/p5-staging-acceptance.yml` on the exact candidate head before merge. It deploys the staging Worker with masked ephemeral test secrets and proves the real `TENANT_METER` SQLite Durable Object race/idempotency/isolation gates.
+P5 additionally requires `.github/workflows/p5-staging-acceptance.yml` on the exact candidate head before merge. It deploys the staging Worker with masked ephemeral test secrets and proves the real `TENANT_METER` SQLite Durable Object race/idempotency/isolation gates. The authenticated infrastructure smoke is propagation-safe but remains fail-closed if the strict assertions do not converge within the bounded retry window.
 
 A phase is not complete until required acceptance, merge, and post-merge evidence is recorded.
 

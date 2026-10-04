@@ -7,6 +7,7 @@ port = 8787
 
 [vars]
 SANTO_ENV = "local"
+SANTO_SESSION_TTL_SECONDS = "900"
 
 [[d1_databases]]
 binding = "CONTROL_DB"
@@ -54,9 +55,10 @@ workers_dev = true
 
 [env.staging.vars]
 SANTO_ENV = "staging"
+SANTO_SESSION_TTL_SECONDS = "900"
 
 [env.staging.secrets]
-required = ["INFRA_SMOKE_TOKEN"]
+required = ["INFRA_SMOKE_TOKEN", "SANTO_SESSION_SIGNING_KEY"]
 
 [[env.staging.d1_databases]]
 binding = "CONTROL_DB"
@@ -99,6 +101,7 @@ name = "santo-api"
 
 [env.production.vars]
 SANTO_ENV = "production"
+SANTO_SESSION_TTL_SECONDS = "900"
 
 [[env.production.r2_buckets]]
 binding = "CONTENT_BUCKET"

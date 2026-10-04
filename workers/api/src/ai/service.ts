@@ -122,7 +122,10 @@ export class GroundedAiService {
       throw error;
     }
 
-    const remaining = Math.min(finalized.snapshot.tenant.remaining, finalized.snapshot.user.remaining);
+    const remaining = Math.min(
+      finalized.snapshot.tenant.remaining,
+      finalized.snapshot.user.remaining,
+    );
     this.telemetry.record({
       requestId,
       tenantId: session.tenantId,

@@ -1,8 +1,5 @@
 import { ApiErrorResponseSchema } from "@santo/contracts";
-import {
-  GroundedAiQueryRequestSchema,
-  GroundedAiQueryResponseSchema,
-} from "@santo/contracts/ai";
+import { GroundedAiQueryRequestSchema, GroundedAiQueryResponseSchema } from "@santo/contracts/ai";
 
 import { DurableObjectQuotaService, QuotaServiceError } from "../quota/service";
 import type { QuotaService } from "../quota/types";
@@ -60,7 +57,8 @@ export function createGroundedAiHandler(dependencies: GroundedAiHandlerDependenc
   const retrievalFactory =
     dependencies.retrievalFactory ?? ((env) => new CloudflareAiSearchRetrieval(env.AI_SEARCH));
   const modelFactory =
-    dependencies.modelFactory ?? ((env) => new CloudflareWorkersAiModel(env.AI, env.SANTO_AI_MODEL));
+    dependencies.modelFactory ??
+    ((env) => new CloudflareWorkersAiModel(env.AI, env.SANTO_AI_MODEL));
   const telemetryFactory =
     dependencies.telemetryFactory ?? ((env) => new AnalyticsEngineAiTelemetry(env.USAGE_ANALYTICS));
 
@@ -79,7 +77,9 @@ export function createGroundedAiHandler(dependencies: GroundedAiHandlerDependenc
 
     try {
       const tokens = new SantoSessionTokenService(env);
-      const principal = await tokens.verifyBearerToken(request.headers.get("authorization") ?? undefined);
+      const principal = await tokens.verifyBearerToken(
+        request.headers.get("authorization") ?? undefined,
+      );
       const session = await new SessionExchangeService(
         externalUserRepositoryFactory(env),
         tenantRepositoryFactory(env),

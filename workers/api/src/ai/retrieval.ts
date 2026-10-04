@@ -76,7 +76,10 @@ function instanceIdsFromList(raw: unknown): string[] {
   return ids;
 }
 
-function evidenceFromSearch(raw: unknown, selectedInstanceIds: readonly string[]): RetrievedEvidence[] {
+function evidenceFromSearch(
+  raw: unknown,
+  selectedInstanceIds: readonly string[],
+): RetrievedEvidence[] {
   const root = asRecord(raw);
   const chunks = root?.chunks;
   if (!Array.isArray(chunks)) {

@@ -12,7 +12,6 @@ permissions:
 env:
   CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
   CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-  WORKOS_CLIENT_ID: ${{ secrets.WORKOS_CLIENT_ID }}
   WORKOS_API_KEY: ${{ secrets.WORKOS_API_KEY }}
   P2_WORKOS_STATE_PATH: /tmp/santo-p2-workos-state.json
   GH_TOKEN: ${{ github.token }}
@@ -61,6 +60,20 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Load WorkOS staging config
+        shell: bash
+        run: |
+          set -euo pipefail
+          client_id="$(jq -r '.workos.clientId // empty' config/environments/staging.json)"
+          environment_id="$(jq -r '.workos.environmentId // empty' config/environments/staging.json)"
+          application_id="$(jq -r '.workos.applicationId // empty' config/environments/staging.json)"
+          test -n "$client_id"
+          test -n "$environment_id"
+          test -n "$application_id"
+          echo "WORKOS_CLIENT_ID=$client_id" >> "$GITHUB_ENV"
+          echo "WORKOS_ENVIRONMENT_ID=$environment_id" >> "$GITHUB_ENV"
+          echo "WORKOS_APPLICATION_ID=$application_id" >> "$GITHUB_ENV"
 
       - name: Validate Cloudflare credentials
         shell: bash

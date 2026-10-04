@@ -218,8 +218,17 @@ jobs:
         run: |
           set -euo pipefail
 
-          health="$(curl --fail --silent --show-error --retry 30 --retry-all-errors --retry-delay 2 "${WORKER_URL}/health")"
-          jq -e '.service == "santo-api" and .status == "ok"' <<<"$health" >/dev/null
+          health=""
+          for attempt in $(seq 1 45); do
+            candidate="$(curl --silent --show-error "${WORKER_URL}/health" || true)"
+            if jq -e '.service == "santo-api" and .status == "ok"' <<<"$candidate" >/dev/null 2>&1; then
+              health="$candidate"
+              break
+            fi
+            echo "Waiting for staging Worker readiness (${attempt}/45)..."
+            sleep 2
+          done
+          [[ -n "$health" ]] || { echo "Staging Worker did not become ready"; exit 1; }
 
           smoke="$(curl --fail --silent --show-error \
             -H "x-santo-infra-smoke-token: ${INFRA_SMOKE_TOKEN}" \

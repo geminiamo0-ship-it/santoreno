@@ -174,6 +174,7 @@ Whenever work is completed:
 - **Real staging resources are partially provisioned:** D1 `santo-control-plane-staging`, R2 `santo-content-staging`, Queue `santo-events-staging`, and AI Search namespace `default` are confirmed; the first D1 migration is applied remotely. The real staging D1 UUID is committed in `workers/api/wrangler.toml` by `e9f5438448ef741e6d9b6e3a77119a3fb604ab49`.
 - `Verify` run `37193763834` passed completely for that real-D1 commit.
 - Remote staging deploy run `37193762021` reaches Worker upload with all declared bindings resolved, but Cloudflare rejects deployment with error 10089 because Workers Analytics Engine is not enabled for the account. Remote `/health`, DO, Queue consumer, Analytics Engine write, and AI Search runtime smoke therefore remain pending.
+- Handoff update commit `b6977e8c6116a6805f0745eb3ce9a8a5468a860f` passed `Verify` run `37193865388`, so the recorded blocker/status is itself verified.
 
 ## 9. Next action
 

@@ -1,0 +1,296 @@
+name: P4 Staging Acceptance
+
+on:
+  push:
+    branches:
+      - feat/issue-5-session-exchange
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  checks: read
+
+env:
+  CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  WORKOS_API_KEY: ${{ secrets.WORKOS_API_KEY }}
+  P2_WORKOS_STATE_PATH: /tmp/santo-p2-workos-state.json
+  P4_SESSION_STATE_PATH: /tmp/santo-p4-session-state.json
+  GH_TOKEN: ${{ github.token }}
+  NO_COLOR: "1"
+
+jobs:
+  p4-staging:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Wait for Verify on this commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 60); do
+            checks="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/check-runs")"
+            policy="$(jq -r '[.check_runs[] | select(.name == "repository-policy") | .conclusion] | map(select(. != null)) | .[0] // ""' <<<"$checks")"
+            quality="$(jq -r '[.check_runs[] | select(.name == "code-quality") | .conclusion] | map(select(. != null)) | .[0] // ""' <<<"$checks")"
+            if [[ "$policy" == "success" && "$quality" == "success" ]]; then
+              echo "Verify is green for ${GITHUB_SHA}."
+              exit 0
+            fi
+            for conclusion in "$policy" "$quality"; do
+              case "$conclusion" in
+                failure|cancelled|timed_out|action_required|startup_failure|stale)
+                  echo "Verify failed: repository-policy=${policy}, code-quality=${quality}"
+                  exit 1
+                  ;;
+              esac
+            done
+            sleep 5
+          done
+          echo "Timed out waiting for Verify."
+          exit 1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Load WorkOS staging config
+        shell: bash
+        run: |
+          set -euo pipefail
+          client_id="$(jq -r '.workos.clientId // empty' config/environments/staging.json)"
+          environment_id="$(jq -r '.workos.environmentId // empty' config/environments/staging.json)"
+          application_id="$(jq -r '.workos.applicationId // empty' config/environments/staging.json)"
+          issuer="$(jq -r '.workos.issuer // empty' config/environments/staging.json)"
+          test -n "$client_id"
+          test -n "$environment_id"
+          test -n "$application_id"
+          test -n "$issuer"
+          echo "WORKOS_CLIENT_ID=$client_id" >> "$GITHUB_ENV"
+          echo "WORKOS_ENVIRONMENT_ID=$environment_id" >> "$GITHUB_ENV"
+          echo "WORKOS_APPLICATION_ID=$application_id" >> "$GITHUB_ENV"
+          echo "WORKOS_ISSUER=$issuer" >> "$GITHUB_ENV"
+
+      - name: Validate Cloudflare and WorkOS credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${CLOUDFLARE_ACCOUNT_ID:-}"
+          test -n "${CLOUDFLARE_API_TOKEN:-}"
+          test -n "${WORKOS_CLIENT_ID:-}"
+          test -n "${WORKOS_ISSUER:-}"
+          test -n "${WORKOS_API_KEY:-}"
+          cd workers/api
+          pnpm exec wrangler whoami
+
+      - name: Apply P4 staging migrations
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd workers/api
+          pnpm exec wrangler d1 migrations apply CONTROL_DB --env staging --remote
+
+      - name: Verify external users table exists remotely
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd workers/api
+          pnpm exec wrangler d1 execute CONTROL_DB --env staging --remote --json \
+            --command "SELECT name FROM sqlite_master WHERE type='table' AND name='external_users';" \
+            > /tmp/p4-tables.json
+          node <<'NODE'
+          const fs = require('fs');
+          const payload = JSON.parse(fs.readFileSync('/tmp/p4-tables.json', 'utf8'));
+          const rows = payload.flatMap((entry) => entry?.results ?? entry?.result?.results ?? []);
+          if (!rows.some((row) => row.name === 'external_users')) {
+            throw new Error('Missing remote P4 table: external_users');
+          }
+          console.log('Remote external_users table verified.');
+          NODE
+
+      - name: Seed and authenticate WorkOS staging identities
+        shell: bash
+        run: node scripts/p2-live-acceptance.mjs seed
+
+      - name: Deploy P4 staging Worker
+        id: deploy
+        shell: bash
+        run: |
+          set -euo pipefail
+          smoke_token="$(openssl rand -hex 32)"
+          session_signing_key="$(openssl rand -hex 48)"
+          echo "::add-mask::$smoke_token"
+          echo "::add-mask::$session_signing_key"
+          echo "INFRA_SMOKE_TOKEN=$smoke_token" >> "$GITHUB_ENV"
+          jq -n \
+            --arg smoke "$smoke_token" \
+            --arg client "$WORKOS_CLIENT_ID" \
+            --arg issuer "$WORKOS_ISSUER" \
+            --arg admins "$SANTO_SUPER_ADMIN_USER_IDS" \
+            --arg sessionKey "$session_signing_key" \
+            '{
+              INFRA_SMOKE_TOKEN: $smoke,
+              WORKOS_CLIENT_ID: $client,
+              WORKOS_ISSUER: $issuer,
+              SANTO_SUPER_ADMIN_USER_IDS: $admins,
+              SANTO_SESSION_SIGNING_KEY: $sessionKey
+            }' > /tmp/p4-secrets.json
+          chmod 600 /tmp/p4-secrets.json
+          trap 'rm -f /tmp/p4-secrets.json' EXIT
+          cd workers/api
+          pnpm exec wrangler deploy --env staging --secrets-file /tmp/p4-secrets.json | tee /tmp/p4-deploy.txt
+          worker_url="$(grep -Eo 'https://[A-Za-z0-9.-]+\.workers\.dev' /tmp/p4-deploy.txt | tail -n 1)"
+          test -n "$worker_url"
+          echo "worker_url=$worker_url" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for P4 Worker readiness
+        env:
+          WORKER_URL: ${{ steps.deploy.outputs.worker_url }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          health=""
+          smoke_status=""
+          for attempt in $(seq 1 45); do
+            health="$(curl --silent --show-error "${WORKER_URL}/health" || true)"
+            smoke_status="$(curl --silent --show-error \
+              --output /tmp/p4-smoke.json \
+              --write-out '%{http_code}' \
+              -H "x-santo-infra-smoke-token: ${INFRA_SMOKE_TOKEN}" \
+              "${WORKER_URL}/__infra/smoke" || true)"
+            if jq -e '.service == "santo-api" and .status == "ok"' <<<"$health" >/dev/null 2>&1 && \
+              [[ "$smoke_status" == "200" ]] && \
+              jq -e '.environment == "staging" and .bindings.controlDatabase == "ok"' /tmp/p4-smoke.json >/dev/null 2>&1; then
+              break
+            fi
+            sleep 2
+          done
+          jq -e '.service == "santo-api" and .status == "ok"' <<<"$health" >/dev/null
+          test "$smoke_status" = "200"
+          jq -e '.environment == "staging" and .bindings.controlDatabase == "ok"' /tmp/p4-smoke.json >/dev/null
+
+      - name: Create real P2 tenant fixtures
+        env:
+          WORKER_URL: ${{ steps.deploy.outputs.worker_url }}
+        shell: bash
+        run: node scripts/p2-live-acceptance.mjs verify
+
+      - name: Verify P4 session exchange live
+        env:
+          WORKER_URL: ${{ steps.deploy.outputs.worker_url }}
+        shell: bash
+        run: node scripts/p4-live-acceptance.mjs verify
+
+      - name: Verify tenant-scoped external users in D1
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('fs');
+          const state = JSON.parse(fs.readFileSync(process.env.P4_SESSION_STATE_PATH, 'utf8'));
+          const values = [
+            state.externalUserId,
+            state.medpark?.tenantId,
+            state.medpark?.userId,
+            state.isolation?.tenantId,
+            state.isolation?.userId,
+          ];
+          for (const value of values) {
+            if (typeof value !== 'string' || !/^[A-Za-z0-9_-]+$/.test(value)) {
+              throw new Error('Unsafe P4 state value for SQL assertion');
+            }
+          }
+          const q = (value) => `'${value}'`;
+          fs.writeFileSync(
+            '/tmp/p4-users.sql',
+            `SELECT id, tenant_id, external_user_id, email, display_name, status FROM external_users WHERE external_user_id = ${q(state.externalUserId)} AND tenant_id IN (${q(state.medpark.tenantId)}, ${q(state.isolation.tenantId)}) ORDER BY tenant_id;`,
+          );
+          NODE
+          cd workers/api
+          pnpm exec wrangler d1 execute CONTROL_DB --env staging --remote --json \
+            --command "$(cat /tmp/p4-users.sql)" > /tmp/p4-users.json
+          cd ../..
+          node <<'NODE'
+          const fs = require('fs');
+          const state = JSON.parse(fs.readFileSync(process.env.P4_SESSION_STATE_PATH, 'utf8'));
+          const payload = JSON.parse(fs.readFileSync('/tmp/p4-users.json', 'utf8'));
+          const rows = payload.flatMap((entry) => entry?.results ?? entry?.result?.results ?? []);
+          if (rows.length !== 2) throw new Error(`Expected 2 tenant-scoped external users, got ${rows.length}`);
+          const byTenant = new Map(rows.map((row) => [row.tenant_id, row]));
+          const medpark = byTenant.get(state.medpark.tenantId);
+          const isolation = byTenant.get(state.isolation.tenantId);
+          if (!medpark || !isolation) throw new Error('Expected both tenant-scoped external users');
+          if (medpark.id !== state.medpark.userId || isolation.id !== state.isolation.userId) {
+            throw new Error('External-user IDs do not match live exchange responses');
+          }
+          if (medpark.id === isolation.id) {
+            throw new Error('Same external ID collapsed into one Santo user across tenants');
+          }
+          if (medpark.external_user_id !== state.externalUserId || isolation.external_user_id !== state.externalUserId) {
+            throw new Error('External user ID did not persist as expected');
+          }
+          if (medpark.status !== 'active' || isolation.status !== 'active') {
+            throw new Error('New external users are not active');
+          }
+          for (const row of rows) {
+            if (Object.values(row).some((value) => typeof value === 'string' && value.includes('eyJ'))) {
+              throw new Error('A session token appears to have been persisted in external_users');
+            }
+          }
+          console.log('Remote D1 tenant-scoped external-user isolation verified.');
+          NODE
+
+      - name: Record P4 staging summary
+        env:
+          WORKER_URL: ${{ steps.deploy.outputs.worker_url }}
+        shell: bash
+        run: |
+          {
+            echo "## P4 staging acceptance"
+            echo
+            echo "- Commit: \`${GITHUB_SHA}\`"
+            echo "- Worker: \`${WORKER_URL}\`"
+            echo "- D1 migration 0004: applied"
+            echo "- external_users table: verified"
+            echo "- Real WorkOS-backed tenant fixtures: verified"
+            echo "- MedPark external user 58392 session exchange: passed"
+            echo "- Same external ID in second tenant: isolated"
+            echo "- Signed 15-minute Santo token claims: verified"
+            echo "- Session verification middleware/context: passed"
+            echo "- Tampered token, invalid payload, invalid server credential: denied"
+            echo "- D1 external-user tenant scope: verified"
+            echo "- Session signing key and issued tokens: masked, not persisted"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Cleanup Santo staging fixtures
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! -f "$P2_WORKOS_STATE_PATH" ]]; then
+            exit 0
+          fi
+          node scripts/p2-live-acceptance.mjs cleanup-sql > /tmp/p4-cleanup.sql
+          if [[ -s /tmp/p4-cleanup.sql ]]; then
+            cd workers/api
+            pnpm exec wrangler d1 execute CONTROL_DB --env staging --remote --file /tmp/p4-cleanup.sql
+          fi
+
+      - name: Cleanup WorkOS staging fixtures
+        if: always()
+        shell: bash
+        run: node scripts/p2-live-acceptance.mjs cleanup-workos
+
+      - name: Remove P4 staging state
+        if: always()
+        shell: bash
+        run: rm -f "$P2_WORKOS_STATE_PATH" "$P4_SESSION_STATE_PATH" /tmp/p4-cleanup.sql /tmp/p4-secrets.json /tmp/p4-tables.json /tmp/p4-users.sql /tmp/p4-users.json

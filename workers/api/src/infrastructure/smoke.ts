@@ -95,7 +95,7 @@ async function checkTenantMeter(
       reserved.allowed !== true ||
       reserved.reservationStatus !== "reserved" ||
       reserved.snapshot?.tenant?.reserved !== 1 ||
-      reserved.snapshot.user?.reserved !== 1
+      reserved.snapshot?.user?.reserved !== 1
     ) {
       return "error";
     }
@@ -114,7 +114,7 @@ async function checkTenantMeter(
       !replay.ok ||
       replayed.allowed !== true ||
       replayed.snapshot?.tenant?.reserved !== 1 ||
-      replayed.snapshot.user?.reserved !== 1
+      replayed.snapshot?.user?.reserved !== 1
     ) {
       return "error";
     }
@@ -131,9 +131,9 @@ async function checkTenantMeter(
       !finalize.ok ||
       finalized.reservationStatus !== "finalized" ||
       finalized.snapshot?.tenant?.used !== 1 ||
-      finalized.snapshot.tenant.reserved !== 0 ||
-      finalized.snapshot.user?.used !== 1 ||
-      finalized.snapshot.user.reserved !== 0
+      finalized.snapshot?.tenant?.reserved !== 0 ||
+      finalized.snapshot?.user?.used !== 1 ||
+      finalized.snapshot?.user?.reserved !== 0
     ) {
       return "error";
     }

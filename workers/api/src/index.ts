@@ -1,4 +1,5 @@
 import { app } from "./app";
+import { handleGroundedAiQuery } from "./ai/http";
 import { handleP5QuotaAcceptance } from "./infrastructure/p5-quota-acceptance";
 import { handleInfrastructureQueue } from "./infrastructure/queue";
 import type { SantoBindings } from "./runtime/bindings";
@@ -8,6 +9,9 @@ export { TenantMeterDO } from "./durable-objects/tenant-meter";
 
 const fetch: typeof app.fetch = async (request, env, executionContext) => {
   const url = new URL(request.url);
+  if (request.method === "POST" && url.pathname === "/v1/ai/query") {
+    return handleGroundedAiQuery(request, env as SantoBindings);
+  }
   if (request.method === "POST" && url.pathname === "/__infra/p5-quota-acceptance") {
     return handleP5QuotaAcceptance(request, env as SantoBindings);
   }

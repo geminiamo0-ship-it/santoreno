@@ -105,6 +105,59 @@ export const ServerContextResponseSchema = z.object({
 });
 export type ServerContextResponse = z.infer<typeof ServerContextResponseSchema>;
 
+export const ExternalUserStatusSchema = z.enum(["active", "suspended"]);
+export type ExternalUserStatus = z.infer<typeof ExternalUserStatusSchema>;
+
+export const ExternalUserSchema = z.object({
+  id: z.string().uuid(),
+  tenantId: z.string().uuid(),
+  externalUserId: z.string().min(1).max(255),
+  email: z.string().email().max(320).nullable(),
+  displayName: z.string().min(1).max(120).nullable(),
+  status: ExternalUserStatusSchema,
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+});
+export type ExternalUser = z.infer<typeof ExternalUserSchema>;
+
+export const SessionExchangeRequestSchema = z
+  .object({
+    external_user_id: z.string().trim().min(1).max(255),
+    email: z.string().email().max(320).optional(),
+    display_name: z.string().trim().min(1).max(120).optional(),
+  })
+  .strict();
+export type SessionExchangeRequest = z.infer<typeof SessionExchangeRequestSchema>;
+
+export const SantoSessionClaimsSchema = z.object({
+  iss: z.literal("Santo"),
+  aud: z.literal("santo-ai"),
+  tenant: z.string().uuid(),
+  sub: z.string().min(1).max(255),
+  session_id: z.string().uuid(),
+  jti: z.string().uuid(),
+  iat: z.number().int().nonnegative(),
+  exp: z.number().int().positive(),
+});
+export type SantoSessionClaims = z.infer<typeof SantoSessionClaimsSchema>;
+
+export const SessionExchangeResponseSchema = z.object({
+  accessToken: z.string().min(1),
+  tokenType: z.literal("Bearer"),
+  expiresIn: z.number().int().min(600).max(1200),
+  expiresAt: z.string().datetime(),
+  user: ExternalUserSchema,
+});
+export type SessionExchangeResponse = z.infer<typeof SessionExchangeResponseSchema>;
+
+export const SessionContextResponseSchema = z.object({
+  tenantId: z.string().uuid(),
+  externalUserId: z.string().min(1).max(255),
+  sessionId: z.string().uuid(),
+  expiresAt: z.string().datetime(),
+});
+export type SessionContextResponse = z.infer<typeof SessionContextResponseSchema>;
+
 export const ApiErrorResponseSchema = z.object({
   error: z.string().min(1),
 });

@@ -59,6 +59,8 @@ export interface SantoBindings {
   WORKOS_ISSUER?: string;
   WORKOS_JWKS_URL?: string;
   SANTO_SUPER_ADMIN_USER_IDS?: string;
+  SANTO_SESSION_SIGNING_KEY?: string;
+  SANTO_SESSION_TTL_SECONDS?: string;
   CONTROL_DB?: D1DatabaseLike;
   CONTENT_BUCKET?: R2BucketLike;
   TENANT_METER?: DurableObjectNamespaceLike;

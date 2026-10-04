@@ -130,10 +130,21 @@ jobs:
           test "$status" = "401"
           jq -e '.error == "AUTH_REQUIRED"' /tmp/p2-auth.json >/dev/null
 
-          smoke="$(curl --fail --silent --show-error \
-            -H "x-santo-infra-smoke-token: ${INFRA_SMOKE_TOKEN}" \
-            "${WORKER_URL}/__infra/smoke")"
-          jq -e '.environment == "staging" and .bindings.controlDatabase == "ok"' <<<"$smoke" >/dev/null
+          smoke_status=""
+          for attempt in $(seq 1 45); do
+            smoke_status="$(curl --silent --show-error \
+              --output /tmp/p2-smoke.json \
+              --write-out '%{http_code}' \
+              -H "x-santo-infra-smoke-token: ${INFRA_SMOKE_TOKEN}" \
+              "${WORKER_URL}/__infra/smoke" || true)"
+            if [[ "$smoke_status" == "200" ]] && \
+              jq -e '.environment == "staging" and .bindings.controlDatabase == "ok"' /tmp/p2-smoke.json >/dev/null 2>&1; then
+              break
+            fi
+            sleep 2
+          done
+          test "$smoke_status" = "200"
+          jq -e '.environment == "staging" and .bindings.controlDatabase == "ok"' /tmp/p2-smoke.json >/dev/null
 
           {
             echo "## P2 staging acceptance"
@@ -145,5 +156,5 @@ jobs:
             echo "- /health: passed"
             echo "- unauthenticated /v1/portal/context: 401 AUTH_REQUIRED"
             echo "- D1 runtime binding: passed"
-            echo "- infra smoke token: rotated and masked"
+            echo "- infra smoke token: rotated, masked, and propagation-verified"
           } >> "$GITHUB_STEP_SUMMARY"

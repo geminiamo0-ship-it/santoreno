@@ -1,5 +1,3 @@
-import { ZodError } from "zod";
-
 import { QuotaStateError, TenantMeterCore, type DurableObjectStorageLike } from "./tenant-meter-core";
 
 interface DurableObjectStateLike {
@@ -14,7 +12,7 @@ function errorResponse(error: unknown): Response {
   if (error instanceof QuotaStateError) {
     return json({ error: error.code }, error.status);
   }
-  if (error instanceof ZodError) {
+  if (error instanceof Error && error.name === "ZodError") {
     return json({ error: "INVALID_QUOTA_REQUEST" }, 400);
   }
   throw error;

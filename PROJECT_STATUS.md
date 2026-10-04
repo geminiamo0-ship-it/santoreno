@@ -178,13 +178,14 @@ Whenever work is completed:
 - Workers Analytics Engine is enabled for the Cloudflare account and `santo-api-staging` deploys successfully to `https://santo-api-staging.geminiamo0.workers.dev`.
 - **Remote staging acceptance passed on commit `ae2d85c5a9f3658c23d1e3c82b3bda92c0d0defe`.** `Verify` run **37195026053** passed, and provisioning run **37195022577** passed `/health` plus D1/R2/both DOs/Queue/Analytics/AI Search runtime smoke. Queue consumption was explicitly polled to completion.
 - Machine-readable evidence was uploaded as artifact **11300284166** (`santo-staging-evidence`), digest `sha256:13c11eb101cce3d60a135a53f32848a0ce02e75da76aad68006c6d9a073593f2`.
-- The staging gate now includes explicit readiness loops for workers.dev route and secret propagation, preventing false failures during Cloudflare deployment propagation.
+- The staging gate includes explicit readiness loops for workers.dev route and secret propagation, preventing false failures during Cloudflare deployment propagation.
+- Temporary diagnostics were removed, and the staging provisioning workflow is retained as `workflow_dispatch` only so future account-side verification is explicit and still refuses to run until `Verify` is green for the selected commit.
 
 ## 9. Next action
 
 Continue **Issue #2 — P1**. Do **not** start Issue #3 yet.
 
-The remote acceptance criteria are proven. Finish repository hygiene on PR #15, run the final branch `Verify`, squash-merge PR #15, and then require a green post-merge `Verify` on `main`.
+The remote acceptance criteria are proven. Run the final branch `Verify` after the documentation/CI cleanup, squash-merge PR #15, and then require a green post-merge `Verify` on `main`.
 
 Only after that main-branch verification may Issue #2 be closed and the roadmap advance to **Issue #3 — P2 minimal B2B auth, tenancy, and tenant isolation**.
 

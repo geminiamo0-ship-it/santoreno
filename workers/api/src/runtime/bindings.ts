@@ -8,6 +8,7 @@ export interface D1PreparedStatementLike {
 
 export interface D1DatabaseLike {
   prepare(query: string): D1PreparedStatementLike;
+  batch?(statements: D1PreparedStatementLike[]): Promise<unknown[]>;
 }
 
 export interface R2ObjectBodyLike {
@@ -54,6 +55,10 @@ export interface QueueBatchLike<T = unknown> {
 export interface SantoBindings {
   SANTO_ENV?: SantoEnvironment;
   INFRA_SMOKE_TOKEN?: string;
+  WORKOS_CLIENT_ID?: string;
+  WORKOS_ISSUER?: string;
+  WORKOS_JWKS_URL?: string;
+  SANTO_SUPER_ADMIN_USER_IDS?: string;
   CONTROL_DB?: D1DatabaseLike;
   CONTENT_BUCKET?: R2BucketLike;
   TENANT_METER?: DurableObjectNamespaceLike;

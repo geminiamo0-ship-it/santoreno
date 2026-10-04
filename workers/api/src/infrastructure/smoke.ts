@@ -4,7 +4,11 @@ import type {
   SantoEnvironment,
 } from "@santo/contracts";
 
-import type { DurableObjectNamespaceLike, SantoBindings } from "../runtime/bindings";
+import type {
+  DurableObjectNamespaceLike,
+  DurableObjectStubLike,
+  SantoBindings,
+} from "../runtime/bindings";
 
 async function checkDurableObject(
   namespace: DurableObjectNamespaceLike | undefined,
@@ -17,6 +21,133 @@ async function checkDurableObject(
     const id = namespace.idFromName("infrastructure-smoke");
     const response = await namespace.get(id).fetch("https://santo.internal/health");
     return response.ok ? "ok" : "error";
+  } catch {
+    return "error";
+  }
+}
+
+async function postJson(
+  stub: DurableObjectStubLike,
+  path: string,
+  body: unknown,
+): Promise<Response> {
+  return stub.fetch(
+    new Request(`https://santo.internal${path}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    }),
+  );
+}
+
+async function checkTenantMeter(
+  namespace: DurableObjectNamespaceLike | undefined,
+): Promise<InfrastructureBindingStatus> {
+  if (!namespace) {
+    return "missing";
+  }
+
+  try {
+    const tenantId = crypto.randomUUID();
+    const id = namespace.idFromName(`infrastructure-smoke-${tenantId}`);
+    const stub = namespace.get(id);
+    const health = await stub.fetch("https://santo.internal/health");
+    if (!health.ok) {
+      return "error";
+    }
+
+    const now = Date.now();
+    const externalUserId = "infra-smoke-user";
+    const configure = await postJson(stub, "/configure", {
+      tenantId,
+      tenantStatus: "active",
+      monthlyAllowance: 2,
+      cycleStartAt: new Date(now - 1_000).toISOString(),
+      cycleEndAt: new Date(now + 86_400_000).toISOString(),
+      user: {
+        externalUserId,
+        status: "active",
+        baseQuota: 2,
+        bonusQuota: 0,
+        expiresAt: null,
+      },
+    });
+    if (!configure.ok) {
+      return "error";
+    }
+
+    const idempotencyKey = crypto.randomUUID();
+    const reserve = await postJson(stub, "/reserve", {
+      tenantId,
+      externalUserId,
+      idempotencyKey,
+      units: 1,
+    });
+    if (!reserve.ok) {
+      return "error";
+    }
+    const reserved = (await reserve.json()) as {
+      allowed?: boolean;
+      reservationStatus?: string;
+      snapshot?: { tenant?: { reserved?: number }; user?: { reserved?: number } };
+    };
+    if (
+      reserved.allowed !== true ||
+      reserved.reservationStatus !== "reserved" ||
+      reserved.snapshot?.tenant?.reserved !== 1 ||
+      reserved.snapshot.user?.reserved !== 1
+    ) {
+      return "error";
+    }
+
+    const replay = await postJson(stub, "/reserve", {
+      tenantId,
+      externalUserId,
+      idempotencyKey,
+      units: 1,
+    });
+    const replayed = (await replay.json()) as {
+      allowed?: boolean;
+      snapshot?: { tenant?: { reserved?: number }; user?: { reserved?: number } };
+    };
+    if (
+      !replay.ok ||
+      replayed.allowed !== true ||
+      replayed.snapshot?.tenant?.reserved !== 1 ||
+      replayed.snapshot.user?.reserved !== 1
+    ) {
+      return "error";
+    }
+
+    const finalize = await postJson(stub, "/finalize", { tenantId, idempotencyKey });
+    const finalized = (await finalize.json()) as {
+      reservationStatus?: string;
+      snapshot?: {
+        tenant?: { used?: number; reserved?: number };
+        user?: { used?: number; reserved?: number };
+      };
+    };
+    if (
+      !finalize.ok ||
+      finalized.reservationStatus !== "finalized" ||
+      finalized.snapshot?.tenant?.used !== 1 ||
+      finalized.snapshot.tenant.reserved !== 0 ||
+      finalized.snapshot.user?.used !== 1 ||
+      finalized.snapshot.user.reserved !== 0
+    ) {
+      return "error";
+    }
+
+    const releaseFinalized = await postJson(stub, "/release", { tenantId, idempotencyKey });
+    const releaseError = (await releaseFinalized.json()) as { error?: string };
+    if (
+      releaseFinalized.status !== 409 ||
+      releaseError.error !== "RESERVATION_ALREADY_FINALIZED"
+    ) {
+      return "error";
+    }
+
+    return "ok";
   } catch {
     return "error";
   }
@@ -61,7 +192,7 @@ export async function runInfrastructureSmoke(
     }
   }
 
-  bindings.tenantMeterDo = await checkDurableObject(env.TENANT_METER);
+  bindings.tenantMeterDo = await checkTenantMeter(env.TENANT_METER);
   bindings.conversationDo = await checkDurableObject(env.CONVERSATION);
 
   if (env.EVENT_QUEUE) {

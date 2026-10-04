@@ -15,11 +15,7 @@ const FIXTURE_CONTENT = [
 ].join("\n");
 
 type SetupStage =
-  | "remove-stale"
-  | "create-instance"
-  | "index-fixture"
-  | "validate-index"
-  | "configure-quota";
+  "remove-stale" | "create-instance" | "index-fixture" | "validate-index" | "configure-quota";
 
 function isAuthorized(request: Request, env: SantoBindings): boolean {
   if (env.SANTO_ENV === "production") {

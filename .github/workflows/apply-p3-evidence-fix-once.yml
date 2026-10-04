@@ -1,0 +1,35 @@
+name: Apply P3 Evidence Fix Once
+
+on:
+  push:
+    branches:
+      - feat/issue-4-server-credentials
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/issue-4-server-credentials
+
+      - name: Apply evidence fix
+        run: python3 scripts/fix-p3-evidence.py
+
+      - name: Commit evidence fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/workflows/p3-staging-acceptance.yml
+          if git diff --cached --quiet; then
+            echo "P3 evidence workflow already fixed."
+            exit 0
+          fi
+          git commit -m "fix: query P3 D1 evidence without import output"
+          git push origin HEAD:feat/issue-4-server-credentials

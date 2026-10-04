@@ -55,9 +55,7 @@ async function requestJson(url, options, label) {
 
   if (!response.ok) {
     const detail = responseMessage(body);
-    throw new Error(
-      `${label} failed with HTTP ${response.status}${detail ? `: ${detail}` : ""}`,
-    );
+    throw new Error(`${label} failed with HTTP ${response.status}${detail ? `: ${detail}` : ""}`);
   }
 
   return { status: response.status, body };
@@ -160,9 +158,7 @@ async function deleteIgnoringMissing(path) {
   });
   if (response.ok || response.status === 404) return;
   const text = await response.text();
-  throw new Error(
-    `WorkOS cleanup failed for ${path} with HTTP ${response.status}: ${text}`,
-  );
+  throw new Error(`WorkOS cleanup failed for ${path} with HTTP ${response.status}: ${text}`);
 }
 
 async function cleanupWorkos(state, { bestEffort = false } = {}) {
@@ -172,9 +168,7 @@ async function cleanupWorkos(state, { bestEffort = false } = {}) {
   for (const user of Object.values(state.workos.users ?? {})) {
     if (!user?.id) continue;
     try {
-      await deleteIgnoringMissing(
-        `/user_management/users/${encodeURIComponent(user.id)}`,
-      );
+      await deleteIgnoringMissing(`/user_management/users/${encodeURIComponent(user.id)}`);
     } catch (error) {
       errors.push(error);
     }
@@ -183,19 +177,14 @@ async function cleanupWorkos(state, { bestEffort = false } = {}) {
   for (const organization of Object.values(state.workos.organizations ?? {})) {
     if (!organization?.id) continue;
     try {
-      await deleteIgnoringMissing(
-        `/organizations/${encodeURIComponent(organization.id)}`,
-      );
+      await deleteIgnoringMissing(`/organizations/${encodeURIComponent(organization.id)}`);
     } catch (error) {
       errors.push(error);
     }
   }
 
   if (errors.length > 0 && !bestEffort) {
-    throw new AggregateError(
-      errors,
-      "One or more WorkOS staging fixtures could not be removed",
-    );
+    throw new AggregateError(errors, "One or more WorkOS staging fixtures could not be removed");
   }
 }
 
@@ -259,23 +248,15 @@ async function seed() {
     };
     await saveState(state);
 
-    await createMembership(
-      medparkUser.id,
-      state.workos.organizations.medpark.id,
-    );
-    await createMembership(
-      isolationUser.id,
-      state.workos.organizations.isolation.id,
-    );
+    await createMembership(medparkUser.id, state.workos.organizations.medpark.id);
+    await createMembership(isolationUser.id, state.workos.organizations.isolation.id);
 
     const superAuth = await authenticate(superEmail, superPassword);
     const medparkAuth = await authenticate(medparkEmail, medparkPassword);
     const isolationAuth = await authenticate(isolationEmail, isolationPassword);
 
     if (superAuth.user.id !== superUser.id) {
-      throw new Error(
-        "Authenticated WorkOS Super Admin identity does not match the seeded user",
-      );
+      throw new Error("Authenticated WorkOS Super Admin identity does not match the seeded user");
     }
     if (
       medparkAuth.user.id !== medparkUser.id ||
@@ -299,25 +280,15 @@ async function seed() {
     state.workos.users.isolationOwner.accessToken = isolationAuth.access_token;
     await saveState(state);
 
-    await appendGithubFile(
-      "GITHUB_ENV",
-      `SANTO_SUPER_ADMIN_USER_IDS=${superUser.id}`,
-    );
-    console.log(
-      "Real WorkOS staging identities were created and authenticated successfully.",
-    );
+    await appendGithubFile("GITHUB_ENV", `SANTO_SUPER_ADMIN_USER_IDS=${superUser.id}`);
+    console.log("Real WorkOS staging identities were created and authenticated successfully.");
   } catch (error) {
     await cleanupWorkos(state, { bestEffort: true });
     throw error;
   }
 }
 
-async function santoRequest(
-  workerUrl,
-  path,
-  token,
-  { method = "GET", body } = {},
-) {
+async function santoRequest(workerUrl, path, token, { method = "GET", body } = {}) {
   const response = await fetch(`${workerUrl}${path}`, {
     method,
     headers: {
@@ -347,10 +318,7 @@ async function createSantoTenant(workerUrl, token, input) {
     method: "POST",
     body: input,
   });
-  expect(
-    response.status === 201,
-    `Tenant creation returned HTTP ${response.status}`,
-  );
+  expect(response.status === 201, `Tenant creation returned HTTP ${response.status}`);
   expect(response.body?.id, "Tenant creation response is missing an ID");
   return response.body;
 }
@@ -365,32 +333,17 @@ async function verify() {
   const isolationOwner = state.workos.users.isolationOwner;
   const medparkOrg = state.workos.organizations.medpark;
   const isolationOrg = state.workos.organizations.isolation;
-  for (const value of [
-    superAdmin,
-    medparkOwner,
-    isolationOwner,
-    medparkOrg,
-    isolationOrg,
-  ]) {
+  for (const value of [superAdmin, medparkOwner, isolationOwner, medparkOrg, isolationOrg]) {
     if (!value?.id) throw new Error("P2 WorkOS state is incomplete");
   }
   for (const user of [superAdmin, medparkOwner, isolationOwner]) {
     if (!user.accessToken) {
-      throw new Error(
-        "P2 WorkOS state is missing an authenticated access token",
-      );
+      throw new Error("P2 WorkOS state is missing an authenticated access token");
     }
   }
 
-  const adminContext = await santoRequest(
-    workerUrl,
-    "/v1/portal/context",
-    superAdmin.accessToken,
-  );
-  expect(
-    adminContext.status === 200,
-    `Super Admin context returned HTTP ${adminContext.status}`,
-  );
+  const adminContext = await santoRequest(workerUrl, "/v1/portal/context", superAdmin.accessToken);
+  expect(adminContext.status === 200, `Super Admin context returned HTTP ${adminContext.status}`);
   expect(
     adminContext.body?.role === "super_admin",
     "Super Admin role was not resolved server-side",
@@ -400,29 +353,21 @@ async function verify() {
     "Super Admin must not inherit a tenant from browser input",
   );
 
-  const medparkTenant = await createSantoTenant(
-    workerUrl,
-    superAdmin.accessToken,
-    {
-      slug: `medpark-${state.runTag}`,
-      name: "MedPark",
-      workosOrgId: medparkOrg.id,
-      ownerWorkosUserId: medparkOwner.id,
-    },
-  );
+  const medparkTenant = await createSantoTenant(workerUrl, superAdmin.accessToken, {
+    slug: `medpark-${state.runTag}`,
+    name: "MedPark",
+    workosOrgId: medparkOrg.id,
+    ownerWorkosUserId: medparkOwner.id,
+  });
   state.santo.tenants.medpark = { id: medparkTenant.id };
   await saveState(state);
 
-  const isolationTenant = await createSantoTenant(
-    workerUrl,
-    superAdmin.accessToken,
-    {
-      slug: `isolation-${state.runTag}`,
-      name: "Isolation Tenant",
-      workosOrgId: isolationOrg.id,
-      ownerWorkosUserId: isolationOwner.id,
-    },
-  );
+  const isolationTenant = await createSantoTenant(workerUrl, superAdmin.accessToken, {
+    slug: `isolation-${state.runTag}`,
+    name: "Isolation Tenant",
+    workosOrgId: isolationOrg.id,
+    ownerWorkosUserId: isolationOwner.id,
+  });
   state.santo.tenants.isolation = { id: isolationTenant.id };
   await saveState(state);
 
@@ -447,10 +392,7 @@ async function verify() {
     medparkContext.body?.tenant?.id === medparkTenant.id,
     "MedPark owner resolved the wrong tenant",
   );
-  expect(
-    medparkContext.body?.tenant?.name === "MedPark",
-    "MedPark tenant name did not round-trip",
-  );
+  expect(medparkContext.body?.tenant?.name === "MedPark", "MedPark tenant name did not round-trip");
   expect(
     medparkContext.body?.tenant?.workosOrgId === medparkOrg.id,
     "MedPark tenant did not map to the authenticated WorkOS organization",
@@ -461,10 +403,7 @@ async function verify() {
     `/v1/portal/tenants/${medparkTenant.id}`,
     medparkOwner.accessToken,
   );
-  expect(
-    ownRead.status === 200,
-    `MedPark owner self-tenant read returned HTTP ${ownRead.status}`,
-  );
+  expect(ownRead.status === 200, `MedPark owner self-tenant read returned HTTP ${ownRead.status}`);
 
   const crossRead = await santoRequest(
     workerUrl,
@@ -475,10 +414,7 @@ async function verify() {
     crossRead.status === 403,
     `Cross-tenant read returned HTTP ${crossRead.status}, expected 403`,
   );
-  expect(
-    crossRead.body?.error === "FORBIDDEN",
-    "Cross-tenant read did not fail with FORBIDDEN",
-  );
+  expect(crossRead.body?.error === "FORBIDDEN", "Cross-tenant read did not fail with FORBIDDEN");
 
   const crossWrite = await santoRequest(
     workerUrl,
@@ -490,10 +426,7 @@ async function verify() {
     crossWrite.status === 403,
     `Cross-tenant write returned HTTP ${crossWrite.status}, expected 403`,
   );
-  expect(
-    crossWrite.body?.error === "FORBIDDEN",
-    "Cross-tenant write did not fail with FORBIDDEN",
-  );
+  expect(crossWrite.body?.error === "FORBIDDEN", "Cross-tenant write did not fail with FORBIDDEN");
 
   const isolationContext = await santoRequest(
     workerUrl,
@@ -501,8 +434,7 @@ async function verify() {
     isolationOwner.accessToken,
   );
   expect(
-    isolationContext.status === 200 &&
-      isolationContext.body?.tenant?.id === isolationTenant.id,
+    isolationContext.status === 200 && isolationContext.body?.tenant?.id === isolationTenant.id,
     "Isolation owner did not resolve the second tenant",
   );
 
@@ -536,9 +468,7 @@ async function verify() {
     ].join("\n"),
   );
 
-  console.log(
-    "Real WorkOS staging auth and Santo cross-tenant isolation passed.",
-  );
+  console.log("Real WorkOS staging auth and Santo cross-tenant isolation passed.");
 }
 
 async function cleanupSql() {
@@ -551,9 +481,7 @@ async function cleanupSql() {
 
   for (const organizationId of organizationIds) {
     if (!/^org_[A-Za-z0-9]+$/.test(organizationId)) {
-      throw new Error(
-        `Unsafe WorkOS organization ID in cleanup state: ${organizationId}`,
-      );
+      throw new Error(`Unsafe WorkOS organization ID in cleanup state: ${organizationId}`);
     }
   }
 
@@ -561,8 +489,7 @@ async function cleanupSql() {
   const memberCleanup =
     "DELETE FROM tenant_members WHERE tenant_id IN " +
     `(SELECT id FROM tenants WHERE workos_org_id IN (${quoted}));`;
-  const tenantCleanup =
-    `DELETE FROM tenants WHERE workos_org_id IN (${quoted});`;
+  const tenantCleanup = `DELETE FROM tenants WHERE workos_org_id IN (${quoted});`;
   console.log(`${memberCleanup} ${tenantCleanup}`);
 }
 

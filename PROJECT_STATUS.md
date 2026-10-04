@@ -18,7 +18,7 @@ Customer production databases remain untouched. Integration is API-based only.
 
 The deployed staging Worker is `santo-api-staging` at `https://santo-api-staging.geminiamo0.workers.dev`. Remote acceptance verified healthy `/health`, D1, R2, both SQLite Durable Objects, Queue enqueue/dequeue, Analytics Engine, and AI Search. The real staging D1 UUID is committed in `workers/api/wrangler.toml`. No production secrets are committed.
 
-**Current P1 blocker:** none at the staging-acceptance layer. The only remaining completion gate is repository hygiene + final PR #15 merge + post-merge `Verify` on `main`. Do not advance to Issue #3 until that main-branch gate passes and Issue #2 is formally closed.
+**Current P1 blocker:** none at the staging-acceptance layer. The only remaining completion gate is final PR #15 merge + post-merge `Verify` on `main`. Do not advance to Issue #3 until that main-branch gate passes and Issue #2 is formally closed.
 
 ## 2. Source-of-truth documents
 
@@ -185,7 +185,7 @@ Whenever work is completed:
 
 Continue **Issue #2 — P1**. Do **not** start Issue #3 yet.
 
-The remote acceptance criteria are proven. Run the final branch `Verify` after the documentation/CI cleanup, squash-merge PR #15, and then require a green post-merge `Verify` on `main`.
+The remote acceptance criteria are proven. Run the final branch `Verify`, squash-merge PR #15, and then require a green post-merge `Verify` on `main`.
 
 Only after that main-branch verification may Issue #2 be closed and the roadmap advance to **Issue #3 — P2 minimal B2B auth, tenancy, and tenant isolation**.
 

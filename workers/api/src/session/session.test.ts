@@ -91,58 +91,59 @@ class InMemoryTenantRepository implements TenantRepository {
 
 class InMemoryCredentialRepository implements CredentialRepository {
   readonly records = new Map<string, ServerCredentialRecord>();
-  private readonly domains = new Map<string, string[]>();
-
-  async findActiveByTenantId(tenantId: string): Promise<ServerCredentialRecord | null> {
-    return (
-      [...this.records.values()].find(
-        (record) => record.tenantId === tenantId && record.status === "active",
-      ) ?? null
-    );
-  }
-
-  async findById(tenantId: string, credentialId: string): Promise<ServerCredentialRecord | null> {
-    const record = this.records.get(credentialId);
-    return record?.tenantId === tenantId ? record : null;
-  }
-
-  async findByPrefix(keyPrefix: string): Promise<ServerCredentialRecord | null> {
-    return [...this.records.values()].find((record) => record.keyPrefix === keyPrefix) ?? null;
-  }
+  readonly allowedDomains = new Map<string, string[]>();
+  readonly auditEvents: Array<{
+    tenantId: string;
+    action: string;
+    credentialId: string | null;
+    actorWorkosUserId: string;
+  }> = [];
 
   async createCredential(record: ServerCredentialRecord): Promise<void> {
-    this.records.set(record.id, { ...record });
+    this.records.set(record.id, record);
   }
 
-  async rotateCredential(
-    previous: ServerCredentialRecord,
-    replacement: ServerCredentialRecord,
-  ): Promise<void> {
-    this.records.set(previous.id, {
-      ...previous,
-      status: "revoked",
-      revokedAt: replacement.createdAt,
-    });
-    this.records.set(replacement.id, { ...replacement });
-  }
-
-  async revokeCredential(record: ServerCredentialRecord, _actor: string, revokedAt: string) {
-    this.records.set(record.id, { ...record, status: "revoked", revokedAt });
+  async findCredentialById(credentialId: string): Promise<ServerCredentialRecord | null> {
+    return this.records.get(credentialId) ?? null;
   }
 
   async touchLastUsed(credentialId: string, usedAt: string): Promise<void> {
-    const record = this.records.get(credentialId);
-    if (record) {
-      this.records.set(credentialId, { ...record, lastUsedAt: usedAt });
+    const existing = this.records.get(credentialId);
+    if (existing) {
+      this.records.set(credentialId, { ...existing, lastUsedAt: usedAt, updatedAt: usedAt });
     }
   }
 
-  async replaceAllowedDomains(tenantId: string, domains: string[]): Promise<void> {
-    this.domains.set(tenantId, [...domains]);
+  async revokeCredential(
+    tenantId: string,
+    credentialId: string,
+    revokedAt: string,
+  ): Promise<ServerCredentialRecord | null> {
+    const existing = this.records.get(credentialId);
+    if (!existing || existing.tenantId !== tenantId) {
+      return null;
+    }
+    const revoked = { ...existing, status: "revoked" as const, revokedAt, updatedAt: revokedAt };
+    this.records.set(credentialId, revoked);
+    return revoked;
   }
 
   async getAllowedDomains(tenantId: string): Promise<string[]> {
-    return this.domains.get(tenantId) ?? [];
+    return this.allowedDomains.get(tenantId) ?? [];
+  }
+
+  async replaceAllowedDomains(tenantId: string, domains: string[]): Promise<string[]> {
+    this.allowedDomains.set(tenantId, domains);
+    return domains;
+  }
+
+  async appendAuditEvent(input: {
+    tenantId: string;
+    action: string;
+    credentialId: string | null;
+    actorWorkosUserId: string;
+  }): Promise<void> {
+    this.auditEvents.push(input);
   }
 }
 
@@ -189,8 +190,15 @@ const env: SantoBindings = {
 };
 
 function tamper(token: string): string {
-  const last = token.at(-1);
-  return `${token.slice(0, -1)}${last === "a" ? "b" : "a"}`;
+  const parts = token.split(".");
+  const signature = parts[2];
+  if (parts.length !== 3 || !signature) {
+    throw new Error("Expected a three-segment signed Santo session token");
+  }
+
+  const first = signature[0];
+  parts[2] = `${first === "a" ? "b" : "a"}${signature.slice(1)}`;
+  return parts.join(".");
 }
 
 async function exchange(
@@ -244,6 +252,7 @@ describe("P4 external-user session exchange", () => {
     await expect(medparkContext.json()).resolves.toMatchObject({
       tenantId: medpark.id,
       externalUserId: "58392",
+      userId: medparkSession.user.id,
     });
 
     const secondResponse = await exchange(app, secondCredential.secret, "58392");
@@ -299,7 +308,7 @@ describe("P4 external-user session exchange", () => {
         method: "POST",
         headers: {
           authorization:
-            "Santo santo_sk_000000000000_0000000000000000000000000000000000000000000000000000000000000000",
+            "Santo santo_sk_000000000000_0000000000000000000000000000000000000000000000000000000000000",
           "content-type": "application/json",
         },
         body: JSON.stringify({ external_user_id: "58392" }),
@@ -333,12 +342,11 @@ describe("P4 external-user session exchange", () => {
     });
     const verifier = new SantoSessionTokenService(env, () => baseSeconds + 901);
 
-    try {
-      await verifier.verifyBearerToken(`Bearer ${issued.token}`);
-      throw new Error("Expected expired token verification to fail");
-    } catch (error) {
-      expect(error).toBeInstanceOf(SessionTokenError);
-      expect((error as SessionTokenError).code).toBe("SESSION_TOKEN_EXPIRED");
-    }
+    await expect(verifier.verifyBearerToken(`Bearer ${issued.accessToken}`)).rejects.toMatchObject<
+      Partial<SessionTokenError>
+    >({
+      code: "SESSION_TOKEN_EXPIRED",
+      status: 401,
+    });
   });
 });

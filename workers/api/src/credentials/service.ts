@@ -97,11 +97,13 @@ function parseAuthorizationHeader(authorizationHeader?: string): {
   prefix: string;
 } {
   const match = authorizationHeader?.match(/^Santo (santo_sk_([0-9a-f]{12})_[0-9a-f]{64})$/);
-  if (!match) {
+  const secret = match?.[1];
+  const prefix = match?.[2];
+  if (!secret || !prefix) {
     throw new CredentialError(401, "SERVER_AUTH_REQUIRED", "A Santo server credential is required");
   }
 
-  return { secret: match[1], prefix: match[2] };
+  return { secret, prefix };
 }
 
 export class ServerCredentialService {

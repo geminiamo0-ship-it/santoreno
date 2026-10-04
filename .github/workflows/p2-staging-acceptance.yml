@@ -1,0 +1,147 @@
+name: P2 Staging Acceptance
+
+on:
+  push:
+    branches:
+      - feat/issue-3-tenant-auth
+
+permissions:
+  contents: read
+  checks: read
+
+env:
+  CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  GH_TOKEN: ${{ github.token }}
+  NO_COLOR: "1"
+
+jobs:
+  p2-staging:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Wait for Verify on this commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 60); do
+            checks="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/check-runs")"
+            policy="$(jq -r '[.check_runs[] | select(.name == "repository-policy") | .conclusion] | map(select(. != null)) | .[0] // ""' <<<"$checks")"
+            quality="$(jq -r '[.check_runs[] | select(.name == "code-quality") | .conclusion] | map(select(. != null)) | .[0] // ""' <<<"$checks")"
+            if [[ "$policy" == "success" && "$quality" == "success" ]]; then
+              echo "Verify is green for ${GITHUB_SHA}."
+              exit 0
+            fi
+            for conclusion in "$policy" "$quality"; do
+              case "$conclusion" in
+                failure|cancelled|timed_out|action_required|startup_failure|stale)
+                  echo "Verify failed: repository-policy=${policy}, code-quality=${quality}"
+                  exit 1
+                  ;;
+              esac
+            done
+            sleep 5
+          done
+          echo "Timed out waiting for Verify."
+          exit 1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Validate Cloudflare credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${CLOUDFLARE_ACCOUNT_ID:-}"
+          test -n "${CLOUDFLARE_API_TOKEN:-}"
+          cd workers/api
+          pnpm exec wrangler whoami
+
+      - name: Apply P2 staging migrations
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd workers/api
+          pnpm exec wrangler d1 migrations apply CONTROL_DB --env staging --remote
+
+      - name: Verify tenancy tables exist remotely
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd workers/api
+          pnpm exec wrangler d1 execute CONTROL_DB --env staging --remote --json \
+            --command "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('tenants','tenant_members') ORDER BY name;" \
+            > /tmp/p2-tables.json
+          node <<'NODE'
+          const fs = require('fs');
+          const payload = JSON.parse(fs.readFileSync('/tmp/p2-tables.json', 'utf8'));
+          const rows = payload.flatMap((entry) => entry?.results ?? entry?.result?.results ?? []);
+          const names = new Set(rows.map((row) => row.name));
+          for (const expected of ['tenant_members', 'tenants']) {
+            if (!names.has(expected)) throw new Error(`Missing remote table: ${expected}`);
+          }
+          console.log('Remote P2 tenancy tables verified.');
+          NODE
+
+      - name: Deploy P2 staging Worker
+        id: deploy
+        shell: bash
+        run: |
+          set -euo pipefail
+          smoke_token="$(openssl rand -hex 32)"
+          printf '{"INFRA_SMOKE_TOKEN":"%s"}\n' "$smoke_token" > /tmp/p2-secrets.json
+          chmod 600 /tmp/p2-secrets.json
+          cd workers/api
+          pnpm exec wrangler deploy --env staging --secrets-file /tmp/p2-secrets.json | tee /tmp/p2-deploy.txt
+          worker_url="$(grep -Eo 'https://[A-Za-z0-9.-]+\.workers\.dev' /tmp/p2-deploy.txt | tail -n 1)"
+          test -n "$worker_url"
+          echo "worker_url=$worker_url" >> "$GITHUB_OUTPUT"
+          echo "smoke_token=$smoke_token" >> "$GITHUB_OUTPUT"
+
+      - name: Verify P2 staging runtime
+        env:
+          WORKER_URL: ${{ steps.deploy.outputs.worker_url }}
+          INFRA_SMOKE_TOKEN: ${{ steps.deploy.outputs.smoke_token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 45); do
+            health="$(curl --silent --show-error "${WORKER_URL}/health" || true)"
+            if jq -e '.service == "santo-api" and .status == "ok"' <<<"$health" >/dev/null 2>&1; then
+              break
+            fi
+            sleep 2
+          done
+          jq -e '.service == "santo-api" and .status == "ok"' <<<"$health" >/dev/null
+
+          status="$(curl --silent --output /tmp/p2-auth.json --write-out '%{http_code}' "${WORKER_URL}/v1/portal/context")"
+          test "$status" = "401"
+          jq -e '.error == "AUTH_REQUIRED"' /tmp/p2-auth.json >/dev/null
+
+          smoke="$(curl --fail --silent --show-error \
+            -H "x-santo-infra-smoke-token: ${INFRA_SMOKE_TOKEN}" \
+            "${WORKER_URL}/__infra/smoke")"
+          jq -e '.environment == "staging" and .bindings.controlDatabase == "ok"' <<<"$smoke" >/dev/null
+
+          {
+            echo "## P2 staging acceptance"
+            echo
+            echo "- Commit: \`${GITHUB_SHA}\`"
+            echo "- Worker: \`${WORKER_URL}\`"
+            echo "- D1 migration 0002: applied"
+            echo "- Remote tenants/tenant_members tables: verified"
+            echo "- /health: passed"
+            echo "- unauthenticated /v1/portal/context: 401 AUTH_REQUIRED"
+            echo "- D1 runtime binding: passed"
+          } >> "$GITHUB_STEP_SUMMARY"

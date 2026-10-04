@@ -14,9 +14,9 @@ Customer production databases remain untouched. Integration is API-based only.
 
 **Phase 0 is complete.** PR **#11** is merged to `main`, and post-merge GitHub Actions `Verify` run **37155527270** passed. The pnpm/Turborepo workspace, minimal portal/API/widget/contracts packages, strict tooling, CI, and runtime smoke checks are the verified baseline.
 
-**Phase 1 is in progress.** PR **#13** is merged to `main` as `1c1f33d4cc84c1f7c5855db3c7b8f151c8b53354`, and post-merge GitHub Actions run **37157031087** passed. The repository/local Cloudflare foundation is therefore verified on `main`: D1 migration/access, R2 access, both SQLite Durable Object bindings, Queue enqueue/dequeue with D1 receipt persistence, Analytics Engine dispatch, Worker boot, and `/health` all pass locally. Issue #2 is **not complete** until the real staging resources are provisioned in an authenticated Cloudflare account, the real staging D1 UUID is configured, staging deploy/migration succeeds, and the remote smoke checks including AI Search pass.
+**Phase 1 is in progress.** PR **#13** is merged to `main` as `1c1f33d4cc84c1f7c5855db3c7b8f151c8b53354`, and post-merge GitHub Actions run **37157031087** passed. The repository/local Cloudflare foundation is therefore verified on `main`: D1 migration/access, R2 access, both SQLite Durable Object bindings, Queue enqueue/dequeue with D1 receipt persistence, Analytics Engine dispatch, Worker boot, and `/health` all pass locally. Issue #2 is **not complete** until the staging Worker deploys and the remote smoke checks pass.
 
-**Current P1 blocker:** PR **#15** adds the verified remote staging provisioning gate. Commit `315d25e633e651c05292e443f1b0eef580379c19` passed `Verify` run **37158504560**, but staging provisioning run **37158502226** stopped before creating or changing any Cloudflare resource because `wrangler whoami` returned Cloudflare API error **9109 — Invalid access token**. The GitHub repository secret `CLOUDFLARE_API_TOKEN` must be replaced with the raw value of a valid Cloudflare API Token for the account referenced by `CLOUDFLARE_ACCOUNT_ID`; do not advance to Issue #3 until the remote gate is rerun and passes.
+**Current P1 blocker:** Cloudflare staging authentication is fixed and the remote account resources have now been partially provisioned. The real staging D1 database `santo-control-plane-staging` was created and its UUID is committed in `workers/api/wrangler.toml`; `santo-content-staging` R2 and `santo-events-staging` Queue were created; the `default` AI Search namespace is accessible; and D1 migration `0001_infrastructure_smoke.sql` was applied remotely. Commit `e9f5438448ef741e6d9b6e3a77119a3fb604ab49` passed `Verify` run **37193763834**. Staging deploy run **37193762021** is blocked at Worker upload by Cloudflare error **10089 — Analytics Engine must be enabled for the account**. No staging Worker has been published from the failed deploy, so the remote `/health` and binding smoke remain unproven. Do not advance to Issue #3 until Analytics Engine is enabled and the same staging gate passes end-to-end.
 
 ## 2. Source-of-truth documents
 
@@ -169,23 +169,25 @@ Whenever work is completed:
 - **Phase 1 repository/local foundation is merged via PR #13 as `1c1f33d4cc84c1f7c5855db3c7b8f151c8b53354` and acceptance-verified on `main`.** The Worker has stable D1/R2/DO/Queue/Analytics/AI Search binding contracts, SQLite-backed `TenantMeterDO` and `ConversationDO` namespace declarations, the first D1 migration, non-production infrastructure smoke endpoints, and explicit local/staging/production resource manifests.
 - Final PR-branch `Verify` run `37156901666` passed on `78ff49101d4498d976521fab76319dfb209d9beb`: frozen install, lint, typecheck, tests, Wrangler dry-run build, D1 migration, Worker boot, D1/R2/DO/Queue/Analytics smoke, and queue-consumer persistence all passed.
 - Post-merge `main` run `37157031087` passed for `1c1f33d4cc84c1f7c5855db3c7b8f151c8b53354`, confirming both `repository-policy` and `code-quality` green after merge.
-- AI Search is intentionally not simulated locally; its staging/production binding is configured for remote verification. No staging/production D1 UUID has been fabricated or committed.
-- **PR #15 remote staging gate is code-verified but authentication-blocked.** `Verify` run `37158504560` passed on `315d25e633e651c05292e443f1b0eef580379c19`. Provisioning run `37158502226` then failed at `wrangler whoami` with Cloudflare error 9109 (`Invalid access token`) before any remote resource mutation; no staging acceptance item was marked complete from that run.
+- AI Search is intentionally not simulated locally; its staging/production binding is configured for remote verification.
+- **Cloudflare staging credentials are now valid.** `wrangler whoami` succeeds with the repository secrets.
+- **Real staging resources are partially provisioned:** D1 `santo-control-plane-staging`, R2 `santo-content-staging`, Queue `santo-events-staging`, and AI Search namespace `default` are confirmed; the first D1 migration is applied remotely. The real staging D1 UUID is committed in `workers/api/wrangler.toml` by `e9f5438448ef741e6d9b6e3a77119a3fb604ab49`.
+- `Verify` run `37193763834` passed completely for that real-D1 commit.
+- Remote staging deploy run `37193762021` reaches Worker upload with all declared bindings resolved, but Cloudflare rejects deployment with error 10089 because Workers Analytics Engine is not enabled for the account. Remote `/health`, DO, Queue consumer, Analytics Engine write, and AI Search runtime smoke therefore remain pending.
 
 ## 9. Next action
 
 Continue **Issue #2 — P1**. Do **not** start Issue #3 yet.
 
-First replace GitHub repository secret `CLOUDFLARE_API_TOKEN` with the raw value of a valid Cloudflare API Token for the account referenced by `CLOUDFLARE_ACCOUNT_ID` (no surrounding quotes and not a Global API Key). Then rerun the verified PR #15 staging gate.
+Enable **Workers Analytics Engine** for the Cloudflare account. Cloudflare currently rejects `santo-api-staging` deployment with error `10089` until this account-level prerequisite is enabled.
 
-After authentication succeeds, the remaining gate is authenticated Cloudflare staging provisioning:
+After Analytics Engine is enabled, rerun the existing verified staging workflow. It is idempotent and will reuse the already-created D1/R2/Queue resources and already-applied migration. The remaining acceptance sequence is:
 
-1. Create/confirm `santo-control-plane-staging`, `santo-content-staging`, `santo-events-staging`, the two SQLite Durable Object namespaces, Analytics Engine binding, and AI Search namespace.
-2. Write the real staging D1 UUID into the staging Wrangler binding; never invent or reuse an ID.
-3. Deploy `santo-api-staging`.
-4. Apply the D1 migration remotely.
-5. Verify `/health` and staging infrastructure smoke for D1, R2, both DOs, Queue enqueue/dequeue, Analytics Engine, and AI Search.
-6. Only then mark Issue #2 complete and advance the roadmap to Issue #3.
+1. Deploy `santo-api-staging` with D1, R2, both SQLite Durable Objects, Queue, Analytics Engine, and AI Search bindings.
+2. Verify `/health`.
+3. Verify staging infrastructure smoke for D1, R2, both DOs, Queue enqueue/dequeue, Analytics Engine, and AI Search.
+4. Upload the machine-readable staging evidence.
+5. Only then mark Issue #2 complete, merge PR #15, run post-merge `Verify`, update the roadmap, and advance to Issue #3.
 
 Do not skip directly to portal UI, billing, complete widget UX, tenancy, session exchange, quota, or advanced AI features out of documented order.
 

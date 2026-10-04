@@ -40,7 +40,12 @@ function snapshot(used = 0, reserved = 0): QuotaSnapshot {
 
 function operation(
   reservationStatus: QuotaOperationResponse["reservationStatus"],
-  options: { allowed?: boolean; denialReason?: QuotaOperationResponse["denialReason"]; used?: number; reserved?: number } = {},
+  options: {
+    allowed?: boolean;
+    denialReason?: QuotaOperationResponse["denialReason"];
+    used?: number;
+    reserved?: number;
+  } = {},
 ): QuotaOperationResponse {
   return {
     allowed: options.allowed ?? true,
@@ -125,10 +130,7 @@ describe("GroundedAiQueryService", () => {
         return { answer: "A grounded answer.", citation_ids: ["src_1"] };
       },
     };
-    const ids = [
-      "32dc0f35-78aa-4ee8-a245-9abb8b827ee0",
-      "46014ad1-f5bc-4cd2-8317-24a26b0f4d48",
-    ];
+    const ids = ["32dc0f35-78aa-4ee8-a245-9abb8b827ee0", "46014ad1-f5bc-4cd2-8317-24a26b0f4d48"];
     const service = new GroundedAiQueryService(quota, retriever, generator, () => ids.shift()!);
 
     const result = await service.query(queryInput());
@@ -168,11 +170,7 @@ describe("GroundedAiQueryService", () => {
       operation("released", { allowed: false, denialReason: "RESERVATION_RELEASED" }),
     );
     const generator = model();
-    const service = new GroundedAiQueryService(
-      quotaService({ release }),
-      retrieval([]),
-      generator,
-    );
+    const service = new GroundedAiQueryService(quotaService({ release }), retrieval([]), generator);
 
     await expect(service.query(queryInput())).rejects.toMatchObject<Partial<GroundedAiError>>({
       status: 422,

@@ -25,7 +25,14 @@ function configuredInstanceIds(value?: string): string[] | null {
     return null;
   }
 
-  const ids = [...new Set(value.split(",").map((item) => item.trim()).filter(Boolean))];
+  const ids = [
+    ...new Set(
+      value
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean),
+    ),
+  ];
   if (ids.length === 0 || ids.length > MAX_INSTANCES) {
     throw new RetrievalError(
       "SEARCH_INSTANCE_CONFIGURATION_INVALID",
@@ -125,7 +132,10 @@ export class CloudflareAiSearchRetrieval implements GroundedRetrieval {
 
     const uniqueIds = [...new Set(ids)];
     if (uniqueIds.length === 0) {
-      throw new RetrievalError("SEARCH_NOT_CONFIGURED", "No active AI Search instances are available");
+      throw new RetrievalError(
+        "SEARCH_NOT_CONFIGURED",
+        "No active AI Search instances are available",
+      );
     }
     if (uniqueIds.length > MAX_INSTANCES) {
       throw new RetrievalError(

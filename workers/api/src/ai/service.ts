@@ -4,7 +4,12 @@ import type { QuotaService } from "../quota/types";
 import { CitationError, validateCitations } from "./citations";
 import { ModelError } from "./model";
 import { RetrievalError } from "./retrieval";
-import type { GroundedAiQueryInput, GroundedAiResult, GroundedModel, GroundedRetrieval } from "./types";
+import type {
+  GroundedAiQueryInput,
+  GroundedAiResult,
+  GroundedModel,
+  GroundedRetrieval,
+} from "./types";
 
 export class GroundedAiError extends Error {
   constructor(
@@ -21,11 +26,7 @@ function quotaDenialStatus(reason: string | null): number {
   if (reason === "TENANT_EXHAUSTED" || reason === "USER_EXHAUSTED") {
     return 429;
   }
-  if (
-    reason === "TENANT_SUSPENDED" ||
-    reason === "USER_SUSPENDED" ||
-    reason === "QUOTA_EXPIRED"
-  ) {
+  if (reason === "TENANT_SUSPENDED" || reason === "USER_SUSPENDED" || reason === "QUOTA_EXPIRED") {
     return 403;
   }
   return 409;
@@ -144,10 +145,7 @@ export class GroundedAiQueryService {
       citations,
       usage: {
         unitsCharged: 1,
-        remaining: Math.min(
-          finalized.snapshot.tenant.remaining,
-          finalized.snapshot.user.remaining,
-        ),
+        remaining: Math.min(finalized.snapshot.tenant.remaining, finalized.snapshot.user.remaining),
       },
     });
   }

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { SantoBindings } from "../runtime/bindings";
-import { PortalAuthError, verifyWorkOSBearerToken } from "./workos";
+import { verifyWorkOSBearerToken } from "./workos";
 
 const encoder = new TextEncoder();
 
@@ -75,15 +75,16 @@ afterEach(() => {
 });
 
 describe("WorkOS AuthKit access-token verification", () => {
-  it("verifies an RS256 WorkOS token and returns authenticated organization context", async () => {
+  it("verifies an RS256 token and returns authenticated organization context", async () => {
     const fixture = await createSigningFixture();
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () =>
-        new Response(JSON.stringify({ keys: [fixture.publicJwk] }), {
-          status: 200,
-          headers: { "content-type": "application/json" },
-        }),
+      vi.fn(
+        async () =>
+          new Response(JSON.stringify({ keys: [fixture.publicJwk] }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          }),
       ),
     );
 
@@ -107,7 +108,9 @@ describe("WorkOS AuthKit access-token verification", () => {
     const fixture = await createSigningFixture();
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () => new Response(JSON.stringify({ keys: [fixture.publicJwk] }), { status: 200 })),
+      vi.fn(
+        async () => new Response(JSON.stringify({ keys: [fixture.publicJwk] }), { status: 200 }),
+      ),
     );
 
     const token = await createSignedToken(fixture.privateKey, {
@@ -118,23 +121,17 @@ describe("WorkOS AuthKit access-token verification", () => {
       exp: Math.floor(Date.now() / 1000) + 300,
     });
 
-    await expect(verifyWorkOSBearerToken(env, `Bearer ${token}`)).rejects.toMatchObject<
-      Partial<PortalAuthError>
-    >({
+    await expect(verifyWorkOSBearerToken(env, `Bearer ${token}`)).rejects.toMatchObject({
       code: "INVALID_AUTH_TOKEN",
     });
   });
 
   it("rejects malformed or missing bearer credentials before tenant resolution", async () => {
-    await expect(verifyWorkOSBearerToken(env, undefined)).rejects.toMatchObject<
-      Partial<PortalAuthError>
-    >({
+    await expect(verifyWorkOSBearerToken(env, undefined)).rejects.toMatchObject({
       code: "AUTH_REQUIRED",
     });
 
-    await expect(verifyWorkOSBearerToken(env, "Bearer not-a-jwt")).rejects.toMatchObject<
-      Partial<PortalAuthError>
-    >({
+    await expect(verifyWorkOSBearerToken(env, "Bearer not-a-jwt")).rejects.toMatchObject({
       code: "INVALID_AUTH_TOKEN",
     });
   });

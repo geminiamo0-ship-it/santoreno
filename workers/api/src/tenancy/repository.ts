@@ -144,10 +144,7 @@ export class D1TenantRepository implements TenantRepository {
     return row ? mapTenant(row) : null;
   }
 
-  async findMembership(
-    tenantId: string,
-    workosUserId: string,
-  ): Promise<TenantMembership | null> {
+  async findMembership(tenantId: string, workosUserId: string): Promise<TenantMembership | null> {
     const row = await this.db
       .prepare(
         `SELECT id, tenant_id, workos_user_id, role, created_at, updated_at

@@ -50,10 +50,7 @@ class InMemoryTenantRepository implements TenantRepository {
     return tenantId ? (this.tenants.get(tenantId) ?? null) : null;
   }
 
-  async findMembership(
-    tenantId: string,
-    workosUserId: string,
-  ): Promise<TenantMembership | null> {
+  async findMembership(tenantId: string, workosUserId: string): Promise<TenantMembership | null> {
     return this.memberships.get(`${tenantId}:${workosUserId}`) ?? null;
   }
 
@@ -115,7 +112,7 @@ async function createTenant(
 }
 
 describe("P2 tenant control plane", () => {
-  it("derives owner tenant context from verified identity and blocks cross-tenant read/write", async () => {
+  it("blocks cross-tenant reads and writes from verified owner context", async () => {
     const repository = new InMemoryTenantRepository();
     const app = createApp({
       verifyPortalToken,
@@ -200,7 +197,7 @@ describe("P2 tenant control plane", () => {
     });
   });
 
-  it("does not trust WorkOS organization selection without Santo membership", async () => {
+  it("requires Santo membership for the selected WorkOS organization", async () => {
     const repository = new InMemoryTenantRepository();
     const app = createApp({
       verifyPortalToken,
@@ -230,7 +227,7 @@ describe("P2 tenant control plane", () => {
     await expect(response.json()).resolves.toEqual({ error: "FORBIDDEN" });
   });
 
-  it("requires verified authentication and super-admin permission for tenant creation", async () => {
+  it("requires authentication and super-admin permission to create tenants", async () => {
     const repository = new InMemoryTenantRepository();
     const app = createApp({
       verifyPortalToken,

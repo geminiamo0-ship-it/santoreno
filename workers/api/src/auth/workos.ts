@@ -46,6 +46,12 @@ interface WorkOSJwksResponse {
   keys?: WorkOSJwk[];
 }
 
+interface WorkOSConfig {
+  clientId: string;
+  issuer: string;
+  jwksUrl: string;
+}
+
 function decodeBase64Url(segment: string): Uint8Array {
   const normalized = segment.replace(/-/g, "+").replace(/_/g, "/");
   const padding = "=".repeat((4 - (normalized.length % 4)) % 4);
@@ -76,11 +82,7 @@ function requireBearerToken(authorizationHeader: string | undefined): string {
   return token;
 }
 
-function resolveWorkOSConfig(env: SantoBindings): {
-  clientId: string;
-  issuer: string;
-  jwksUrl: string;
-} {
+function resolveWorkOSConfig(env: SantoBindings): WorkOSConfig {
   const clientId = env.WORKOS_CLIENT_ID?.trim();
   const issuer = env.WORKOS_ISSUER?.trim();
 
@@ -91,12 +93,13 @@ function resolveWorkOSConfig(env: SantoBindings): {
     );
   }
 
+  const configuredJwksUrl = env.WORKOS_JWKS_URL?.trim();
+  const defaultJwksUrl = `https://api.workos.com/sso/jwks/${encodeURIComponent(clientId)}`;
+
   return {
     clientId,
     issuer: normalizeIssuer(issuer),
-    jwksUrl:
-      env.WORKOS_JWKS_URL?.trim() ||
-      `https://api.workos.com/sso/jwks/${encodeURIComponent(clientId)}`,
+    jwksUrl: configuredJwksUrl || defaultJwksUrl,
   };
 }
 
@@ -137,8 +140,10 @@ async function fetchSigningKey(jwksUrl: string, kid: string): Promise<CryptoKey>
 function validateClaims(claims: WorkOSJwtClaims, env: SantoBindings): PortalIdentity {
   const { clientId, issuer } = resolveWorkOSConfig(env);
   const nowSeconds = Math.floor(Date.now() / 1000);
+  const isExpired = claims.exp !== undefined && claims.exp <= nowSeconds;
+  const isNotActiveYet = claims.nbf !== undefined && claims.nbf > nowSeconds;
 
-  if (!claims.sub || !claims.iss || !claims.exp) {
+  if (!claims.sub || !claims.iss || claims.exp === undefined) {
     throw new PortalAuthError("INVALID_AUTH_TOKEN", "Required WorkOS claims are missing");
   }
 
@@ -150,7 +155,7 @@ function validateClaims(claims: WorkOSJwtClaims, env: SantoBindings): PortalIden
     throw new PortalAuthError("INVALID_AUTH_TOKEN", "Unexpected WorkOS client ID");
   }
 
-  if (claims.exp <= nowSeconds || (claims.nbf !== undefined && claims.nbf > nowSeconds)) {
+  if (isExpired || isNotActiveYet) {
     throw new PortalAuthError("INVALID_AUTH_TOKEN", "WorkOS access token is not active");
   }
 
@@ -189,9 +194,9 @@ export const verifyWorkOSBearerToken: PortalTokenVerifier = async (env, authoriz
 
   const config = resolveWorkOSConfig(env);
   const key = await fetchSigningKey(config.jwksUrl, header.kid);
-  const signingInput = new TextEncoder().encode(`${headerSegment}.${payloadSegment}`);
+  const signingValue = `${headerSegment}.${payloadSegment}`;
+  const signingInput = new TextEncoder().encode(signingValue);
   const signature = decodeBase64Url(signatureSegment);
-
   const verified = await crypto.subtle.verify(
     "RSASSA-PKCS1-v1_5",
     key,
@@ -200,7 +205,10 @@ export const verifyWorkOSBearerToken: PortalTokenVerifier = async (env, authoriz
   );
 
   if (!verified) {
-    throw new PortalAuthError("INVALID_AUTH_TOKEN", "WorkOS access token signature is invalid");
+    throw new PortalAuthError(
+      "INVALID_AUTH_TOKEN",
+      "WorkOS access token signature is invalid",
+    );
   }
 
   return validateClaims(claims, env);

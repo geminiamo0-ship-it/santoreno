@@ -45,14 +45,14 @@ describe("handleGroundedAiQuery", () => {
       {},
       {
         async authenticateSession() {
-          throw new SessionTokenError(401, "SESSION_TOKEN_INVALID", "invalid");
+          throw new SessionTokenError(401, "INVALID_SESSION_TOKEN", "invalid");
         },
         query,
       },
     );
 
     expect(response.status).toBe(401);
-    expect(await response.json()).toEqual({ error: "SESSION_TOKEN_INVALID" });
+    expect(await response.json()).toEqual({ error: "INVALID_SESSION_TOKEN" });
     expect(query).not.toHaveBeenCalled();
   });
 

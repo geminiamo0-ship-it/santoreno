@@ -18,9 +18,13 @@ Customer production databases remain untouched. Integration is API-based only.
 
 The deployed staging Worker is `santo-api-staging` at `https://santo-api-staging.geminiamo0.workers.dev`. Remote acceptance verified healthy `/health`, D1, R2, both SQLite Durable Objects, Queue enqueue/dequeue and consumption, Analytics Engine, and AI Search. The real staging D1 UUID is committed in `workers/api/wrangler.toml`. No production secrets are committed.
 
-**Current active implementation issue:** **#3 — P2 minimal B2B auth, tenancy, and tenant isolation.** PR **#17** now contains the first clean P2 repository/CI foundation: WorkOS RS256/JWKS access-token verification, D1 tenant and membership records, minimal `super_admin`/`owner` authorization, tenant-create/context/read/update APIs, and explicit two-tenant cross-tenant denial tests. GitHub Actions `Verify` run **37197525222** passed completely on commit `947ee847d3fa911469f82b7416e97ff6d1030e81`.
+**Current active implementation issue:** **#3 — P2 minimal B2B auth, tenancy, and tenant isolation.** PR **#17** contains the P2 repository/CI foundation: WorkOS RS256/JWKS access-token verification, D1 tenant and membership records, minimal `super_admin`/`owner` authorization, tenant-create/context/read/update APIs, and explicit two-tenant cross-tenant denial tests.
 
-Issue #3 is **not complete yet**. The remaining P2 gate is real WorkOS AuthKit staging configuration/login plus remote application/verification of `0002_tenancy.sql` and a staging MedPark + second-tenant isolation proof. Do not advance to #4–#7 or full portal work until those gates, merge, and post-merge `Verify` pass.
+The Cloudflare-side P2 staging gate is now proven: `0002_tenancy.sql` is applied remotely, the `tenants` and `tenant_members` tables are verified in staging D1, the staging Worker deploys, `/health` passes, unauthenticated `/v1/portal/context` returns `401 AUTH_REQUIRED`, and the runtime binding smoke passes. P2 Staging Acceptance run **37199366140** passed these checks. The former staging infra smoke-token exposure was remediated by rotating the token per deployment, masking it in Actions logs, and retrying during Cloudflare propagation.
+
+A repeatable **real WorkOS staging acceptance harness** now exists at `scripts/p2-live-acceptance.mjs` and is wired into `.github/workflows/p2-staging-acceptance.yml`. It creates temporary WorkOS staging users/organizations, authenticates them to obtain real WorkOS access tokens, verifies Santo Super Admin + MedPark + second-tenant isolation against the live Worker, then cleans up D1 and WorkOS fixtures.
+
+**Issue #3 is not complete yet.** The clean branch Verify run **37201349124** passed completely on commit `a4bc8604622cac755999113dc34de8175cdbe4fc`, but P2 Staging Acceptance run **37201346385** stops before any WorkOS API call because GitHub Actions repository secrets `WORKOS_CLIENT_ID` and `WORKOS_API_KEY` are both absent/empty. Do not commit or paste those credentials into source, issue comments, or chat. Add them only as GitHub Actions repository secrets, then rerun the live P2 staging acceptance. Do not advance to #4–#7 or full portal work until that gate, merge, and post-merge `Verify` pass.
 
 ## 2. Source-of-truth documents
 
@@ -40,7 +44,7 @@ Do not reorder these without documenting the reason.
 
 - [x] **#1 — P0:** Bootstrap Santoreno monorepo and CI
 - [x] **#2 — P1:** Provision Cloudflare foundation and bindings
-- [ ] **#3 — P2:** Minimal B2B auth, tenancy, and tenant isolation — repository/CI foundation verified; live staging acceptance pending
+- [ ] **#3 — P2:** Minimal B2B auth, tenancy, and tenant isolation — Cloudflare staging verified; real WorkOS live acceptance blocked only on missing Actions secrets
 - [ ] **#4 — P3:** Customer server credentials and domain controls
 - [ ] **#5 — P4:** Implement `/v1/session/exchange` for external users
 - [ ] **#6 — P5:** Implement atomic `TenantMeterDO` quota engine
@@ -136,6 +140,7 @@ Environment-specific resource names and the no-secrets rule are documented in `d
 - Santo `super_admin` bootstrap access is server-side configuration only and is never accepted from browser-supplied role/tenant fields.
 - Current tenant routes reject requested tenant IDs that differ from the authenticated Santo tenant context.
 - The minimal API surface is intentionally limited to tenant creation, authenticated context, tenant read, and tenant name update.
+- `WORKOS_API_KEY` is CI-only for temporary WorkOS staging-fixture creation/authentication and must never be deployed to the Worker. The Worker receives only the minimum auth-verification configuration needed for runtime validation.
 
 ## 6. Core architecture rules
 
@@ -198,13 +203,19 @@ Whenever work is completed:
 - **Issue #2 was closed as completed** after all local, remote-staging, merge, and post-merge gates passed. Issue #8 now marks P1 complete and #3 as the active implementation issue.
 - **P2 repository/CI foundation is implemented on PR #17.** It adds WorkOS token verification, D1 tenant/membership schema and repository boundaries, minimal authorization services/routes, and strict shared tenant contracts without adding full portal UI.
 - **P2 isolation regression is proven in CI:** MedPark and a second tenant are created in the test harness; MedPark owner context resolves only MedPark; second-tenant reads and writes return 403; changing only `org_id` without a matching Santo membership still fails closed.
-- **PR #17 Verify run `37197525222` passed completely** on commit `947ee847d3fa911469f82b7416e97ff6d1030e81`: repository policy, frozen install, lint/format, typecheck, tests, build, and smoke all green.
+- **Cloudflare-side P2 staging acceptance passed in run `37199366140`:** D1 migration `0002_tenancy.sql`, remote tenancy-table verification, Worker deploy, `/health`, unauthenticated auth boundary, and runtime binding smoke all passed.
+- **The staging infra smoke token was rotated and hardened:** generated per deployment, masked before entering the Actions environment, and verified with propagation retries; the previously exposed token is no longer reused.
+- **Real WorkOS staging acceptance is automated:** `scripts/p2-live-acceptance.mjs` creates temporary real WorkOS staging identities/organizations, authenticates them, exercises Super Admin/MedPark/second-tenant isolation against the deployed Worker, and removes fixtures afterward.
+- **Clean PR #17 Verify run `37201349124` passed completely** on commit `a4bc8604622cac755999113dc34de8175cdbe4fc`: repository policy, lint/format, typecheck, tests, build, and smoke all green.
+- **Current external blocker:** P2 Staging Acceptance run `37201346385` confirms both `WORKOS_CLIENT_ID` and `WORKOS_API_KEY` are empty in GitHub Actions. The live WorkOS portion has therefore not run yet and no corresponding acceptance item is marked complete.
 
 ## 9. Next action
 
 Continue **Issue #3 — P2**. Do **not** start Issue #4 yet.
 
-The repository/CI foundation is green. Next, configure/prove the real WorkOS AuthKit staging path, apply D1 migration `0002_tenancy.sql` to `santo-control-plane-staging`, and run a remote two-tenant acceptance flow proving Super Admin tenant creation, MedPark owner context, and 403 cross-tenant read/write denial.
+The repository/CI foundation and Cloudflare-side remote P2 gate are green. Add `WORKOS_CLIENT_ID` and `WORKOS_API_KEY` as **GitHub Actions repository secrets only**. Never commit either value; in particular, do not paste the WorkOS API key into source, issue comments, or chat.
+
+After the secrets exist, rerun `.github/workflows/p2-staging-acceptance.yml`. It must obtain real WorkOS access tokens and prove all of the following against staging: Santo Super Admin context, MedPark tenant creation, MedPark owner resolving only MedPark, second-tenant creation, and 403 cross-tenant read/write denial with the second tenant unchanged after the denied mutation.
 
 After the live staging gate passes, update Issue #3 evidence/checklist and this handoff, require a final green PR `Verify`, merge PR #17, then require green post-merge `Verify` on `main`. Only then may Issue #3 close and Issue #4 become active.
 

@@ -3,7 +3,9 @@ import { readFile } from "node:fs/promises";
 const P2_STATE_PATH = process.env.P2_WORKOS_STATE_PATH ?? "/tmp/santo-p2-workos-state.json";
 const EXTERNAL_USER_ID = "p6-grounded-user";
 const AI_SEARCH_NAMESPACE = "default";
-const FIXTURE_INSTANCE_ID = "santo-p6-grounding-acceptance";
+const FIXTURE_INSTANCE_ID = `santo-p6-grounding-${(process.env.GITHUB_SHA ?? "local").slice(0, 12)}`;
+const AI_SEARCH_INDEX_TIMEOUT_MS = 5 * 60 * 1_000;
+const AI_SEARCH_POLL_INTERVAL_MS = 3_000;
 const FIXTURE_ITEM_KEY = "santo-p6-grounding-fixture.md";
 const FIXTURE_CONTENT = [
   "# Santo P6 Grounding Acceptance Fixture",
@@ -129,12 +131,13 @@ async function getAiSearchItem(itemId) {
 
 async function waitForIndexedItem(itemId, initialStatus) {
   let status = initialStatus;
-  for (let attempt = 0; attempt < 40; attempt += 1) {
+  const deadline = Date.now() + AI_SEARCH_INDEX_TIMEOUT_MS;
+  while (Date.now() < deadline) {
     if (status === "completed") return;
     if (["error", "skipped", "outdated"].includes(status)) {
       throw new Error(`AI Search fixture indexing ended with status ${status}`);
     }
-    await sleep(1_500);
+    await sleep(AI_SEARCH_POLL_INTERVAL_MS);
     const polled = await getAiSearchItem(itemId);
     expect(
       polled.status >= 200 && polled.status < 300 && polled.body?.success !== false,

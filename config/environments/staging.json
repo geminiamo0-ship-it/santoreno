@@ -10,5 +10,10 @@
     "eventQueue": "santo-events-staging",
     "analyticsDataset": "santo_usage_staging",
     "aiSearchNamespace": "default"
+  },
+  "workos": {
+    "environmentId": "environment_01M43DQRZMYQKZ4NF2HSAJ7XJ3",
+    "applicationId": "app_01M43DQSFDJKJJ4P6P1481YF7K",
+    "clientId": "client_01M43DQSBN44J2V0EGYK57PQNA"
   }
 }

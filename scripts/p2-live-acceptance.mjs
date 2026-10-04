@@ -220,9 +220,9 @@ async function seed() {
     );
     await saveState(state);
 
-    const superEmail = `santo-p2-super-${tag}@example.com`;
-    const medparkEmail = `santo-p2-medpark-owner-${tag}@example.com`;
-    const isolationEmail = `santo-p2-isolation-owner-${tag}@example.com`;
+    const superEmail = `santo-p2-super-${tag}@example.net`;
+    const medparkEmail = `santo-p2-medpark-owner-${tag}@example.net`;
+    const isolationEmail = `santo-p2-isolation-owner-${tag}@example.net`;
 
     const superUser = await createUser(superEmail, superPassword);
     state.workos.users.superAdmin = {

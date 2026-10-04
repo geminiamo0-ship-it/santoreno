@@ -264,6 +264,45 @@ export const QuotaOperationResponseSchema = z.object({
 });
 export type QuotaOperationResponse = z.infer<typeof QuotaOperationResponseSchema>;
 
+export const GroundedAiQueryRequestSchema = z
+  .object({
+    question: z.string().trim().min(3).max(4000),
+  })
+  .strict();
+export type GroundedAiQueryRequest = z.infer<typeof GroundedAiQueryRequestSchema>;
+
+export const GroundedAiCitationSchema = z.object({
+  sourceId: z.string().min(1).max(255),
+  instanceId: z.string().min(1).max(64),
+  title: z.string().min(1).max(500),
+  page: z.number().int().positive().nullable(),
+  score: z.number().min(0).max(1),
+});
+export type GroundedAiCitation = z.infer<typeof GroundedAiCitationSchema>;
+
+export const GroundedAiUsageSchema = z.object({
+  unitsCharged: z.literal(1),
+  remaining: z.number().int().nonnegative(),
+});
+export type GroundedAiUsage = z.infer<typeof GroundedAiUsageSchema>;
+
+export const GroundedAiQueryResponseSchema = z.object({
+  requestId: z.string().uuid(),
+  messageId: z.string().uuid(),
+  answer: z.string().min(1),
+  citations: z.array(GroundedAiCitationSchema).min(1).max(5),
+  usage: GroundedAiUsageSchema,
+});
+export type GroundedAiQueryResponse = z.infer<typeof GroundedAiQueryResponseSchema>;
+
+export const GroundedAiModelOutputSchema = z
+  .object({
+    answer: z.string().trim().min(1),
+    citation_ids: z.array(z.string().min(1).max(255)).min(1).max(5),
+  })
+  .strict();
+export type GroundedAiModelOutput = z.infer<typeof GroundedAiModelOutputSchema>;
+
 export const ApiErrorResponseSchema = z.object({
   error: z.string().min(1),
 });

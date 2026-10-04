@@ -1,0 +1,35 @@
+name: Temporary P6 acceptance formatter
+
+on:
+  push:
+    branches:
+      - feat/issue-7-grounded-ai-slice
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/issue-7-grounded-ai-slice
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec prettier --write scripts/p6-live-acceptance.mjs workers/api/src/infrastructure/p6-grounded-ai-acceptance.ts
+      - name: Commit formatting if needed
+        run: |
+          if git diff --quiet -- scripts/p6-live-acceptance.mjs workers/api/src/infrastructure/p6-grounded-ai-acceptance.ts; then
+            echo "No formatting changes needed"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add scripts/p6-live-acceptance.mjs workers/api/src/infrastructure/p6-grounded-ai-acceptance.ts
+          git commit -m "style(ai): format P6 acceptance gate"
+          git push origin HEAD:feat/issue-7-grounded-ai-slice

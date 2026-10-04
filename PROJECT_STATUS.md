@@ -18,11 +18,11 @@ The staging Worker is `santo-api-staging` at `https://santo-api-staging.geminiam
 
 **Phase 2 / Issue #3 is complete.** PR #17 implemented WorkOS RS256/JWKS verification, D1 tenants/memberships, minimal `super_admin`/`owner` authorization, tenant create/context/read/update APIs, and two-tenant fail-closed isolation. Final clean head `128a64ef4ea39c8fe947bd7d283ecb3c9af9442a` passed `Verify` **37203640840** and P2 staging acceptance **37203637755**. PR #17 was squash-merged as `a22218f2eba76c6b8f3cf4fbefec46bb3f2676ba`; post-merge `Verify` **37203749651** passed.
 
-**Phase 3 / Issue #4 implementation and live acceptance are green on PR #19, but the phase is not closed yet.** The last code-clean head before this status update was `447f32672f84b23aa94b3dc563176c3706cec283`. It passed exact-head `Verify` **37209816647 (#131)** and exact-head `P3 Staging Acceptance` **37209812978 (#8)**. The live gate proved real WorkOS-backed MedPark auth, server-secret issue/authentication, wrong-tenant denial, rotation, revocation, allowed domains, `last_used_at`, hash-only D1 persistence, rotation lineage, security audit events, absence of plaintext secret in persisted evidence, and successful cleanup of D1/WorkOS fixtures.
+**Phase 3 / Issue #4 is complete.** Final PR #19 head `a803a045ce8982ec5e907bc8183343356c4f2ccf` passed exact-head `Verify` **37210253385 (#132)** and exact-head `P3 Staging Acceptance` **37210250754 (#9)**, including cleanup. PR #19 was squash-merged to `main` as `1d9ad9c334f6aff922917db8f7b49943e066e2fe`; post-merge exact-commit `Verify` **37210341678 (#133)** passed both `repository-policy` and `code-quality`. Issue #4 is closed and Issue #8 marks P3 complete.
 
-The temporary one-shot P3 evidence workflow and fixer script were removed before those final clean-head gates. The final PR diff contains only permanent P3 implementation/testing/acceptance files.
+P3 live acceptance proved real WorkOS-backed MedPark context; customer server-secret issue/authentication; wrong-tenant denial; immediate rotation/revocation; allowed domains; `last_used_at`; rotation lineage; hash-only D1 persistence; security audit events; no persisted plaintext secret; and successful D1/WorkOS fixture cleanup. Temporary one-shot P3 evidence tooling was removed before final acceptance.
 
-**Current gate:** this `PROJECT_STATUS.md` update creates a new PR head, so PR #19 must again pass `Verify` and `P3 Staging Acceptance` on that exact head. Only then may PR #19 be merged. After merge, the exact `main` merge commit must pass `Verify`; only after that do we close #4, mark it complete in #8, and activate #5.
+**Current active implementation issue:** **#5 — P4 `/v1/session/exchange` for external users.** Branch `feat/issue-5-session-exchange` was created from verified `main` commit `1d9ad9c334f6aff922917db8f7b49943e066e2fe`. Do not start #6 or #7 until #5 meets its own acceptance, merge, and post-merge gates.
 
 ## 2. Source-of-truth documents
 
@@ -44,8 +44,8 @@ Do not reorder these without documenting the reason.
 - [x] **#1 — P0:** Bootstrap Santoreno monorepo and CI
 - [x] **#2 — P1:** Provision Cloudflare foundation and bindings
 - [x] **#3 — P2:** Minimal B2B auth, tenancy, and tenant isolation
-- [ ] **#4 — P3:** Customer server credentials and domain controls — acceptance green; merge/post-merge gate pending
-- [ ] **#5 — P4:** Implement `/v1/session/exchange` for external users
+- [x] **#4 — P3:** Customer server credentials and domain controls
+- [ ] **#5 — P4:** Implement `/v1/session/exchange` for external users — current active issue
 - [ ] **#6 — P5:** Implement atomic `TenantMeterDO` quota engine
 - [ ] **#7 — Vertical Slice:** One minimal grounded AI endpoint
 
@@ -127,18 +127,28 @@ No fabricated citations are permitted.
 - Current-tenant routes reject requested tenant IDs differing from authenticated Santo tenant context.
 - `WORKOS_API_KEY` is CI-only for temporary staging fixture creation/authentication and is never deployed to the Worker.
 
-### Phase 3 server-credential foundation on PR #19
+### Phase 3 server-credential foundation
 
 - Tenant server credentials are generated server-side with cryptographically secure randomness.
 - Plaintext is returned only at initial issue/rotation time; D1 stores only identification metadata and a verification hash.
 - Credential authentication resolves tenant identity server-side; caller-supplied tenant identity cannot override it.
-- Credential rotation revokes the old credential according to the defined transition policy and records lineage.
-- Explicit revocation denies subsequent use.
+- Rotation revokes the old credential according to policy and records lineage; explicit revocation denies subsequent use.
 - Successful credential authentication records `last_used_at`.
 - Tenant allowed domains are persisted in the control plane.
 - Security audit events cover credential create/rotate/revoke and domain updates.
-- The P3 PR does not add portal/widget secret handling; customer server secrets remain server-only.
-- Live staging acceptance queries D1 directly to prove hash-only persistence and required lifecycle/audit state.
+- Customer server secrets remain server-only and never enter portal/widget browser code.
+
+### Phase 4 session-exchange target
+
+- Customer backend authenticates with the P3 Santo server secret.
+- `POST /v1/session/exchange` accepts required `external_user_id`; email/display name remain optional.
+- External-user identity is always scoped by `(tenant_id, external_user_id)` and never touches the customer database.
+- Session exchange upserts the scoped external user and issues a short-lived signed Santo token.
+- Required claims: `iss`, `aud`, `tenant`, `sub`, `session_id`, `jti`, `iat`, `exp`.
+- Lifetime must be configurable within the documented 10–20 minute range.
+- Santo end-user tokens require server-side signature, audience, issuer, expiry, and tenant-scope verification.
+- Expired/tampered tokens, suspended tenants, invalid credentials, invalid payloads, and cross-tenant resolution must fail closed.
+- Same `external_user_id` in two tenants represents two independent Santo external users.
 
 ## 6. Core architecture rules
 
@@ -174,30 +184,27 @@ Whenever work is completed:
 - Phase 1 remote evidence artifact: **11300284166** (`santo-staging-evidence`), digest `sha256:13c11eb101cce3d60a135a53f32848a0ce02e75da76aad68006c6d9a073593f2`.
 - **Phase 2 / #3:** WorkOS auth, tenancy, membership, authorization, and strict cross-tenant isolation accepted live; PR #17 merged as `a22218f2eba76c6b8f3cf4fbefec46bb3f2676ba`; post-merge `Verify` **37203749651** green.
 - P2 real staging acceptance authenticated temporary WorkOS identities, created MedPark plus a second tenant, proved MedPark resolves only MedPark, proved cross-tenant read/write attempts return 403, and cleaned both D1 and WorkOS fixtures.
-- WorkOS multi-application issuer behavior is regression-covered: token `client_id` identifies the Santo Staging application while `iss` references the verified environment issuer.
-- **P3 / #4 repository implementation is on PR #19.** It adds D1 migration `0003_server_credentials.sql`, server credential repository/service/authentication routes, domain controls, lifecycle/audit tests, shared contracts, and a repeatable live staging acceptance harness.
-- **P3 final code-clean head `447f32672f84b23aa94b3dc563176c3706cec283` passed exact-head `Verify` `37209816647` (#131).**
-- **P3 live staging acceptance `37209812978` (#8) passed on the same exact head.** It verified real WorkOS-backed MedPark owner context, credential issue/auth/isolation, rotation/revocation, allowed domains, hash-only D1 storage, `last_used_at`, rotation lineage, audit events, and fixture cleanup.
-- Temporary one-shot P3 evidence tooling was removed before the clean-head gates. PR #19 now contains only permanent implementation/testing/acceptance files.
-- Issue #4 scope and acceptance checklists are checked with exact evidence, but the issue intentionally remains open until PR #19 merges and post-merge `main` Verify passes.
+- **Phase 3 / #4:** server credentials and domain controls accepted live; final PR #19 head `a803a045ce8982ec5e907bc8183343356c4f2ccf` passed `Verify` **37210253385 (#132)** and P3 Staging Acceptance **37210250754 (#9)**.
+- **PR #19 was squash-merged to `main` as `1d9ad9c334f6aff922917db8f7b49943e066e2fe`; post-merge `Verify` `37210341678` (#133) passed completely.**
+- P3 live evidence proves server-secret issue/auth/isolation, hash-only D1 persistence, `last_used_at`, rotation lineage, immediate rotation/revocation denial, allowed domains, security audit events, plaintext-secret non-persistence, and cleanup.
+- **Issue #4 is closed as completed; Issue #8 now marks #4 complete and #5 active.**
+- **P4 branch `feat/issue-5-session-exchange` was created from verified `main` merge commit `1d9ad9c334f6aff922917db8f7b49943e066e2fe`.**
 
 ## 9. Next action
 
-**Do not start Issue #5 yet.**
+Continue **Issue #5 — P4 `/v1/session/exchange` for external users** on branch `feat/issue-5-session-exchange`.
 
-Because this status update changes PR #19's head, require both of these on the new exact head:
+Implement the smallest clean vertical foundation in dependency order:
 
-1. GitHub Actions `Verify` — all required jobs green.
-2. `P3 Staging Acceptance` — full live gate green, including cleanup.
+1. Add the `external_users` D1 migration with unique `(tenant_id, external_user_id)` scope.
+2. Add explicit external-user repository boundaries; keep SQL out of route handlers.
+3. Add shared Zod request/response/session-claim contracts.
+4. Add a focused session service that authenticates through the existing P3 server principal, rejects suspended tenants, upserts the scoped external user, and issues a short-lived signed token.
+5. Add Santo end-user token verification middleware/service with issuer, audience, signature, expiry, and tenant-scope checks.
+6. Add regression coverage for invalid credential/payload, expired/tampered tokens, suspended tenant, same external ID under two tenants, and cross-tenant isolation.
+7. Add repeatable staging acceptance only after repository/CI behavior is green.
 
-If both pass, merge PR #19 using the repository's normal merge convention. Then require `Verify` green on the exact resulting `main` merge commit. Only after that:
-
-- close Issue #4 as completed;
-- update Issue #8 to mark #4 complete and #5 active;
-- begin #5 from the verified `main` baseline;
-- update this living handoff on the #5 branch to record Phase 3 as fully complete and Phase 4 as active.
-
-No P4 code should be written before that sequence completes.
+Keep #6 quota, the full widget, full portal, billing, and AI work out of scope until #5 is accepted and merged.
 
 ## 10. Verification policy
 

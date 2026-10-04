@@ -191,7 +191,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          node <<'NODE' > /tmp/p3-assertions.sql
+          node <<'NODE'
           const fs = require('fs');
           const state = JSON.parse(fs.readFileSync(process.env.P3_CREDENTIAL_STATE_PATH, 'utf8'));
           const fields = [
@@ -209,22 +209,37 @@ jobs:
             }
           }
           const q = (value) => `'${value}'`;
-          console.log(`SELECT id, tenant_id, key_prefix, secret_hash, status, last_used_at, revoked_at, rotated_from_id FROM tenant_credentials WHERE id IN (${q(state.issued.id)}, ${q(state.rotated.id)}) ORDER BY created_at;`);
-          console.log(`SELECT action, COUNT(*) AS count FROM tenant_security_audit WHERE tenant_id = ${q(state.medparkTenantId)} GROUP BY action ORDER BY action;`);
-          console.log(`SELECT domain FROM tenant_allowed_domains WHERE tenant_id = ${q(state.medparkTenantId)} ORDER BY domain;`);
+          fs.writeFileSync(
+            '/tmp/p3-credentials.sql',
+            `SELECT id, tenant_id, key_prefix, secret_hash, status, last_used_at, revoked_at, rotated_from_id FROM tenant_credentials WHERE id IN (${q(state.issued.id)}, ${q(state.rotated.id)}) ORDER BY created_at;`,
+          );
+          fs.writeFileSync(
+            '/tmp/p3-audits.sql',
+            `SELECT action, COUNT(*) AS count FROM tenant_security_audit WHERE tenant_id = ${q(state.medparkTenantId)} GROUP BY action ORDER BY action;`,
+          );
+          fs.writeFileSync(
+            '/tmp/p3-domains.sql',
+            `SELECT domain FROM tenant_allowed_domains WHERE tenant_id = ${q(state.medparkTenantId)} ORDER BY domain;`,
+          );
           NODE
           cd workers/api
-          pnpm exec wrangler d1 execute CONTROL_DB --env staging --remote --json --file /tmp/p3-assertions.sql > /tmp/p3-db-evidence.json
+          pnpm exec wrangler d1 execute CONTROL_DB --env staging --remote --json \
+            --command "$(cat /tmp/p3-credentials.sql)" > /tmp/p3-credentials.json
+          pnpm exec wrangler d1 execute CONTROL_DB --env staging --remote --json \
+            --command "$(cat /tmp/p3-audits.sql)" > /tmp/p3-audits.json
+          pnpm exec wrangler d1 execute CONTROL_DB --env staging --remote --json \
+            --command "$(cat /tmp/p3-domains.sql)" > /tmp/p3-domains.json
           cd ../..
           node <<'NODE'
           const fs = require('fs');
           const state = JSON.parse(fs.readFileSync(process.env.P3_CREDENTIAL_STATE_PATH, 'utf8'));
-          const payload = JSON.parse(fs.readFileSync('/tmp/p3-db-evidence.json', 'utf8'));
-          const resultSets = payload.map((entry) => entry?.results ?? entry?.result?.results ?? []);
-          if (resultSets.length < 3) throw new Error('P3 D1 evidence is missing result sets');
-          const credentials = resultSets[0];
-          const audits = resultSets[1];
-          const domains = resultSets[2];
+          const rows = (filePath) => {
+            const payload = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+            return payload.flatMap((entry) => entry?.results ?? entry?.result?.results ?? []);
+          };
+          const credentials = rows('/tmp/p3-credentials.json');
+          const audits = rows('/tmp/p3-audits.json');
+          const domains = rows('/tmp/p3-domains.json');
           if (credentials.length !== 2) throw new Error(`Expected 2 credential rows, got ${credentials.length}`);
           const byId = new Map(credentials.map((row) => [row.id, row]));
           const issued = byId.get(state.issued.id);
@@ -304,4 +319,4 @@ jobs:
       - name: Remove P3 staging state
         if: always()
         shell: bash
-        run: rm -f "$P2_WORKOS_STATE_PATH" "$P3_CREDENTIAL_STATE_PATH" /tmp/p3-cleanup.sql /tmp/p3-secrets.json /tmp/p3-assertions.sql /tmp/p3-db-evidence.json
+        run: rm -f "$P2_WORKOS_STATE_PATH" "$P3_CREDENTIAL_STATE_PATH" /tmp/p3-cleanup.sql /tmp/p3-secrets.json /tmp/p3-credentials.sql /tmp/p3-audits.sql /tmp/p3-domains.sql /tmp/p3-credentials.json /tmp/p3-audits.json /tmp/p3-domains.json

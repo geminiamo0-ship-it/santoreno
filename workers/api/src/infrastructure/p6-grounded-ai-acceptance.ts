@@ -57,7 +57,10 @@ async function removeFixture(namespace: AiSearchNamespaceLike): Promise<void> {
 
 async function setup(request: Request, env: SantoBindings): Promise<Response> {
   if (!env.AI_SEARCH || !env.AI_SEARCH.create || !env.AI_SEARCH.delete || !env.TENANT_METER) {
-    return Response.json({ status: "failed", error: "P6_ACCEPTANCE_NOT_CONFIGURED" }, { status: 503 });
+    return Response.json(
+      { status: "failed", error: "P6_ACCEPTANCE_NOT_CONFIGURED" },
+      { status: 503 },
+    );
   }
 
   const payload = asRecord(await request.json().catch(() => null));
@@ -69,7 +72,10 @@ async function setup(request: Request, env: SantoBindings): Promise<Response> {
     externalUserId.trim().length === 0 ||
     externalUserId.length > 255
   ) {
-    return Response.json({ status: "failed", error: "INVALID_P6_ACCEPTANCE_SETUP" }, { status: 400 });
+    return Response.json(
+      { status: "failed", error: "INVALID_P6_ACCEPTANCE_SETUP" },
+      { status: 400 },
+    );
   }
 
   try {
@@ -117,13 +123,19 @@ async function setup(request: Request, env: SantoBindings): Promise<Response> {
       "P6 grounded AI acceptance setup failed",
       error instanceof Error ? error.message : "unknown",
     );
-    return Response.json({ status: "failed", error: "P6_ACCEPTANCE_SETUP_FAILED" }, { status: 500 });
+    return Response.json(
+      { status: "failed", error: "P6_ACCEPTANCE_SETUP_FAILED" },
+      { status: 500 },
+    );
   }
 }
 
 async function cleanup(env: SantoBindings): Promise<Response> {
   if (!env.AI_SEARCH || !env.AI_SEARCH.delete) {
-    return Response.json({ status: "failed", error: "P6_ACCEPTANCE_NOT_CONFIGURED" }, { status: 503 });
+    return Response.json(
+      { status: "failed", error: "P6_ACCEPTANCE_NOT_CONFIGURED" },
+      { status: 503 },
+    );
   }
 
   try {
@@ -134,7 +146,10 @@ async function cleanup(env: SantoBindings): Promise<Response> {
       "P6 grounded AI acceptance cleanup failed",
       error instanceof Error ? error.message : "unknown",
     );
-    return Response.json({ status: "failed", error: "P6_ACCEPTANCE_CLEANUP_FAILED" }, { status: 500 });
+    return Response.json(
+      { status: "failed", error: "P6_ACCEPTANCE_CLEANUP_FAILED" },
+      { status: 500 },
+    );
   }
 }
 

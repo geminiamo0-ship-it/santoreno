@@ -113,9 +113,18 @@ async function verify() {
     body: queryBody,
   });
   expect(first.status === 200, `Grounded AI request returned HTTP ${first.status}`);
-  expect(typeof first.body?.answer === "string" && first.body.answer.length > 0, "AI answer is empty");
-  expect(first.body.answer.includes("17"), "AI answer did not use the deterministic fixture evidence");
-  expect(Array.isArray(first.body?.citations) && first.body.citations.length > 0, "AI response has no citations");
+  expect(
+    typeof first.body?.answer === "string" && first.body.answer.length > 0,
+    "AI answer is empty",
+  );
+  expect(
+    first.body.answer.includes("17"),
+    "AI answer did not use the deterministic fixture evidence",
+  );
+  expect(
+    Array.isArray(first.body?.citations) && first.body.citations.length > 0,
+    "AI response has no citations",
+  );
   expect(
     first.body.citations.some(
       (citation) =>
@@ -124,8 +133,14 @@ async function verify() {
     ),
     "No returned citation resolved to the temporary AI Search fixture",
   );
-  expect(first.body?.usage?.unitsCharged === 1, "Successful grounded answer did not charge one unit");
-  expect(first.body?.usage?.remaining === 0, "Successful grounded answer did not consume the user quota");
+  expect(
+    first.body?.usage?.unitsCharged === 1,
+    "Successful grounded answer did not charge one unit",
+  );
+  expect(
+    first.body?.usage?.remaining === 0,
+    "Successful grounded answer did not consume the user quota",
+  );
 
   const replay = await request(workerUrl, "/v1/ai/query", {
     method: "POST",

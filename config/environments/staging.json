@@ -14,6 +14,7 @@
   "workos": {
     "environmentId": "environment_01M43DQRZMYQKZ4NF2HSAJ7XJ3",
     "applicationId": "app_01M43DYW7DY5YT8G0C3B66MPF7",
-    "clientId": "client_01M43DYW7DCSRF4V7N3DE4PY7Y"
+    "clientId": "client_01M43DYW7DCSRF4V7N3DE4PY7Y",
+    "issuer": "https://api.workos.com/user_management/client_01M43DQSBN44J2V0EGYK57PQNA"
   }
 }

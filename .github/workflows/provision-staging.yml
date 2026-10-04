@@ -1,14 +1,6 @@
 name: Provision Staging
 
-# Branch push is temporary for the Issue #2 acceptance run and is removed before merge.
 on:
-  push:
-    branches:
-      - infra/issue-2-staging-provision
-    paths:
-      - .github/workflows/provision-staging.yml
-      - workers/api/**
-      - config/environments/staging.json
   workflow_dispatch:
 
 permissions:
@@ -35,7 +27,6 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Wait for Verify on this commit
-        if: github.event_name == 'push'
         shell: bash
         run: |
           set -euo pipefail

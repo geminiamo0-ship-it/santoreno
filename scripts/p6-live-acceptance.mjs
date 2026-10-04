@@ -90,7 +90,16 @@ async function verify() {
     smokeToken,
     body: { tenantId, externalUserId: EXTERNAL_USER_ID },
   });
-  expect(setup.status === 200, `P6 acceptance setup returned HTTP ${setup.status}`);
+  const setupStage =
+    typeof setup.body?.stage === "string"
+      ? setup.body.stage
+      : typeof setup.body?.error === "string"
+        ? setup.body.error
+        : "unknown";
+  expect(
+    setup.status === 200,
+    `P6 acceptance setup returned HTTP ${setup.status} at ${setupStage}`,
+  );
   expect(setup.body?.status === "ready", "P6 acceptance setup did not become ready");
   expect(typeof setup.body?.instanceId === "string", "P6 setup is missing the fixture instance ID");
   expect(typeof setup.body?.query === "string", "P6 setup is missing the fixture query");

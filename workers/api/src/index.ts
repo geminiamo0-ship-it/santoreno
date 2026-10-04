@@ -1,10 +1,20 @@
 import { app } from "./app";
+import { handleP5QuotaAcceptance } from "./infrastructure/p5-quota-acceptance";
 import { handleInfrastructureQueue } from "./infrastructure/queue";
+import type { SantoBindings } from "./runtime/bindings";
 
 export { ConversationDO } from "./durable-objects/conversation";
 export { TenantMeterDO } from "./durable-objects/tenant-meter";
 
+const fetch: typeof app.fetch = async (request, env, executionContext) => {
+  const url = new URL(request.url);
+  if (request.method === "POST" && url.pathname === "/__infra/p5-quota-acceptance") {
+    return handleP5QuotaAcceptance(request, env as SantoBindings);
+  }
+  return app.fetch(request, env, executionContext);
+};
+
 export default {
-  fetch: app.fetch,
+  fetch,
   queue: handleInfrastructureQueue,
 };

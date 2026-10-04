@@ -38,9 +38,23 @@ export interface AnalyticsEngineDatasetLike {
   writeDataPoint(event: { blobs?: string[]; doubles?: number[]; indexes?: string[] }): void;
 }
 
+export interface AiSearchItemsLike {
+  uploadAndPoll(
+    name: string,
+    content: string,
+    options?: { pollIntervalMs?: number; timeoutMs?: number },
+  ): Promise<unknown>;
+}
+
+export interface AiSearchInstanceLike {
+  items: AiSearchItemsLike;
+}
+
 export interface AiSearchNamespaceLike {
   list(): Promise<unknown>;
   search(input: unknown): Promise<unknown>;
+  create?(input: { id: string }): Promise<AiSearchInstanceLike>;
+  delete?(id: string): Promise<void>;
 }
 
 export interface WorkersAiLike {

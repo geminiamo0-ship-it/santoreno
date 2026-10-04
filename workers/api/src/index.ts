@@ -1,6 +1,7 @@
 import { handleGroundedAiQuery } from "./ai/handler";
 import { app } from "./app";
 import { handleP5QuotaAcceptance } from "./infrastructure/p5-quota-acceptance";
+import { handleP6GroundedAiAcceptance } from "./infrastructure/p6-grounded-ai-acceptance";
 import { handleInfrastructureQueue } from "./infrastructure/queue";
 import type { SantoBindings } from "./runtime/bindings";
 
@@ -11,6 +12,9 @@ const fetch: typeof app.fetch = async (request, env, executionContext) => {
   const url = new URL(request.url);
   if (request.method === "POST" && url.pathname === "/__infra/p5-quota-acceptance") {
     return handleP5QuotaAcceptance(request, env as SantoBindings);
+  }
+  if (url.pathname.startsWith("/__infra/p6-grounded-ai-acceptance")) {
+    return handleP6GroundedAiAcceptance(request, env as SantoBindings);
   }
   if (url.pathname === "/v1/ai/query") {
     return handleGroundedAiQuery(request, env as SantoBindings);

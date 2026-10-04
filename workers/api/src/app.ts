@@ -9,9 +9,13 @@ import {
   QueueSmokeStatusResponseSchema,
   ServerContextResponseSchema,
   ServerCredentialMetadataSchema,
+  SessionContextResponseSchema,
+  SessionExchangeRequestSchema,
+  SessionExchangeResponseSchema,
   TenantSchema,
   UpdateAllowedDomainsRequestSchema,
   UpdateTenantRequestSchema,
+  type SessionContextResponse,
 } from "@santo/contracts";
 import { Hono, type MiddlewareHandler } from "hono";
 
@@ -29,6 +33,12 @@ import {
 } from "./credentials/service";
 import { runInfrastructureSmoke, wasQueueSmokeProcessed } from "./infrastructure/smoke";
 import type { SantoBindings } from "./runtime/bindings";
+import {
+  D1ExternalUserRepository,
+  type ExternalUserRepository,
+} from "./session/repository";
+import { SessionError, SessionExchangeService } from "./session/service";
+import { SantoSessionTokenService, SessionTokenError } from "./session/token";
 import { D1TenantRepository, type TenantRepository } from "./tenancy/repository";
 import { TenantControlService, TenancyError } from "./tenancy/service";
 
@@ -37,6 +47,7 @@ type SantoAppEnvironment = {
   Variables: {
     portalIdentity: PortalIdentity;
     serverPrincipal: ServerPrincipal;
+    sessionContext: SessionContextResponse;
   };
 };
 
@@ -44,6 +55,7 @@ export interface SantoAppDependencies {
   verifyPortalToken?: PortalTokenVerifier;
   tenantRepositoryFactory?: (env: SantoBindings) => TenantRepository;
   credentialRepositoryFactory?: (env: SantoBindings) => CredentialRepository;
+  externalUserRepositoryFactory?: (env: SantoBindings) => ExternalUserRepository;
 }
 
 function isInfrastructureSmokeAuthorized(env: SantoBindings, providedToken?: string): boolean {
@@ -75,6 +87,14 @@ function createDefaultCredentialRepository(env: SantoBindings): CredentialReposi
   return new D1CredentialRepository(env.CONTROL_DB);
 }
 
+function createDefaultExternalUserRepository(env: SantoBindings): ExternalUserRepository {
+  if (!env.CONTROL_DB) {
+    throw new SessionError(503, "SESSION_NOT_CONFIGURED", "CONTROL_DB binding is required");
+  }
+
+  return new D1ExternalUserRepository(env.CONTROL_DB);
+}
+
 function errorPayload(error: string) {
   return ApiErrorResponseSchema.parse({ error });
 }
@@ -86,6 +106,8 @@ export function createApp(dependencies: SantoAppDependencies = {}) {
     dependencies.tenantRepositoryFactory ?? createDefaultTenantRepository;
   const credentialRepositoryFactory =
     dependencies.credentialRepositoryFactory ?? createDefaultCredentialRepository;
+  const externalUserRepositoryFactory =
+    dependencies.externalUserRepositoryFactory ?? createDefaultExternalUserRepository;
 
   const requirePortalAuth: MiddlewareHandler<SantoAppEnvironment> = async (context, next) => {
     try {
@@ -112,6 +134,14 @@ export function createApp(dependencies: SantoAppDependencies = {}) {
     );
   }
 
+  function sessionService(context: { env: SantoBindings }): SessionExchangeService {
+    return new SessionExchangeService(
+      externalUserRepositoryFactory(context.env),
+      tenantRepositoryFactory(context.env),
+      new SantoSessionTokenService(context.env),
+    );
+  }
+
   const requireServerAuth: MiddlewareHandler<SantoAppEnvironment> = async (context, next) => {
     try {
       const principal = await credentialService(context).authenticate(
@@ -121,6 +151,22 @@ export function createApp(dependencies: SantoAppDependencies = {}) {
       await next();
     } catch (error) {
       if (error instanceof CredentialError) {
+        return context.json(errorPayload(error.code), error.status);
+      }
+      throw error;
+    }
+  };
+
+  const requireSessionAuth: MiddlewareHandler<SantoAppEnvironment> = async (context, next) => {
+    try {
+      const principal = await new SantoSessionTokenService(context.env).verifyBearerToken(
+        context.req.header("authorization"),
+      );
+      const resolved = await sessionService(context).resolve(principal);
+      context.set("sessionContext", resolved);
+      await next();
+    } catch (error) {
+      if (error instanceof SessionTokenError || error instanceof SessionError) {
         return context.json(errorPayload(error.code), error.status);
       }
       throw error;
@@ -359,6 +405,32 @@ export function createApp(dependencies: SantoAppDependencies = {}) {
       throw error;
     }
   });
+
+  app.post("/v1/session/exchange", requireServerAuth, async (context) => {
+    const parsed = SessionExchangeRequestSchema.safeParse(
+      await context.req.json().catch(() => null),
+    );
+    if (!parsed.success) {
+      return context.json(errorPayload("INVALID_SESSION_REQUEST"), 400);
+    }
+
+    try {
+      const response = await sessionService(context).exchange(
+        context.get("serverPrincipal"),
+        parsed.data,
+      );
+      return context.json(SessionExchangeResponseSchema.parse(response));
+    } catch (error) {
+      if (error instanceof SessionError || error instanceof SessionTokenError) {
+        return context.json(errorPayload(error.code), error.status);
+      }
+      throw error;
+    }
+  });
+
+  app.get("/v1/session/context", requireSessionAuth, (context) =>
+    context.json(SessionContextResponseSchema.parse(context.get("sessionContext"))),
+  );
 
   return app;
 }

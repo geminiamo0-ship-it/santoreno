@@ -1,4 +1,8 @@
-import type { DurableObjectNamespaceLike, DurableObjectStubLike, SantoBindings } from "../runtime/bindings";
+import type {
+  DurableObjectNamespaceLike,
+  DurableObjectStubLike,
+  SantoBindings,
+} from "../runtime/bindings";
 
 interface OperationBody {
   allowed?: boolean;
@@ -105,10 +109,11 @@ async function verifyRace(namespace: DurableObjectNamespaceLike) {
   const allowedIndexes = results
     .map((result, index) => ({ result, index }))
     .filter(({ result }) => result.status === 200 && result.body.allowed === true);
-  const denied = results.filter(
-    (result) => result.status === 200 && result.body.allowed === false,
+  const denied = results.filter((result) => result.status === 200 && result.body.allowed === false);
+  expect(
+    allowedIndexes.length === 1,
+    `Expected 1 allowed reservation, got ${allowedIndexes.length}`,
   );
-  expect(allowedIndexes.length === 1, `Expected 1 allowed reservation, got ${allowedIndexes.length}`);
   expect(denied.length === 99, `Expected 99 denied reservations, got ${denied.length}`);
   expect(
     denied.every((result) => result.body.denialReason === "TENANT_EXHAUSTED"),
@@ -118,7 +123,10 @@ async function verifyRace(namespace: DurableObjectNamespaceLike) {
   const winnerKey = keys[allowedIndexes[0]!.index]!;
   const replay = await reserve(stub, tenantId, winnerKey);
   expect(replay.body.allowed === true, "Reserve replay was not idempotently allowed");
-  expect(replay.body.snapshot?.tenant?.reserved === 1, "Reserve replay double-reserved tenant quota");
+  expect(
+    replay.body.snapshot?.tenant?.reserved === 1,
+    "Reserve replay double-reserved tenant quota",
+  );
   expect(replay.body.snapshot?.user?.reserved === 1, "Reserve replay double-reserved user quota");
 
   const conflict = await reserve(stub, tenantId, winnerKey, 2);
@@ -129,7 +137,10 @@ async function verifyRace(namespace: DurableObjectNamespaceLike) {
 
   const finalized = await call(stub, "/finalize", { tenantId, idempotencyKey: winnerKey });
   expect(finalized.status === 200, "Winning reservation did not finalize");
-  expect(finalized.body.snapshot?.tenant?.used === 1, "Finalize did not charge tenant exactly once");
+  expect(
+    finalized.body.snapshot?.tenant?.used === 1,
+    "Finalize did not charge tenant exactly once",
+  );
   expect(finalized.body.snapshot?.user?.used === 1, "Finalize did not charge user exactly once");
   expect(finalized.body.snapshot?.tenant?.reserved === 0, "Finalize left tenant reservation open");
 
@@ -140,7 +151,8 @@ async function verifyRace(namespace: DurableObjectNamespaceLike) {
 
   const refundFinalized = await call(stub, "/release", { tenantId, idempotencyKey: winnerKey });
   expect(
-    refundFinalized.status === 409 && refundFinalized.body.error === "RESERVATION_ALREADY_FINALIZED",
+    refundFinalized.status === 409 &&
+      refundFinalized.body.error === "RESERVATION_ALREADY_FINALIZED",
     "Finalized reservation was refundable through replay",
   );
 
@@ -157,12 +169,18 @@ async function verifyRelease(namespace: DurableObjectNamespaceLike) {
   expect(first.body.allowed === true, "Release scenario could not reserve quota");
   const released = await call(stub, "/release", { tenantId, idempotencyKey: key });
   expect(released.status === 200, "Reservation release failed");
-  expect(released.body.snapshot?.tenant?.remaining === 2, "Release did not restore tenant capacity");
+  expect(
+    released.body.snapshot?.tenant?.remaining === 2,
+    "Release did not restore tenant capacity",
+  );
   expect(released.body.snapshot?.user?.remaining === 2, "Release did not restore user capacity");
 
   const replay = await call(stub, "/release", { tenantId, idempotencyKey: key });
   expect(replay.status === 200, "Release replay was not idempotent");
-  expect(replay.body.snapshot?.tenant?.remaining === 2, "Release replay over-refunded tenant capacity");
+  expect(
+    replay.body.snapshot?.tenant?.remaining === 2,
+    "Release replay over-refunded tenant capacity",
+  );
   expect(replay.body.snapshot?.user?.remaining === 2, "Release replay over-refunded user capacity");
 
   return { remaining: replay.body.snapshot?.tenant?.remaining ?? -1 };
@@ -231,7 +249,10 @@ async function verifyIsolation(namespace: DurableObjectNamespaceLike) {
   const reservedA = await reserve(stubA, a, crypto.randomUUID());
   expect(reservedA.body.allowed === true, "Isolation tenant A reservation failed");
   const stateB = await call(stubB, "/state", { tenantId: b, externalUserId: USER });
-  expect(stateB.body.snapshot?.tenant?.remaining === undefined, "Unexpected operation envelope on state read");
+  expect(
+    stateB.body.snapshot?.tenant?.remaining === undefined,
+    "Unexpected operation envelope on state read",
+  );
   const rawStateB = stateB.body as OperationBody & {
     tenant?: { remaining?: number };
     user?: { remaining?: number };
@@ -275,7 +296,10 @@ export async function handleP5QuotaAcceptance(
     return new Response("Not Found", { status: 404 });
   }
   if (!env.TENANT_METER) {
-    return Response.json({ status: "failed", error: "TENANT_METER_NOT_CONFIGURED" }, { status: 503 });
+    return Response.json(
+      { status: "failed", error: "TENANT_METER_NOT_CONFIGURED" },
+      { status: 503 },
+    );
   }
 
   try {

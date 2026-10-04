@@ -14,10 +14,7 @@ export class SessionError extends Error {
   constructor(
     readonly status: 401 | 403 | 404 | 503,
     readonly code:
-      | "SESSION_NOT_CONFIGURED"
-      | "TENANT_SUSPENDED"
-      | "USER_SUSPENDED"
-      | "SESSION_USER_NOT_FOUND",
+      "SESSION_NOT_CONFIGURED" | "TENANT_SUSPENDED" | "USER_SUSPENDED" | "SESSION_USER_NOT_FOUND",
     message: string,
   ) {
     super(message);

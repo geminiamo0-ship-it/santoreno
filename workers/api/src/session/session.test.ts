@@ -1,15 +1,8 @@
-import type {
-  CreateTenantRequest,
-  SessionExchangeResponse,
-  Tenant,
-} from "@santo/contracts";
+import type { CreateTenantRequest, SessionExchangeResponse, Tenant } from "@santo/contracts";
 import { describe, expect, it } from "vitest";
 
 import { createApp } from "../app";
-import type {
-  CredentialRepository,
-  ServerCredentialRecord,
-} from "../credentials/repository";
+import type { CredentialRepository, ServerCredentialRecord } from "../credentials/repository";
 import { ServerCredentialService } from "../credentials/service";
 import type { SantoBindings } from "../runtime/bindings";
 import type { TenantMembership, TenantRepository } from "../tenancy/repository";
@@ -305,7 +298,8 @@ describe("P4 external-user session exchange", () => {
       {
         method: "POST",
         headers: {
-          authorization: "Santo santo_sk_000000000000_0000000000000000000000000000000000000000000000000000000000000000",
+          authorization:
+            "Santo santo_sk_000000000000_0000000000000000000000000000000000000000000000000000000000000000",
           "content-type": "application/json",
         },
         body: JSON.stringify({ external_user_id: "58392" }),

@@ -33,10 +33,7 @@ import {
 } from "./credentials/service";
 import { runInfrastructureSmoke, wasQueueSmokeProcessed } from "./infrastructure/smoke";
 import type { SantoBindings } from "./runtime/bindings";
-import {
-  D1ExternalUserRepository,
-  type ExternalUserRepository,
-} from "./session/repository";
+import { D1ExternalUserRepository, type ExternalUserRepository } from "./session/repository";
 import { SessionError, SessionExchangeService } from "./session/service";
 import { SantoSessionTokenService, SessionTokenError } from "./session/token";
 import { D1TenantRepository, type TenantRepository } from "./tenancy/repository";

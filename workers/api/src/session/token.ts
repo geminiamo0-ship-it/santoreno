@@ -155,11 +155,7 @@ export class SantoSessionTokenService {
     const payloadSegment = encodeJson(claims);
     const signingInput = `${headerSegment}.${payloadSegment}`;
     const key = await importSigningKey(resolveSigningSecret(this.env));
-    const signature = await crypto.subtle.sign(
-      "HMAC",
-      key,
-      new TextEncoder().encode(signingInput),
-    );
+    const signature = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(signingInput));
 
     return {
       token: `${signingInput}.${encodeBase64Url(new Uint8Array(signature))}`,
@@ -201,7 +197,11 @@ export class SantoSessionTokenService {
       new TextEncoder().encode(`${headerSegment}.${payloadSegment}`),
     );
     if (!verified) {
-      throw new SessionTokenError(401, "INVALID_SESSION_TOKEN", "Santo session signature is invalid");
+      throw new SessionTokenError(
+        401,
+        "INVALID_SESSION_TOKEN",
+        "Santo session signature is invalid",
+      );
     }
 
     const parsedClaims = SantoSessionClaimsSchema.safeParse(rawClaims);

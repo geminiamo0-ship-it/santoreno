@@ -117,17 +117,29 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          status="$(curl --silent --show-error \
-            --output /tmp/p5-smoke.json \
-            --write-out '%{http_code}' \
-            -H "x-santo-infra-smoke-token: ${INFRA_SMOKE_TOKEN}" \
-            "${WORKER_URL}/__infra/smoke")"
-          echo "Infrastructure smoke HTTP status: ${status}"
-          cat /tmp/p5-smoke.json
+          status="000"
+          : > /tmp/p5-smoke.json
+          for attempt in $(seq 1 30); do
+            status="$(curl --silent --show-error \
+              --output /tmp/p5-smoke.json \
+              --write-out '%{http_code}' \
+              -H "x-santo-infra-smoke-token: ${INFRA_SMOKE_TOKEN}" \
+              "${WORKER_URL}/__infra/smoke" || true)"
+            if [[ "$status" == "200" ]] && \
+              jq -e '.environment == "staging" and .status == "ok" and .bindings.tenantMeterDo == "ok"' \
+                /tmp/p5-smoke.json >/dev/null 2>&1; then
+              echo "Infrastructure smoke passed on attempt ${attempt}."
+              cat /tmp/p5-smoke.json
+              echo
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Infrastructure smoke did not converge after deployment propagation window."
+          echo "Last HTTP status: ${status}"
+          cat /tmp/p5-smoke.json || true
           echo
-          test "$status" = "200"
-          jq -e '.environment == "staging" and .status == "ok" and .bindings.tenantMeterDo == "ok"' \
-            /tmp/p5-smoke.json >/dev/null
+          exit 1
 
       - name: Verify P5 atomic quota gate live
         env:

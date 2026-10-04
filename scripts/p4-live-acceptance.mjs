@@ -103,7 +103,10 @@ function validateSession(response, tenantId, label) {
     `${label} session returned wrong external user ID`,
   );
   const token = response.body?.accessToken;
-  expect(typeof token === "string" && token.split(".").length === 3, `${label} session token is invalid`);
+  expect(
+    typeof token === "string" && token.split(".").length === 3,
+    `${label} session token is invalid`,
+  );
   mask(token);
 
   const claims = decodeClaims(token);
@@ -150,10 +153,15 @@ async function verify() {
     "Isolation tenant",
   );
 
-  const invalidPayload = await request(workerUrl, "/v1/session/exchange", serverAuth(medparkSecret), {
-    method: "POST",
-    body: { external_user_id: "" },
-  });
+  const invalidPayload = await request(
+    workerUrl,
+    "/v1/session/exchange",
+    serverAuth(medparkSecret),
+    {
+      method: "POST",
+      body: { external_user_id: "" },
+    },
+  );
   expect(
     invalidPayload.status === 400 && invalidPayload.body?.error === "INVALID_SESSION_REQUEST",
     "Invalid session payload was not rejected explicitly",
@@ -189,7 +197,10 @@ async function verify() {
     "/v1/session/context",
     sessionAuth(medpark.token),
   );
-  expect(medparkContext.status === 200, `MedPark session context returned HTTP ${medparkContext.status}`);
+  expect(
+    medparkContext.status === 200,
+    `MedPark session context returned HTTP ${medparkContext.status}`,
+  );
   expect(medparkContext.body?.tenantId === medparkTenantId, "MedPark token resolved wrong tenant");
   expect(
     medparkContext.body?.externalUserId === EXTERNAL_USER_ID,

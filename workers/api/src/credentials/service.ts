@@ -92,10 +92,11 @@ async function issueRecord(
   };
 }
 
-function parseAuthorizationHeader(authorizationHeader?: string): { secret: string; prefix: string } {
-  const match = authorizationHeader?.match(
-    /^Santo (santo_sk_([0-9a-f]{12})_[0-9a-f]{64})$/,
-  );
+function parseAuthorizationHeader(authorizationHeader?: string): {
+  secret: string;
+  prefix: string;
+} {
+  const match = authorizationHeader?.match(/^Santo (santo_sk_([0-9a-f]{12})_[0-9a-f]{64})$/);
   if (!match) {
     throw new CredentialError(401, "SERVER_AUTH_REQUIRED", "A Santo server credential is required");
   }
@@ -109,7 +110,10 @@ export class ServerCredentialService {
     private readonly tenants: TenantRepository,
   ) {}
 
-  async createCredential(tenantId: string, actorWorkosUserId: string): Promise<CredentialIssueResponse> {
+  async createCredential(
+    tenantId: string,
+    actorWorkosUserId: string,
+  ): Promise<CredentialIssueResponse> {
     if (await this.credentials.findActiveByTenantId(tenantId)) {
       throw new CredentialError(
         409,

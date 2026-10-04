@@ -69,11 +69,7 @@ function createDefaultTenantRepository(env: SantoBindings): TenantRepository {
 
 function createDefaultCredentialRepository(env: SantoBindings): CredentialRepository {
   if (!env.CONTROL_DB) {
-    throw new CredentialError(
-      503,
-      "CREDENTIALS_NOT_CONFIGURED",
-      "CONTROL_DB binding is required",
-    );
+    throw new CredentialError(503, "CREDENTIALS_NOT_CONFIGURED", "CONTROL_DB binding is required");
   }
 
   return new D1CredentialRepository(env.CONTROL_DB);

@@ -15,10 +15,7 @@ export interface ServerCredentialRecord {
 }
 
 export type TenantSecurityAuditAction =
-  | "credential.created"
-  | "credential.rotated"
-  | "credential.revoked"
-  | "domains.updated";
+  "credential.created" | "credential.rotated" | "credential.revoked" | "domains.updated";
 
 export interface CredentialRepository {
   findActiveByTenantId(tenantId: string): Promise<ServerCredentialRecord | null>;
@@ -96,7 +93,10 @@ export class D1CredentialRepository implements CredentialRepository {
   constructor(private readonly db: D1DatabaseLike) {}
 
   private async firstCredential(query: string, ...values: unknown[]) {
-    const row = await this.db.prepare(query).bind(...values).first<CredentialRow>();
+    const row = await this.db
+      .prepare(query)
+      .bind(...values)
+      .first<CredentialRow>();
     return row ? mapCredential(row) : null;
   }
 
@@ -269,14 +269,7 @@ export class D1CredentialRepository implements CredentialRepository {
           )
           .bind(tenantId, domain, updatedAt),
       ),
-      auditStatement(
-        this.db,
-        tenantId,
-        actorWorkosUserId,
-        "domains.updated",
-        null,
-        updatedAt,
-      ),
+      auditStatement(this.db, tenantId, actorWorkosUserId, "domains.updated", null, updatedAt),
     ];
 
     if (this.db.batch) {
@@ -307,6 +300,8 @@ export class D1CredentialRepository implements CredentialRepository {
     }
 
     const parsed: unknown = JSON.parse(row.domains_json);
-    return Array.isArray(parsed) ? parsed.filter((value): value is string => typeof value === "string") : [];
+    return Array.isArray(parsed)
+      ? parsed.filter((value): value is string => typeof value === "string")
+      : [];
   }
 }

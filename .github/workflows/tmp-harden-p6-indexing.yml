@@ -1,0 +1,85 @@
+name: Temporary P6 indexing hardener
+
+on:
+  push:
+    branches:
+      - feat/issue-7-grounded-ai-slice
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/issue-7-grounded-ai-slice
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - name: Harden P6 indexing fixture
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('scripts/p6-live-acceptance.mjs')
+          s = p.read_text()
+          old_id = 'const FIXTURE_INSTANCE_ID = "santo-p6-grounding-acceptance";'
+          new_id = 'const FIXTURE_INSTANCE_ID = `santo-p6-grounding-${(process.env.GITHUB_SHA ?? "local").slice(0, 12)}`;\nconst AI_SEARCH_INDEX_TIMEOUT_MS = 5 * 60 * 1_000;\nconst AI_SEARCH_POLL_INTERVAL_MS = 3_000;'
+          old_wait = '''async function waitForIndexedItem(itemId, initialStatus) {
+  let status = initialStatus;
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    if (status === "completed") return;
+    if (["error", "skipped", "outdated"].includes(status)) {
+      throw new Error(`AI Search fixture indexing ended with status ${status}`);
+    }
+    await sleep(1_500);
+    const polled = await getAiSearchItem(itemId);
+    expect(
+      polled.status >= 200 && polled.status < 300 && polled.body?.success !== false,
+      `AI Search item poll failed: HTTP ${polled.status} (${cloudflareErrorSummary(polled.body)})`,
+    );
+    status = polled.body?.result?.status;
+  }
+  throw new Error(`AI Search fixture indexing timed out with status ${String(status)}`);
+}'''
+          new_wait = '''async function waitForIndexedItem(itemId, initialStatus) {
+  let status = initialStatus;
+  const deadline = Date.now() + AI_SEARCH_INDEX_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    if (status === "completed") return;
+    if (["error", "skipped", "outdated"].includes(status)) {
+      throw new Error(`AI Search fixture indexing ended with status ${status}`);
+    }
+    await sleep(AI_SEARCH_POLL_INTERVAL_MS);
+    const polled = await getAiSearchItem(itemId);
+    expect(
+      polled.status >= 200 && polled.status < 300 && polled.body?.success !== false,
+      `AI Search item poll failed: HTTP ${polled.status} (${cloudflareErrorSummary(polled.body)})`,
+    );
+    status = polled.body?.result?.status;
+  }
+  throw new Error(`AI Search fixture indexing timed out with status ${String(status)}`);
+}'''
+          if old_id not in s:
+              raise SystemExit('expected fixture instance constant not found')
+          if old_wait not in s:
+              raise SystemExit('expected indexing wait function not found')
+          s = s.replace(old_id, new_id, 1).replace(old_wait, new_wait, 1)
+          p.write_text(s)
+          PY
+      - run: pnpm exec prettier --write scripts/p6-live-acceptance.mjs
+      - name: Commit update if needed
+        run: |
+          if git diff --quiet -- scripts/p6-live-acceptance.mjs; then
+            echo "No changes needed"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add scripts/p6-live-acceptance.mjs
+          git commit -m "test(ai): isolate P6 AI Search indexing fixtures"
+          git push origin HEAD:feat/issue-7-grounded-ai-slice

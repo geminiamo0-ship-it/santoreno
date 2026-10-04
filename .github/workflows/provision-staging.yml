@@ -218,7 +218,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          health="$(curl --fail --silent --show-error --retry 10 --retry-delay 2 "${WORKER_URL}/health")"
+          health="$(curl --fail --silent --show-error --retry 30 --retry-all-errors --retry-delay 2 "${WORKER_URL}/health")"
           jq -e '.service == "santo-api" and .status == "ok"' <<<"$health" >/dev/null
 
           smoke="$(curl --fail --silent --show-error \

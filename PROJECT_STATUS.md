@@ -18,7 +18,9 @@ Customer production databases remain untouched. Integration is API-based only.
 
 The deployed staging Worker is `santo-api-staging` at `https://santo-api-staging.geminiamo0.workers.dev`. Remote acceptance verified healthy `/health`, D1, R2, both SQLite Durable Objects, Queue enqueue/dequeue and consumption, Analytics Engine, and AI Search. The real staging D1 UUID is committed in `workers/api/wrangler.toml`. No production secrets are committed.
 
-**Current active implementation issue:** **#3 — P2 minimal B2B auth, tenancy, and tenant isolation.** Do not skip ahead to #4–#7 or full portal work until #3 meets its own acceptance criteria and verification gates.
+**Current active implementation issue:** **#3 — P2 minimal B2B auth, tenancy, and tenant isolation.** PR **#17** now contains the first clean P2 repository/CI foundation: WorkOS RS256/JWKS access-token verification, D1 tenant and membership records, minimal `super_admin`/`owner` authorization, tenant-create/context/read/update APIs, and explicit two-tenant cross-tenant denial tests. GitHub Actions `Verify` run **37197525222** passed completely on commit `947ee847d3fa911469f82b7416e97ff6d1030e81`.
+
+Issue #3 is **not complete yet**. The remaining P2 gate is real WorkOS AuthKit staging configuration/login plus remote application/verification of `0002_tenancy.sql` and a staging MedPark + second-tenant isolation proof. Do not advance to #4–#7 or full portal work until those gates, merge, and post-merge `Verify` pass.
 
 ## 2. Source-of-truth documents
 
@@ -38,7 +40,7 @@ Do not reorder these without documenting the reason.
 
 - [x] **#1 — P0:** Bootstrap Santoreno monorepo and CI
 - [x] **#2 — P1:** Provision Cloudflare foundation and bindings
-- [ ] **#3 — P2:** Minimal B2B auth, tenancy, and tenant isolation
+- [ ] **#3 — P2:** Minimal B2B auth, tenancy, and tenant isolation — repository/CI foundation verified; live staging acceptance pending
 - [ ] **#4 — P3:** Customer server credentials and domain controls
 - [ ] **#5 — P4:** Implement `/v1/session/exchange` for external users
 - [ ] **#6 — P5:** Implement atomic `TenantMeterDO` quota engine
@@ -125,6 +127,16 @@ No fabricated citations are permitted.
 
 Environment-specific resource names and the no-secrets rule are documented in `docs/CLOUDFLARE_FOUNDATION.md` and `config/environments/`.
 
+### Phase 2 identity/tenancy foundation on PR #17
+
+- Portal API bearer tokens are verified server-side as RS256 JWTs against WorkOS JWKS.
+- Token issuer, `client_id`, expiry/not-before, and subject are validated before tenant resolution.
+- WorkOS `org_id` maps to a Santo D1 tenant; WorkOS role claims are not trusted as the sole Santo authorization source.
+- Santo owner authorization requires an explicit `(tenant_id, workos_user_id)` membership record.
+- Santo `super_admin` bootstrap access is server-side configuration only and is never accepted from browser-supplied role/tenant fields.
+- Current tenant routes reject requested tenant IDs that differ from the authenticated Santo tenant context.
+- The minimal API surface is intentionally limited to tenant creation, authenticated context, tenant read, and tenant name update.
+
 ## 6. Core architecture rules
 
 - Tenant identity must come from authenticated context, never arbitrary browser input.
@@ -184,16 +196,19 @@ Whenever work is completed:
 - **PR #15 was squash-merged to `main` as `3d519810e0f640261c378f1e6e6601aec68cde5f`.**
 - **Post-merge `main` Verify run `37195664585` passed completely:** repository policy, frozen install, lint, typecheck, tests, build, and smoke all green.
 - **Issue #2 was closed as completed** after all local, remote-staging, merge, and post-merge gates passed. Issue #8 now marks P1 complete and #3 as the active implementation issue.
+- **P2 repository/CI foundation is implemented on PR #17.** It adds WorkOS token verification, D1 tenant/membership schema and repository boundaries, minimal authorization services/routes, and strict shared tenant contracts without adding full portal UI.
+- **P2 isolation regression is proven in CI:** MedPark and a second tenant are created in the test harness; MedPark owner context resolves only MedPark; second-tenant reads and writes return 403; changing only `org_id` without a matching Santo membership still fails closed.
+- **PR #17 Verify run `37197525222` passed completely** on commit `947ee847d3fa911469f82b7416e97ff6d1030e81`: repository policy, frozen install, lint/format, typecheck, tests, build, and smoke all green.
 
 ## 9. Next action
 
-Start **Issue #3 — P2 minimal B2B auth, tenancy, and tenant isolation**.
+Continue **Issue #3 — P2**. Do **not** start Issue #4 yet.
 
-Implement only the minimum identity/tenancy slice required by the roadmap and Issue #3 acceptance criteria. Keep the portal limited to the smallest admin authentication, tenant creation, and tenant-context surfaces needed to prove isolation.
+The repository/CI foundation is green. Next, configure/prove the real WorkOS AuthKit staging path, apply D1 migration `0002_tenancy.sql` to `santo-control-plane-staging`, and run a remote two-tenant acceptance flow proving Super Admin tenant creation, MedPark owner context, and 403 cross-tenant read/write denial.
 
-Every meaningful implementation step must pass GitHub Actions `Verify`. Add explicit tests that tenant identity comes from authenticated context and that cross-tenant access fails closed before marking P2 complete.
+After the live staging gate passes, update Issue #3 evidence/checklist and this handoff, require a final green PR `Verify`, merge PR #17, then require green post-merge `Verify` on `main`. Only then may Issue #3 close and Issue #4 become active.
 
-Do not skip directly to customer server credentials (#4), session exchange (#5), quota (#6), full widget UX, billing, polished dashboards, or advanced AI features out of documented order.
+Keep the portal minimal. Do not build customer credentials (#4), session exchange (#5), quota (#6), full widget UX, billing, polished dashboards, or advanced AI features out of documented order.
 
 ## 10. Verification policy
 

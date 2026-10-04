@@ -14,6 +14,13 @@ const FIXTURE_CONTENT = [
   "Do not infer any clinical meaning from this synthetic test value.",
 ].join("\n");
 
+type SetupStage =
+  | "remove-stale"
+  | "create-instance"
+  | "index-fixture"
+  | "validate-index"
+  | "configure-quota";
+
 function isAuthorized(request: Request, env: SantoBindings): boolean {
   if (env.SANTO_ENV === "production") {
     return false;
@@ -78,19 +85,27 @@ async function setup(request: Request, env: SantoBindings): Promise<Response> {
     );
   }
 
+  let stage: SetupStage = "remove-stale";
   try {
     await removeFixture(env.AI_SEARCH);
+
+    stage = "create-instance";
     const instance = await env.AI_SEARCH.create({ id: FIXTURE_INSTANCE_ID });
+
+    stage = "index-fixture";
     const uploaded = asRecord(
       await instance.items.uploadAndPoll(FIXTURE_ITEM_KEY, FIXTURE_CONTENT, {
         pollIntervalMs: 1_000,
         timeoutMs: 120_000,
       }),
     );
+
+    stage = "validate-index";
     if (uploaded?.status !== "completed") {
       throw new Error(`Acceptance fixture indexing ended with status ${String(uploaded?.status)}`);
     }
 
+    stage = "configure-quota";
     const now = Date.now();
     await new DurableObjectQuotaService(env.TENANT_METER).configure({
       tenantId,
@@ -119,12 +134,12 @@ async function setup(request: Request, env: SantoBindings): Promise<Response> {
     } catch {
       // Preserve the original setup error. Cleanup is retried by the workflow.
     }
-    console.error(
-      "P6 grounded AI acceptance setup failed",
-      error instanceof Error ? error.message : "unknown",
-    );
+    console.error("P6 grounded AI acceptance setup failed", {
+      stage,
+      error: error instanceof Error ? error.message : "unknown",
+    });
     return Response.json(
-      { status: "failed", error: "P6_ACCEPTANCE_SETUP_FAILED" },
+      { status: "failed", error: "P6_ACCEPTANCE_SETUP_FAILED", stage },
       { status: 500 },
     );
   }

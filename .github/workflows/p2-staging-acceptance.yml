@@ -68,12 +68,15 @@ jobs:
           client_id="$(jq -r '.workos.clientId // empty' config/environments/staging.json)"
           environment_id="$(jq -r '.workos.environmentId // empty' config/environments/staging.json)"
           application_id="$(jq -r '.workos.applicationId // empty' config/environments/staging.json)"
+          issuer="$(jq -r '.workos.issuer // empty' config/environments/staging.json)"
           test -n "$client_id"
           test -n "$environment_id"
           test -n "$application_id"
+          test -n "$issuer"
           echo "WORKOS_CLIENT_ID=$client_id" >> "$GITHUB_ENV"
           echo "WORKOS_ENVIRONMENT_ID=$environment_id" >> "$GITHUB_ENV"
           echo "WORKOS_APPLICATION_ID=$application_id" >> "$GITHUB_ENV"
+          echo "WORKOS_ISSUER=$issuer" >> "$GITHUB_ENV"
 
       - name: Validate Cloudflare credentials
         shell: bash
@@ -89,6 +92,7 @@ jobs:
         run: |
           set -euo pipefail
           test -n "${WORKOS_CLIENT_ID:-}"
+          test -n "${WORKOS_ISSUER:-}"
           test -n "${WORKOS_API_KEY:-}"
 
       - name: Apply P2 staging migrations
@@ -132,7 +136,7 @@ jobs:
           jq -n \
             --arg smoke "$smoke_token" \
             --arg client "$WORKOS_CLIENT_ID" \
-            --arg issuer "https://api.workos.com" \
+            --arg issuer "$WORKOS_ISSUER" \
             --arg admins "$SANTO_SUPER_ADMIN_USER_IDS" \
             '{
               INFRA_SMOKE_TOKEN: $smoke,

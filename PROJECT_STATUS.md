@@ -18,13 +18,11 @@ Customer production databases remain untouched. Integration is API-based only.
 
 The deployed staging Worker is `santo-api-staging` at `https://santo-api-staging.geminiamo0.workers.dev`. Remote acceptance verified healthy `/health`, D1, R2, both SQLite Durable Objects, Queue enqueue/dequeue and consumption, Analytics Engine, and AI Search. The real staging D1 UUID is committed in `workers/api/wrangler.toml`. No production secrets are committed.
 
-**Current active implementation issue:** **#3 — P2 minimal B2B auth, tenancy, and tenant isolation.** PR **#17** now satisfies its repository, CI, and live-staging acceptance criteria. WorkOS RS256/JWKS token verification, D1 tenant/membership persistence, minimal `super_admin`/`owner` authorization, tenant-create/context/read/update APIs, and two-tenant fail-closed isolation are implemented.
+**Phase 2 / Issue #3 is complete.** PR **#17** implemented the minimal B2B identity/tenancy foundation: WorkOS RS256/JWKS token verification, D1 tenant and membership persistence, minimal `super_admin`/`owner` authorization, tenant-create/context/read/update APIs, and two-tenant fail-closed isolation. Final clean PR head `128a64ef4ea39c8fe947bd7d283ecb3c9af9442a` passed `Verify` run **37203640840** and real P2 staging acceptance run **37203637755**. PR #17 was squash-merged to `main` as `a22218f2eba76c6b8f3cf4fbefec46bb3f2676ba`, and post-merge `Verify` run **37203749651** passed both `repository-policy` and `code-quality`.
 
-**Real P2 staging acceptance passed.** On commit `87d11f27aa38c865eee35f3779d64847c975f219`, GitHub Actions `Verify` run **37203273368** (#104) passed completely and P2 Staging Acceptance run **37203268976** passed end-to-end. The live gate authenticated temporary real WorkOS staging identities, verified D1 migration `0002_tenancy.sql`, deployed `santo-api-staging`, created MedPark plus a second tenant, resolved the MedPark owner only to MedPark, proved cross-tenant reads and writes return 403, and cleaned up both D1 and WorkOS fixtures successfully.
+The real P2 staging gate authenticated temporary WorkOS staging identities, verified D1 migration `0002_tenancy.sql`, deployed `santo-api-staging`, created MedPark plus a second tenant, resolved the MedPark owner only to MedPark, proved cross-tenant reads and writes return 403, and cleaned up both D1 and WorkOS fixtures successfully. WorkOS multi-application token behavior is regression-covered: `client_id` identifies the Santo Staging application while `iss` references the environment's default AuthKit application. `WORKOS_API_KEY` remains CI-only and is never deployed to the Worker.
 
-WorkOS multi-application token behavior was measured during the live gate rather than guessed: `client_id` identifies the current Santo Staging application while `iss` references the environment's default AuthKit application. The verified issuer is versioned in `config/environments/staging.json`, the staging workflow deploys that value instead of hard-coding an API origin, and a regression test covers the issuer/client split. `WORKOS_API_KEY` remains CI-only and is never deployed to the Worker.
-
-**Issue #3 acceptance is proven but the issue remains open until repository completion is finished.** Do not start #4 yet. Require a final green PR `Verify`, merge PR #17, then require a green post-merge `Verify` on `main`. Only after those gates may #3 close and #4 become active.
+**Current active implementation issue:** **#4 — P3 customer server credentials and domain controls.** Issue #3 is closed as completed and Issue #8 marks P2 complete. Do not skip ahead to #5–#7 or full portal work until #4 meets its own acceptance criteria and verification gates.
 
 ## 2. Source-of-truth documents
 
@@ -44,8 +42,8 @@ Do not reorder these without documenting the reason.
 
 - [x] **#1 — P0:** Bootstrap Santoreno monorepo and CI
 - [x] **#2 — P1:** Provision Cloudflare foundation and bindings
-- [ ] **#3 — P2:** Minimal B2B auth, tenancy, and tenant isolation — live acceptance proven; merge and post-merge Verify pending
-- [ ] **#4 — P3:** Customer server credentials and domain controls
+- [x] **#3 — P2:** Minimal B2B auth, tenancy, and tenant isolation
+- [ ] **#4 — P3:** Customer server credentials and domain controls — current active issue
 - [ ] **#5 — P4:** Implement `/v1/session/exchange` for external users
 - [ ] **#6 — P5:** Implement atomic `TenantMeterDO` quota engine
 - [ ] **#7 — Vertical Slice:** One minimal grounded AI endpoint
@@ -209,18 +207,22 @@ Whenever work is completed:
 - **Clean PR #17 Verify run `37203273368` (#104) passed completely** on commit `87d11f27aa38c865eee35f3779d64847c975f219`: repository policy, lint/format, typecheck, tests, build, and smoke all green.
 - **Real WorkOS staging acceptance passed in run `37203268976` on the same commit:** real WorkOS users and organizations authenticated successfully; Santo Super Admin created MedPark and a second tenant; MedPark owner resolved only MedPark; cross-tenant reads/writes returned 403; D1 and WorkOS fixtures were cleaned successfully.
 - **WorkOS multi-application issuer behavior is now regression-covered:** the token `client_id` is the Santo Staging application while `iss` references the environment default application. Staging config records the verified issuer explicitly and the Worker receives only public verification configuration, never `WORKOS_API_KEY`.
+- **Final clean PR #17 head `128a64ef4ea39c8fe947bd7d283ecb3c9af9442a` passed `Verify` run `37203640840` and P2 staging acceptance run `37203637755`.**
+- **PR #17 was squash-merged to `main` as `a22218f2eba76c6b8f3cf4fbefec46bb3f2676ba`.**
+- **Post-merge `main` Verify run `37203749651` passed completely** on the merge commit, with both `repository-policy` and `code-quality` green.
+- **Issue #3 was closed as completed and Issue #8 now marks P2 complete with #4 active.**
 
 ## 9. Next action
 
-Continue **Issue #3 — P2**. Do **not** start Issue #4 yet.
+Continue **Issue #4 — P3 customer server credentials and domain controls**. Do **not** start Issue #5 yet.
 
-The P2 implementation and live staging gate are green. Do not add more feature scope to PR #17. Require a final green PR `Verify` after this handoff update, then squash-merge PR #17.
+Implement the smallest clean credential foundation required by Issue #4: tenant credential metadata in D1, cryptographically secure server-secret generation, store only a safe verification form/hash, return plaintext only once at creation/rotation, credential ID/prefix, server-secret authentication middleware, `last_used_at`, rotation/revocation, allowed-domain configuration, audit events, and regression tests for invalid/revoked/wrong-tenant/rotated credentials.
 
-After merge, require a green `Verify` on the resulting `main` commit. Then close Issue #3 as completed, update Issue #8 to mark P2 complete and #4 active, and update this handoff to point the exact next action at Issue #4.
+The security invariants are mandatory: customer server secrets never enter browser bundles, secrets are never stored recoverably in D1, browser/public widget configuration contains no server credential, and tenant resolution comes only from authenticated server-secret context.
 
-Only after those repository-completion gates may implementation begin on **Issue #4 — P3 customer server credentials and domain controls**.
+For every meaningful step: implement the smallest coherent slice, add tests, require GitHub Actions `Verify`, update Issue #4 checklist/evidence, and keep this handoff current. Do not build the full customer portal; a minimal admin API/test surface is enough for this phase.
 
-Keep the portal minimal. Do not build customer credentials (#4), session exchange (#5), quota (#6), full widget UX, billing, polished dashboards, or advanced AI features out of documented order.
+Keep #5 session exchange, #6 quota, full widget UX, billing, polished dashboards, and advanced AI features out of scope until their documented gates become active.
 
 ## 10. Verification policy
 

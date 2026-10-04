@@ -12,6 +12,9 @@ permissions:
 env:
   CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
   CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  WORKOS_CLIENT_ID: ${{ secrets.WORKOS_CLIENT_ID }}
+  WORKOS_API_KEY: ${{ secrets.WORKOS_API_KEY }}
+  P2_WORKOS_STATE_PATH: /tmp/santo-p2-workos-state.json
   GH_TOKEN: ${{ github.token }}
   NO_COLOR: "1"
 
@@ -68,6 +71,13 @@ jobs:
           cd workers/api
           pnpm exec wrangler whoami
 
+      - name: Validate WorkOS staging credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${WORKOS_CLIENT_ID:-}"
+          test -n "${WORKOS_API_KEY:-}"
+
       - name: Apply P2 staging migrations
         shell: bash
         run: |
@@ -94,6 +104,10 @@ jobs:
           console.log('Remote P2 tenancy tables verified.');
           NODE
 
+      - name: Seed and authenticate WorkOS staging identities
+        shell: bash
+        run: node scripts/p2-live-acceptance.mjs seed
+
       - name: Deploy P2 staging Worker
         id: deploy
         shell: bash
@@ -102,7 +116,17 @@ jobs:
           smoke_token="$(openssl rand -hex 32)"
           echo "::add-mask::$smoke_token"
           echo "INFRA_SMOKE_TOKEN=$smoke_token" >> "$GITHUB_ENV"
-          printf '{"INFRA_SMOKE_TOKEN":"%s"}\n' "$smoke_token" > /tmp/p2-secrets.json
+          jq -n \
+            --arg smoke "$smoke_token" \
+            --arg client "$WORKOS_CLIENT_ID" \
+            --arg issuer "https://api.workos.com" \
+            --arg admins "$SANTO_SUPER_ADMIN_USER_IDS" \
+            '{
+              INFRA_SMOKE_TOKEN: $smoke,
+              WORKOS_CLIENT_ID: $client,
+              WORKOS_ISSUER: $issuer,
+              SANTO_SUPER_ADMIN_USER_IDS: $admins
+            }' > /tmp/p2-secrets.json
           chmod 600 /tmp/p2-secrets.json
           trap 'rm -f /tmp/p2-secrets.json' EXIT
           cd workers/api
@@ -158,3 +182,33 @@ jobs:
             echo "- D1 runtime binding: passed"
             echo "- infra smoke token: rotated, masked, and propagation-verified"
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Verify real WorkOS auth and tenant isolation
+        env:
+          WORKER_URL: ${{ steps.deploy.outputs.worker_url }}
+        shell: bash
+        run: node scripts/p2-live-acceptance.mjs verify
+
+      - name: Cleanup Santo staging fixtures
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! -f "$P2_WORKOS_STATE_PATH" ]]; then
+            exit 0
+          fi
+          node scripts/p2-live-acceptance.mjs cleanup-sql > /tmp/p2-cleanup.sql
+          if [[ -s /tmp/p2-cleanup.sql ]]; then
+            cd workers/api
+            pnpm exec wrangler d1 execute CONTROL_DB --env staging --remote --file /tmp/p2-cleanup.sql
+          fi
+
+      - name: Cleanup WorkOS staging fixtures
+        if: always()
+        shell: bash
+        run: node scripts/p2-live-acceptance.mjs cleanup-workos
+
+      - name: Remove P2 staging state
+        if: always()
+        shell: bash
+        run: rm -f "$P2_WORKOS_STATE_PATH" /tmp/p2-cleanup.sql /tmp/p2-secrets.json

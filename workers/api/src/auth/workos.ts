@@ -197,18 +197,10 @@ export const verifyWorkOSBearerToken: PortalTokenVerifier = async (env, authoriz
   const signingValue = `${headerSegment}.${payloadSegment}`;
   const signingInput = new TextEncoder().encode(signingValue);
   const signature = decodeBase64Url(signatureSegment);
-  const verified = await crypto.subtle.verify(
-    "RSASSA-PKCS1-v1_5",
-    key,
-    signature,
-    signingInput,
-  );
+  const verified = await crypto.subtle.verify("RSASSA-PKCS1-v1_5", key, signature, signingInput);
 
   if (!verified) {
-    throw new PortalAuthError(
-      "INVALID_AUTH_TOKEN",
-      "WorkOS access token signature is invalid",
-    );
+    throw new PortalAuthError("INVALID_AUTH_TOKEN", "WorkOS access token signature is invalid");
   }
 
   return validateClaims(claims, env);

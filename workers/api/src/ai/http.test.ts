@@ -40,12 +40,16 @@ function request(headers: Record<string, string> = {}, body: unknown = { questio
 describe("handleGroundedAiQuery", () => {
   it("denies invalid sessions before parsing or calling the AI service", async () => {
     const query = vi.fn(async () => result);
-    const response = await handleGroundedAiQuery(request({ "idempotency-key": "req-1" }), {}, {
-      async authenticateSession() {
-        throw new SessionTokenError(401, "SESSION_TOKEN_INVALID", "invalid");
+    const response = await handleGroundedAiQuery(
+      request({ "idempotency-key": "req-1" }),
+      {},
+      {
+        async authenticateSession() {
+          throw new SessionTokenError(401, "SESSION_TOKEN_INVALID", "invalid");
+        },
+        query,
       },
-      query,
-    });
+    );
 
     expect(response.status).toBe(401);
     expect(await response.json()).toEqual({ error: "SESSION_TOKEN_INVALID" });
@@ -54,10 +58,14 @@ describe("handleGroundedAiQuery", () => {
 
   it("requires a bounded idempotency key before the use case", async () => {
     const query = vi.fn(async () => result);
-    const response = await handleGroundedAiQuery(request(), {}, {
-      authenticateSession: vi.fn(async () => session),
-      query,
-    });
+    const response = await handleGroundedAiQuery(
+      request(),
+      {},
+      {
+        authenticateSession: vi.fn(async () => session),
+        query,
+      },
+    );
 
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual({ error: "INVALID_IDEMPOTENCY_KEY" });
@@ -88,12 +96,16 @@ describe("handleGroundedAiQuery", () => {
   });
 
   it("maps grounded AI errors to stable HTTP error codes", async () => {
-    const response = await handleGroundedAiQuery(request({ "idempotency-key": "req-1" }), {}, {
-      authenticateSession: vi.fn(async () => session),
-      async query() {
-        throw new GroundedAiError(429, "USER_EXHAUSTED", "quota exhausted");
+    const response = await handleGroundedAiQuery(
+      request({ "idempotency-key": "req-1" }),
+      {},
+      {
+        authenticateSession: vi.fn(async () => session),
+        async query() {
+          throw new GroundedAiError(429, "USER_EXHAUSTED", "quota exhausted");
+        },
       },
-    });
+    );
 
     expect(response.status).toBe(429);
     expect(await response.json()).toEqual({ error: "USER_EXHAUSTED" });

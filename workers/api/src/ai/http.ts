@@ -19,10 +19,7 @@ import type { GroundedAiQueryInput, GroundedAiResult } from "./types";
 const IDEMPOTENCY_KEY_MAX_LENGTH = 128;
 
 export interface GroundedAiHttpDependencies {
-  authenticateSession?: (
-    request: Request,
-    env: SantoBindings,
-  ) => Promise<SessionContextResponse>;
+  authenticateSession?: (request: Request, env: SantoBindings) => Promise<SessionContextResponse>;
   query?: (input: GroundedAiQueryInput, env: SantoBindings) => Promise<GroundedAiResult>;
 }
 
@@ -47,7 +44,9 @@ async function defaultAuthenticateSession(
   }
 
   const tokens = new SantoSessionTokenService(env);
-  const principal = await tokens.verifyBearerToken(request.headers.get("authorization") ?? undefined);
+  const principal = await tokens.verifyBearerToken(
+    request.headers.get("authorization") ?? undefined,
+  );
   const sessions = new SessionExchangeService(
     new D1ExternalUserRepository(env.CONTROL_DB),
     new D1TenantRepository(env.CONTROL_DB),

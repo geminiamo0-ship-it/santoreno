@@ -1,3 +1,4 @@
+# Temporary branch-only formatter. Remove immediately after it commits exact Prettier output.
 name: P2 Format Once
 
 on:

@@ -1,0 +1,68 @@
+name: P2 Inspect WorkOS Token Once
+
+on:
+  push:
+    branches:
+      - feat/issue-3-tenant-auth
+
+permissions:
+  contents: read
+
+env:
+  WORKOS_API_KEY: ${{ secrets.WORKOS_API_KEY }}
+  P2_WORKOS_STATE_PATH: /tmp/santo-p2-workos-state.json
+  NO_COLOR: "1"
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Load WorkOS staging client
+        shell: bash
+        run: |
+          set -euo pipefail
+          client_id="$(jq -r '.workos.clientId // empty' config/environments/staging.json)"
+          test -n "$client_id"
+          echo "WORKOS_CLIENT_ID=$client_id" >> "$GITHUB_ENV"
+
+      - name: Seed authenticated WorkOS fixtures
+        run: node scripts/p2-live-acceptance.mjs seed
+
+      - name: Inspect non-secret JWT metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('fs');
+          const state = JSON.parse(fs.readFileSync(process.env.P2_WORKOS_STATE_PATH, 'utf8'));
+          const token = state.workos.users.superAdmin.accessToken;
+          const [headerSegment, payloadSegment] = token.split('.');
+          const decode = (segment) => JSON.parse(Buffer.from(segment, 'base64url').toString('utf8'));
+          const header = decode(headerSegment);
+          const claims = decode(payloadSegment);
+          console.log(JSON.stringify({
+            alg: header.alg ?? null,
+            kid: header.kid ?? null,
+            iss: claims.iss ?? null,
+            client_id: claims.client_id ?? null,
+            has_sub: Boolean(claims.sub),
+            has_exp: typeof claims.exp === 'number'
+          }));
+          NODE
+
+      - name: Cleanup WorkOS fixtures
+        if: always()
+        run: node scripts/p2-live-acceptance.mjs cleanup-workos
+
+      - name: Remove state
+        if: always()
+        run: rm -f "$P2_WORKOS_STATE_PATH"

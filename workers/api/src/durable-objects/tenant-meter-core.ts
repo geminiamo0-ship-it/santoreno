@@ -6,7 +6,6 @@ import {
   QuotaReleaseRequestSchema,
   QuotaReserveRequestSchema,
   QuotaSnapshotSchema,
-  type QuotaConfigureRequest,
   type QuotaDenialReason,
   type QuotaOperationResponse,
   type QuotaReservationStatus,
@@ -140,7 +139,11 @@ function requireUser(sql: SqlStorageLike, externalUserId: string): UserQuotaRow 
 
 function assertTenantId(tenant: TenantStateRow, tenantId: string): void {
   if (tenant.tenant_id !== tenantId) {
-    throw new QuotaStateError(403, "TENANT_QUOTA_MISMATCH", "Quota state belongs to another tenant");
+    throw new QuotaStateError(
+      403,
+      "TENANT_QUOTA_MISMATCH",
+      "Quota state belongs to another tenant",
+    );
   }
 }
 
@@ -219,7 +222,11 @@ function resetCycle(
   return requireTenant(sql);
 }
 
-function rolloverIfNeeded(sql: SqlStorageLike, tenant: TenantStateRow, now: number): TenantStateRow {
+function rolloverIfNeeded(
+  sql: SqlStorageLike,
+  tenant: TenantStateRow,
+  now: number,
+): TenantStateRow {
   if (now < tenant.cycle_end_ms) {
     return tenant;
   }
@@ -253,10 +260,7 @@ function responseForExistingReservation(
   expectedUserId: string,
   expectedUnits: number,
 ): QuotaOperationResponse {
-  if (
-    reservation.external_user_id !== expectedUserId ||
-    reservation.units !== expectedUnits
-  ) {
+  if (reservation.external_user_id !== expectedUserId || reservation.units !== expectedUnits) {
     throw new QuotaStateError(
       409,
       "IDEMPOTENCY_CONFLICT",
@@ -267,9 +271,7 @@ function responseForExistingReservation(
   const tenant = requireTenant(sql);
   const user = requireUser(sql, reservation.external_user_id);
   const denialReason =
-    reservation.status === "released"
-      ? "RESERVATION_RELEASED"
-      : reservation.denial_reason;
+    reservation.status === "released" ? "RESERVATION_RELEASED" : reservation.denial_reason;
 
   return QuotaOperationResponseSchema.parse({
     allowed: reservation.status === "reserved" || reservation.status === "finalized",
@@ -326,7 +328,11 @@ export class TenantMeterCore {
       const sql = this.storage.sql;
       const existing = first<TenantStateRow>(sql, "SELECT * FROM tenant_state WHERE singleton = 1");
       if (existing && existing.tenant_id !== request.tenantId) {
-        throw new QuotaStateError(403, "TENANT_QUOTA_MISMATCH", "Quota state belongs to another tenant");
+        throw new QuotaStateError(
+          403,
+          "TENANT_QUOTA_MISMATCH",
+          "Quota state belongs to another tenant",
+        );
       }
 
       if (!existing) {
@@ -560,10 +566,7 @@ export class TenantMeterCore {
         allowed: true,
         reservationStatus: "finalized",
         denialReason: null,
-        snapshot: toSnapshot(
-          requireTenant(sql),
-          requireUser(sql, reservation.external_user_id),
-        ),
+        snapshot: toSnapshot(requireTenant(sql), requireUser(sql, reservation.external_user_id)),
       });
     });
   }
@@ -598,7 +601,11 @@ export class TenantMeterCore {
         );
       }
       if (reservation.status === "denied") {
-        throw new QuotaStateError(409, "RESERVATION_NOT_RELEASABLE", "Denied request has no reservation");
+        throw new QuotaStateError(
+          409,
+          "RESERVATION_NOT_RELEASABLE",
+          "Denied request has no reservation",
+        );
       }
 
       sql.exec(
@@ -626,10 +633,7 @@ export class TenantMeterCore {
         allowed: false,
         reservationStatus: "released",
         denialReason: "RESERVATION_RELEASED",
-        snapshot: toSnapshot(
-          requireTenant(sql),
-          requireUser(sql, reservation.external_user_id),
-        ),
+        snapshot: toSnapshot(requireTenant(sql), requireUser(sql, reservation.external_user_id)),
       });
     });
   }

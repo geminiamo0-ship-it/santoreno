@@ -140,10 +140,7 @@ async function checkTenantMeter(
 
     const releaseFinalized = await postJson(stub, "/release", { tenantId, idempotencyKey });
     const releaseError = (await releaseFinalized.json()) as { error?: string };
-    if (
-      releaseFinalized.status !== 409 ||
-      releaseError.error !== "RESERVATION_ALREADY_FINALIZED"
-    ) {
+    if (releaseFinalized.status !== 409 || releaseError.error !== "RESERVATION_ALREADY_FINALIZED") {
       return "error";
     }
 

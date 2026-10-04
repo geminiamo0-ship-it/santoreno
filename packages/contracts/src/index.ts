@@ -161,12 +161,7 @@ export type SessionContextResponse = z.infer<typeof SessionContextResponseSchema
 export const QuotaStatusSchema = z.enum(["active", "suspended"]);
 export type QuotaStatus = z.infer<typeof QuotaStatusSchema>;
 
-export const QuotaReservationStatusSchema = z.enum([
-  "reserved",
-  "finalized",
-  "released",
-  "denied",
-]);
+export const QuotaReservationStatusSchema = z.enum(["reserved", "finalized", "released", "denied"]);
 export type QuotaReservationStatus = z.infer<typeof QuotaReservationStatusSchema>;
 
 export const QuotaDenialReasonSchema = z.enum([

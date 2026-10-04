@@ -1,4 +1,8 @@
-import { QuotaStateError, TenantMeterCore, type DurableObjectStorageLike } from "./tenant-meter-core";
+import {
+  QuotaStateError,
+  TenantMeterCore,
+  type DurableObjectStorageLike,
+} from "./tenant-meter-core";
 
 interface DurableObjectStateLike {
   storage: DurableObjectStorageLike;

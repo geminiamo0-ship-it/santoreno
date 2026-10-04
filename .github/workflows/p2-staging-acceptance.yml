@@ -100,19 +100,20 @@ jobs:
         run: |
           set -euo pipefail
           smoke_token="$(openssl rand -hex 32)"
+          echo "::add-mask::$smoke_token"
+          echo "INFRA_SMOKE_TOKEN=$smoke_token" >> "$GITHUB_ENV"
           printf '{"INFRA_SMOKE_TOKEN":"%s"}\n' "$smoke_token" > /tmp/p2-secrets.json
           chmod 600 /tmp/p2-secrets.json
+          trap 'rm -f /tmp/p2-secrets.json' EXIT
           cd workers/api
           pnpm exec wrangler deploy --env staging --secrets-file /tmp/p2-secrets.json | tee /tmp/p2-deploy.txt
           worker_url="$(grep -Eo 'https://[A-Za-z0-9.-]+\.workers\.dev' /tmp/p2-deploy.txt | tail -n 1)"
           test -n "$worker_url"
           echo "worker_url=$worker_url" >> "$GITHUB_OUTPUT"
-          echo "smoke_token=$smoke_token" >> "$GITHUB_OUTPUT"
 
       - name: Verify P2 staging runtime
         env:
           WORKER_URL: ${{ steps.deploy.outputs.worker_url }}
-          INFRA_SMOKE_TOKEN: ${{ steps.deploy.outputs.smoke_token }}
         shell: bash
         run: |
           set -euo pipefail
@@ -144,4 +145,5 @@ jobs:
             echo "- /health: passed"
             echo "- unauthenticated /v1/portal/context: 401 AUTH_REQUIRED"
             echo "- D1 runtime binding: passed"
+            echo "- infra smoke token: rotated and masked"
           } >> "$GITHUB_STEP_SUMMARY"

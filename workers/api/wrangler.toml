@@ -48,13 +48,21 @@ max_retries = 2
 binding = "USAGE_ANALYTICS"
 dataset = "santo_usage_local"
 
-# Remote environments intentionally omit CONTROL_DB until the real D1 UUIDs are
-# provisioned. The remaining bindings are name-based and can be declared now.
 [env.staging]
 name = "santo-api-staging"
+workers_dev = true
 
 [env.staging.vars]
 SANTO_ENV = "staging"
+
+[env.staging.secrets]
+required = ["INFRA_SMOKE_TOKEN"]
+
+[[env.staging.d1_databases]]
+binding = "CONTROL_DB"
+database_name = "santo-control-plane-staging"
+database_id = "f875f14a-100a-4731-9e9e-1beed957fd16"
+migrations_dir = "migrations"
 
 [[env.staging.r2_buckets]]
 binding = "CONTENT_BUCKET"
@@ -84,6 +92,8 @@ dataset = "santo_usage_staging"
 binding = "AI_SEARCH"
 namespace = "default"
 
+# Production intentionally omits CONTROL_DB until the real production D1 UUID
+# is provisioned. The remaining bindings are name-based and can be declared now.
 [env.production]
 name = "santo-api"
 

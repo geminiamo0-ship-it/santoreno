@@ -14,7 +14,11 @@ Customer production databases remain untouched. Integration is API-based only.
 
 **Phase 0 is complete.** PR **#11** is merged to `main`, and post-merge GitHub Actions `Verify` run **37155527270** passed. The pnpm/Turborepo workspace, minimal portal/API/widget/contracts packages, strict tooling, CI, and runtime smoke checks are the verified baseline.
 
-**Phase 1 is in progress.** PR **#13** is merged to `main` as `1c1f33d4cc84c1f7c5855db3c7b8f151c8b53354`, and post-merge GitHub Actions run **37157031087** passed. The repository/local Cloudflare foundation is therefore verified on `main`: D1 migration/access, R2 access, both SQLite Durable Object bindings, Queue enqueue/dequeue with D1 receipt persistence, Analytics Engine dispatch, Worker boot, and `/health` all pass locally. Issue #2 is **not complete** until the real staging resources are provisioned in an authenticated Cloudflare account, the real staging D1 UUID is configured, staging deploy/migration succeeds, and the remote smoke checks including AI Search pass.
+**Phase 1 acceptance is proven on PR #15, but Issue #2 remains open until merge and post-merge `Verify` succeed on `main`.** The repository/local foundation was previously verified via PR #13. The authenticated staging gate has now also passed end-to-end on commit `ae2d85c5a9f3658c23d1e3c82b3bda92c0d0defe`: GitHub Actions `Verify` run **37195026053** passed, and staging provisioning run **37195022577** passed with machine-readable evidence artifact `santo-staging-evidence` (artifact **11300284166**, digest `sha256:13c11eb101cce3d60a135a53f32848a0ce02e75da76aad68006c6d9a073593f2`).
+
+The deployed staging Worker is `santo-api-staging` at `https://santo-api-staging.geminiamo0.workers.dev`. Remote acceptance verified healthy `/health`, D1, R2, both SQLite Durable Objects, Queue enqueue/dequeue, Analytics Engine, and AI Search. The real staging D1 UUID is committed in `workers/api/wrangler.toml`. No production secrets are committed.
+
+**Current P1 blocker:** none at the staging-acceptance layer. The only remaining completion gate is final PR #15 merge + post-merge `Verify` on `main`. Do not advance to Issue #3 until that main-branch gate passes and Issue #2 is formally closed.
 
 ## 2. Source-of-truth documents
 
@@ -33,7 +37,7 @@ Read in this order before implementation:
 Do not reorder these without documenting the reason.
 
 - [x] **#1 — P0:** Bootstrap Santoreno monorepo and CI
-- [ ] **#2 — P1:** Provision Cloudflare foundation and bindings
+- [ ] **#2 — P1:** Provision Cloudflare foundation and bindings — acceptance passed on PR branch; pending merge/post-merge `Verify`
 - [ ] **#3 — P2:** Minimal B2B auth, tenancy, and tenant isolation
 - [ ] **#4 — P3:** Customer server credentials and domain controls
 - [ ] **#5 — P4:** Implement `/v1/session/exchange` for external users
@@ -167,22 +171,25 @@ Whenever work is completed:
 - **Phase 1 repository/local foundation is merged via PR #13 as `1c1f33d4cc84c1f7c5855db3c7b8f151c8b53354` and acceptance-verified on `main`.** The Worker has stable D1/R2/DO/Queue/Analytics/AI Search binding contracts, SQLite-backed `TenantMeterDO` and `ConversationDO` namespace declarations, the first D1 migration, non-production infrastructure smoke endpoints, and explicit local/staging/production resource manifests.
 - Final PR-branch `Verify` run `37156901666` passed on `78ff49101d4498d976521fab76319dfb209d9beb`: frozen install, lint, typecheck, tests, Wrangler dry-run build, D1 migration, Worker boot, D1/R2/DO/Queue/Analytics smoke, and queue-consumer persistence all passed.
 - Post-merge `main` run `37157031087` passed for `1c1f33d4cc84c1f7c5855db3c7b8f151c8b53354`, confirming both `repository-policy` and `code-quality` green after merge.
-- AI Search is intentionally not simulated locally; its staging/production binding is configured for remote verification. No staging/production D1 UUID has been fabricated or committed.
+- AI Search is intentionally not simulated locally; its staging/production binding is configured for remote verification.
+- Cloudflare staging credentials are valid through repository secrets; `wrangler whoami` succeeds.
+- Real staging resources are provisioned: D1 `santo-control-plane-staging`, R2 `santo-content-staging`, Queue `santo-events-staging`, SQLite Durable Object namespaces for `TenantMeterDO` and `ConversationDO`, Analytics Engine dataset binding `santo_usage_staging`, and AI Search namespace `default`.
+- D1 migration `0001_infrastructure_smoke.sql` is applied remotely. The real staging D1 UUID `f875f14a-100a-4731-9e9e-1beed957fd16` is committed in `workers/api/wrangler.toml`.
+- Workers Analytics Engine is enabled for the Cloudflare account and `santo-api-staging` deploys successfully to `https://santo-api-staging.geminiamo0.workers.dev`.
+- **Remote staging acceptance passed on commit `ae2d85c5a9f3658c23d1e3c82b3bda92c0d0defe`.** `Verify` run **37195026053** passed, and provisioning run **37195022577** passed `/health` plus D1/R2/both DOs/Queue/Analytics/AI Search runtime smoke. Queue consumption was explicitly polled to completion.
+- Machine-readable evidence was uploaded as artifact **11300284166** (`santo-staging-evidence`), digest `sha256:13c11eb101cce3d60a135a53f32848a0ce02e75da76aad68006c6d9a073593f2`.
+- The staging gate includes explicit readiness loops for workers.dev route and secret propagation, preventing false failures during Cloudflare deployment propagation.
+- Temporary diagnostics were removed, and the staging provisioning workflow is retained as `workflow_dispatch` only so future account-side verification is explicit and still refuses to run until `Verify` is green for the selected commit.
 
 ## 9. Next action
 
 Continue **Issue #2 — P1**. Do **not** start Issue #3 yet.
 
-The remaining gate is authenticated Cloudflare staging provisioning:
+The remote acceptance criteria are proven. Run the final branch `Verify`, squash-merge PR #15, and then require a green post-merge `Verify` on `main`.
 
-1. Create/confirm `santo-control-plane-staging`, `santo-content-staging`, `santo-events-staging`, the two SQLite Durable Object namespaces, Analytics Engine binding, and AI Search namespace.
-2. Write the real staging D1 UUID into the staging Wrangler binding; never invent or reuse an ID.
-3. Deploy `santo-api-staging`.
-4. Apply the D1 migration remotely.
-5. Verify `/health` and staging infrastructure smoke for D1, R2, both DOs, Queue enqueue/dequeue, Analytics Engine, and AI Search.
-6. Only then mark Issue #2 complete and advance the roadmap to Issue #3.
+Only after that main-branch verification may Issue #2 be closed and the roadmap advance to **Issue #3 — P2 minimal B2B auth, tenancy, and tenant isolation**.
 
-Do not skip directly to portal UI, billing, complete widget UX, tenancy, session exchange, quota, or advanced AI features out of documented order.
+Do not skip directly to portal UI, billing, complete widget UX, session exchange, quota, or advanced AI features out of documented order.
 
 ## 10. Verification policy
 
@@ -199,7 +206,7 @@ pnpm build
 pnpm smoke
 ```
 
-The smoke gate verifies the Phase 0 runtime baseline plus the Phase 1 local Cloudflare foundation: portal boot, Worker boot with `/health`, D1 migration/access, R2 read/write/delete, both Durable Object bindings, Queue enqueue/dequeue with D1 receipt persistence, Analytics Engine dispatch, and expected build artifacts. AI Search is explicitly skipped locally and must be verified against the remote staging binding.
+The smoke gate verifies the Phase 0 runtime baseline plus the Phase 1 local Cloudflare foundation: portal boot, Worker boot with `/health`, D1 migration/access, R2 read/write/delete, both Durable Object bindings, Queue enqueue/dequeue with D1 receipt persistence, Analytics Engine dispatch, and expected build artifacts. AI Search is explicitly skipped locally and is verified against the remote staging binding by the staging provisioning gate.
 
 A step is not considered complete until its relevant automated verification passes and the result is recorded in the issue/PR.
 

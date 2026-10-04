@@ -1,0 +1,47 @@
+name: Temporary P6 acceptance formatter
+
+on:
+  push:
+    branches:
+      - feat/issue-7-grounded-ai-slice
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/issue-7-grounded-ai-slice
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - name: Fix lint warning
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('scripts/p6-live-acceptance.mjs')
+          s = p.read_text()
+          old = '      ...(options.headers ?? {}),'
+          new = '      ...options.headers,'
+          if old not in s:
+              raise SystemExit('expected lint pattern not found')
+          p.write_text(s.replace(old, new, 1))
+          PY
+      - run: pnpm exec prettier --write scripts/p6-live-acceptance.mjs
+      - name: Commit fix if needed
+        run: |
+          if git diff --quiet -- scripts/p6-live-acceptance.mjs; then
+            echo "No changes needed"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add scripts/p6-live-acceptance.mjs
+          git commit -m "test(ai): format P6 live acceptance harness"
+          git push origin HEAD:feat/issue-7-grounded-ai-slice

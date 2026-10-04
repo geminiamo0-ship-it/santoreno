@@ -230,21 +230,30 @@ jobs:
           done
           [[ -n "$health" ]] || { echo "Staging Worker did not become ready"; exit 1; }
 
-          smoke="$(curl --fail --silent --show-error \
-            -H "x-santo-infra-smoke-token: ${INFRA_SMOKE_TOKEN}" \
-            "${WORKER_URL}/__infra/smoke")"
-          jq -e '
-            .environment == "staging" and
-            .status == "ok" and
-            .bindings.controlDatabase == "ok" and
-            .bindings.contentBucket == "ok" and
-            .bindings.tenantMeterDo == "ok" and
-            .bindings.conversationDo == "ok" and
-            .bindings.eventQueue == "queued" and
-            .bindings.analyticsEngine == "ok" and
-            .bindings.aiSearch == "ok" and
-            (.eventId | type == "string" and length > 0)
-          ' <<<"$smoke" >/dev/null
+          smoke=""
+          for attempt in $(seq 1 45); do
+            candidate="$(curl --silent --show-error \
+              -H "x-santo-infra-smoke-token: ${INFRA_SMOKE_TOKEN}" \
+              "${WORKER_URL}/__infra/smoke" || true)"
+            if jq -e '
+              .environment == "staging" and
+              .status == "ok" and
+              .bindings.controlDatabase == "ok" and
+              .bindings.contentBucket == "ok" and
+              .bindings.tenantMeterDo == "ok" and
+              .bindings.conversationDo == "ok" and
+              .bindings.eventQueue == "queued" and
+              .bindings.analyticsEngine == "ok" and
+              .bindings.aiSearch == "ok" and
+              (.eventId | type == "string" and length > 0)
+            ' <<<"$candidate" >/dev/null 2>&1; then
+              smoke="$candidate"
+              break
+            fi
+            echo "Waiting for staging smoke bindings (${attempt}/45)..."
+            sleep 2
+          done
+          [[ -n "$smoke" ]] || { echo "Staging infrastructure smoke did not become ready"; exit 1; }
 
           event_id="$(jq -r '.eventId' <<<"$smoke")"
           processed="false"

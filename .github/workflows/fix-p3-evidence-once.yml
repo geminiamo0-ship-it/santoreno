@@ -1,0 +1,138 @@
+name: Fix P3 Evidence Once
+
+on:
+  push:
+    branches:
+      - feat/issue-4-server-credentials
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/issue-4-server-credentials
+
+      - name: Replace D1 evidence query mode
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          from pathlib import Path
+
+          path = Path('.github/workflows/p3-staging-acceptance.yml')
+          text = path.read_text()
+          start_marker = '      - name: Verify P3 credential persistence and audit evidence\n'
+          end_marker = '      - name: Record P3 staging summary\n'
+          start = text.index(start_marker)
+          end = text.index(end_marker, start)
+          replacement = '''      - name: Verify P3 credential persistence and audit evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('fs');
+          const state = JSON.parse(fs.readFileSync(process.env.P3_CREDENTIAL_STATE_PATH, 'utf8'));
+          const fields = [
+            state.medparkTenantId,
+            state.issued?.id,
+            state.issued?.prefix,
+            state.issued?.hash,
+            state.rotated?.id,
+            state.rotated?.prefix,
+            state.rotated?.hash,
+          ];
+          for (const value of fields) {
+            if (typeof value !== 'string' || !/^[A-Za-z0-9_-]+$/.test(value)) {
+              throw new Error('Unsafe P3 state value for SQL assertion');
+            }
+          }
+          const q = (value) => `'${value}'`;
+          fs.writeFileSync(
+            '/tmp/p3-credentials.sql',
+            `SELECT id, tenant_id, key_prefix, secret_hash, status, last_used_at, revoked_at, rotated_from_id FROM tenant_credentials WHERE id IN (${q(state.issued.id)}, ${q(state.rotated.id)}) ORDER BY created_at;`,
+          );
+          fs.writeFileSync(
+            '/tmp/p3-audits.sql',
+            `SELECT action, COUNT(*) AS count FROM tenant_security_audit WHERE tenant_id = ${q(state.medparkTenantId)} GROUP BY action ORDER BY action;`,
+          );
+          fs.writeFileSync(
+            '/tmp/p3-domains.sql',
+            `SELECT domain FROM tenant_allowed_domains WHERE tenant_id = ${q(state.medparkTenantId)} ORDER BY domain;`,
+          );
+          NODE
+          cd workers/api
+          pnpm exec wrangler d1 execute CONTROL_DB --env staging --remote --json \
+            --command "$(cat /tmp/p3-credentials.sql)" > /tmp/p3-credentials.json
+          pnpm exec wrangler d1 execute CONTROL_DB --env staging --remote --json \
+            --command "$(cat /tmp/p3-audits.sql)" > /tmp/p3-audits.json
+          pnpm exec wrangler d1 execute CONTROL_DB --env staging --remote --json \
+            --command "$(cat /tmp/p3-domains.sql)" > /tmp/p3-domains.json
+          cd ../..
+          node <<'NODE'
+          const fs = require('fs');
+          const state = JSON.parse(fs.readFileSync(process.env.P3_CREDENTIAL_STATE_PATH, 'utf8'));
+          const rows = (path) => {
+            const payload = JSON.parse(fs.readFileSync(path, 'utf8'));
+            return payload.flatMap((entry) => entry?.results ?? entry?.result?.results ?? []);
+          };
+          const credentials = rows('/tmp/p3-credentials.json');
+          const audits = rows('/tmp/p3-audits.json');
+          const domains = rows('/tmp/p3-domains.json');
+          if (credentials.length !== 2) throw new Error(`Expected 2 credential rows, got ${credentials.length}`);
+          const byId = new Map(credentials.map((row) => [row.id, row]));
+          const issued = byId.get(state.issued.id);
+          const rotated = byId.get(state.rotated.id);
+          if (!issued || !rotated) throw new Error('Expected credential rows were not found');
+          if (issued.secret_hash !== state.issued.hash || issued.key_prefix !== state.issued.prefix) {
+            throw new Error('Issued credential hash/prefix does not match the one-time secret');
+          }
+          if (rotated.secret_hash !== state.rotated.hash || rotated.key_prefix !== state.rotated.prefix) {
+            throw new Error('Rotated credential hash/prefix does not match the one-time secret');
+          }
+          if (issued.status !== 'revoked' || rotated.status !== 'revoked') {
+            throw new Error('Rotation/revocation state was not persisted');
+          }
+          if (!issued.last_used_at || !rotated.last_used_at) {
+            throw new Error('last_used_at was not recorded for authenticated credentials');
+          }
+          if (rotated.rotated_from_id !== issued.id) {
+            throw new Error('Rotation lineage was not persisted');
+          }
+          for (const row of credentials) {
+            if (Object.values(row).some((value) => typeof value === 'string' && value.startsWith('santo_sk_'))) {
+              throw new Error('Plaintext server secret was persisted in D1');
+            }
+          }
+          const auditCounts = new Map(audits.map((row) => [row.action, Number(row.count)]));
+          for (const action of ['credential.created', 'credential.rotated', 'credential.revoked', 'domains.updated']) {
+            if (auditCounts.get(action) !== 1) throw new Error(`Expected one ${action} audit event`);
+          }
+          const domainValues = domains.map((row) => row.domain);
+          if (JSON.stringify(domainValues) !== JSON.stringify(['app.medpark.com', 'medpark.com'])) {
+            throw new Error('Allowed domains were not persisted as expected');
+          }
+          console.log('Remote D1 hash-only credential storage, last_used_at, domains, rotation, revocation, and audit evidence verified.');
+          NODE
+
+'''
+          path.write_text(text[:start] + replacement + text[end:])
+          PY
+
+      - name: Commit evidence fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/workflows/p3-staging-acceptance.yml
+          if git diff --cached --quiet; then
+            echo "P3 evidence workflow already fixed."
+            exit 0
+          fi
+          git commit -m "fix: query P3 D1 evidence without import output"
+          git push origin HEAD:feat/issue-4-server-credentials

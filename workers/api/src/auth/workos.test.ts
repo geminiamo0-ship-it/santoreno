@@ -65,8 +65,8 @@ async function createSigningFixture() {
 }
 
 const env: SantoBindings = {
-  WORKOS_CLIENT_ID: "client_test",
-  WORKOS_ISSUER: "https://api.workos.com",
+  WORKOS_CLIENT_ID: "client_current_application",
+  WORKOS_ISSUER: "https://api.workos.com/user_management/client_default_application",
   WORKOS_JWKS_URL: "https://auth.example.test/oauth2/jwks",
 };
 
@@ -75,7 +75,7 @@ afterEach(() => {
 });
 
 describe("WorkOS AuthKit access-token verification", () => {
-  it("verifies an RS256 token and returns authenticated organization context", async () => {
+  it("verifies a multi-application token whose issuer belongs to the default application", async () => {
     const fixture = await createSigningFixture();
     vi.stubGlobal(
       "fetch",
@@ -89,9 +89,9 @@ describe("WorkOS AuthKit access-token verification", () => {
     );
 
     const token = await createSignedToken(fixture.privateKey, {
-      iss: "https://api.workos.com/",
+      iss: "https://api.workos.com/user_management/client_default_application/",
       sub: "user_123",
-      client_id: "client_test",
+      client_id: "client_current_application",
       org_id: "org_123",
       role: "owner",
       exp: Math.floor(Date.now() / 1000) + 300,
@@ -116,7 +116,7 @@ describe("WorkOS AuthKit access-token verification", () => {
     const token = await createSignedToken(fixture.privateKey, {
       iss: "https://attacker.example",
       sub: "user_123",
-      client_id: "client_test",
+      client_id: "client_current_application",
       org_id: "org_123",
       exp: Math.floor(Date.now() / 1000) + 300,
     });

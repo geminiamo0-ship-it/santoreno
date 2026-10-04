@@ -1,0 +1,199 @@
+name: P5 Staging Acceptance
+
+on:
+  push:
+    branches:
+      - feat/issue-6-atomic-quota
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  checks: read
+
+env:
+  CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  GH_TOKEN: ${{ github.token }}
+  NO_COLOR: "1"
+
+jobs:
+  p5-staging:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Wait for Verify on this commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 60); do
+            checks="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/check-runs")"
+            policy="$(jq -r '[.check_runs[] | select(.name == "repository-policy") | .conclusion] | map(select(. != null)) | .[0] // ""' <<<"$checks")"
+            quality="$(jq -r '[.check_runs[] | select(.name == "code-quality") | .conclusion] | map(select(. != null)) | .[0] // ""' <<<"$checks")"
+            if [[ "$policy" == "success" && "$quality" == "success" ]]; then
+              echo "Verify is green for ${GITHUB_SHA}."
+              exit 0
+            fi
+            for conclusion in "$policy" "$quality"; do
+              case "$conclusion" in
+                failure|cancelled|timed_out|action_required|startup_failure|stale)
+                  echo "Verify failed: repository-policy=${policy}, code-quality=${quality}"
+                  exit 1
+                  ;;
+              esac
+            done
+            sleep 5
+          done
+          echo "Timed out waiting for Verify."
+          exit 1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Validate Cloudflare credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${CLOUDFLARE_ACCOUNT_ID:-}"
+          test -n "${CLOUDFLARE_API_TOKEN:-}"
+          cd workers/api
+          pnpm exec wrangler whoami
+
+      - name: Deploy P5 staging Worker
+        id: deploy
+        shell: bash
+        run: |
+          set -euo pipefail
+          smoke_token="$(openssl rand -hex 32)"
+          session_signing_key="$(openssl rand -hex 48)"
+          echo "::add-mask::$smoke_token"
+          echo "::add-mask::$session_signing_key"
+          echo "INFRA_SMOKE_TOKEN=$smoke_token" >> "$GITHUB_ENV"
+          jq -n \
+            --arg smoke "$smoke_token" \
+            --arg sessionKey "$session_signing_key" \
+            '{
+              INFRA_SMOKE_TOKEN: $smoke,
+              SANTO_SESSION_SIGNING_KEY: $sessionKey
+            }' > /tmp/p5-secrets.json
+          chmod 600 /tmp/p5-secrets.json
+          trap 'rm -f /tmp/p5-secrets.json' EXIT
+          cd workers/api
+          pnpm exec wrangler deploy --env staging --secrets-file /tmp/p5-secrets.json | tee /tmp/p5-deploy.txt
+          worker_url="$(grep -Eo 'https://[A-Za-z0-9.-]+\.workers\.dev' /tmp/p5-deploy.txt | tail -n 1)"
+          test -n "$worker_url"
+          echo "worker_url=$worker_url" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for P5 Worker readiness
+        env:
+          WORKER_URL: ${{ steps.deploy.outputs.worker_url }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          health=""
+          for attempt in $(seq 1 45); do
+            health="$(curl --silent --show-error "${WORKER_URL}/health" || true)"
+            if jq -e '.service == "santo-api" and .status == "ok"' <<<"$health" >/dev/null 2>&1; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "P5 staging Worker did not become ready."
+          exit 1
+
+      - name: Verify staging infrastructure smoke
+        env:
+          WORKER_URL: ${{ steps.deploy.outputs.worker_url }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          status="000"
+          : > /tmp/p5-smoke.json
+          for attempt in $(seq 1 30); do
+            status="$(curl --silent --show-error \
+              --output /tmp/p5-smoke.json \
+              --write-out '%{http_code}' \
+              -H "x-santo-infra-smoke-token: ${INFRA_SMOKE_TOKEN}" \
+              "${WORKER_URL}/__infra/smoke" || true)"
+            if [[ "$status" == "200" ]] && \
+              jq -e '.environment == "staging" and .status == "ok" and .bindings.tenantMeterDo == "ok"' \
+                /tmp/p5-smoke.json >/dev/null 2>&1; then
+              echo "Infrastructure smoke passed on attempt ${attempt}."
+              cat /tmp/p5-smoke.json
+              echo
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Infrastructure smoke did not converge after deployment propagation window."
+          echo "Last HTTP status: ${status}"
+          cat /tmp/p5-smoke.json || true
+          echo
+          exit 1
+
+      - name: Verify P5 atomic quota gate live
+        env:
+          WORKER_URL: ${{ steps.deploy.outputs.worker_url }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          status="$(curl --silent --show-error \
+            --request POST \
+            --output /tmp/p5-quota.json \
+            --write-out '%{http_code}' \
+            -H "x-santo-infra-smoke-token: ${INFRA_SMOKE_TOKEN}" \
+            "${WORKER_URL}/__infra/p5-quota-acceptance")"
+          test "$status" = "200"
+          jq -e '
+            .status == "passed" and
+            .race.allowed == 1 and
+            .race.denied == 99 and
+            .idempotency.reserveReplay == true and
+            .idempotency.finalizeReplay == true and
+            .idempotency.conflictDenied == true and
+            .release.remaining == 2 and
+            .tenantCap.denialReason == "TENANT_EXHAUSTED" and
+            .suspension.tenant == "TENANT_SUSPENDED" and
+            .suspension.user == "USER_SUSPENDED" and
+            .suspension.expired == "QUOTA_EXPIRED" and
+            .isolation.isolated == true and
+            .cycleReset.advanced == true
+          ' /tmp/p5-quota.json >/dev/null
+          cat /tmp/p5-quota.json
+
+      - name: Record P5 staging summary
+        env:
+          WORKER_URL: ${{ steps.deploy.outputs.worker_url }}
+        shell: bash
+        run: |
+          {
+            echo "## P5 staging acceptance"
+            echo
+            echo "- Commit: \`${GITHUB_SHA}\`"
+            echo "- Worker: \`${WORKER_URL}\`"
+            echo "- Real SQLite TenantMeterDO: verified"
+            echo "- 100 simultaneous reserves with one unit: 1 allowed / 99 denied"
+            echo "- Reserve replay: no double reservation"
+            echo "- Finalize replay: no double charge"
+            echo "- Finalized reservation release/refund replay: denied"
+            echo "- Released reservation capacity restoration: exactly once"
+            echo "- Tenant allowance overrides oversized user quota"
+            echo "- Tenant/user suspension and quota expiry: denied immediately"
+            echo "- Tenant Durable Object isolation: verified"
+            echo "- Expired usage-cycle boundary advances automatically"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Remove P5 staging state
+        if: always()
+        shell: bash
+        run: rm -f /tmp/p5-secrets.json /tmp/p5-deploy.txt /tmp/p5-smoke.json /tmp/p5-quota.json

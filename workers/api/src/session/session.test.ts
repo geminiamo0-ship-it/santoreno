@@ -189,8 +189,15 @@ const env: SantoBindings = {
 };
 
 function tamper(token: string): string {
-  const last = token.at(-1);
-  return `${token.slice(0, -1)}${last === "a" ? "b" : "a"}`;
+  const parts = token.split(".");
+  const signature = parts[2];
+  if (parts.length !== 3 || !signature) {
+    throw new Error("Expected a three-segment signed Santo session token");
+  }
+
+  const first = signature.charAt(0);
+  parts[2] = `${first === "a" ? "b" : "a"}${signature.slice(1)}`;
+  return parts.join(".");
 }
 
 async function exchange(

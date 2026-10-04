@@ -14,9 +14,11 @@ Customer production databases remain untouched. Integration is API-based only.
 
 **Phase 0 is complete.** PR **#11** is merged to `main`, and post-merge GitHub Actions `Verify` run **37155527270** passed. The pnpm/Turborepo workspace, minimal portal/API/widget/contracts packages, strict tooling, CI, and runtime smoke checks are the verified baseline.
 
-**Phase 1 is in progress.** PR **#13** is merged to `main` as `1c1f33d4cc84c1f7c5855db3c7b8f151c8b53354`, and post-merge GitHub Actions run **37157031087** passed. The repository/local Cloudflare foundation is therefore verified on `main`: D1 migration/access, R2 access, both SQLite Durable Object bindings, Queue enqueue/dequeue with D1 receipt persistence, Analytics Engine dispatch, Worker boot, and `/health` all pass locally. Issue #2 is **not complete** until the staging Worker deploys and the remote smoke checks pass.
+**Phase 1 acceptance is proven on PR #15, but Issue #2 remains open until merge and post-merge `Verify` succeed on `main`.** The repository/local foundation was previously verified via PR #13. The authenticated staging gate has now also passed end-to-end on commit `ae2d85c5a9f3658c23d1e3c82b3bda92c0d0defe`: GitHub Actions `Verify` run **37195026053** passed, and staging provisioning run **37195022577** passed with machine-readable evidence artifact `santo-staging-evidence` (artifact **11300284166**, digest `sha256:13c11eb101cce3d60a135a53f32848a0ce02e75da76aad68006c6d9a073593f2`).
 
-**Current P1 blocker:** Cloudflare staging authentication is fixed and the remote account resources have now been partially provisioned. The real staging D1 database `santo-control-plane-staging` was created and its UUID is committed in `workers/api/wrangler.toml`; `santo-content-staging` R2 and `santo-events-staging` Queue were created; the `default` AI Search namespace is accessible; and D1 migration `0001_infrastructure_smoke.sql` was applied remotely. Commit `e9f5438448ef741e6d9b6e3a77119a3fb604ab49` passed `Verify` run **37193763834**. Staging deploy run **37193762021** is blocked at Worker upload by Cloudflare error **10089 — Analytics Engine must be enabled for the account**. No staging Worker has been published from the failed deploy, so the remote `/health` and binding smoke remain unproven. Do not advance to Issue #3 until Analytics Engine is enabled and the same staging gate passes end-to-end.
+The deployed staging Worker is `santo-api-staging` at `https://santo-api-staging.geminiamo0.workers.dev`. Remote acceptance verified healthy `/health`, D1, R2, both SQLite Durable Objects, Queue enqueue/dequeue, Analytics Engine, and AI Search. The real staging D1 UUID is committed in `workers/api/wrangler.toml`. No production secrets are committed.
+
+**Current P1 blocker:** none at the staging-acceptance layer. The only remaining completion gate is repository hygiene + final PR #15 merge + post-merge `Verify` on `main`. Do not advance to Issue #3 until that main-branch gate passes and Issue #2 is formally closed.
 
 ## 2. Source-of-truth documents
 
@@ -35,7 +37,7 @@ Read in this order before implementation:
 Do not reorder these without documenting the reason.
 
 - [x] **#1 — P0:** Bootstrap Santoreno monorepo and CI
-- [ ] **#2 — P1:** Provision Cloudflare foundation and bindings
+- [ ] **#2 — P1:** Provision Cloudflare foundation and bindings — acceptance passed on PR branch; pending merge/post-merge `Verify`
 - [ ] **#3 — P2:** Minimal B2B auth, tenancy, and tenant isolation
 - [ ] **#4 — P3:** Customer server credentials and domain controls
 - [ ] **#5 — P4:** Implement `/v1/session/exchange` for external users
@@ -170,27 +172,23 @@ Whenever work is completed:
 - Final PR-branch `Verify` run `37156901666` passed on `78ff49101d4498d976521fab76319dfb209d9beb`: frozen install, lint, typecheck, tests, Wrangler dry-run build, D1 migration, Worker boot, D1/R2/DO/Queue/Analytics smoke, and queue-consumer persistence all passed.
 - Post-merge `main` run `37157031087` passed for `1c1f33d4cc84c1f7c5855db3c7b8f151c8b53354`, confirming both `repository-policy` and `code-quality` green after merge.
 - AI Search is intentionally not simulated locally; its staging/production binding is configured for remote verification.
-- **Cloudflare staging credentials are now valid.** `wrangler whoami` succeeds with the repository secrets.
-- **Real staging resources are partially provisioned:** D1 `santo-control-plane-staging`, R2 `santo-content-staging`, Queue `santo-events-staging`, and AI Search namespace `default` are confirmed; the first D1 migration is applied remotely. The real staging D1 UUID is committed in `workers/api/wrangler.toml` by `e9f5438448ef741e6d9b6e3a77119a3fb604ab49`.
-- `Verify` run `37193763834` passed completely for that real-D1 commit.
-- Remote staging deploy run `37193762021` reaches Worker upload with all declared bindings resolved, but Cloudflare rejects deployment with error 10089 because Workers Analytics Engine is not enabled for the account. Remote `/health`, DO, Queue consumer, Analytics Engine write, and AI Search runtime smoke therefore remain pending.
-- Handoff update commit `b6977e8c6116a6805f0745eb3ce9a8a5468a860f` passed `Verify` run `37193865388`, so the recorded blocker/status is itself verified.
+- Cloudflare staging credentials are valid through repository secrets; `wrangler whoami` succeeds.
+- Real staging resources are provisioned: D1 `santo-control-plane-staging`, R2 `santo-content-staging`, Queue `santo-events-staging`, SQLite Durable Object namespaces for `TenantMeterDO` and `ConversationDO`, Analytics Engine dataset binding `santo_usage_staging`, and AI Search namespace `default`.
+- D1 migration `0001_infrastructure_smoke.sql` is applied remotely. The real staging D1 UUID `f875f14a-100a-4731-9e9e-1beed957fd16` is committed in `workers/api/wrangler.toml`.
+- Workers Analytics Engine is enabled for the Cloudflare account and `santo-api-staging` deploys successfully to `https://santo-api-staging.geminiamo0.workers.dev`.
+- **Remote staging acceptance passed on commit `ae2d85c5a9f3658c23d1e3c82b3bda92c0d0defe`.** `Verify` run **37195026053** passed, and provisioning run **37195022577** passed `/health` plus D1/R2/both DOs/Queue/Analytics/AI Search runtime smoke. Queue consumption was explicitly polled to completion.
+- Machine-readable evidence was uploaded as artifact **11300284166** (`santo-staging-evidence`), digest `sha256:13c11eb101cce3d60a135a53f32848a0ce02e75da76aad68006c6d9a073593f2`.
+- The staging gate now includes explicit readiness loops for workers.dev route and secret propagation, preventing false failures during Cloudflare deployment propagation.
 
 ## 9. Next action
 
 Continue **Issue #2 — P1**. Do **not** start Issue #3 yet.
 
-Enable **Workers Analytics Engine** for the Cloudflare account. Cloudflare currently rejects `santo-api-staging` deployment with error `10089` until this account-level prerequisite is enabled.
+The remote acceptance criteria are proven. Finish repository hygiene on PR #15, run the final branch `Verify`, squash-merge PR #15, and then require a green post-merge `Verify` on `main`.
 
-After Analytics Engine is enabled, rerun the existing verified staging workflow. It is idempotent and will reuse the already-created D1/R2/Queue resources and already-applied migration. The remaining acceptance sequence is:
+Only after that main-branch verification may Issue #2 be closed and the roadmap advance to **Issue #3 — P2 minimal B2B auth, tenancy, and tenant isolation**.
 
-1. Deploy `santo-api-staging` with D1, R2, both SQLite Durable Objects, Queue, Analytics Engine, and AI Search bindings.
-2. Verify `/health`.
-3. Verify staging infrastructure smoke for D1, R2, both DOs, Queue enqueue/dequeue, Analytics Engine, and AI Search.
-4. Upload the machine-readable staging evidence.
-5. Only then mark Issue #2 complete, merge PR #15, run post-merge `Verify`, update the roadmap, and advance to Issue #3.
-
-Do not skip directly to portal UI, billing, complete widget UX, tenancy, session exchange, quota, or advanced AI features out of documented order.
+Do not skip directly to portal UI, billing, complete widget UX, session exchange, quota, or advanced AI features out of documented order.
 
 ## 10. Verification policy
 
@@ -207,7 +205,7 @@ pnpm build
 pnpm smoke
 ```
 
-The smoke gate verifies the Phase 0 runtime baseline plus the Phase 1 local Cloudflare foundation: portal boot, Worker boot with `/health`, D1 migration/access, R2 read/write/delete, both Durable Object bindings, Queue enqueue/dequeue with D1 receipt persistence, Analytics Engine dispatch, and expected build artifacts. AI Search is explicitly skipped locally and must be verified against the remote staging binding.
+The smoke gate verifies the Phase 0 runtime baseline plus the Phase 1 local Cloudflare foundation: portal boot, Worker boot with `/health`, D1 migration/access, R2 read/write/delete, both Durable Object bindings, Queue enqueue/dequeue with D1 receipt persistence, Analytics Engine dispatch, and expected build artifacts. AI Search is explicitly skipped locally and is verified against the remote staging binding by the staging provisioning gate.
 
 A step is not considered complete until its relevant automated verification passes and the result is recorded in the issue/PR.
 

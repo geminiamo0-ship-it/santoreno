@@ -9,7 +9,7 @@ const FIXTURE_CONTENT = [
   "# Santo P6 Grounding Acceptance Fixture",
   "",
   "This document exists only for Santo staging acceptance testing.",
-  "The synthetic verification dose is exactly 17 micro-units.",
+  "According to the Santo P6 grounding acceptance fixture, the synthetic verification dose specified is exactly 17 micro-units.",
   "The verification marker is SANTO-P6-GROUNDING-17.",
   "Do not infer any clinical meaning from this synthetic test value.",
 ].join("\n");
@@ -259,7 +259,10 @@ async function verify() {
     authorization: `Bearer ${sessionToken}`,
     body: queryBody,
   });
-  expect(first.status === 200, `Grounded AI request returned HTTP ${first.status}`);
+  expect(
+    first.status === 200,
+    `Grounded AI request returned HTTP ${first.status} (${String(first.body?.error ?? "unknown")})`,
+  );
   expect(
     typeof first.body?.answer === "string" && first.body.answer.length > 0,
     "AI answer is empty",

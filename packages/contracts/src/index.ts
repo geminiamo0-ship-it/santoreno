@@ -158,6 +158,117 @@ export const SessionContextResponseSchema = z.object({
 });
 export type SessionContextResponse = z.infer<typeof SessionContextResponseSchema>;
 
+export const QuotaStatusSchema = z.enum(["active", "suspended"]);
+export type QuotaStatus = z.infer<typeof QuotaStatusSchema>;
+
+export const QuotaReservationStatusSchema = z.enum([
+  "reserved",
+  "finalized",
+  "released",
+  "denied",
+]);
+export type QuotaReservationStatus = z.infer<typeof QuotaReservationStatusSchema>;
+
+export const QuotaDenialReasonSchema = z.enum([
+  "TENANT_SUSPENDED",
+  "USER_SUSPENDED",
+  "QUOTA_EXPIRED",
+  "TENANT_EXHAUSTED",
+  "USER_EXHAUSTED",
+  "RESERVATION_RELEASED",
+]);
+export type QuotaDenialReason = z.infer<typeof QuotaDenialReasonSchema>;
+
+const QuotaExternalUserIdSchema = z.string().trim().min(1).max(255);
+const QuotaIdempotencyKeySchema = z.string().trim().min(1).max(128);
+
+export const QuotaConfigureRequestSchema = z
+  .object({
+    tenantId: z.string().uuid(),
+    tenantStatus: QuotaStatusSchema,
+    monthlyAllowance: z.number().int().nonnegative(),
+    cycleStartAt: z.string().datetime(),
+    cycleEndAt: z.string().datetime(),
+    user: z
+      .object({
+        externalUserId: QuotaExternalUserIdSchema,
+        status: QuotaStatusSchema,
+        baseQuota: z.number().int().nonnegative(),
+        bonusQuota: z.number().int().nonnegative(),
+        expiresAt: z.string().datetime().nullable(),
+      })
+      .strict(),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (Date.parse(value.cycleStartAt) >= Date.parse(value.cycleEndAt)) {
+      context.addIssue({
+        code: "custom",
+        message: "cycleEndAt must be later than cycleStartAt",
+        path: ["cycleEndAt"],
+      });
+    }
+  });
+export type QuotaConfigureRequest = z.infer<typeof QuotaConfigureRequestSchema>;
+
+export const QuotaReadRequestSchema = z
+  .object({
+    tenantId: z.string().uuid(),
+    externalUserId: QuotaExternalUserIdSchema,
+  })
+  .strict();
+export type QuotaReadRequest = z.infer<typeof QuotaReadRequestSchema>;
+
+export const QuotaReserveRequestSchema = z
+  .object({
+    tenantId: z.string().uuid(),
+    externalUserId: QuotaExternalUserIdSchema,
+    idempotencyKey: QuotaIdempotencyKeySchema,
+    units: z.number().int().positive().max(1000).default(1),
+  })
+  .strict();
+export type QuotaReserveRequest = z.infer<typeof QuotaReserveRequestSchema>;
+
+export const QuotaFinalizeRequestSchema = z
+  .object({
+    tenantId: z.string().uuid(),
+    idempotencyKey: QuotaIdempotencyKeySchema,
+  })
+  .strict();
+export type QuotaFinalizeRequest = z.infer<typeof QuotaFinalizeRequestSchema>;
+
+export const QuotaReleaseRequestSchema = QuotaFinalizeRequestSchema;
+export type QuotaReleaseRequest = z.infer<typeof QuotaReleaseRequestSchema>;
+
+export const QuotaCounterSchema = z.object({
+  limit: z.number().int().nonnegative(),
+  used: z.number().int().nonnegative(),
+  reserved: z.number().int().nonnegative(),
+  remaining: z.number().int().nonnegative(),
+});
+export type QuotaCounter = z.infer<typeof QuotaCounterSchema>;
+
+export const QuotaSnapshotSchema = z.object({
+  tenantId: z.string().uuid(),
+  externalUserId: QuotaExternalUserIdSchema,
+  cycleStartAt: z.string().datetime(),
+  cycleEndAt: z.string().datetime(),
+  expiresAt: z.string().datetime().nullable(),
+  tenantStatus: QuotaStatusSchema,
+  userStatus: QuotaStatusSchema,
+  tenant: QuotaCounterSchema,
+  user: QuotaCounterSchema,
+});
+export type QuotaSnapshot = z.infer<typeof QuotaSnapshotSchema>;
+
+export const QuotaOperationResponseSchema = z.object({
+  allowed: z.boolean(),
+  reservationStatus: QuotaReservationStatusSchema,
+  denialReason: QuotaDenialReasonSchema.nullable(),
+  snapshot: QuotaSnapshotSchema,
+});
+export type QuotaOperationResponse = z.infer<typeof QuotaOperationResponseSchema>;
+
 export const ApiErrorResponseSchema = z.object({
   error: z.string().min(1),
 });

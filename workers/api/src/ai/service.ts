@@ -32,6 +32,17 @@ function errorCode(error: unknown): string {
   return "INTERNAL_ERROR";
 }
 
+async function deriveQuotaIdempotencyKey(
+  externalUserId: string,
+  clientKey: string,
+  query: string,
+): Promise<string> {
+  const bytes = new TextEncoder().encode(`${externalUserId}\u0000${clientKey}\u0000${query}`);
+  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
+  const hex = Array.from(digest, (byte) => byte.toString(16).padStart(2, "0")).join("");
+  return `ai:${hex}`;
+}
+
 export class GroundedAiService {
   constructor(
     private readonly quota: QuotaService,
@@ -48,13 +59,18 @@ export class GroundedAiService {
     const startedAt = this.nowMs();
     const requestId = crypto.randomUUID();
     const messageId = crypto.randomUUID();
+    const quotaIdempotencyKey = await deriveQuotaIdempotencyKey(
+      session.externalUserId,
+      input.idempotency_key,
+      input.query,
+    );
 
     let reservation;
     try {
       reservation = await this.quota.reserve({
         tenantId: session.tenantId,
         externalUserId: session.externalUserId,
-        idempotencyKey: input.idempotency_key,
+        idempotencyKey: quotaIdempotencyKey,
         units: 1,
       });
     } catch {
@@ -96,7 +112,7 @@ export class GroundedAiService {
       citations = validateGroundedCitations(draft, evidence);
     } catch (error) {
       if (!alreadyFinalized) {
-        await this.releaseAfterFailure(session, input.idempotency_key, error);
+        await this.releaseAfterFailure(session, quotaIdempotencyKey, error);
       }
       const mapped =
         error instanceof GroundedAiError
@@ -110,7 +126,7 @@ export class GroundedAiService {
     try {
       finalized = await this.quota.finalize({
         tenantId: session.tenantId,
-        idempotencyKey: input.idempotency_key,
+        idempotencyKey: quotaIdempotencyKey,
       });
     } catch {
       const error = new GroundedAiError(

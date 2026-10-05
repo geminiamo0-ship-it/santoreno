@@ -3,6 +3,8 @@ import type { AiSearchNamespaceLike, SantoBindings } from "../runtime/bindings";
 
 const FIXTURE_INSTANCE_ID_PATTERN = /^santo-p33-(?:mrcp|usmle)-[0-9a-f]{12}$/;
 const FIXTURE_MARKER_PATTERN = /^SANTO-P33-(?:MRCP-23|USMLE-31)$/;
+const SHARED_FILTER_QUERY =
+  "According to the selected Santo P33 fixture, what library-specific synthetic verification value is specified?";
 
 function isAuthorized(request: Request, env: SantoBindings): boolean {
   if (env.SANTO_ENV === "production") {
@@ -66,13 +68,13 @@ async function probe(request: Request, env: SantoBindings): Promise<Response> {
   try {
     const result = asRecord(
       await env.AI_SEARCH.search({
-        query: marker,
+        query: SHARED_FILTER_QUERY,
         ai_search_options: {
           instance_ids: [fixtureInstanceId],
           retrieval: {
             retrieval_type: "hybrid",
-            match_threshold: 0.1,
-            max_num_results: 3,
+            match_threshold: 0.4,
+            max_num_results: 5,
             return_on_failure: true,
           },
           query_rewrite: {
@@ -84,8 +86,15 @@ async function probe(request: Request, env: SantoBindings): Promise<Response> {
     const chunks = Array.isArray(result?.chunks) ? result.chunks : [];
     const searchable = chunks.some((chunk) => {
       const record = asRecord(chunk);
+      const item = asRecord(record?.item);
       return (
-        record?.instance_id === fixtureInstanceId &&
+        typeof record?.id === "string" &&
+        record.id.length > 0 &&
+        record.instance_id === fixtureInstanceId &&
+        typeof record?.score === "number" &&
+        Number.isFinite(record.score) &&
+        typeof item?.key === "string" &&
+        item.key.length > 0 &&
         typeof record?.text === "string" &&
         record.text.includes(marker)
       );

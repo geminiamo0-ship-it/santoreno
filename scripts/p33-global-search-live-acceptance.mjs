@@ -18,6 +18,7 @@ const FIXTURES = [
   {
     id: MRCP_INSTANCE_ID,
     key: "santo-p33-mrcp-fixture.md",
+    marker: "SANTO-P33-MRCP-23",
     expectedValue: "23",
     content: [
       "# Santo P33 MRCP Search Acceptance Fixture",
@@ -32,6 +33,7 @@ const FIXTURES = [
   {
     id: USMLE_INSTANCE_ID,
     key: "santo-p33-usmle-fixture.md",
+    marker: "SANTO-P33-USMLE-31",
     expectedValue: "31",
     content: [
       "# Santo P33 USMLE Search Acceptance Fixture",
@@ -156,28 +158,53 @@ async function getAiSearchItem(instanceId, itemId) {
   return cloudflareFetch(`/instances/${instanceId}/items/${encodeURIComponent(itemId)}`);
 }
 
-async function waitForIndexedItem(instanceId, itemId, initialStatus) {
+async function probeFixture(workerUrl, smokeToken, fixture) {
+  const result = await request(workerUrl, "/__infra/p33-global-search-acceptance/probe", {
+    method: "POST",
+    smokeToken,
+    body: {
+      fixtureInstanceId: fixture.id,
+      marker: fixture.marker,
+    },
+  });
+  expect(
+    result.status === 200 && result.body?.status === "ok",
+    `P33 search readiness probe failed for ${fixture.id}: HTTP ${result.status} (${String(result.body?.error ?? "unknown")})`,
+  );
+  return result.body?.searchable === true;
+}
+
+async function waitForSearchableFixture(
+  workerUrl,
+  smokeToken,
+  fixture,
+  itemId,
+  initialStatus,
+) {
   let status = initialStatus;
   const deadline = Date.now() + AI_SEARCH_INDEX_TIMEOUT_MS;
   while (Date.now() < deadline) {
-    if (status === "completed") return;
-    if (["error", "skipped", "outdated"].includes(status)) {
-      throw new Error(`AI Search fixture ${instanceId} indexing ended with status ${status}`);
+    if (await probeFixture(workerUrl, smokeToken, fixture)) {
+      return;
     }
+    if (["error", "skipped", "outdated"].includes(status)) {
+      throw new Error(`AI Search fixture ${fixture.id} indexing ended with status ${status}`);
+    }
+
     await sleep(AI_SEARCH_POLL_INTERVAL_MS);
-    const polled = await getAiSearchItem(instanceId, itemId);
+    const polled = await getAiSearchItem(fixture.id, itemId);
     expect(
       polled.status >= 200 && polled.status < 300 && polled.body?.success !== false,
-      `AI Search item poll failed for ${instanceId}: HTTP ${polled.status} (${cloudflareErrorSummary(polled.body)})`,
+      `AI Search item poll failed for ${fixture.id}: HTTP ${polled.status} (${cloudflareErrorSummary(polled.body)})`,
     );
     status = polled.body?.result?.status;
   }
   throw new Error(
-    `AI Search fixture ${instanceId} indexing timed out with status ${String(status)}`,
+    `AI Search fixture ${fixture.id} was not searchable before timeout; item status ${String(status)}`,
   );
 }
 
-async function uploadFixture(fixture) {
+async function uploadFixture(workerUrl, smokeToken, fixture) {
   let lastFailure = "unknown";
   for (let attempt = 1; attempt <= 8; attempt += 1) {
     const form = new FormData();
@@ -199,7 +226,7 @@ async function uploadFixture(fixture) {
         typeof status === "string",
         `AI Search upload returned no item status for ${fixture.id}`,
       );
-      await waitForIndexedItem(fixture.id, itemId, status);
+      await waitForSearchableFixture(workerUrl, smokeToken, fixture, itemId, status);
       return;
     }
 
@@ -215,13 +242,13 @@ async function uploadFixture(fixture) {
   throw new Error(`AI Search fixture upload failed for ${fixture.id}: ${lastFailure}`);
 }
 
-async function prepareFixtures() {
+async function prepareFixtures(workerUrl, smokeToken) {
   for (const fixture of FIXTURES) {
     await deleteFixture(fixture.id);
     await createFixtureInstance(fixture.id);
-    await uploadFixture(fixture);
+    await uploadFixture(workerUrl, smokeToken, fixture);
   }
-  console.log("P33 AI Search fixtures are indexed and queryable.");
+  console.log("P33 AI Search fixtures are searchable through the Worker binding.");
 }
 
 async function issueCredential(workerUrl, tenantId, ownerToken) {
@@ -289,7 +316,7 @@ async function verify() {
   expect(typeof tenantId === "string", "P2 state is missing the MedPark tenant ID");
   expect(typeof ownerToken === "string", "P2 state is missing the MedPark owner access token");
 
-  await prepareFixtures();
+  await prepareFixtures(workerUrl, smokeToken);
 
   const secret = await issueCredential(workerUrl, tenantId, ownerToken);
   const sessionToken = await exchangeSession(workerUrl, secret);
@@ -375,7 +402,7 @@ async function verify() {
         "### P33 global AI Search live acceptance",
         "",
         "- Real WorkOS-backed tenant + Santo session: passed",
-        "- Two run-isolated AI Search libraries indexed: passed",
+        "- Two run-isolated AI Search libraries became searchable through the Worker binding: passed",
         "- Same query/client key with MRCP filter returned only MRCP citations and charged one unit: passed",
         "- Same query/client key with USMLE filter returned only USMLE citations and charged a distinct unit: passed",
         "- All Libraries request returned shared synthetic value from a P33 fixture: passed",

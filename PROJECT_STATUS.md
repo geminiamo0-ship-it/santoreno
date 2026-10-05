@@ -10,7 +10,7 @@
 
 Santo is a standalone B2B2C medical AI SaaS platform. Customer sites integrate with Santo by API/widget while Santo centrally owns AI infrastructure, global medical knowledge, AI Search, quota enforcement, citations, assets, usage, security, and tenant administration. Customer production databases remain untouched.
 
-Completed foundation:
+Completed foundation and first technical milestone:
 
 - **P0 / #1 complete** — monorepo, strict tooling, CI, portal/API/widget/contracts baseline.
 - **P1 / #2 complete** — Cloudflare staging foundation and real bindings.
@@ -18,60 +18,61 @@ Completed foundation:
 - **P3 / #4 complete** — tenant server credentials, rotation/revocation, domain controls.
 - **P4 / #5 complete** — `/v1/session/exchange`, tenant-scoped external users, short-lived Santo session tokens.
 - **P5 / #6 complete** — authoritative SQLite `TenantMeterDO`, atomic reserve/finalize/release, idempotency, live concurrency acceptance.
+- **P6 vertical slice / #7 complete** — authenticated grounded AI request through quota → AI Search → Workers AI → server-validated citation → structured response → exactly-once usage finalization.
 
-### Latest completed phase — P5 / Issue #6
+### Latest completed phase — P6 vertical slice / Issue #7
 
-PR #22 final pre-merge head `cd947538c1fefabe2abfb04acd2f26e07cf1a549` passed:
+PR #25 final documentation head `59679a56eb273e2f343e2d6ee7d94babf9409b1e` passed both required gates on the exact same SHA:
 
-- exact-head `Verify` **37215999005 (#173)**
-- exact-head `P5 Staging Acceptance` **37215996145 (#9)**
+- exact-head `Verify` **37305283632 (#250)**
+- exact-head `P6 Staging Acceptance` **37305276676 (#26)**
 
-Live Cloudflare acceptance proved exactly **1 allowed / 99 denied** from 100 simultaneous reservations with one unit remaining, plus reserve/finalize idempotency, deterministic release, tenant-cap precedence, tenant/user suspension, quota expiry, tenant isolation, and usage-cycle rollover.
+PR #25 was squash-merged to `main` as:
 
-PR #22 was squash-merged to `main` as `02994f482918364a8351bf947d50064f6fb34313`. Exact post-merge `main` `Verify` **37216156725 (#174)** passed. Issue #6 is closed as completed.
+`8d1a422c514869844fefc9c5c29c1ffdf2bc923e`
 
-### Current active phase — P6 / Issue #7
+Exact post-merge `main` `Verify` **37306176415 (#251)** passed `repository-policy` and `code-quality`, including lint, typecheck, tests, build, and smoke.
 
-**#7 — Vertical Slice: Add one minimal grounded AI endpoint.**
-
-PR #25 clean implementation head `fae800b04acf0a871310af086b11d496c87f8742` passed:
-
-- exact-head `Verify` **37297555868 (#246)**
-- exact-head `P6 Staging Acceptance` **37297549764 (#23)**
-
-The live staging gate proved the complete first grounded path using real platform services:
+Live staging acceptance proved:
 
 ```text
-real WorkOS-backed MedPark tenant
+real WorkOS-backed tenant
 → real Santo external-user session
 → atomic TenantMeterDO reserve
 → run-isolated Cloudflare AI Search fixture indexed + retrieved
 → one real Workers AI model call
 → server-validated citation to actually retrieved evidence
-→ structured response
+→ structured JSON response
 → finalize exactly one quota unit
 ```
 
-It also proved that an identical idempotent retry did not double-charge, a new request after the single user unit was consumed was denied for exhausted quota, and AI Search/D1/WorkOS staging fixtures were cleaned successfully.
+It also proved:
 
-The last live-gate blocker was a test-harness fixture-ID mismatch, not a grounding/runtime bypass: the REST harness created a dynamic run-isolated AI Search instance while the protected Worker setup path still searched for an old fixed ID. The clean fix passes the run-isolated fixture ID into the protected non-production setup endpoint and validates the expected P6 ID pattern. No temporary workflow remains in the clean candidate head.
+- invalid/expired sessions fail before search/model work
+- exhausted quota fails before search/model work
+- identical idempotent retry does not double-charge
+- defined non-chargeable hard failures release deterministically
+- no-evidence/search-failure/invented-citation paths do not produce a fake sourced answer
+- staging AI Search, D1, and WorkOS fixtures clean up successfully
 
-**P6 is not complete yet.** This documentation update changes the branch head, so the resulting final pre-merge head must pass both `Verify` and `P6 Staging Acceptance` again. Only then may PR #25 become ready and merge. Issue #7 remains open until the exact merge commit also passes post-merge Verify.
+**Master Plan §123 first technical milestone is proven end-to-end.**
 
-Required milestone path:
+### Current active issue — #33
 
-```text
-Santo session
-→ atomic quota reserve
-→ global AI Search
-→ grounded context
-→ one model call
-→ verified citations
-→ structured JSON
-→ finalize usage
-```
+**#33 — Phase 6: Global AI Search catalog and filtered retrieval.**
 
-On defined non-chargeable hard failures after reservation, release exactly once. Do not fabricate citations or return an ungrounded medical answer when evidence is missing.
+The next step is to expand the minimal global retrieval proven in #7 into a maintainable Santo-wide search capability while preserving all proven auth/quota/grounding boundaries.
+
+Current #33 scope:
+
+- global library catalog with stable identifiers
+- `All Libraries` remains the default
+- optional validated library filtering as retrieval filtering, never tenant authorization
+- normalized retrieval metadata for downstream citations/source resolution
+- deterministic regression tests
+- exact-head staging acceptance across multiple cataloged libraries/fixtures
+
+Do not jump directly to streaming, ConversationDO, images, the complete widget, or the full tenant portal before completing the ordered core backlog.
 
 ## 2. Read order before implementation
 
@@ -80,11 +81,13 @@ On defined non-chargeable hard failures after reservation, release exactly once.
 3. `docs/ENGINEERING_GUARDRAILS.md`
 4. `AGENTS.md`
 5. `CONTRIBUTING.md`
-6. Issue #8 — umbrella roadmap and release gates
-7. Issue #9 — engineering continuity/guardrails
-8. **Issue #7 — current active implementation issue**
+6. GitHub Issue #8 — umbrella roadmap and release gates
+7. GitHub Issue #9 — engineering continuity/guardrails tracker
+8. **GitHub Issue #33 — current active implementation issue**
 
 ## 3. Active implementation order
+
+Completed:
 
 - [x] **#1 — P0:** Bootstrap Santoreno monorepo and CI
 - [x] **#2 — P1:** Provision Cloudflare foundation and bindings
@@ -92,7 +95,21 @@ On defined non-chargeable hard failures after reservation, release exactly once.
 - [x] **#4 — P3:** Customer server credentials and domain controls
 - [x] **#5 — P4:** `/v1/session/exchange` for external users
 - [x] **#6 — P5:** Atomic `TenantMeterDO` quota engine
-- [ ] **#7 — Vertical Slice:** Minimal grounded AI endpoint — **CURRENT ACTIVE ISSUE; PRE-MERGE LIVE ACCEPTANCE PASSED**
+- [x] **#7 — P6 vertical slice:** Minimal grounded AI endpoint
+
+Current:
+
+- [ ] **#33 — Phase 6:** Global AI Search catalog and filtered retrieval — **CURRENT ACTIVE ISSUE**
+
+Then, in roadmap order:
+
+- [ ] Phase 7 — full AI Core
+- [ ] Phase 8 — sources and images
+- [ ] Phase 9 — `ConversationDO`
+- [ ] Phase 10 — full Lit `<santo-ai>` widget
+- [ ] Phase 11 — framework compatibility
+- [ ] Phase 12 — full tenant portal
+- [ ] Phase 13+ — branding, management API, queues/webhooks, analytics, security hardening, load testing, pilot, production launch
 
 Umbrella roadmap: **#8**.
 
@@ -119,7 +136,7 @@ Required race:
 → 99 denied
 ```
 
-Verified live repeatedly on Cloudflare SQLite Durable Objects.
+Verified live on Cloudflare SQLite Durable Objects.
 
 Also proven:
 
@@ -134,24 +151,20 @@ Also proven:
 - tenant state is isolated by Durable Object key
 - expired usage cycles advance/reset deterministically
 
-### Grounding gate — pre-merge acceptance passed; merge gate pending
+### Grounding gate — passed
 
-Exact clean implementation head `fae800b04acf0a871310af086b11d496c87f8742` passed the live P6 gate and proved:
+Issue #7 proved:
 
-- valid Santo session accepted
-- invalid/expired session denied before search/model work
-- quota reserved before expensive work
-- exhausted quota denied before search/model work
-- Santo global AI Search evidence retrieved
-- answer generated from bounded retrieved evidence
-- every returned citation validated against actually retrieved source IDs
-- no-evidence/search-failure and invented-citation paths fail closed in deterministic tests
-- successful request finalizes exactly one charge
-- identical retried request cannot double-charge when idempotency is reused
+- auth happens before quota/search/model work
+- quota reserve happens before expensive work
+- Santo global AI Search evidence is retrieved
+- model context is bounded by retrieved evidence
+- returned citation IDs are validated server-side against retrieved source IDs
+- no evidence/search failure/invented citations fail closed
+- successful completion finalizes exactly one charge
+- identical retry cannot double-charge with idempotency reuse
 - defined non-chargeable hard failures release deterministically
-- real Workers AI call succeeds behind the model adapter boundary
-
-The grounding gate becomes fully complete only after the final docs head repeats both gates, PR #25 merges, and the exact merge commit passes post-merge Verify.
+- one real Workers AI model call works behind a narrow model adapter
 
 ## 5. Stable architecture contracts
 
@@ -166,6 +179,7 @@ The grounding gate becomes fully complete only after the final docs head repeats
 - SQLite Durable Objects for hot strongly-consistent state
 - R2 for content/assets
 - Cloudflare AI Search for retrieval
+- Workers AI model binding for the proven vertical slice
 - Cloudflare Queues for async events
 - Workers Analytics Engine for telemetry
 - Zod contracts
@@ -178,31 +192,17 @@ The grounding gate becomes fully complete only after the final docs head repeats
 - `CONTROL_DB` → D1
 - `CONTENT_BUCKET` → R2
 - `TENANT_METER` → SQLite Durable Object
-- `CONVERSATION` → SQLite Durable Object
+- `CONVERSATION` → SQLite Durable Object binding reserved for later phase
 - `EVENT_QUEUE` → Queue
 - `USAGE_ANALYTICS` → Analytics Engine
 - `AI_SEARCH` → AI Search namespace
 - `AI` → Workers AI model binding
 
-### P2 identity/tenancy
+### Identity and tenancy
 
-- WorkOS portal tokens verified server-side.
+- WorkOS portal tokens are verified server-side.
 - WorkOS `org_id` maps to a Santo D1 tenant.
 - Owner authorization requires explicit `(tenant_id, workos_user_id)` membership.
-- Tenant identity never comes from arbitrary browser input.
-- Cross-tenant reads/writes fail closed.
-
-### P3 server credentials
-
-- Secrets use cryptographically secure randomness.
-- Plaintext is returned only at create/rotation time.
-- D1 stores verification-safe data, not recoverable plaintext secrets.
-- Rotation/revocation invalidate old credentials.
-- `last_used_at`, allowed domains, and audit events persist.
-- Customer server secrets never enter browser/widget code.
-
-### P4 session exchange
-
 - External users are uniquely scoped by `(tenant_id, external_user_id)`.
 - `POST /v1/session/exchange` authenticates with the tenant server secret.
 - Santo sessions are signed, short-lived, and tenant-scoped.
@@ -211,33 +211,30 @@ The grounding gate becomes fully complete only after the final docs head repeats
 - Verification rechecks signature, claims, expiry, tenant state, and user state.
 - Signing keys, server secrets, and session tokens are not persisted in D1 or committed.
 
-### P5 quota
+### Quota
 
 - `TenantMeterDO` is the single authoritative hot-path quota implementation.
 - One SQLite Durable Object is keyed per authenticated tenant.
-- State includes `tenant_state`, `user_quota`, `usage_cycles`, and `reservations`.
 - `reserve`, `finalize`, and `release` run inside synchronous Durable Object storage transactions.
 - Reservation/idempotency records prevent double reserve/charge/refund.
 - Tenant allowance is checked before user allowance.
-- Expired cycles roll forward/reset deterministically.
 - `DurableObjectQuotaService` is the narrow caller boundary for AI routes.
 - AI Search/model generation never runs inside the quota Durable Object.
-- Do not add per-user DOs or sharding without measured evidence.
+- Do not add a second quota implementation, per-user DOs, or sharding without measured evidence.
 
-### P6 grounded AI candidate
+### Grounded AI boundary
 
-- `POST /v1/ai/query` is authenticated by the Santo end-user session, not tenant/user IDs from request input.
-- The route delegates to a grounded AI service instead of combining auth, quota, retrieval, model, citation, and response logic inline.
+- `POST /v1/ai/query` is authenticated by the Santo end-user session, not tenant/user IDs supplied by request input.
+- Route/controller code remains orchestration-only and delegates to services/adapters.
 - Quota reservation happens before retrieval/model work.
-- Retrieval is behind a Cloudflare AI Search adapter and returns a bounded normalized evidence set.
-- Prompt/context construction, retrieval, model invocation, citation validation, quota orchestration, and response shaping remain separate responsibilities.
-- One configured Workers AI model adapter is used for this milestone.
-- Model output is structured and untrusted; citation IDs are validated server-side against the retrieved evidence set.
-- Missing evidence, search failure, invalid model output, and invented citations do not produce a sourced medical answer.
+- Retrieval is behind a narrow Cloudflare AI Search adapter.
+- Prompt/context construction, retrieval, model invocation, citation validation, quota orchestration, and response shaping are separate responsibilities.
+- Model output is structured and treated as untrusted.
+- Citation IDs are validated server-side against the retrieved evidence set.
+- Missing evidence, retrieval failure, invalid model output, and invented citations do not produce a sourced medical answer.
 - Successful completion finalizes quota; defined non-chargeable hard failures release the reservation.
-- Idempotency derives a deterministic quota key so an identical retry cannot double-charge.
-- Minimal safe telemetry uses Analytics Engine without secrets, tokens, or unnecessary medical content.
-- P6 staging acceptance uses a temporary run-isolated AI Search fixture and cleans it after the gate.
+- Idempotency prevents identical retries from double-charging.
+- Telemetry excludes secrets, tokens, and unnecessary medical/user content.
 
 ## 6. Core rules that must not drift
 
@@ -245,29 +242,33 @@ The grounding gate becomes fully complete only after the final docs head repeats
 - External-user access is always scoped by `tenant_id + external_user_id`.
 - Quota is server-side, atomic, and idempotent.
 - Browser code never receives customer server secrets, Cloudflare credentials, model-provider secrets, signing keys, R2 credentials, or AI Search credentials.
-- No tenant-specific business forks.
+- No tenant-specific business forks or customer-specific code paths.
+- No direct customer production-database access.
+- Portal/widget never access D1, Durable Objects, R2, or AI Search directly.
+- Global Santo libraries are shared; library selection is a retrieval filter, not tenant authorization.
 - AI output is structured JSON, not arbitrary model-generated HTML.
 - Citation IDs must be validated server-side against retrieved source IDs.
 - No fabricated citations.
 - SQL belongs in repository/data-access or Durable Object state boundaries, not HTTP handlers.
 - D1 schema changes are migration-only.
 - Keep one authoritative quota implementation: `TenantMeterDO`.
-- Do not expand into streaming, ConversationDO, images, full widget, broad model routing, or full portal until #7 is merged, post-merge verified, and closed.
+- Continue in Issue #8 roadmap order; avoid premature portal/UI expansion.
 
 ## 7. Verification and update protocol
 
 For every meaningful step:
 
-1. Make the smallest clean implementation.
+1. Make the smallest clean implementation tied to the active issue.
 2. Add/update tests.
-3. Run GitHub Actions `Verify`.
+3. Run GitHub Actions `Verify` on the exact implementation head.
 4. Fix any CI failure before continuing; never bypass the gate.
-5. Prove the issue acceptance criteria with live acceptance where required.
-6. Update the active issue checklist and add exact commit/PR/run evidence.
-7. Update this handoff when meaningful state changes.
-8. Update Issue #8 only when roadmap/sequencing changes.
-9. Keep the issue open until implementation, acceptance, merge, and required post-merge verification all pass.
+5. Run issue-specific staging/live acceptance where required on the exact same head.
+6. Prove the issue acceptance criteria, not merely that code exists.
+7. Update the active issue checklist and add exact commit/PR/run evidence.
+8. Update this handoff when meaningful state changes.
+9. Update Issue #8 when roadmap completion/sequencing changes.
 10. Add an ADR only for a material architecture decision.
+11. Require exact post-merge `Verify` before closing an implementation issue.
 
 ## 8. Completion history
 
@@ -277,22 +278,31 @@ For every meaningful step:
 - P3 / #4 — PR #19 merged as `1d9ad9c334f6aff922917db8f7b49943e066e2fe`; post-merge `Verify` **37210341678 (#133)** green.
 - P4 / #5 — PR #20 merged as `54300a908ea139731cfd2e433949b31517bae479`; post-merge `Verify` **37212761714 (#153)** green. Final handoff PR #21 merged as `778939780a80d3b36a3b48e380192a25d0f39b94`; `Verify` **37213063804 (#155)** green.
 - P5 / #6 — PR #22 final head `cd947538c1fefabe2abfb04acd2f26e07cf1a549`; `Verify` **37215999005 (#173)** green; P5 Staging Acceptance **37215996145 (#9)** green; squash-merged as `02994f482918364a8351bf947d50064f6fb34313`; post-merge `Verify` **37216156725 (#174)** green.
-- P6 / #7 — active PR #25. Clean implementation head `fae800b04acf0a871310af086b11d496c87f8742`; `Verify` **37297555868 (#246)** green; P6 Staging Acceptance **37297549764 (#23)** green. Final docs-head gates and merge/post-merge verification remain pending.
+- P6 vertical slice / #7 — PR #25 final docs head `59679a56eb273e2f343e2d6ee7d94babf9409b1e`; `Verify` **37305283632 (#250)** green; P6 Staging Acceptance **37305276676 (#26)** green; squash-merged as `8d1a422c514869844fefc9c5c29c1ffdf2bc923e`; exact post-merge `Verify` **37306176415 (#251)** green.
 
 ## 9. Next action
 
-Continue **Issue #7 only**.
+Continue **Issue #33 only**.
 
-This file is the final pre-merge documentation change for the current candidate. The next required sequence is:
+Before implementation, inspect the existing code boundaries introduced by #7 for:
 
-1. Let GitHub Actions run `Verify` on the new branch head created by this documentation commit.
-2. Require `P6 Staging Acceptance` to run against that exact same head and pass the full real WorkOS → Santo session → quota → AI Search → Workers AI → validated citation → idempotent usage path plus cleanup.
-3. If either gate fails, fix the actual failure before continuing and repeat both gates on the resulting clean head.
-4. Once both are green on the same final head, record their exact run IDs in Issue #7 / PR #25, mark PR #25 ready, and squash merge.
-5. Require `Verify` on the exact merge commit on `main`.
-6. Only after that post-merge Verify passes: close Issue #7, mark #7 complete in Issue #8, and document that Master Plan §123 first technical milestone is proven.
+- the AI Search retrieval adapter and normalized evidence type
+- the `/v1/ai/query` request contract
+- current evidence/source metadata fields
+- current staging P6 AI Search fixture management
+- any existing D1/library metadata schema or catalog placeholder
 
-Do not start deferred streaming, ConversationDO, images/source drawer, full widget, broad model routing, or full tenant portal work before that sequence is complete.
+Then implement the smallest clean Phase 6 increment: **introduce the global library catalog and validated retrieval filter contract without changing auth, quota, model, citation, or tenant semantics.**
+
+Required deterministic gates before live staging work:
+
+1. `All Libraries` behavior remains unchanged.
+2. A valid library filter narrows retrieval.
+3. An invalid/unknown library filter fails with a structured error and never silently broadens scope.
+4. Retrieval metadata normalization is stable and tested.
+5. Existing #7 auth/quota/idempotency/citation regressions remain green.
+
+Only after local/CI gates pass should #33 add its exact-head multi-library staging acceptance.
 
 ## 10. Repository administration note
 

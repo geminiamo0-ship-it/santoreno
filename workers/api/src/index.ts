@@ -1,5 +1,6 @@
 import { handleGroundedAiQuery } from "./ai/handler";
 import { app } from "./app";
+import { handleGlobalSearchAcceptance } from "./infrastructure/global-search-acceptance";
 import { handleP5QuotaAcceptance } from "./infrastructure/p5-quota-acceptance";
 import { handleP6GroundedAiAcceptance } from "./infrastructure/p6-grounded-ai-acceptance";
 import { handleInfrastructureQueue } from "./infrastructure/queue";
@@ -15,6 +16,9 @@ const fetch: typeof app.fetch = async (request, env, executionContext) => {
   }
   if (url.pathname.startsWith("/__infra/p6-grounded-ai-acceptance")) {
     return handleP6GroundedAiAcceptance(request, env as SantoBindings);
+  }
+  if (url.pathname.startsWith("/__infra/global-search-acceptance")) {
+    return handleGlobalSearchAcceptance(request, env as SantoBindings);
   }
   if (url.pathname === "/v1/ai/query") {
     return handleGroundedAiQuery(request, env as SantoBindings);

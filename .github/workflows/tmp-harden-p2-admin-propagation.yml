@@ -23,23 +23,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Add bounded propagation retry
         run: |
-          python <<'PY'
-          from pathlib import Path
-
-          path = Path('scripts/p2-live-acceptance.mjs')
-          text = path.read_text()
-          old = '''  const adminContext = await santoRequest(workerUrl, "/v1/portal/context", superAdmin.accessToken);
-  expect(adminContext.status === 200, `Super Admin context returned HTTP ${adminContext.status}`);'''
-          new = '''  let adminContext = null;
-  for (let attempt = 1; attempt <= 30; attempt += 1) {
-    adminContext = await santoRequest(workerUrl, "/v1/portal/context", superAdmin.accessToken);
-    if (adminContext.status === 200 || adminContext.status !== 403 || attempt === 30) break;
-    await new Promise((resolve) => setTimeout(resolve, 2_000));
-  }
-  expect(adminContext?.status === 200, `Super Admin context returned HTTP ${adminContext?.status ?? "unknown"}`);'''
-          assert text.count(old) == 1, 'unexpected P2 admin context shape'
-          path.write_text(text.replace(old, new, 1))
-          PY
+          echo 'ZnJvbSBwYXRobGliIGltcG9ydCBQYXRoCnBhdGggPSBQYXRoKCJzY3JpcHRzL3AyLWxpdmUtYWNjZXB0YW5jZS5tanMiKQp0ZXh0ID0gcGF0aC5yZWFkX3RleHQoKQpvbGQgPSAiIiIgIGNvbnN0IGFkbWluQ29udGV4dCA9IGF3YWl0IHNhbnRvUmVxdWVzdCh3b3JrZXJVcmwsICIvdjEvcG9ydGFsL2NvbnRleHQiLCBzdXBlckFkbWluLmFjY2Vzc1Rva2VuKTsKICBleHBlY3QoYWRtaW5Db250ZXh0LnN0YXR1cyA9PT0gMjAwLCBgU3VwZXIgQWRtaW4gY29udGV4dCByZXR1cm5lZCBIVFRQICR7YWRtaW5Db250ZXh0LnN0YXR1c31gKTsiIiIKbmV3ID0gIiIiICBsZXQgYWRtaW5Db250ZXh0ID0gbnVsbDsKICBmb3IgKGxldCBhdHRlbXB0ID0gMTsgYXR0ZW1wdCA8PSAzMDsgYXR0ZW1wdCArPSAxKSB7CiAgICBhZG1pbkNvbnRleHQgPSBhd2FpdCBzYW50b1JlcXVlc3Qod29ya2VyVXJsLCAiL3YxL3BvcnRhbC9jb250ZXh0Iiwgc3VwZXJBZG1pbi5hY2Nlc3NUb2tlbik7CiAgICBpZiAoYWRtaW5Db250ZXh0LnN0YXR1cyA9PT0gMjAwIHx8IGFkbWluQ29udGV4dC5zdGF0dXMgIT09IDQwMyB8fCBhdHRlbXB0ID09PSAzMCkgYnJlYWs7CiAgICBhd2FpdCBuZXcgUHJvbWlzZSgocmVzb2x2ZSkgPT4gc2V0VGltZW91dChyZXNvbHZlLCAyXzAwMCkpOwogIH0KICBleHBlY3QoYWRtaW5Db250ZXh0Py5zdGF0dXMgPT09IDIwMCwgYFN1cGVyIEFkbWluIGNvbnRleHQgcmV0dXJuZWQgSFRUUCAke2FkbWluQ29udGV4dD8uc3RhdHVzID8/ICJ1bmtub3duIn1gKTsiIiIKYXNzZXJ0IHRleHQuY291bnQob2xkKSA9PSAxLCAidW5leHBlY3RlZCBQMiBhZG1pbiBjb250ZXh0IHNoYXBlIgpwYXRoLndyaXRlX3RleHQodGV4dC5yZXBsYWNlKG9sZCwgbmV3LCAxKSkK' | base64 -d > /tmp/patch-p2.py
+          python /tmp/patch-p2.py
           pnpm exec prettier --write scripts/p2-live-acceptance.mjs
       - name: Commit hardening
         run: |

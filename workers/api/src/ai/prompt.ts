@@ -6,11 +6,14 @@ export function buildGroundedPrompt(query: string, evidence: readonly RetrievedE
   const context = evidence
     .map((item, index) => {
       const page = item.page === null ? "unknown" : String(item.page);
+      const section = item.section ?? "unknown";
       return [
         `SOURCE ${index + 1}`,
         `source_id: ${item.sourceId}`,
+        `library_id: ${item.libraryId}`,
         `title: ${item.title}`,
         `page: ${page}`,
+        `section: ${section}`,
         `text: ${item.text.slice(0, MAX_EVIDENCE_CHARS)}`,
       ].join("\n");
     })

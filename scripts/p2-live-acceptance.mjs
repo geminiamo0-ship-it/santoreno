@@ -342,8 +342,16 @@ async function verify() {
     }
   }
 
-  const adminContext = await santoRequest(workerUrl, "/v1/portal/context", superAdmin.accessToken);
-  expect(adminContext.status === 200, `Super Admin context returned HTTP ${adminContext.status}`);
+  let adminContext = null;
+  for (let attempt = 1; attempt <= 30; attempt += 1) {
+    adminContext = await santoRequest(workerUrl, "/v1/portal/context", superAdmin.accessToken);
+    if (adminContext.status === 200 || adminContext.status !== 403 || attempt === 30) break;
+    await new Promise((resolve) => setTimeout(resolve, 2_000));
+  }
+  expect(
+    adminContext?.status === 200,
+    `Super Admin context returned HTTP ${adminContext?.status ?? "unknown"}`,
+  );
   expect(
     adminContext.body?.role === "super_admin",
     "Super Admin role was not resolved server-side",

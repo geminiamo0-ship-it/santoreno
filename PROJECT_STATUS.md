@@ -72,6 +72,22 @@ Current #33 scope:
 - deterministic regression tests
 - exact-head staging acceptance across multiple cataloged libraries/fixtures
 
+Current verified implementation progress on draft PR #35:
+
+- optional validated `library_id` is part of the shared `/v1/ai/query` contract
+- `LibraryCatalogPort` keeps catalog concerns separate from retrieval orchestration
+- the current AI Search namespace adapter exposes library IDs from catalog metadata when present, falling back to stable instance IDs
+- omitted `library_id` preserves All Libraries behavior
+- a valid filter restricts AI Search to the selected catalog instance
+- an unknown filter fails closed as `INVALID_LIBRARY_FILTER` and never silently broadens search
+- normalized evidence now carries `libraryId` and `section` in addition to source/instance/item/title/page/text/score metadata
+- quota idempotency includes library scope so the same client key/query in different libraries cannot alias
+- existing auth/quota/citation/release/idempotency regressions remain green
+
+Exact implementation head `09f6d06163091cf038889bf1ecb905ae9e061cd0` passed `Verify` **37316081157 (#260)** after a formatting-only first-run failure was fixed. The successful run passed repository policy, formatting/lint, typecheck, tests, build, and smoke.
+
+**#33 is not complete yet.** Real staging acceptance with at least two run-isolated cataloged AI Search fixtures remains required before the final exact-head gate and merge.
+
 Do not jump directly to streaming, ConversationDO, images, the complete widget, or the full tenant portal before completing the ordered core backlog.
 
 ## 2. Read order before implementation
@@ -233,8 +249,17 @@ Issue #7 proved:
 - Citation IDs are validated server-side against the retrieved evidence set.
 - Missing evidence, retrieval failure, invalid model output, and invented citations do not produce a sourced medical answer.
 - Successful completion finalizes quota; defined non-chargeable hard failures release the reservation.
-- Idempotency prevents identical retries from double-charging.
+- Idempotency prevents identical retries from double-charging and now includes retrieval-library scope.
 - Telemetry excludes secrets, tokens, and unnecessary medical/user content.
+
+### Global retrieval boundary under #33
+
+- `library_id` is optional request scope; omission means All Libraries.
+- Library selection affects retrieval scope only and never grants tenant authorization.
+- Library catalog resolution is behind `LibraryCatalogPort`.
+- `CloudflareAiSearchRetrieval` consumes the catalog boundary and sends only selected AI Search instance IDs.
+- Unknown library IDs fail closed before an AI Search query is sent.
+- Retrieved evidence carries stable source, library, instance, item, title, page/section, text, and score fields for downstream citation/source resolution.
 
 ## 6. Core rules that must not drift
 
@@ -282,27 +307,24 @@ For every meaningful step:
 
 ## 9. Next action
 
-Continue **Issue #33 only**.
+Continue **Issue #33 only** on draft PR #35.
 
-Before implementation, inspect the existing code boundaries introduced by #7 for:
+The deterministic catalog/filter increment is implemented and verified. The exact next implementation step is to add a **real two-library staging acceptance gate** without weakening the proven production boundaries.
 
-- the AI Search retrieval adapter and normalized evidence type
-- the `/v1/ai/query` request contract
-- current evidence/source metadata fields
-- current staging P6 AI Search fixture management
-- any existing D1/library metadata schema or catalog placeholder
+Required staging path:
 
-Then implement the smallest clean Phase 6 increment: **introduce the global library catalog and validated retrieval filter contract without changing auth, quota, model, citation, or tenant semantics.**
+1. Create two run-isolated AI Search fixture instances with distinct synthetic evidence.
+2. Verify both fixtures are visible before the test proceeds.
+3. Create a real WorkOS-backed staging tenant/user/session through the existing platform path.
+4. Configure only the test user's quota through a protected non-production acceptance setup route.
+5. Call `/v1/ai/query` with no `library_id` and prove All Libraries still works.
+6. Call the same authenticated route with each fixture's library ID and prove returned citations come only from the selected fixture instance.
+7. Call with an unknown library ID and prove a structured fail-closed response without silent broadening.
+8. Keep server-side citation validation, quota reserve/finalize/release, and model invocation on the real runtime path.
+9. Clean AI Search, D1, and WorkOS fixtures even on failure.
+10. Require both `Verify` and the new staging acceptance to pass on the exact final head before merge.
 
-Required deterministic gates before live staging work:
-
-1. `All Libraries` behavior remains unchanged.
-2. A valid library filter narrows retrieval.
-3. An invalid/unknown library filter fails with a structured error and never silently broadens scope.
-4. Retrieval metadata normalization is stable and tested.
-5. Existing #7 auth/quota/idempotency/citation regressions remain green.
-
-Only after local/CI gates pass should #33 add its exact-head multi-library staging acceptance.
+Do not mark #33 complete until the staging gate, final docs head, merge, and exact post-merge Verify all pass.
 
 ## 10. Repository administration note
 

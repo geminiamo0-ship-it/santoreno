@@ -1,7 +1,7 @@
 import { DurableObjectQuotaService } from "../quota/service";
 import type { AiSearchNamespaceLike, SantoBindings } from "../runtime/bindings";
 
-const FIXTURE_INSTANCE_ID = "santo-p6-grounding-acceptance";
+const FIXTURE_INSTANCE_ID_PATTERN = /^santo-p6-grounding-[0-9a-f]{12}$/;
 const FIXTURE_ITEM_KEY = "santo-p6-grounding-fixture.md";
 const FIXTURE_QUERY =
   "According to the Santo P6 grounding acceptance fixture, what synthetic verification dose is specified?";
@@ -29,13 +29,16 @@ function isUuid(value: unknown): value is string {
   );
 }
 
-async function fixtureIsVisible(namespace: AiSearchNamespaceLike): Promise<boolean> {
+async function fixtureIsVisible(
+  namespace: AiSearchNamespaceLike,
+  fixtureInstanceId: string,
+): Promise<boolean> {
   const listed = asRecord(await namespace.list());
   if (!Array.isArray(listed?.result)) {
     throw new Error("AI Search namespace returned an invalid instance list");
   }
 
-  return listed.result.some((entry) => asRecord(entry)?.id === FIXTURE_INSTANCE_ID);
+  return listed.result.some((entry) => asRecord(entry)?.id === fixtureInstanceId);
 }
 
 async function setup(request: Request, env: SantoBindings): Promise<Response> {
@@ -49,9 +52,12 @@ async function setup(request: Request, env: SantoBindings): Promise<Response> {
   const payload = asRecord(await request.json().catch(() => null));
   const tenantId = payload?.tenantId;
   const externalUserId = payload?.externalUserId;
+  const fixtureInstanceId = payload?.fixtureInstanceId;
   if (
     !isUuid(tenantId) ||
     typeof externalUserId !== "string" ||
+    typeof fixtureInstanceId !== "string" ||
+    !FIXTURE_INSTANCE_ID_PATTERN.test(fixtureInstanceId) ||
     externalUserId.trim().length === 0 ||
     externalUserId.length > 255
   ) {
@@ -62,7 +68,7 @@ async function setup(request: Request, env: SantoBindings): Promise<Response> {
   }
 
   try {
-    if (!(await fixtureIsVisible(env.AI_SEARCH))) {
+    if (!(await fixtureIsVisible(env.AI_SEARCH, fixtureInstanceId))) {
       return Response.json(
         { status: "failed", error: "P6_ACCEPTANCE_FIXTURE_NOT_VISIBLE" },
         { status: 503 },
@@ -87,7 +93,7 @@ async function setup(request: Request, env: SantoBindings): Promise<Response> {
 
     return Response.json({
       status: "ready",
-      instanceId: FIXTURE_INSTANCE_ID,
+      instanceId: fixtureInstanceId,
       itemKey: FIXTURE_ITEM_KEY,
       query: FIXTURE_QUERY,
     });

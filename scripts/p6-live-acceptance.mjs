@@ -235,7 +235,7 @@ async function verify() {
   const setup = await request(workerUrl, "/__infra/p6-grounded-ai-acceptance/setup", {
     method: "POST",
     smokeToken,
-    body: { tenantId, externalUserId: EXTERNAL_USER_ID },
+    body: { tenantId, externalUserId: EXTERNAL_USER_ID, fixtureInstanceId: FIXTURE_INSTANCE_ID },
   });
   expect(
     setup.status === 200,

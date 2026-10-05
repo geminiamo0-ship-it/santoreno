@@ -174,13 +174,7 @@ async function probeFixture(workerUrl, smokeToken, fixture) {
   return result.body?.searchable === true;
 }
 
-async function waitForSearchableFixture(
-  workerUrl,
-  smokeToken,
-  fixture,
-  itemId,
-  initialStatus,
-) {
+async function waitForSearchableFixture(workerUrl, smokeToken, fixture, itemId, initialStatus) {
   let status = initialStatus;
   const deadline = Date.now() + AI_SEARCH_INDEX_TIMEOUT_MS;
   while (Date.now() < deadline) {

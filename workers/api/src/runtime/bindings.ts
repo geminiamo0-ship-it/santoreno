@@ -40,6 +40,11 @@ export interface AnalyticsEngineDatasetLike {
 
 export interface AiSearchNamespaceLike {
   list(): Promise<unknown>;
+  search(input: unknown): Promise<unknown>;
+}
+
+export interface WorkersAiLike {
+  run(model: string, input: unknown): Promise<unknown>;
 }
 
 export interface QueueMessageLike<T = unknown> {
@@ -61,6 +66,7 @@ export interface SantoBindings {
   SANTO_SUPER_ADMIN_USER_IDS?: string;
   SANTO_SESSION_SIGNING_KEY?: string;
   SANTO_SESSION_TTL_SECONDS?: string;
+  SANTO_AI_MODEL?: string;
   CONTROL_DB?: D1DatabaseLike;
   CONTENT_BUCKET?: R2BucketLike;
   TENANT_METER?: DurableObjectNamespaceLike;
@@ -68,4 +74,5 @@ export interface SantoBindings {
   EVENT_QUEUE?: QueueLike;
   USAGE_ANALYTICS?: AnalyticsEngineDatasetLike;
   AI_SEARCH?: AiSearchNamespaceLike;
+  AI?: WorkersAiLike;
 }

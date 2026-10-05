@@ -56,9 +56,13 @@ workers_dev = true
 [env.staging.vars]
 SANTO_ENV = "staging"
 SANTO_SESSION_TTL_SECONDS = "900"
+SANTO_AI_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
 
 [env.staging.secrets]
 required = ["INFRA_SMOKE_TOKEN", "SANTO_SESSION_SIGNING_KEY"]
+
+[env.staging.ai]
+binding = "AI"
 
 [[env.staging.d1_databases]]
 binding = "CONTROL_DB"
@@ -102,6 +106,10 @@ name = "santo-api"
 [env.production.vars]
 SANTO_ENV = "production"
 SANTO_SESSION_TTL_SECONDS = "900"
+SANTO_AI_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
+
+[env.production.ai]
+binding = "AI"
 
 [[env.production.r2_buckets]]
 binding = "CONTENT_BUCKET"

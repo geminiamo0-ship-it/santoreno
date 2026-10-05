@@ -155,6 +155,7 @@ function request(
   token: string,
   idempotencyKey = "query-1",
   query = "What is the normal serum sodium range?",
+  libraryId?: string,
 ): Request {
   return new Request("https://santo.test/v1/ai/query", {
     method: "POST",
@@ -165,6 +166,7 @@ function request(
     body: JSON.stringify({
       query,
       idempotency_key: idempotencyKey,
+      ...(libraryId ? { library_id: libraryId } : {}),
     }),
   });
 }
@@ -189,10 +191,12 @@ describe("grounded AI handler", () => {
       retrieve: vi.fn(async () => [
         {
           sourceId: SOURCE_ID,
+          libraryId: "medical",
           instanceId: "medical",
           itemKey: "electrolytes.md",
           title: "Electrolytes",
           page: 12,
+          section: "Sodium disorders",
           text: "Normal serum sodium is generally 135 to 145 mmol/L.",
           score: 0.91,
         },
@@ -237,10 +241,21 @@ describe("grounded AI handler", () => {
       citations: [{ sourceId: SOURCE_ID, title: "Electrolytes", page: 12 }],
       usage: { unitsCharged: 1, remaining: 9 },
     });
+    expect(retrieval.retrieve).toHaveBeenCalledWith({
+      query: "What is the normal serum sodium range?",
+      libraryId: null,
+    });
     expect(quota.reserveCalls).toBe(1);
     expect(quota.finalizeCalls).toBe(1);
     expect(quota.releaseCalls).toBe(0);
     expect(telemetryEvents.at(-1)?.status).toBe("success");
+  });
+
+  it("passes a validated library filter into retrieval", async () => {
+    const response = await handler()(request(token, "library-key", "sodium", "mrcp"), env);
+
+    expect(response.status).toBe(200);
+    expect(retrieval.retrieve).toHaveBeenCalledWith({ query: "sodium", libraryId: "mrcp" });
   });
 
   it("rejects an invalid session before quota, search, or model work", async () => {
@@ -301,6 +316,15 @@ describe("grounded AI handler", () => {
   it("does charge distinct queries even when a client reuses the same key", async () => {
     const first = await handler()(request(token, "reused-key", "sodium"), env);
     const second = await handler()(request(token, "reused-key", "potassium"), env);
+
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    expect(quota.used).toBe(2);
+  });
+
+  it("does charge distinct library scopes when a client reuses the same key and query", async () => {
+    const first = await handler()(request(token, "scope-key", "sodium", "mrcp"), env);
+    const second = await handler()(request(token, "scope-key", "sodium", "usmle"), env);
 
     expect(first.status).toBe(200);
     expect(second.status).toBe(200);

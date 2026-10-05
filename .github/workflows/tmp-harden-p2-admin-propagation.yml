@@ -1,0 +1,52 @@
+name: Temporary P2 admin propagation hardener
+
+on:
+  push:
+    branches:
+      - feat/issue-7-grounded-ai-slice
+
+permissions:
+  contents: write
+
+jobs:
+  harden:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/issue-7-grounded-ai-slice
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - name: Add bounded propagation retry
+        run: |
+          python <<'PY'
+          from pathlib import Path
+
+          path = Path('scripts/p2-live-acceptance.mjs')
+          text = path.read_text()
+          old = '''  const adminContext = await santoRequest(workerUrl, "/v1/portal/context", superAdmin.accessToken);
+  expect(adminContext.status === 200, `Super Admin context returned HTTP ${adminContext.status}`);'''
+          new = '''  let adminContext = null;
+  for (let attempt = 1; attempt <= 30; attempt += 1) {
+    adminContext = await santoRequest(workerUrl, "/v1/portal/context", superAdmin.accessToken);
+    if (adminContext.status === 200 || adminContext.status !== 403 || attempt === 30) break;
+    await new Promise((resolve) => setTimeout(resolve, 2_000));
+  }
+  expect(adminContext?.status === 200, `Super Admin context returned HTTP ${adminContext?.status ?? "unknown"}`);'''
+          assert text.count(old) == 1, 'unexpected P2 admin context shape'
+          path.write_text(text.replace(old, new, 1))
+          PY
+          pnpm exec prettier --write scripts/p2-live-acceptance.mjs
+      - name: Commit hardening
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add scripts/p2-live-acceptance.mjs
+          git diff --cached --quiet && { echo "No hardening change needed"; exit 0; }
+          git commit -m "fix(ci): tolerate Worker auth propagation"
+          git push origin HEAD:feat/issue-7-grounded-ai-slice

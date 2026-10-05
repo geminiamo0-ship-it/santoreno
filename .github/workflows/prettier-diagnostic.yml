@@ -1,0 +1,35 @@
+name: Prettier Diagnostic
+
+on:
+  push:
+    branches:
+      - feat/issue-33-global-ai-search
+
+permissions:
+  contents: read
+
+jobs:
+  prettier-diff:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Print exact Prettier diff
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm exec prettier --write scripts/global-search-live-acceptance.mjs
+          git diff -- scripts/global-search-live-acceptance.mjs

@@ -1,9 +1,18 @@
 import { z } from "zod";
 
+export const SantoLibraryIdSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(128)
+  .regex(/^[A-Za-z0-9][A-Za-z0-9._-]*$/);
+export type SantoLibraryId = z.infer<typeof SantoLibraryIdSchema>;
+
 export const GroundedAiQueryRequestSchema = z
   .object({
     query: z.string().trim().min(1).max(4000),
     idempotency_key: z.string().trim().min(1).max(128),
+    library_id: SantoLibraryIdSchema.optional(),
   })
   .strict();
 export type GroundedAiQueryRequest = z.infer<typeof GroundedAiQueryRequestSchema>;

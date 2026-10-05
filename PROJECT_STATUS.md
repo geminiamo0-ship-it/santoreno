@@ -5,6 +5,7 @@
 > **Purpose:** First file a new developer, coding agent, or AI assistant should read before changing the repository.
 >
 > **Rule:** GitHub code, issues, PRs, commits, and Actions are the source of truth. Update this file whenever meaningful work completes, a gate passes/fails, architecture changes, or the active issue changes.
+> **Active issue:** #36 — Phase 7 Full AI Core.
 
 ## 1. Current state
 

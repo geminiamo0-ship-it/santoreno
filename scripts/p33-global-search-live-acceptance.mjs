@@ -172,7 +172,9 @@ async function waitForIndexedItem(instanceId, itemId, initialStatus) {
     );
     status = polled.body?.result?.status;
   }
-  throw new Error(`AI Search fixture ${instanceId} indexing timed out with status ${String(status)}`);
+  throw new Error(
+    `AI Search fixture ${instanceId} indexing timed out with status ${String(status)}`,
+  );
 }
 
 async function uploadFixture(fixture) {
@@ -193,7 +195,10 @@ async function uploadFixture(fixture) {
         typeof itemId === "string" && itemId.length > 0,
         `AI Search upload returned no item ID for ${fixture.id}`,
       );
-      expect(typeof status === "string", `AI Search upload returned no item status for ${fixture.id}`);
+      expect(
+        typeof status === "string",
+        `AI Search upload returned no item status for ${fixture.id}`,
+      );
       await waitForIndexedItem(fixture.id, itemId, status);
       return;
     }
@@ -335,12 +340,7 @@ async function verify() {
       idempotency_key: `${sharedKey}-all`,
     },
   });
-  expectSuccessfulAnswer(
-    allLibraries,
-    "47",
-    [MRCP_INSTANCE_ID, USMLE_INSTANCE_ID],
-    1,
-  );
+  expectSuccessfulAnswer(allLibraries, "47", [MRCP_INSTANCE_ID, USMLE_INSTANCE_ID], 1);
 
   const invalid = await request(workerUrl, "/v1/ai/query", {
     method: "POST",

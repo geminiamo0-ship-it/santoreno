@@ -1,6 +1,11 @@
 import type { AiSearchNamespaceLike } from "../runtime/bindings";
 import { GroundedAiError } from "./errors";
-import type { RetrievalPort, RetrievedEvidence } from "./types";
+import {
+  AiSearchNamespaceLibraryCatalog,
+  type LibraryCatalogEntry,
+  type LibraryCatalogPort,
+} from "./library-catalog";
+import type { RetrievalPort, RetrievalRequest, RetrievedEvidence } from "./types";
 
 const MAX_SEARCH_INSTANCES = 10;
 const MAX_RESULTS = 5;
@@ -39,6 +44,14 @@ function pageFromMetadata(metadata: Record<string, unknown> | null): number | nu
   return null;
 }
 
+function sectionFromMetadata(metadata: Record<string, unknown> | null): string | null {
+  return (
+    stringField(metadata, "section") ??
+    stringField(metadata, "section_title") ??
+    stringField(metadata, "sectionTitle")
+  );
+}
+
 function titleFromItem(item: Record<string, unknown> | null): string {
   const metadata = asRecord(item?.metadata);
   return (
@@ -49,36 +62,25 @@ function titleFromItem(item: Record<string, unknown> | null): string {
   ).slice(0, 500);
 }
 
-function instanceIdsFromList(raw: unknown): string[] {
-  const root = asRecord(raw);
-  const result = root?.result;
-  if (!Array.isArray(result)) {
-    throw new GroundedAiError(
-      502,
-      "SEARCH_FAILED",
-      "AI Search namespace returned an invalid instance list",
-    );
+function selectLibraries(
+  catalog: readonly LibraryCatalogEntry[],
+  libraryId: string | null,
+): readonly LibraryCatalogEntry[] {
+  if (libraryId === null) {
+    return catalog;
   }
 
-  const ids = result
-    .map((entry) => stringField(asRecord(entry), "id"))
-    .filter((value): value is string => value !== null)
-    .sort();
-
-  if (ids.length > MAX_SEARCH_INSTANCES) {
-    throw new GroundedAiError(
-      503,
-      "SEARCH_CONFIGURATION_ERROR",
-      `All Libraries currently supports at most ${MAX_SEARCH_INSTANCES} AI Search instances`,
-    );
+  const selected = catalog.find((entry) => entry.id === libraryId);
+  if (!selected) {
+    throw new GroundedAiError(400, "INVALID_LIBRARY_FILTER", "Unknown Santo library filter");
   }
 
-  return ids;
+  return [selected];
 }
 
 function evidenceFromSearch(
   raw: unknown,
-  selectedInstanceIds: readonly string[],
+  selectedLibraries: readonly LibraryCatalogEntry[],
 ): RetrievedEvidence[] {
   const root = asRecord(raw);
   const chunks = root?.chunks;
@@ -86,6 +88,10 @@ function evidenceFromSearch(
     throw new GroundedAiError(502, "SEARCH_FAILED", "AI Search returned an invalid response");
   }
 
+  const libraryByInstanceId = new Map(
+    selectedLibraries.map((entry) => [entry.instanceId, entry] as const),
+  );
+  const fallbackLibrary = selectedLibraries.length === 1 ? selectedLibraries[0] : null;
   const evidence: RetrievedEvidence[] = [];
   const seen = new Set<string>();
 
@@ -96,11 +102,10 @@ function evidenceFromSearch(
     const score = numberField(chunk, "score");
     const item = asRecord(chunk?.item);
     const itemKey = stringField(item, "key");
-    const instanceId =
-      stringField(chunk, "instance_id") ??
-      (selectedInstanceIds.length === 1 ? selectedInstanceIds[0] : null);
+    const instanceId = stringField(chunk, "instance_id") ?? fallbackLibrary?.instanceId ?? null;
+    const library = instanceId ? libraryByInstanceId.get(instanceId) : undefined;
 
-    if (!chunkId || !text || score === null || !itemKey || !instanceId) {
+    if (!chunkId || !text || score === null || !itemKey || !instanceId || !library) {
       continue;
     }
 
@@ -113,10 +118,12 @@ function evidenceFromSearch(
     const metadata = asRecord(item?.metadata);
     evidence.push({
       sourceId,
+      libraryId: library.id,
       instanceId,
       itemKey,
       title: titleFromItem(item),
       page: pageFromMetadata(metadata),
+      section: sectionFromMetadata(metadata),
       text: text.slice(0, MAX_CHUNK_CHARS),
       score,
     });
@@ -130,23 +137,37 @@ function evidenceFromSearch(
 }
 
 export class CloudflareAiSearchRetrieval implements RetrievalPort {
-  constructor(private readonly namespace: AiSearchNamespaceLike | undefined) {}
+  private readonly catalog: LibraryCatalogPort;
 
-  async retrieve(query: string): Promise<RetrievedEvidence[]> {
+  constructor(
+    private readonly namespace: AiSearchNamespaceLike | undefined,
+    catalog?: LibraryCatalogPort,
+  ) {
+    this.catalog = catalog ?? new AiSearchNamespaceLibraryCatalog(namespace);
+  }
+
+  async retrieve(request: RetrievalRequest): Promise<RetrievedEvidence[]> {
     if (!this.namespace) {
       throw new GroundedAiError(503, "AI_NOT_CONFIGURED", "AI Search binding is required");
     }
 
     try {
-      const instanceIds = instanceIdsFromList(await this.namespace.list());
-      if (instanceIds.length === 0) {
+      const selectedLibraries = selectLibraries(await this.catalog.list(), request.libraryId);
+      if (selectedLibraries.length === 0) {
         return [];
+      }
+      if (selectedLibraries.length > MAX_SEARCH_INSTANCES) {
+        throw new GroundedAiError(
+          503,
+          "SEARCH_CONFIGURATION_ERROR",
+          `All Libraries currently supports at most ${MAX_SEARCH_INSTANCES} AI Search instances`,
+        );
       }
 
       const result = await this.namespace.search({
-        query,
+        query: request.query,
         ai_search_options: {
-          instance_ids: instanceIds,
+          instance_ids: selectedLibraries.map((entry) => entry.instanceId),
           retrieval: {
             retrieval_type: "hybrid",
             match_threshold: MATCH_THRESHOLD,
@@ -159,7 +180,7 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
         },
       });
 
-      return evidenceFromSearch(result, instanceIds);
+      return evidenceFromSearch(result, selectedLibraries);
     } catch (error) {
       if (error instanceof GroundedAiError) {
         throw error;

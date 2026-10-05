@@ -3,6 +3,7 @@ import type { AiSearchNamespaceLike, SantoBindings } from "../runtime/bindings";
 
 const FIXTURE_INSTANCE_ID_PATTERN = /^santo-p33-(?:mrcp|usmle)-[0-9a-f]{12}$/;
 const FIXTURE_MARKER_PATTERN = /^SANTO-P33-(?:MRCP-23|USMLE-31)$/;
+// Keep the readiness query aligned with the live grounded request so the probe cannot pass on weaker search semantics.
 const SHARED_FILTER_QUERY =
   "According to the Santo P33 selected-library acceptance fixture, what synthetic verification dose is specified?";
 

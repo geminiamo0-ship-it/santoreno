@@ -72,8 +72,7 @@ export class AiSearchNamespaceLibraryCatalog implements LibraryCatalogPort {
       entries.push({
         id: libraryId,
         instanceId,
-        title:
-          stringField(metadata, "title") ?? stringField(entry, "name") ?? libraryId,
+        title: stringField(metadata, "title") ?? stringField(entry, "name") ?? libraryId,
       });
     }
 

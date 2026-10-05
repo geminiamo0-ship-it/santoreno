@@ -40,7 +40,8 @@ const ALPHA = FIXTURES[0];
 const BETA = FIXTURES[1];
 const ALPHA_QUERY =
   "According to the Santo Global Search Alpha acceptance fixture, what synthetic verification dose is specified?";
-const GENERIC_QUERY = "What synthetic verification dose is specified by this Santo acceptance fixture?";
+const GENERIC_QUERY =
+  "What synthetic verification dose is specified by this Santo acceptance fixture?";
 
 function requireEnv(name) {
   const value = process.env[name]?.trim();
@@ -66,7 +67,11 @@ async function readJson(path) {
   return JSON.parse(await readFile(path, "utf8"));
 }
 
-async function request(workerUrl, path, { method = "GET", authorization, smokeToken, body } = {}) {
+async function request(
+  workerUrl,
+  path,
+  { method = "GET", authorization, smokeToken, body } = {},
+) {
   const response = await fetch(`${workerUrl}${path}`, {
     method,
     headers: {
@@ -185,7 +190,10 @@ async function uploadFixture(fixture) {
     if (result.status >= 200 && result.status < 300 && result.body?.success !== false) {
       const itemId = result.body?.result?.id;
       const status = result.body?.result?.status;
-      expect(typeof itemId === "string" && itemId.length > 0, "AI Search upload returned no item ID");
+      expect(
+        typeof itemId === "string" && itemId.length > 0,
+        "AI Search upload returned no item ID",
+      );
       expect(typeof status === "string", "AI Search upload returned no item status");
       await waitForIndexedItem(fixture.id, itemId, status);
       return;
@@ -235,7 +243,10 @@ async function exchangeSession(workerUrl, secret) {
   });
   expect(result.status === 200, `Session exchange returned HTTP ${result.status}`);
   const token = result.body?.accessToken;
-  expect(typeof token === "string" && token.split(".").length === 3, "Session token is invalid");
+  expect(
+    typeof token === "string" && token.split(".").length === 3,
+    "Session token is invalid",
+  );
   mask(token);
   return token;
 }

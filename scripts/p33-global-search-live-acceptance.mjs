@@ -10,9 +10,9 @@ const INVALID_INSTANCE_ID = `santo-p33-unknown-${RUN_SUFFIX}`;
 const AI_SEARCH_INDEX_TIMEOUT_MS = 5 * 60 * 1_000;
 const AI_SEARCH_POLL_INTERVAL_MS = 3_000;
 const SHARED_FILTER_QUERY =
-  "According to the selected Santo P33 fixture, what library-specific synthetic verification value is specified?";
+  "According to the Santo P33 selected-library acceptance fixture, what synthetic verification dose is specified?";
 const ALL_LIBRARIES_QUERY =
-  "According to the Santo P33 fixtures, what shared all-libraries synthetic verification value is specified?";
+  "According to the Santo P33 all-libraries acceptance fixtures, what shared synthetic verification dose is specified?";
 
 const FIXTURES = [
   {
@@ -24,8 +24,8 @@ const FIXTURES = [
       "# Santo P33 MRCP Search Acceptance Fixture",
       "",
       "This document exists only for Santo staging acceptance testing.",
-      "For the selected Santo P33 MRCP fixture, the library-specific synthetic verification value is exactly 23 micro-units.",
-      "The shared all-libraries synthetic verification value is exactly 47 micro-units.",
+      "According to the Santo P33 selected-library acceptance fixture, the synthetic verification dose specified is exactly 23 micro-units.",
+      "According to the Santo P33 all-libraries acceptance fixtures, the shared synthetic verification dose specified is exactly 47 micro-units.",
       "Markers: SANTO-P33-MRCP-23 and SANTO-P33-COMMON-47.",
       "Do not infer any clinical meaning from these synthetic values.",
     ].join("\n"),
@@ -39,8 +39,8 @@ const FIXTURES = [
       "# Santo P33 USMLE Search Acceptance Fixture",
       "",
       "This document exists only for Santo staging acceptance testing.",
-      "For the selected Santo P33 USMLE fixture, the library-specific synthetic verification value is exactly 31 micro-units.",
-      "The shared all-libraries synthetic verification value is exactly 47 micro-units.",
+      "According to the Santo P33 selected-library acceptance fixture, the synthetic verification dose specified is exactly 31 micro-units.",
+      "According to the Santo P33 all-libraries acceptance fixtures, the shared synthetic verification dose specified is exactly 47 micro-units.",
       "Markers: SANTO-P33-USMLE-31 and SANTO-P33-COMMON-47.",
       "Do not infer any clinical meaning from these synthetic values.",
     ].join("\n"),

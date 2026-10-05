@@ -4,7 +4,7 @@ import type { AiSearchNamespaceLike, SantoBindings } from "../runtime/bindings";
 const FIXTURE_INSTANCE_ID_PATTERN = /^santo-p33-(?:mrcp|usmle)-[0-9a-f]{12}$/;
 const FIXTURE_MARKER_PATTERN = /^SANTO-P33-(?:MRCP-23|USMLE-31)$/;
 const SHARED_FILTER_QUERY =
-  "According to the selected Santo P33 fixture, what library-specific synthetic verification value is specified?";
+  "According to the Santo P33 selected-library acceptance fixture, what synthetic verification dose is specified?";
 
 function isAuthorized(request: Request, env: SantoBindings): boolean {
   if (env.SANTO_ENV === "production") {

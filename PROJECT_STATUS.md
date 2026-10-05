@@ -34,10 +34,10 @@ PR #22 was squash-merged to `main` as `02994f482918364a8351bf947d50064f6fb34313`
 
 **#7 — Vertical Slice: Add one minimal grounded AI endpoint.**
 
-PR #25 clean candidate head `b942d02f0f60872216d6a0ea7930cb3252c8f0a9` passed:
+PR #25 clean implementation head `fae800b04acf0a871310af086b11d496c87f8742` passed:
 
-- exact-head `Verify` **37296076550 (#241)**
-- exact-head `P6 Staging Acceptance` **37296070167 (#19)**
+- exact-head `Verify` **37297555868 (#246)**
+- exact-head `P6 Staging Acceptance` **37297549764 (#23)**
 
 The live staging gate proved the complete first grounded path using real platform services:
 
@@ -136,7 +136,7 @@ Also proven:
 
 ### Grounding gate — pre-merge acceptance passed; merge gate pending
 
-Exact clean candidate `b942d02f0f60872216d6a0ea7930cb3252c8f0a9` passed the live P6 gate and proved:
+Exact clean implementation head `fae800b04acf0a871310af086b11d496c87f8742` passed the live P6 gate and proved:
 
 - valid Santo session accepted
 - invalid/expired session denied before search/model work
@@ -277,7 +277,7 @@ For every meaningful step:
 - P3 / #4 — PR #19 merged as `1d9ad9c334f6aff922917db8f7b49943e066e2fe`; post-merge `Verify` **37210341678 (#133)** green.
 - P4 / #5 — PR #20 merged as `54300a908ea139731cfd2e433949b31517bae479`; post-merge `Verify` **37212761714 (#153)** green. Final handoff PR #21 merged as `778939780a80d3b36a3b48e380192a25d0f39b94`; `Verify` **37213063804 (#155)** green.
 - P5 / #6 — PR #22 final head `cd947538c1fefabe2abfb04acd2f26e07cf1a549`; `Verify` **37215999005 (#173)** green; P5 Staging Acceptance **37215996145 (#9)** green; squash-merged as `02994f482918364a8351bf947d50064f6fb34313`; post-merge `Verify` **37216156725 (#174)** green.
-- P6 / #7 — active PR #25. Clean pre-doc candidate `b942d02f0f60872216d6a0ea7930cb3252c8f0a9`; `Verify` **37296076550 (#241)** green; P6 Staging Acceptance **37296070167 (#19)** green. Final docs-head gates and merge/post-merge verification remain pending.
+- P6 / #7 — active PR #25. Clean implementation head `fae800b04acf0a871310af086b11d496c87f8742`; `Verify` **37297555868 (#246)** green; P6 Staging Acceptance **37297549764 (#23)** green. Final docs-head gates and merge/post-merge verification remain pending.
 
 ## 9. Next action
 

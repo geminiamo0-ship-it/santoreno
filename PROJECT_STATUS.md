@@ -61,7 +61,7 @@ It also proved:
 
 **#33 — Phase 6: Global AI Search catalog and filtered retrieval.**
 
-The next step is to expand the minimal global retrieval proven in #7 into a maintainable Santo-wide search capability while preserving all proven auth/quota/grounding boundaries.
+The catalog/filter implementation and its real two-library staging acceptance are now proven. #33 remains active only until the final documentation head passes the exact-head gates, PR #35 is merged, and the merge commit passes `Verify`.
 
 Current #33 scope:
 
@@ -72,7 +72,7 @@ Current #33 scope:
 - deterministic regression tests
 - exact-head staging acceptance across multiple cataloged libraries/fixtures
 
-Current verified implementation progress on draft PR #35:
+Verified implementation progress on draft PR #35:
 
 - optional validated `library_id` is part of the shared `/v1/ai/query` contract
 - `LibraryCatalogPort` keeps catalog concerns separate from retrieval orchestration
@@ -80,13 +80,17 @@ Current verified implementation progress on draft PR #35:
 - omitted `library_id` preserves All Libraries behavior
 - a valid filter restricts AI Search to the selected catalog instance
 - an unknown filter fails closed as `INVALID_LIBRARY_FILTER` and never silently broadens search
-- normalized evidence now carries `libraryId` and `section` in addition to source/instance/item/title/page/text/score metadata
+- normalized evidence carries `libraryId` and `section` in addition to source/instance/item/title/page/text/score metadata
 - quota idempotency includes library scope so the same client key/query in different libraries cannot alias
 - existing auth/quota/citation/release/idempotency regressions remain green
+- the protected non-production P33 acceptance probe waits for answer-bearing evidence using production-equivalent retrieval semantics before live model assertions
 
-Exact implementation head `09f6d06163091cf038889bf1ecb905ae9e061cd0` passed `Verify` **37316081157 (#260)** after a formatting-only first-run failure was fixed. The successful run passed repository policy, formatting/lint, typecheck, tests, build, and smoke.
+Latest implementation head `e6397a99ca43403f1907a1f0b58402a278bf26e5` passed both implementation gates:
 
-**#33 is not complete yet.** Real staging acceptance with at least two run-isolated cataloged AI Search fixtures remains required before the final exact-head gate and merge.
+- exact-head `Verify` **37325539728 (#279)** — repository policy, formatting/lint, typecheck, tests, build, and smoke all passed
+- exact-head `P33 Global Search Staging Acceptance` **37325532865 (#12)** — real WorkOS-backed tenant/session, two run-isolated AI Search libraries, MRCP-only filtering, USMLE-only filtering, All Libraries behavior, real Workers AI generation, server-validated citations, library-scoped idempotency, invalid-filter fail-closed behavior, deterministic quota release, and complete fixture cleanup all passed
+
+**#33 is not complete yet.** This documentation update changes the branch head, so `Verify` and P33 staging acceptance must pass again on the exact final documentation head before merge. Exact post-merge `Verify` remains mandatory before closing #33.
 
 Do not jump directly to streaming, ConversationDO, images, the complete widget, or the full tenant portal before completing the ordered core backlog.
 
@@ -115,7 +119,7 @@ Completed:
 
 Current:
 
-- [ ] **#33 — Phase 6:** Global AI Search catalog and filtered retrieval — **CURRENT ACTIVE ISSUE**
+- [ ] **#33 — Phase 6:** Global AI Search catalog and filtered retrieval — **CURRENT ACTIVE ISSUE; IMPLEMENTATION + LIVE STAGING PROVEN, FINAL GATES PENDING**
 
 Then, in roadmap order:
 
@@ -260,6 +264,7 @@ Issue #7 proved:
 - `CloudflareAiSearchRetrieval` consumes the catalog boundary and sends only selected AI Search instance IDs.
 - Unknown library IDs fail closed before an AI Search query is sent.
 - Retrieved evidence carries stable source, library, instance, item, title, page/section, text, and score fields for downstream citation/source resolution.
+- Live P33 acceptance proves the same authenticated `/v1/ai/query` can use two distinct global library filters without tenant-specific access rules, while All Libraries remains the default.
 
 ## 6. Core rules that must not drift
 
@@ -309,22 +314,19 @@ For every meaningful step:
 
 Continue **Issue #33 only** on draft PR #35.
 
-The deterministic catalog/filter increment is implemented and verified. The exact next implementation step is to add a **real two-library staging acceptance gate** without weakening the proven production boundaries.
+Implementation and the two-library live staging acceptance are proven on `e6397a99ca43403f1907a1f0b58402a278bf26e5`. This handoff update intentionally creates a new final documentation head.
 
-Required staging path:
+Exact next sequence:
 
-1. Create two run-isolated AI Search fixture instances with distinct synthetic evidence.
-2. Verify both fixtures are visible before the test proceeds.
-3. Create a real WorkOS-backed staging tenant/user/session through the existing platform path.
-4. Configure only the test user's quota through a protected non-production acceptance setup route.
-5. Call `/v1/ai/query` with no `library_id` and prove All Libraries still works.
-6. Call the same authenticated route with each fixture's library ID and prove returned citations come only from the selected fixture instance.
-7. Call with an unknown library ID and prove a structured fail-closed response without silent broadening.
-8. Keep server-side citation validation, quota reserve/finalize/release, and model invocation on the real runtime path.
-9. Clean AI Search, D1, and WorkOS fixtures even on failure.
-10. Require both `Verify` and the new staging acceptance to pass on the exact final head before merge.
+1. Require `Verify` on this exact documentation head.
+2. Require `P33 Global Search Staging Acceptance` on the same exact head.
+3. If either fails, fix it before proceeding and repeat both gates on the new head.
+4. Once both are green, update #33 final-head evidence/checklist and make PR #35 ready.
+5. Squash-merge PR #35.
+6. Require exact post-merge `Verify` on `main`.
+7. Only after that, mark #33 complete/close it, update Issue #8 from Phase 6 to Phase 7, update this completion history, and open/activate the detailed Phase 7 issue.
 
-Do not mark #33 complete until the staging gate, final docs head, merge, and exact post-merge Verify all pass.
+Do not mark #33 complete until the final docs head, merge, and exact post-merge Verify all pass.
 
 ## 10. Repository administration note
 

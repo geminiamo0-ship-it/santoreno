@@ -310,9 +310,12 @@ async function verify() {
   expect(typeof tenantId === "string", "P2 state is missing the MedPark tenant ID");
   expect(typeof ownerToken === "string", "P2 state is missing the MedPark owner access token");
 
+  // Issue the persistent Santo credential while the short-lived WorkOS owner token is still fresh.
+  // Fixture indexing can take several minutes; session exchange happens afterwards from this credential.
+  const secret = await issueCredential(workerUrl, tenantId, ownerToken);
+
   await prepareFixtures(workerUrl, smokeToken);
 
-  const secret = await issueCredential(workerUrl, tenantId, ownerToken);
   const sessionToken = await exchangeSession(workerUrl, secret);
 
   const setup = await request(workerUrl, "/__infra/p33-global-search-acceptance/setup", {

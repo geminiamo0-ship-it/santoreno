@@ -84,7 +84,7 @@ function evidenceFromSearch(
     const itemKey = stringField(item, "key");
     const instanceId =
       stringField(chunk, "instance_id") ??
-      (selectedLibraries.length === 1 ? selectedLibraries[0]?.instanceId ?? null : null);
+      (selectedLibraries.length === 1 ? (selectedLibraries[0]?.instanceId ?? null) : null);
 
     if (!chunkId || !text || score === null || !itemKey || !instanceId) {
       continue;

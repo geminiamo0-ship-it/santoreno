@@ -1,0 +1,63 @@
+name: P33 Temporary Formatter
+
+on:
+  push:
+    branches:
+      - feat/issue-33-global-search-catalog
+
+permissions:
+  contents: write
+
+concurrency:
+  group: p33-temp-formatter
+  cancel-in-progress: true
+
+jobs:
+  format:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/issue-33-global-search-catalog
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Format P33 changes
+        run: |
+          pnpm exec prettier --write \
+            scripts/p33-global-search-live-acceptance.mjs \
+            workers/api/src/infrastructure/p33-global-search-acceptance.ts \
+            .github/workflows/p33-global-search-staging-acceptance.yml \
+            PROJECT_STATUS.md \
+            workers/api/src/index.ts
+
+      - name: Commit formatting if needed
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then
+            echo "No formatting changes required."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            scripts/p33-global-search-live-acceptance.mjs \
+            workers/api/src/infrastructure/p33-global-search-acceptance.ts \
+            .github/workflows/p33-global-search-staging-acceptance.yml \
+            PROJECT_STATUS.md \
+            workers/api/src/index.ts
+          git commit -m "style(ai): format P33 staging acceptance"
+          git push origin HEAD:feat/issue-33-global-search-catalog

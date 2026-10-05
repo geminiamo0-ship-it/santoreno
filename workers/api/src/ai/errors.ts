@@ -1,5 +1,6 @@
 export type GroundedAiErrorCode =
   | "AI_NOT_CONFIGURED"
+  | "INVALID_LIBRARY_FILTER"
   | "SEARCH_FAILED"
   | "SEARCH_CONFIGURATION_ERROR"
   | "INSUFFICIENT_EVIDENCE"
@@ -17,7 +18,7 @@ export type GroundedAiErrorCode =
 
 export class GroundedAiError extends Error {
   constructor(
-    readonly status: 403 | 422 | 429 | 502 | 503,
+    readonly status: 400 | 403 | 422 | 429 | 502 | 503,
     readonly code: GroundedAiErrorCode,
     message: string,
   ) {

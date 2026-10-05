@@ -1,9 +1,18 @@
 import { z } from "zod";
 
+export const GroundedAiLibraryIdSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(64)
+  .regex(/^[a-z0-9][a-z0-9_-]*$/);
+export type GroundedAiLibraryId = z.infer<typeof GroundedAiLibraryIdSchema>;
+
 export const GroundedAiQueryRequestSchema = z
   .object({
     query: z.string().trim().min(1).max(4000),
     idempotency_key: z.string().trim().min(1).max(128),
+    library_id: GroundedAiLibraryIdSchema.optional(),
   })
   .strict();
 export type GroundedAiQueryRequest = z.infer<typeof GroundedAiQueryRequestSchema>;

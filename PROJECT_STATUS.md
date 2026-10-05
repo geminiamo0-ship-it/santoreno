@@ -61,7 +61,7 @@ It also proved:
 
 **#33 — Phase 6: Global AI Search catalog and filtered retrieval.**
 
-The next step is to expand the minimal global retrieval proven in #7 into a maintainable Santo-wide search capability while preserving all proven auth/quota/grounding boundaries.
+The catalog/filter implementation and its real two-library staging acceptance are now proven. #33 remains active only until the final documentation head passes the exact-head gates, PR #35 is merged, and the merge commit passes `Verify`.
 
 Current #33 scope:
 
@@ -71,6 +71,26 @@ Current #33 scope:
 - normalized retrieval metadata for downstream citations/source resolution
 - deterministic regression tests
 - exact-head staging acceptance across multiple cataloged libraries/fixtures
+
+Verified implementation progress on draft PR #35:
+
+- optional validated `library_id` is part of the shared `/v1/ai/query` contract
+- `LibraryCatalogPort` keeps catalog concerns separate from retrieval orchestration
+- the current AI Search namespace adapter exposes library IDs from catalog metadata when present, falling back to stable instance IDs
+- omitted `library_id` preserves All Libraries behavior
+- a valid filter restricts AI Search to the selected catalog instance
+- an unknown filter fails closed as `INVALID_LIBRARY_FILTER` and never silently broadens search
+- normalized evidence carries `libraryId` and `section` in addition to source/instance/item/title/page/text/score metadata
+- quota idempotency includes library scope so the same client key/query in different libraries cannot alias
+- existing auth/quota/citation/release/idempotency regressions remain green
+- the protected non-production P33 acceptance probe waits for answer-bearing evidence using production-equivalent retrieval semantics before live model assertions
+
+Latest implementation head `e6397a99ca43403f1907a1f0b58402a278bf26e5` passed both implementation gates:
+
+- exact-head `Verify` **37325539728 (#279)** — repository policy, formatting/lint, typecheck, tests, build, and smoke all passed
+- exact-head `P33 Global Search Staging Acceptance` **37325532865 (#12)** — real WorkOS-backed tenant/session, two run-isolated AI Search libraries, MRCP-only filtering, USMLE-only filtering, All Libraries behavior, real Workers AI generation, server-validated citations, library-scoped idempotency, invalid-filter fail-closed behavior, deterministic quota release, and complete fixture cleanup all passed
+
+**#33 is not complete yet.** This documentation update changes the branch head, so `Verify` and P33 staging acceptance must pass again on the exact final documentation head before merge. Exact post-merge `Verify` remains mandatory before closing #33.
 
 Do not jump directly to streaming, ConversationDO, images, the complete widget, or the full tenant portal before completing the ordered core backlog.
 
@@ -99,7 +119,7 @@ Completed:
 
 Current:
 
-- [ ] **#33 — Phase 6:** Global AI Search catalog and filtered retrieval — **CURRENT ACTIVE ISSUE**
+- [ ] **#33 — Phase 6:** Global AI Search catalog and filtered retrieval — **CURRENT ACTIVE ISSUE; IMPLEMENTATION + LIVE STAGING PROVEN, FINAL GATES PENDING**
 
 Then, in roadmap order:
 
@@ -233,8 +253,18 @@ Issue #7 proved:
 - Citation IDs are validated server-side against the retrieved evidence set.
 - Missing evidence, retrieval failure, invalid model output, and invented citations do not produce a sourced medical answer.
 - Successful completion finalizes quota; defined non-chargeable hard failures release the reservation.
-- Idempotency prevents identical retries from double-charging.
+- Idempotency prevents identical retries from double-charging and now includes retrieval-library scope.
 - Telemetry excludes secrets, tokens, and unnecessary medical/user content.
+
+### Global retrieval boundary under #33
+
+- `library_id` is optional request scope; omission means All Libraries.
+- Library selection affects retrieval scope only and never grants tenant authorization.
+- Library catalog resolution is behind `LibraryCatalogPort`.
+- `CloudflareAiSearchRetrieval` consumes the catalog boundary and sends only selected AI Search instance IDs.
+- Unknown library IDs fail closed before an AI Search query is sent.
+- Retrieved evidence carries stable source, library, instance, item, title, page/section, text, and score fields for downstream citation/source resolution.
+- Live P33 acceptance proves the same authenticated `/v1/ai/query` can use two distinct global library filters without tenant-specific access rules, while All Libraries remains the default.
 
 ## 6. Core rules that must not drift
 
@@ -282,27 +312,21 @@ For every meaningful step:
 
 ## 9. Next action
 
-Continue **Issue #33 only**.
+Continue **Issue #33 only** on draft PR #35.
 
-Before implementation, inspect the existing code boundaries introduced by #7 for:
+Implementation and the two-library live staging acceptance are proven on `e6397a99ca43403f1907a1f0b58402a278bf26e5`. This handoff update intentionally creates a new final documentation head.
 
-- the AI Search retrieval adapter and normalized evidence type
-- the `/v1/ai/query` request contract
-- current evidence/source metadata fields
-- current staging P6 AI Search fixture management
-- any existing D1/library metadata schema or catalog placeholder
+Exact next sequence:
 
-Then implement the smallest clean Phase 6 increment: **introduce the global library catalog and validated retrieval filter contract without changing auth, quota, model, citation, or tenant semantics.**
+1. Require `Verify` on this exact documentation head.
+2. Require `P33 Global Search Staging Acceptance` on the same exact head.
+3. If either fails, fix it before proceeding and repeat both gates on the new head.
+4. Once both are green, update #33 final-head evidence/checklist and make PR #35 ready.
+5. Squash-merge PR #35.
+6. Require exact post-merge `Verify` on `main`.
+7. Only after that, mark #33 complete/close it, update Issue #8 from Phase 6 to Phase 7, update this completion history, and open/activate the detailed Phase 7 issue.
 
-Required deterministic gates before live staging work:
-
-1. `All Libraries` behavior remains unchanged.
-2. A valid library filter narrows retrieval.
-3. An invalid/unknown library filter fails with a structured error and never silently broadens scope.
-4. Retrieval metadata normalization is stable and tested.
-5. Existing #7 auth/quota/idempotency/citation regressions remain green.
-
-Only after local/CI gates pass should #33 add its exact-head multi-library staging acceptance.
+Do not mark #33 complete until the final docs head, merge, and exact post-merge Verify all pass.
 
 ## 10. Repository administration note
 

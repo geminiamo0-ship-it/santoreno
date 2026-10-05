@@ -1,8 +1,14 @@
 import type { AiSearchNamespaceLike } from "../runtime/bindings";
 import { GroundedAiError } from "./errors";
-import type { RetrievalPort, RetrievedEvidence } from "./types";
+import { CloudflareAiSearchLibraryCatalog } from "./library-catalog";
+import type {
+  LibraryCatalogEntry,
+  LibraryCatalogPort,
+  RetrievalPort,
+  RetrievalQuery,
+  RetrievedEvidence,
+} from "./types";
 
-const MAX_SEARCH_INSTANCES = 10;
 const MAX_RESULTS = 5;
 const MATCH_THRESHOLD = 0.4;
 const MAX_CHUNK_CHARS = 5000;
@@ -49,36 +55,13 @@ function titleFromItem(item: Record<string, unknown> | null): string {
   ).slice(0, 500);
 }
 
-function instanceIdsFromList(raw: unknown): string[] {
-  const root = asRecord(raw);
-  const result = root?.result;
-  if (!Array.isArray(result)) {
-    throw new GroundedAiError(
-      502,
-      "SEARCH_FAILED",
-      "AI Search namespace returned an invalid instance list",
-    );
-  }
-
-  const ids = result
-    .map((entry) => stringField(asRecord(entry), "id"))
-    .filter((value): value is string => value !== null)
-    .sort();
-
-  if (ids.length > MAX_SEARCH_INSTANCES) {
-    throw new GroundedAiError(
-      503,
-      "SEARCH_CONFIGURATION_ERROR",
-      `All Libraries currently supports at most ${MAX_SEARCH_INSTANCES} AI Search instances`,
-    );
-  }
-
-  return ids;
+function sectionFromMetadata(metadata: Record<string, unknown> | null): string | null {
+  return stringField(metadata, "section")?.slice(0, 500) ?? null;
 }
 
 function evidenceFromSearch(
   raw: unknown,
-  selectedInstanceIds: readonly string[],
+  selectedLibraries: readonly LibraryCatalogEntry[],
 ): RetrievedEvidence[] {
   const root = asRecord(raw);
   const chunks = root?.chunks;
@@ -86,6 +69,9 @@ function evidenceFromSearch(
     throw new GroundedAiError(502, "SEARCH_FAILED", "AI Search returned an invalid response");
   }
 
+  const selectedByInstance = new Map(
+    selectedLibraries.map((library) => [library.instanceId, library] as const),
+  );
   const evidence: RetrievedEvidence[] = [];
   const seen = new Set<string>();
 
@@ -98,10 +84,19 @@ function evidenceFromSearch(
     const itemKey = stringField(item, "key");
     const instanceId =
       stringField(chunk, "instance_id") ??
-      (selectedInstanceIds.length === 1 ? selectedInstanceIds[0] : null);
+      (selectedLibraries.length === 1 ? selectedLibraries[0]?.instanceId ?? null : null);
 
     if (!chunkId || !text || score === null || !itemKey || !instanceId) {
       continue;
+    }
+
+    const library = selectedByInstance.get(instanceId);
+    if (!library) {
+      throw new GroundedAiError(
+        502,
+        "SEARCH_SCOPE_VIOLATION",
+        "AI Search returned evidence outside the selected library scope",
+      );
     }
 
     const sourceId = `${instanceId}:${chunkId}`;
@@ -113,10 +108,13 @@ function evidenceFromSearch(
     const metadata = asRecord(item?.metadata);
     evidence.push({
       sourceId,
+      libraryId: library.libraryId,
+      libraryName: library.name,
       instanceId,
       itemKey,
       title: titleFromItem(item),
       page: pageFromMetadata(metadata),
+      section: sectionFromMetadata(metadata),
       text: text.slice(0, MAX_CHUNK_CHARS),
       score,
     });
@@ -130,23 +128,27 @@ function evidenceFromSearch(
 }
 
 export class CloudflareAiSearchRetrieval implements RetrievalPort {
-  constructor(private readonly namespace: AiSearchNamespaceLike | undefined) {}
+  constructor(
+    private readonly namespace: AiSearchNamespaceLike | undefined,
+    private readonly catalog?: LibraryCatalogPort,
+  ) {}
 
-  async retrieve(query: string): Promise<RetrievedEvidence[]> {
+  async retrieve(input: RetrievalQuery): Promise<RetrievedEvidence[]> {
     if (!this.namespace) {
       throw new GroundedAiError(503, "AI_NOT_CONFIGURED", "AI Search binding is required");
     }
 
     try {
-      const instanceIds = instanceIdsFromList(await this.namespace.list());
-      if (instanceIds.length === 0) {
+      const catalog = this.catalog ?? new CloudflareAiSearchLibraryCatalog(this.namespace);
+      const selectedLibraries = await catalog.select(input.libraryId);
+      if (selectedLibraries.length === 0) {
         return [];
       }
 
       const result = await this.namespace.search({
-        query,
+        query: input.query,
         ai_search_options: {
-          instance_ids: instanceIds,
+          instance_ids: selectedLibraries.map((library) => library.instanceId),
           retrieval: {
             retrieval_type: "hybrid",
             match_threshold: MATCH_THRESHOLD,
@@ -159,7 +161,7 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
         },
       });
 
-      return evidenceFromSearch(result, instanceIds);
+      return evidenceFromSearch(result, selectedLibraries);
     } catch (error) {
       if (error instanceof GroundedAiError) {
         throw error;

@@ -36,8 +36,10 @@ async function deriveQuotaIdempotencyKey(
   externalUserId: string,
   clientKey: string,
   query: string,
+  libraryId: string | undefined,
 ): Promise<string> {
-  const bytes = new TextEncoder().encode(`${externalUserId}\u0000${clientKey}\u0000${query}`);
+  const scopedQuery = libraryId === undefined ? query : `${query}\u0000library:${libraryId}`;
+  const bytes = new TextEncoder().encode(`${externalUserId}\u0000${clientKey}\u0000${scopedQuery}`);
   const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
   const hex = Array.from(digest, (byte) => byte.toString(16).padStart(2, "0")).join("");
   return `ai:${hex}`;
@@ -63,6 +65,7 @@ export class GroundedAiService {
       session.externalUserId,
       input.idempotency_key,
       input.query,
+      input.library_id,
     );
 
     let reservation;
@@ -90,7 +93,10 @@ export class GroundedAiService {
     let answer: string;
     let citations: GroundedAiQueryResponse["citations"];
     try {
-      const evidence = await this.retrieval.retrieve(input.query);
+      const evidence = await this.retrieval.retrieve({
+        query: input.query,
+        libraryId: input.library_id,
+      });
       if (evidence.length === 0) {
         throw new GroundedAiError(
           422,

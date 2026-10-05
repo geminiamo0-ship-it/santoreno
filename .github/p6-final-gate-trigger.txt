@@ -1,0 +1,1 @@
+Temporary marker used only to obtain a human-authored final gate trigger. This file is deleted immediately in the next commit.

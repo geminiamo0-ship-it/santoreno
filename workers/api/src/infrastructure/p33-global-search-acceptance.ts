@@ -30,6 +30,10 @@ function isUuid(value: unknown): value is string {
   );
 }
 
+function expectedValueFromMarker(marker: string): string {
+  return marker === "SANTO-P33-MRCP-23" ? "23" : "31";
+}
+
 async function visibleInstanceIds(namespace: AiSearchNamespaceLike): Promise<Set<string>> {
   const listed = asRecord(await namespace.list());
   if (!Array.isArray(listed?.result)) {
@@ -66,6 +70,9 @@ async function probe(request: Request, env: SantoBindings): Promise<Response> {
     );
   }
 
+  const expectedValue = expectedValueFromMarker(marker);
+  const expectedEvidence = `synthetic verification dose specified is exactly ${expectedValue} micro-units`;
+
   try {
     const result = asRecord(
       await env.AI_SEARCH.search({
@@ -97,7 +104,8 @@ async function probe(request: Request, env: SantoBindings): Promise<Response> {
         typeof item?.key === "string" &&
         item.key.length > 0 &&
         typeof record?.text === "string" &&
-        record.text.includes(marker)
+        record.text.includes(marker) &&
+        record.text.includes(expectedEvidence)
       );
     });
 

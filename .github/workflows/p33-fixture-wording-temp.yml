@@ -1,0 +1,61 @@
+name: P33 Fixture Wording Temporary Edit
+
+on:
+  push:
+    branches:
+      - feat/issue-33-global-search-catalog
+
+permissions:
+  contents: write
+
+concurrency:
+  group: p33-fixture-wording-temp
+  cancel-in-progress: true
+
+jobs:
+  edit:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/issue-33-global-search-catalog
+          fetch-depth: 0
+      - name: Align P33 fixture wording with proven P6 grounding pattern
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          script = Path("scripts/p33-global-search-live-acceptance.mjs")
+          text = script.read_text()
+          replacements = {
+              '"According to the selected Santo P33 fixture, what library-specific synthetic verification value is specified?";': '"According to the Santo P33 selected-library acceptance fixture, what synthetic verification dose is specified?";',
+              '"According to the Santo P33 fixtures, what shared all-libraries synthetic verification value is specified?";': '"According to the Santo P33 all-libraries acceptance fixtures, what shared synthetic verification dose is specified?";',
+              '"For the selected Santo P33 MRCP fixture, the library-specific synthetic verification value is exactly 23 micro-units.",': '"According to the Santo P33 selected-library acceptance fixture, the synthetic verification dose specified is exactly 23 micro-units.",',
+              '"The shared all-libraries synthetic verification value is exactly 47 micro-units.",': '"According to the Santo P33 all-libraries acceptance fixtures, the shared synthetic verification dose specified is exactly 47 micro-units.",',
+              '"For the selected Santo P33 USMLE fixture, the library-specific synthetic verification value is exactly 31 micro-units.",': '"According to the Santo P33 selected-library acceptance fixture, the synthetic verification dose specified is exactly 31 micro-units.",',
+          }
+          for old, new in replacements.items():
+              count = text.count(old)
+              expected = 2 if old == '"The shared all-libraries synthetic verification value is exactly 47 micro-units.",' else 1
+              if count != expected:
+                  raise SystemExit(f"unexpected replacement count {count} for {old!r}; expected {expected}")
+              text = text.replace(old, new)
+          script.write_text(text)
+
+          probe = Path("workers/api/src/infrastructure/p33-global-search-acceptance.ts")
+          text = probe.read_text()
+          old = '"According to the selected Santo P33 fixture, what library-specific synthetic verification value is specified?";'
+          new = '"According to the Santo P33 selected-library acceptance fixture, what synthetic verification dose is specified?";'
+          if text.count(old) != 1:
+              raise SystemExit("unexpected P33 probe query replacement count")
+          probe.write_text(text.replace(old, new))
+          PY
+          rm .github/workflows/p33-fixture-wording-temp.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "test(ai): make P33 fixtures deterministically groundable"
+          git push origin HEAD:feat/issue-33-global-search-catalog

@@ -10,7 +10,7 @@
 
 Santo is a standalone B2B2C medical AI SaaS platform. Customer sites integrate with Santo by API/widget while Santo centrally owns AI infrastructure, global medical knowledge, AI Search, quota enforcement, citations, assets, usage, security, and tenant administration. Customer production databases remain untouched.
 
-Completed foundation and first technical milestone:
+Completed foundation and proven AI core prerequisites:
 
 - **P0 / #1 complete** — monorepo, strict tooling, CI, portal/API/widget/contracts baseline.
 - **P1 / #2 complete** — Cloudflare staging foundation and real bindings.
@@ -19,80 +19,48 @@ Completed foundation and first technical milestone:
 - **P4 / #5 complete** — `/v1/session/exchange`, tenant-scoped external users, short-lived Santo session tokens.
 - **P5 / #6 complete** — authoritative SQLite `TenantMeterDO`, atomic reserve/finalize/release, idempotency, live concurrency acceptance.
 - **P6 vertical slice / #7 complete** — authenticated grounded AI request through quota → AI Search → Workers AI → server-validated citation → structured response → exactly-once usage finalization.
+- **Phase 6 global retrieval / #33 complete** — global AI Search catalog, `All Libraries` default, validated `library_id` filtering, normalized retrieval metadata, library-scoped idempotency, and real two-library staging acceptance.
 
-### Latest completed phase — P6 vertical slice / Issue #7
+### Latest completed phase — Phase 6 global retrieval / Issue #33
 
-PR #25 final documentation head `59679a56eb273e2f343e2d6ee7d94babf9409b1e` passed both required gates on the exact same SHA:
+PR #35 final clean head:
 
-- exact-head `Verify` **37305283632 (#250)**
-- exact-head `P6 Staging Acceptance` **37305276676 (#26)**
+`a5746b8b87ad23c6aeada29740e7c0ae7955e5bb`
 
-PR #25 was squash-merged to `main` as:
+Exact pre-merge gates on that same SHA:
 
-`8d1a422c514869844fefc9c5c29c1ffdf2bc923e`
+- `Verify` **37327203385 (#283)** — repository policy, formatting/lint, typecheck, tests, build, and smoke passed.
+- `P33 Global Search Staging Acceptance` **37327194943 (#15)** — real WorkOS-backed tenant/session, two run-isolated AI Search libraries, MRCP-only retrieval, USMLE-only retrieval, All Libraries behavior, real Workers AI generation, server-validated citations, library-scoped idempotency, invalid-filter fail-closed behavior, deterministic quota release, and complete fixture cleanup passed.
 
-Exact post-merge `main` `Verify` **37306176415 (#251)** passed `repository-policy` and `code-quality`, including lint, typecheck, tests, build, and smoke.
+PR #35 was squash-merged to `main` as:
 
-Live staging acceptance proved:
+`81d15a61140cee28d1a9a7909cb27e1a70b7ba14`
 
-```text
-real WorkOS-backed tenant
-→ real Santo external-user session
-→ atomic TenantMeterDO reserve
-→ run-isolated Cloudflare AI Search fixture indexed + retrieved
-→ one real Workers AI model call
-→ server-validated citation to actually retrieved evidence
-→ structured JSON response
-→ finalize exactly one quota unit
-```
+Exact post-merge `Verify`:
 
-It also proved:
+- **37330375869 (#284)** — repository policy, formatting/lint, typecheck, tests, build, and smoke passed.
 
-- invalid/expired sessions fail before search/model work
-- exhausted quota fails before search/model work
-- identical idempotent retry does not double-charge
-- defined non-chargeable hard failures release deterministically
-- no-evidence/search-failure/invented-citation paths do not produce a fake sourced answer
-- staging AI Search, D1, and WorkOS fixtures clean up successfully
+Phase 6 therefore proves that one Santo-wide knowledge ecosystem can be filtered by stable library identifiers without turning library selection into tenant authorization.
 
-**Master Plan §123 first technical milestone is proven end-to-end.**
+### Current active issue — #36
 
-### Current active issue — #33
+**#36 — Phase 7: Full AI Core: prompt builder, streaming, model policy, and error handling.**
 
-**#33 — Phase 6: Global AI Search catalog and filtered retrieval.**
+Phase 7 must extend the proven #7/#33 path without moving authority into model/provider code.
 
-The catalog/filter implementation and its real two-library staging acceptance are now proven. #33 remains active only until the final documentation head passes the exact-head gates, PR #35 is merged, and the merge commit passes `Verify`.
+Current Phase 7 scope:
 
-Current #33 scope:
+- refine the model adapter boundary
+- add a deterministic evidence-only RAG prompt builder
+- make non-streaming and streaming response contracts explicit
+- add streaming without bypassing quota or citation validation
+- define timeout, cancellation, upstream-error, malformed-output, and no-evidence policies
+- preserve server-side citation validation
+- preserve `All Libraries` default and validated `library_id` filtering
+- add deterministic regressions for prompt/model/stream/error/quota/idempotency/citation behavior
+- add exact-head staging acceptance for the real Phase 7 runtime path
 
-- global library catalog with stable identifiers
-- `All Libraries` remains the default
-- optional validated library filtering as retrieval filtering, never tenant authorization
-- normalized retrieval metadata for downstream citations/source resolution
-- deterministic regression tests
-- exact-head staging acceptance across multiple cataloged libraries/fixtures
-
-Verified implementation progress on draft PR #35:
-
-- optional validated `library_id` is part of the shared `/v1/ai/query` contract
-- `LibraryCatalogPort` keeps catalog concerns separate from retrieval orchestration
-- the current AI Search namespace adapter exposes library IDs from catalog metadata when present, falling back to stable instance IDs
-- omitted `library_id` preserves All Libraries behavior
-- a valid filter restricts AI Search to the selected catalog instance
-- an unknown filter fails closed as `INVALID_LIBRARY_FILTER` and never silently broadens search
-- normalized evidence carries `libraryId` and `section` in addition to source/instance/item/title/page/text/score metadata
-- quota idempotency includes library scope so the same client key/query in different libraries cannot alias
-- existing auth/quota/citation/release/idempotency regressions remain green
-- the protected non-production P33 acceptance probe waits for answer-bearing evidence using production-equivalent retrieval semantics before live model assertions
-
-Latest implementation head `e6397a99ca43403f1907a1f0b58402a278bf26e5` passed both implementation gates:
-
-- exact-head `Verify` **37325539728 (#279)** — repository policy, formatting/lint, typecheck, tests, build, and smoke all passed
-- exact-head `P33 Global Search Staging Acceptance` **37325532865 (#12)** — real WorkOS-backed tenant/session, two run-isolated AI Search libraries, MRCP-only filtering, USMLE-only filtering, All Libraries behavior, real Workers AI generation, server-validated citations, library-scoped idempotency, invalid-filter fail-closed behavior, deterministic quota release, and complete fixture cleanup all passed
-
-**#33 is not complete yet.** This documentation update changes the branch head, so `Verify` and P33 staging acceptance must pass again on the exact final documentation head before merge. Exact post-merge `Verify` remains mandatory before closing #33.
-
-Do not jump directly to streaming, ConversationDO, images, the complete widget, or the full tenant portal before completing the ordered core backlog.
+Do not jump directly to sources/images, `ConversationDO`, the full widget, framework integrations, or the full tenant portal before Phase 7 is completed.
 
 ## 2. Read order before implementation
 
@@ -103,7 +71,7 @@ Do not jump directly to streaming, ConversationDO, images, the complete widget, 
 5. `CONTRIBUTING.md`
 6. GitHub Issue #8 — umbrella roadmap and release gates
 7. GitHub Issue #9 — engineering continuity/guardrails tracker
-8. **GitHub Issue #33 — current active implementation issue**
+8. **GitHub Issue #36 — current active implementation issue**
 
 ## 3. Active implementation order
 
@@ -116,14 +84,14 @@ Completed:
 - [x] **#5 — P4:** `/v1/session/exchange` for external users
 - [x] **#6 — P5:** Atomic `TenantMeterDO` quota engine
 - [x] **#7 — P6 vertical slice:** Minimal grounded AI endpoint
+- [x] **#33 — Phase 6:** Global AI Search catalog and filtered retrieval
 
 Current:
 
-- [ ] **#33 — Phase 6:** Global AI Search catalog and filtered retrieval — **CURRENT ACTIVE ISSUE; IMPLEMENTATION + LIVE STAGING PROVEN, FINAL GATES PENDING**
+- [ ] **#36 — Phase 7:** Full AI Core — **CURRENT ACTIVE ISSUE**
 
 Then, in roadmap order:
 
-- [ ] Phase 7 — full AI Core
 - [ ] Phase 8 — sources and images
 - [ ] Phase 9 — `ConversationDO`
 - [ ] Phase 10 — full Lit `<santo-ai>` widget
@@ -186,6 +154,20 @@ Issue #7 proved:
 - defined non-chargeable hard failures release deterministically
 - one real Workers AI model call works behind a narrow model adapter
 
+### Global retrieval gate — passed
+
+Issue #33 proved:
+
+- `All Libraries` remains the default when `library_id` is omitted
+- a validated library filter restricts retrieval to the selected global catalog entry
+- unknown library IDs fail closed without silently broadening retrieval
+- library filtering is never tenant authorization
+- normalized evidence carries stable source/library/instance/item/title/page/section/text/score metadata
+- quota idempotency includes retrieval-library scope
+- the same authenticated runtime path works against at least two distinct global libraries
+- citations remain server-validated against actually retrieved evidence
+- live fixtures and staging state clean up successfully
+
 ## 5. Stable architecture contracts
 
 ### Platform
@@ -199,7 +181,7 @@ Issue #7 proved:
 - SQLite Durable Objects for hot strongly-consistent state
 - R2 for content/assets
 - Cloudflare AI Search for retrieval
-- Workers AI model binding for the proven vertical slice
+- Workers AI model binding for the proven AI path
 - Cloudflare Queues for async events
 - Workers Analytics Engine for telemetry
 - Zod contracts
@@ -212,7 +194,7 @@ Issue #7 proved:
 - `CONTROL_DB` → D1
 - `CONTENT_BUCKET` → R2
 - `TENANT_METER` → SQLite Durable Object
-- `CONVERSATION` → SQLite Durable Object binding reserved for later phase
+- `CONVERSATION` → SQLite Durable Object binding reserved for Phase 9
 - `EVENT_QUEUE` → Queue
 - `USAGE_ANALYTICS` → Analytics Engine
 - `AI_SEARCH` → AI Search namespace
@@ -248,15 +230,15 @@ Issue #7 proved:
 - Route/controller code remains orchestration-only and delegates to services/adapters.
 - Quota reservation happens before retrieval/model work.
 - Retrieval is behind a narrow Cloudflare AI Search adapter.
-- Prompt/context construction, retrieval, model invocation, citation validation, quota orchestration, and response shaping are separate responsibilities.
+- Prompt/context construction, retrieval, model invocation, citation validation, quota orchestration, and response shaping remain separate responsibilities.
 - Model output is structured and treated as untrusted.
 - Citation IDs are validated server-side against the retrieved evidence set.
 - Missing evidence, retrieval failure, invalid model output, and invented citations do not produce a sourced medical answer.
 - Successful completion finalizes quota; defined non-chargeable hard failures release the reservation.
-- Idempotency prevents identical retries from double-charging and now includes retrieval-library scope.
+- Idempotency prevents identical retries from double-charging and includes retrieval-library scope.
 - Telemetry excludes secrets, tokens, and unnecessary medical/user content.
 
-### Global retrieval boundary under #33
+### Global retrieval boundary
 
 - `library_id` is optional request scope; omission means All Libraries.
 - Library selection affects retrieval scope only and never grants tenant authorization.
@@ -264,7 +246,6 @@ Issue #7 proved:
 - `CloudflareAiSearchRetrieval` consumes the catalog boundary and sends only selected AI Search instance IDs.
 - Unknown library IDs fail closed before an AI Search query is sent.
 - Retrieved evidence carries stable source, library, instance, item, title, page/section, text, and score fields for downstream citation/source resolution.
-- Live P33 acceptance proves the same authenticated `/v1/ai/query` can use two distinct global library filters without tenant-specific access rules, while All Libraries remains the default.
 
 ## 6. Core rules that must not drift
 
@@ -274,11 +255,12 @@ Issue #7 proved:
 - Browser code never receives customer server secrets, Cloudflare credentials, model-provider secrets, signing keys, R2 credentials, or AI Search credentials.
 - No tenant-specific business forks or customer-specific code paths.
 - No direct customer production-database access.
-- Portal/widget never access D1, Durable Objects, R2, or AI Search directly.
+- Portal/widget never access D1, Durable Objects, R2, AI Search, or model providers directly.
 - Global Santo libraries are shared; library selection is a retrieval filter, not tenant authorization.
 - AI output is structured JSON, not arbitrary model-generated HTML.
 - Citation IDs must be validated server-side against retrieved source IDs.
 - No fabricated citations.
+- Model/provider code is never an authorization, tenancy, quota, or citation authority.
 - SQL belongs in repository/data-access or Durable Object state boundaries, not HTTP handlers.
 - D1 schema changes are migration-only.
 - Keep one authoritative quota implementation: `TenantMeterDO`.
@@ -309,24 +291,24 @@ For every meaningful step:
 - P4 / #5 — PR #20 merged as `54300a908ea139731cfd2e433949b31517bae479`; post-merge `Verify` **37212761714 (#153)** green. Final handoff PR #21 merged as `778939780a80d3b36a3b48e380192a25d0f39b94`; `Verify` **37213063804 (#155)** green.
 - P5 / #6 — PR #22 final head `cd947538c1fefabe2abfb04acd2f26e07cf1a549`; `Verify` **37215999005 (#173)** green; P5 Staging Acceptance **37215996145 (#9)** green; squash-merged as `02994f482918364a8351bf947d50064f6fb34313`; post-merge `Verify` **37216156725 (#174)** green.
 - P6 vertical slice / #7 — PR #25 final docs head `59679a56eb273e2f343e2d6ee7d94babf9409b1e`; `Verify` **37305283632 (#250)** green; P6 Staging Acceptance **37305276676 (#26)** green; squash-merged as `8d1a422c514869844fefc9c5c29c1ffdf2bc923e`; exact post-merge `Verify` **37306176415 (#251)** green.
+- Phase 6 global retrieval / #33 — PR #35 final clean head `a5746b8b87ad23c6aeada29740e7c0ae7955e5bb`; `Verify` **37327203385 (#283)** green; P33 Global Search Staging Acceptance **37327194943 (#15)** green; squash-merged as `81d15a61140cee28d1a9a7909cb27e1a70b7ba14`; exact post-merge `Verify` **37330375869 (#284)** green.
 
 ## 9. Next action
 
-Continue **Issue #33 only** on draft PR #35.
+Continue **Issue #36 only**.
 
-Implementation and the two-library live staging acceptance are proven on `e6397a99ca43403f1907a1f0b58402a278bf26e5`. This handoff update intentionally creates a new final documentation head.
+Start Phase 7 with the smallest clean AI Core increment. Preserve all proven #7/#33 boundaries and do not build the full widget, sources/images UI, conversation state, or tenant portal yet.
 
-Exact next sequence:
+Recommended first implementation sequence:
 
-1. Require `Verify` on this exact documentation head.
-2. Require `P33 Global Search Staging Acceptance` on the same exact head.
-3. If either fails, fix it before proceeding and repeat both gates on the new head.
-4. Once both are green, update #33 final-head evidence/checklist and make PR #35 ready.
-5. Squash-merge PR #35.
-6. Require exact post-merge `Verify` on `main`.
-7. Only after that, mark #33 complete/close it, update Issue #8 from Phase 6 to Phase 7, update this completion history, and open/activate the detailed Phase 7 issue.
+1. Inspect the existing model adapter, prompt construction, `/v1/ai/query` orchestration, response contracts, and current timeout/error behavior.
+2. Define the minimal Phase 7 interfaces/contracts before adding streaming.
+3. Add deterministic tests first for the selected increment.
+4. Implement the smallest adapter/prompt/error-policy change tied directly to #36 acceptance criteria.
+5. Run exact-head `Verify` before expanding scope.
+6. Add live/staging acceptance only when the increment reaches a real-runtime boundary that needs proof.
 
-Do not mark #33 complete until the final docs head, merge, and exact post-merge Verify all pass.
+For every change: implement → test → exact-head `Verify` → issue evidence → handoff update when project state changes.
 
 ## 10. Repository administration note
 

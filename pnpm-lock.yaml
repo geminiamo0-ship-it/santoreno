@@ -81,8 +81,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/contracts
       hono:
-        specifier: 4.13.10
-        version: 4.13.10
+        specifier: 4.13.12
+        version: 4.13.12
     devDependencies:
       typescript:
         specifier: 7.0.2
@@ -983,8 +983,8 @@ packages:
     engines: {node: ^8.16.0 || ^10.6.0 || >=11.0.0}
     os: [darwin]
 
-  hono@4.13.10:
-    resolution: {integrity: sha512-dQuLsa5oO+47QVMVMaaD9cIv8ctmVtK1iRvwWngkfloFJMeFeuoUFDswIqZGxmGX3hrRzREgEArjkK9OgsQEhA==}
+  hono@4.13.12:
+    resolution: {integrity: sha512-6E2QDAc9Ick9Sq77ZrGS/dk2WUYni91aufTw6LJKpV7w8kW5/GxVUc650FOADOmlwg3K+f7Pun6XlV+pYmW6gw==}
     engines: {node: '>=16.9.0'}
 
   kleur@4.1.5:
@@ -1863,7 +1863,7 @@ snapshots:
   fsevents@2.3.3:
     optional: true
 
-  hono@4.13.10: {}
+  hono@4.13.12: {}
 
   kleur@4.1.5: {}
 

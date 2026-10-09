@@ -2,9 +2,12 @@ export type GroundedAiErrorCode =
   | "AI_NOT_CONFIGURED"
   | "INVALID_LIBRARY_FILTER"
   | "SEARCH_FAILED"
+  | "SEARCH_TIMEOUT"
   | "SEARCH_CONFIGURATION_ERROR"
   | "INSUFFICIENT_EVIDENCE"
   | "MODEL_FAILED"
+  | "MODEL_TIMEOUT"
+  | "REQUEST_CANCELLED"
   | "MODEL_RESPONSE_INVALID"
   | "CITATION_INVALID"
   | "TENANT_SUSPENDED"
@@ -18,7 +21,7 @@ export type GroundedAiErrorCode =
 
 export class GroundedAiError extends Error {
   constructor(
-    readonly status: 400 | 403 | 422 | 429 | 502 | 503,
+    readonly status: 400 | 403 | 422 | 429 | 499 | 502 | 503 | 504,
     readonly code: GroundedAiErrorCode,
     message: string,
   ) {

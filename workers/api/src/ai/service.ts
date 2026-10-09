@@ -4,6 +4,7 @@ import type { GroundedAiQueryRequest, GroundedAiQueryResponse } from "@santo/con
 import { QuotaServiceError } from "../quota/service";
 import type { QuotaService } from "../quota/types";
 import { validateGroundedCitations } from "./citations";
+import { AI_STAGE_TIMEOUTS, withAiDeadline } from "./deadline";
 import { GroundedAiError } from "./errors";
 import { buildGroundedPrompt } from "./prompt";
 import type { AiTelemetryPort, ModelPort, RetrievalPort } from "./types";
@@ -53,11 +54,13 @@ export class GroundedAiService {
     private readonly model: ModelPort,
     private readonly telemetry: AiTelemetryPort,
     private readonly nowMs: () => number = () => Date.now(),
+    private readonly timeouts: { retrievalMs: number; modelMs: number } = AI_STAGE_TIMEOUTS,
   ) {}
 
   async query(
     session: SessionContextResponse,
     input: GroundedAiQueryRequest,
+    signal?: AbortSignal,
   ): Promise<GroundedAiQueryResponse> {
     const startedAt = this.nowMs();
     const requestId = crypto.randomUUID();
@@ -69,6 +72,12 @@ export class GroundedAiService {
       input.query,
       libraryId,
     );
+
+    if (signal?.aborted) {
+      const error = new GroundedAiError(499, "REQUEST_CANCELLED", "Request was cancelled");
+      this.recordFailure(requestId, session, startedAt, error.code);
+      throw error;
+    }
 
     let reservation;
     try {
@@ -95,7 +104,12 @@ export class GroundedAiService {
     let answer: string;
     let citations: GroundedAiQueryResponse["citations"];
     try {
-      const evidence = await this.retrieval.retrieve({ query: input.query, libraryId });
+      const evidence = await withAiDeadline(
+        () => this.retrieval.retrieve({ query: input.query, libraryId }),
+        signal,
+        this.timeouts.retrievalMs,
+        "SEARCH_TIMEOUT",
+      );
       if (evidence.length === 0) {
         throw new GroundedAiError(
           422,
@@ -104,7 +118,12 @@ export class GroundedAiService {
         );
       }
 
-      const draft = await this.model.generate(buildGroundedPrompt(input.query, evidence));
+      const draft = await withAiDeadline(
+        () => this.model.generate(buildGroundedPrompt(input.query, evidence)),
+        signal,
+        this.timeouts.modelMs,
+        "MODEL_TIMEOUT",
+      );
       if (draft.answer === "INSUFFICIENT_EVIDENCE") {
         throw new GroundedAiError(
           422,

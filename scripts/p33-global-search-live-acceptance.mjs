@@ -301,6 +301,85 @@ function expectSuccessfulAnswer(result, expectedValue, allowedInstanceIds, expec
   );
 }
 
+async function verifyP7ValidatedStream(workerUrl, sessionToken, sharedKey) {
+  const response = await fetch(workerUrl + "/v1/ai/query", {
+    method: "POST",
+    headers: {
+      authorization: "Bearer " + sessionToken,
+      "content-type": "application/json",
+      accept: "text/event-stream",
+    },
+    body: JSON.stringify({
+      query: SHARED_FILTER_QUERY,
+      idempotency_key: sharedKey,
+      library_id: MRCP_INSTANCE_ID,
+    }),
+  });
+  expect(response.status === 200, "P7 streamed request did not succeed");
+  expect(
+    response.headers.get("content-type")?.includes("text/event-stream"),
+    "P7 response did not negotiate SSE",
+  );
+  const blocks = (await response.text()).trim().split("\n\n");
+  const frames = blocks.map((block) => {
+    const [eventLine, dataLine] = block.split("\n");
+    expect(eventLine?.startsWith("event: "), "Missing P7 SSE event");
+    expect(dataLine?.startsWith("data: "), "Missing P7 SSE data");
+    const event = JSON.parse(dataLine.slice(6));
+    expect(event.type === eventLine.slice(7), "SSE event name/type mismatch");
+    return event;
+  });
+  expect(frames.length >= 2, "P7 SSE has no delta and completion frames");
+  const completed = frames.at(-1);
+  expect(completed?.type === "complete", "P7 SSE has no complete frame");
+  const deltas = frames.slice(0, -1);
+  expect(
+    deltas.every(
+      (delta, index) =>
+        delta.type === "delta" &&
+        delta.index === index &&
+        typeof delta.text === "string" &&
+        delta.text.length > 0 &&
+        !("citations" in delta),
+    ),
+    "P7 SSE had malformed or citation-bearing early deltas",
+  );
+  expect(
+    deltas.map((delta) => delta.text).join("") === completed.response?.answer,
+    "P7 streamed text differs from validated response",
+  );
+  expectSuccessfulAnswer(
+    { status: response.status, body: completed.response },
+    "23",
+    [MRCP_INSTANCE_ID],
+    1,
+  );
+
+  const invalid = await fetch(workerUrl + "/v1/ai/query", {
+    method: "POST",
+    headers: {
+      authorization: "Bearer " + sessionToken,
+      "content-type": "application/json",
+      accept: "text/event-stream",
+    },
+    body: JSON.stringify({
+      query: SHARED_FILTER_QUERY,
+      idempotency_key: sharedKey + "-stream-invalid",
+      library_id: INVALID_INSTANCE_ID,
+    }),
+  });
+  const invalidBody = await invalid.json();
+  expect(
+    invalid.status === 400 && invalidBody?.error === "INVALID_LIBRARY_FILTER",
+    "P7 streamed invalid-library request did not fail closed",
+  );
+  expect(
+    invalid.headers.get("content-type")?.includes("application/json"),
+    "P7 streamed hard failure unexpectedly exposed SSE content",
+  );
+  console.log("P7 real authenticated validated SSE, quota replay and fail-closed checks passed.");
+}
+
 async function verify() {
   const workerUrl = requireEnv("WORKER_URL").replace(/\/+$/, "");
   const smokeToken = requireEnv("INFRA_SMOKE_TOKEN");
@@ -365,6 +444,10 @@ async function verify() {
     },
   });
   expectSuccessfulAnswer(allLibraries, "47", [MRCP_INSTANCE_ID, USMLE_INSTANCE_ID], 1);
+
+  if (process.env.P7_STREAM_ACCEPTANCE === "1") {
+    await verifyP7ValidatedStream(workerUrl, sessionToken, sharedKey);
+  }
 
   const invalid = await request(workerUrl, "/v1/ai/query", {
     method: "POST",

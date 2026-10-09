@@ -58,6 +58,23 @@ A deterministic prompt builder now uses bounded query/evidence JSON, preserves s
 - PR #39 squash-merged as `7f8d9d5bdaf943a8e69af37c53f8e5a44a9d7789`; exact post-merge `Verify` **37927141394** passed.
 - **Issue #36 remains active.** Streaming/response lifecycle, timeout/cancellation and other errors, complete Phase 7 regressions, and real-runtime Phase 7 staging acceptance are pending.
 
+### Phase 7 incremental progress — Validated SSE and bounded operations (PR #42)
+
+PR #42 adds a narrow SSE response adapter and Zod-validated stream events. It waits for the existing authenticated query path to validate grounded citations and finalize authoritative quota before sending any answer delta or citation. The implementation deliberately buffers model output; it is not provider-token time-to-first-byte streaming.
+
+- Bounded retrieval/model deadlines, cancellation handling, and structured error codes now have deterministic regressions for quota release and no early streamed content.
+- Implementation head `a697ca7a749fef8d9c975b19523e4a1fa7167274` passed `Verify` **37930750168** (repository policy, formatting/lint, typecheck, tests, build, smoke).
+- Final documentation-head `Verify`, merge, and exact post-merge `Verify` are still required before the PR is considered merged and verified.
+- **Issue #36 remains active.** Phase 7 still needs any remaining failure-policy regressions and the required real-runtime staging acceptance on an exact final head. Do not mark the full issue complete or launch the full portal.
+
+### Phase 7 active implementation — validated streaming and failure lifecycle (PR #42)
+
+PR #42 adds a strictly schema-validated SSE `delta`/`complete` contract to the existing authenticated AI query route. The server buffers complete model output and performs server-side citation validation and quota finalization before emitting any streamed answer. Bounded retrieval/model deadlines and cancellation return structured errors; non-chargeable failures release the authoritative `TenantMeterDO` reservation. JSON responses remain backward compatible.
+
+New deterministic regressions cover Unicode-safe stream frames, invented-source rejection, quota-finalize failures, request abort, search/model timeouts, and idempotent streaming replay. `docs/AI_STREAMING_CONTRACT.md` documents the explicit trade-off: this is validated buffered SSE delivery, not provider-native token-by-token generation.
+
+The required gates for this increment are exact-head `Verify`, real Phase 7 staging acceptance with WorkOS + two AI Search libraries + Workers AI + streamed retry, and post-merge `Verify`. Consult Issue #36 evidence before claiming this increment or Phase 7 complete. Phase 7 remains open for any unproven error/stream policies and final acceptance.
+
 ### Current active issue — #36
 
 **#36 — Phase 7: Full AI Core: prompt builder, streaming, model policy, and error handling.**
@@ -313,11 +330,9 @@ For every meaningful step:
 
 Continue **Issue #36 only**.
 
-The first two Phase 7 increments are merged and post-merge verified: centralized Model Adapter policy (PR #38) and bounded deterministic evidence-only RAG prompt builder (PR #39). Do **not** repeat these completed increments.
+First verify PR #42 on its exact final head: repository `Verify` plus `P7 Validated Streaming Staging Acceptance`. If either fails, fix it and rerun both on the same head. Record the exact run IDs and acceptance evidence in Issue #36, then merge only after the gates pass and verify the exact `main` post-merge commit.
 
-The next incomplete work is an explicit, schema-validated streaming and non-streaming response contract. Implement safe streaming behind the authenticated AI route without emitting unvalidated sourced medical content or bypassing atomic quota reserve/finalize/release. Then define and verify timeout, cancellation, malformed-output, upstream-error, and no-evidence charge/release semantics.
-
-Add deterministic regressions and the required real-runtime Phase 7 staging acceptance. Require exact-head `Verify` and staging results, update Issue #36 checklist/evidence, and only then merge and perform exact post-merge `Verify`. Do not close Issue #36 until all of its acceptance criteria are proven.
+Then close remaining Phase 7 gaps in the documented issue order. The SSE contract is deliberately buffered until citations are validated and quota is finalized; do not claim provider-native time-to-first-token streaming without a separate real-runtime proof. Full widget, ConversationDO, source images and the tenant portal remain deferred.
 
 ## 10. Repository administration note
 

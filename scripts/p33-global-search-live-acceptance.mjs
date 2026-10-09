@@ -348,9 +348,12 @@ async function verifyP7ValidatedStream(workerUrl, sessionToken, sharedKey) {
     deltas.map((delta) => delta.text).join("") === completed.response?.answer,
     "P7 streamed text differs from validated response",
   );
-  expectSuccessfulAnswer({ status: response.status, body: completed.response }, "23", [
-    MRCP_INSTANCE_ID,
-  ], 1);
+  expectSuccessfulAnswer(
+    { status: response.status, body: completed.response },
+    "23",
+    [MRCP_INSTANCE_ID],
+    1,
+  );
 
   const invalid = await fetch(workerUrl + "/v1/ai/query", {
     method: "POST",

@@ -8,6 +8,7 @@ import type {
   QuotaSnapshot,
   Tenant,
 } from "@santo/contracts";
+import { GroundedAiStreamEventSchema } from "@santo/contracts/ai";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { QuotaService } from "../quota/types";
@@ -156,6 +157,7 @@ function request(
   idempotencyKey = "query-1",
   query = "What is the normal serum sodium range?",
   libraryId?: string,
+  stream?: boolean,
 ): Request {
   return new Request("https://santo.test/v1/ai/query", {
     method: "POST",
@@ -167,6 +169,7 @@ function request(
       query,
       idempotency_key: idempotencyKey,
       ...(libraryId ? { library_id: libraryId } : {}),
+      ...(stream === undefined ? {} : { stream }),
     }),
   });
 }
@@ -330,4 +333,63 @@ describe("grounded AI handler", () => {
     expect(second.status).toBe(200);
     expect(quota.used).toBe(2);
   });
+  it("emits only validated answer deltas and a schema-checked final SSE event", async () => {
+    const response = await handler()(request(token, "streamed", "sodium", "mrcp", true), env);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toContain("text/event-stream");
+    expect(response.headers.get("cache-control")).toContain("no-cache");
+    expect(quota.finalizeCalls).toBe(1);
+    expect(quota.used).toBe(1);
+    expect(retrieval.retrieve).toHaveBeenCalledWith({ query: "sodium", libraryId: "mrcp" });
+
+    const events = (await response.text())
+      .trim()
+      .split("\n\n")
+      .map((frame) => {
+        const lines = frame.split("\n");
+        const payload = JSON.parse(lines[1].slice("data: ".length)) as unknown;
+        const event = GroundedAiStreamEventSchema.parse(payload);
+        expect(lines[0]).toBe(`event: ${event.type}`);
+        return event;
+      });
+    const deltas = events.filter((event) => event.type === "delta");
+    const last = events.at(-1);
+    expect(last?.type).toBe("complete");
+    if (last?.type !== "complete") {
+      throw new Error("Missing complete event");
+    }
+    expect(deltas.map((event) => event.text).join("")).toBe(last.response.answer);
+    expect(last.response.citations).toEqual([
+      { sourceId: SOURCE_ID, title: "Electrolytes", page: 12 },
+    ]);
+    expect(last.response.usage).toEqual({ unitsCharged: 1, remaining: 9 });
+  });
+
+  it("never opens an SSE stream for an invented citation or unverified session", async () => {
+    model.generate = vi.fn(async () => ({
+      answer: "Unsupported",
+      citationIds: ["not-retrieved"],
+    }));
+    const invalidSource = await handler()(request(token, "stream-error", "sodium", "mrcp", true), env);
+    expect(invalidSource.status).toBe(502);
+    expect(invalidSource.headers.get("content-type")).toContain("application/json");
+    expect(await invalidSource.json()).toEqual({ error: "CITATION_INVALID" });
+    expect(quota.releaseCalls).toBe(1);
+    expect(quota.used).toBe(0);
+
+    const invalidSession = await handler()(request("invalid-token", "auth", "sodium", "mrcp", true), env);
+    expect(invalidSession.status).toBe(401);
+    expect(invalidSession.headers.get("content-type")).toContain("application/json");
+    expect(quota.reserveCalls).toBe(1);
+  });
+
+  it("reuses the same atomic charge when retrying the same request across JSON and SSE", async () => {
+    const plain = await handler()(request(token, "same-transport-key", "sodium"), env);
+    const streamed = await handler()(request(token, "same-transport-key", "sodium", undefined, true), env);
+    expect(plain.status).toBe(200);
+    expect(streamed.status).toBe(200);
+    expect(quota.used).toBe(1);
+    expect(quota.finalizeCalls).toBe(2);
+  });
+
 });

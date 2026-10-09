@@ -24,6 +24,7 @@ describe("validated SSE response delivery", () => {
     const blocks = (await result.text()).trim().split("\n\n");
     const events: GroundedAiStreamEvent[] = blocks.map((block) => {
       const [name, payload] = block.split("\n");
+      if (!payload) throw new Error("Missing SSE payload");
       const parsed = GroundedAiStreamEventSchema.parse(JSON.parse(payload.slice("data: ".length)));
       expect(name).toBe("event: " + parsed.type);
       return parsed;

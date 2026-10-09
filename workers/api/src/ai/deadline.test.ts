@@ -28,10 +28,7 @@ describe("bounded AI operations", () => {
           finish = resolve;
         });
       const pending = withAiDeadline(work, undefined, 10, "MODEL_TIMEOUT");
-      const observed = pending.then(
-        () => null,
-        (error: unknown) => error,
-      );
+      const observed = pending.then(() => null, (error: unknown) => error);
       await vi.advanceTimersByTimeAsync(10);
       expect(await observed).toMatchObject({ status: 504, code: "MODEL_TIMEOUT" });
       finish("late content");

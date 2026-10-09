@@ -12,6 +12,7 @@ import { GroundedAiError } from "./errors";
 import { createGroundedModel } from "./model";
 import { CloudflareAiSearchRetrieval } from "./retrieval";
 import { GroundedAiService } from "./service";
+import { createVerifiedGroundedAiStreamResponse } from "./stream";
 import { AnalyticsEngineAiTelemetry } from "./telemetry";
 import type { AiTelemetryPort, ModelPort, RetrievalPort } from "./types";
 
@@ -91,7 +92,11 @@ export function createGroundedAiHandler(dependencies: GroundedAiHandlerDependenc
         telemetryFactory(env),
       ).query(session, parsed.data);
 
-      return Response.json(GroundedAiQueryResponseSchema.parse(response));
+      const validated = GroundedAiQueryResponseSchema.parse(response);
+      if (parsed.data.stream === true) {
+        return createVerifiedGroundedAiStreamResponse(validated);
+      }
+      return Response.json(validated);
     } catch (error) {
       if (
         error instanceof SessionTokenError ||

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { GroundedAiQueryRequestSchema } from "./ai";
+import { GroundedAiQueryRequestSchema, GroundedAiStreamEventSchema } from "./ai";
 
 describe("GroundedAiQueryRequestSchema", () => {
   it("keeps All Libraries as the default when library_id is omitted", () => {
@@ -31,4 +31,48 @@ describe("GroundedAiQueryRequestSchema", () => {
 
     expect(parsed.success).toBe(false);
   });
+  it("accepts explicit stream opt-in while keeping JSON as the default", () => {
+    const plain = GroundedAiQueryRequestSchema.parse({
+      query: "Sodium?",
+      idempotency_key: "sse-1",
+    });
+    const streamed = GroundedAiQueryRequestSchema.parse({
+      query: "Sodium?",
+      idempotency_key: "sse-1",
+      stream: true,
+    });
+
+    expect(plain.stream).toBeUndefined();
+    expect(streamed.stream).toBe(true);
+    expect(
+      GroundedAiQueryRequestSchema.safeParse({
+        query: "Sodium?",
+        idempotency_key: "sse-1",
+        stream: "true",
+      }).success,
+    ).toBe(false);
+  });
+
+  it("validates the streaming event union and rejects invented payload fields", () => {
+    expect(
+      GroundedAiStreamEventSchema.parse({ type: "delta", text: "validated answer" }),
+    ).toEqual({ type: "delta", text: "validated answer" });
+    expect(GroundedAiStreamEventSchema.safeParse({ type: "delta", text: "" }).success).toBe(
+      false,
+    );
+    expect(
+      GroundedAiStreamEventSchema.safeParse({
+        type: "delta",
+        text: "answer",
+        citation_ids: ["invented"],
+      }).success,
+    ).toBe(false);
+    expect(
+      GroundedAiStreamEventSchema.safeParse({
+        type: "complete",
+        response: { answer: "uncited" },
+      }).success,
+    ).toBe(false);
+  });
+
 });

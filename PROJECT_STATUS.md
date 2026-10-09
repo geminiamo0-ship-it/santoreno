@@ -47,8 +47,16 @@ Phase 6 therefore proves that one Santo-wide knowledge ecosystem can be filtered
 The first focused Phase 7 increment centralizes the Workers AI model factory and generation policy behind the existing `ModelPort`. It adds deterministic tests for configured model selection, required bindings, structured-output rejection, and upstream-error mapping.
 
 - Implementation head `2f4a3234b1cbcfdff4aa19aeafecfb015847721c` passed `Verify` **37926370958** (repository policy, lint/format, typecheck, tests, build, smoke).
-- PR #38 is the implementation record. Its final documentation head and post-merge `Verify` must also be green before this increment is considered merged and verified.
+- PR #38 squash-merged as `ff8b5e517719c3a493a4492bd162ba1bb941acd6`; post-merge `Verify` **37926643388** passed.
 - **Issue #36 remains active.** Deterministic bounded prompt construction, streaming and validated stream delivery, timeout/cancellation policies, full Phase 7 regressions, and real-runtime staging acceptance are still pending.
+
+### Phase 7 incremental progress — Bounded RAG prompt (PR #39)
+
+A deterministic prompt builder now uses bounded query/evidence JSON, preserves source/library identifiers for citation validation, explicitly treats retrieved content as untrusted, and fails closed on oversized evidence counts or identifiers. `workers/api/src/ai/prompt.test.ts` verifies determinism, normalized metadata, field/total limits, escaping, and fail-closed behavior.
+
+- Implementation head `6ccde819379139d1c0467ff9ec71eea613d0e7a7` passed `Verify` **37926933316** (repository policy, lint/format, typecheck, tests, build, smoke).
+- PR #39 is the implementation record. Exact final documentation-head and post-merge `Verify` are required before merged completion.
+- **Issue #36 remains active.** Streaming/response lifecycle, timeout/cancellation and other errors, complete Phase 7 regressions, and real-runtime Phase 7 staging acceptance are pending.
 
 ### Current active issue — #36
 

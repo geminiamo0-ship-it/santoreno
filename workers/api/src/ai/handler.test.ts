@@ -361,9 +361,9 @@ describe("grounded AI handler", () => {
       },
     });
     expect(events.slice(0, -1).every((event) => event.type === "delta")).toBe(true);
-    expect(
-      events.map((event) => (event.type === "delta" ? event.text : "")).join(""),
-    ).toBe("The cited source gives a normal serum sodium range of 135–145 mmol/L.");
+    expect(events.map((event) => (event.type === "delta" ? event.text : "")).join("")).toBe(
+      "The cited source gives a normal serum sodium range of 135–145 mmol/L.",
+    );
   });
 
   it("never streams an answer if the model invents citations", async () => {
@@ -410,7 +410,9 @@ describe("grounded AI handler", () => {
 
   it("releases quota after a retrieval timeout without invoking the model", async () => {
     stageTimeouts = { retrievalMs: 5, modelMs: 200 };
-    retrieval.retrieve = vi.fn(() => new Promise<Awaited<ReturnType<RetrievalPort["retrieve"]>>>(() => {}));
+    retrieval.retrieve = vi.fn(
+      () => new Promise<Awaited<ReturnType<RetrievalPort["retrieve"]>>>(() => {}),
+    );
     const result = await handler()(request(token), env);
 
     expect(result.status).toBe(504);

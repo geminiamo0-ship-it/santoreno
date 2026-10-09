@@ -20,9 +20,7 @@ export function withAiDeadline<T>(
   return new Promise<T>((resolve, reject) => {
     let settled = false;
     const cancel = () =>
-      finish(() =>
-        reject(new GroundedAiError(499, "REQUEST_CANCELLED", "Request was cancelled")),
-      );
+      finish(() => reject(new GroundedAiError(499, "REQUEST_CANCELLED", "Request was cancelled")));
     const timer = setTimeout(
       () => finish(() => reject(new GroundedAiError(504, code, "AI operation timed out"))),
       timeoutMs,

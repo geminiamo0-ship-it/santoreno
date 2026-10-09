@@ -24,9 +24,7 @@ describe("validated SSE response delivery", () => {
     const blocks = (await result.text()).trim().split("\n\n");
     const events: GroundedAiStreamEvent[] = blocks.map((block) => {
       const [name, payload] = block.split("\n");
-      const parsed = GroundedAiStreamEventSchema.parse(
-        JSON.parse(payload.slice("data: ".length)),
-      );
+      const parsed = GroundedAiStreamEventSchema.parse(JSON.parse(payload.slice("data: ".length)));
       expect(name).toBe("event: " + parsed.type);
       return parsed;
     });
@@ -36,16 +34,14 @@ describe("validated SSE response delivery", () => {
     expect(deltas.map((event) => (event.type === "delta" ? event.index : -1))).toEqual(
       deltas.map((_, index) => index),
     );
-    expect(
-      deltas.map((event) => (event.type === "delta" ? event.text : "")).join(""),
-    ).toBe(response.answer);
+    expect(deltas.map((event) => (event.type === "delta" ? event.text : "")).join("")).toBe(
+      response.answer,
+    );
     expect(events.at(-1)).toEqual({ type: "complete", response });
     expect(blocks.slice(0, -1).join("\n")).not.toContain("citation");
   });
 
   it("refuses to stream an unvalidated answer contract", () => {
-    expect(() =>
-      streamValidatedGroundedAnswer({ ...response, citations: [] }),
-    ).toThrow();
+    expect(() => streamValidatedGroundedAnswer({ ...response, citations: [] })).toThrow();
   });
 });

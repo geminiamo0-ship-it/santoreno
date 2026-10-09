@@ -100,9 +100,7 @@ export function createGroundedAiHandler(dependencies: GroundedAiHandlerDependenc
       const wantsStream = accept
         .split(",")
         .some((item) => item.trim().split(";")[0]?.trim() === "text/event-stream");
-      return wantsStream
-        ? streamValidatedGroundedAnswer(validated)
-        : Response.json(validated);
+      return wantsStream ? streamValidatedGroundedAnswer(validated) : Response.json(validated);
     } catch (error) {
       if (
         error instanceof SessionTokenError ||

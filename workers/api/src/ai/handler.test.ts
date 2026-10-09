@@ -8,6 +8,7 @@ import type {
   QuotaSnapshot,
   Tenant,
 } from "@santo/contracts";
+import { GroundedAiStreamEventSchema } from "@santo/contracts/ai";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { QuotaService } from "../quota/types";
@@ -179,6 +180,7 @@ describe("grounded AI handler", () => {
   let telemetryEvents: AiTelemetryEvent[];
   let telemetry: AiTelemetryPort;
   let token: string;
+  let stageTimeouts: { retrievalMs: number; modelMs: number };
 
   beforeEach(async () => {
     env = {
@@ -187,6 +189,7 @@ describe("grounded AI handler", () => {
       SANTO_SESSION_TTL_SECONDS: "900",
     };
     quota = new FakeQuotaService();
+    stageTimeouts = { retrievalMs: 15000, modelMs: 90000 };
     retrieval = {
       retrieve: vi.fn(async () => [
         {
@@ -228,6 +231,7 @@ describe("grounded AI handler", () => {
       retrievalFactory: () => retrieval,
       modelFactory: () => model,
       telemetryFactory: () => telemetry,
+      stageTimeouts,
     });
   }
 
@@ -329,5 +333,129 @@ describe("grounded AI handler", () => {
     expect(first.status).toBe(200);
     expect(second.status).toBe(200);
     expect(quota.used).toBe(2);
+  });
+
+  it("streams validated deltas and a final structured result only after charging", async () => {
+    const req = request(token, "stream-key");
+    req.headers.set("accept", "application/json, text/event-stream; charset=utf-8");
+    const result = await handler()(req, env);
+
+    expect(result.status).toBe(200);
+    expect(result.headers.get("content-type")).toContain("text/event-stream");
+    expect(quota.used).toBe(1);
+    expect(quota.finalizeCalls).toBe(1);
+    const events = (await result.text())
+      .trim()
+      .split("\n\n")
+      .map((block) => {
+        const data = block.split("\n").find((line) => line.startsWith("data: "));
+        if (!data) throw new Error("Missing SSE data");
+        return GroundedAiStreamEventSchema.parse(JSON.parse(data.slice(6)));
+      });
+    expect(events.length).toBeGreaterThanOrEqual(2);
+    expect(events.at(-1)).toMatchObject({
+      type: "complete",
+      response: {
+        citations: [{ sourceId: SOURCE_ID }],
+        usage: { unitsCharged: 1, remaining: 9 },
+      },
+    });
+    expect(events.slice(0, -1).every((event) => event.type === "delta")).toBe(true);
+    expect(
+      events.map((event) => (event.type === "delta" ? event.text : "")).join(""),
+    ).toBe("The cited source gives a normal serum sodium range of 135–145 mmol/L.");
+  });
+
+  it("never streams an answer if the model invents citations", async () => {
+    model.generate = vi.fn(async () => ({
+      answer: "Invented medical answer",
+      citationIds: ["not-retrieved"],
+    }));
+    const req = request(token);
+    req.headers.set("accept", "text/event-stream");
+    const result = await handler()(req, env);
+
+    expect(result.status).toBe(502);
+    expect(result.headers.get("content-type")).toContain("application/json");
+    expect(await result.json()).toEqual({ error: "CITATION_INVALID" });
+    expect(quota.used).toBe(0);
+    expect(quota.releaseCalls).toBe(1);
+  });
+
+  it("does not stream before quota finalization succeeds", async () => {
+    quota.finalize = vi.fn(async () => {
+      throw new Error("temporary quota failure");
+    });
+    const req = request(token);
+    req.headers.set("accept", "text/event-stream");
+    const result = await handler()(req, env);
+
+    expect(result.status).toBe(503);
+    expect(await result.json()).toEqual({ error: "QUOTA_FINALIZE_FAILED" });
+    expect(result.headers.get("content-type")).toContain("application/json");
+  });
+
+  it("releases quota after a model timeout rather than sending partial SSE", async () => {
+    stageTimeouts = { retrievalMs: 200, modelMs: 5 };
+    model.generate = vi.fn(() => new Promise(() => {}));
+    const req = request(token);
+    req.headers.set("accept", "text/event-stream");
+    const result = await handler()(req, env);
+
+    expect(result.status).toBe(504);
+    expect(await result.json()).toEqual({ error: "MODEL_TIMEOUT" });
+    expect(quota.used).toBe(0);
+    expect(quota.releaseCalls).toBe(1);
+  });
+
+  it("releases quota after a retrieval timeout without invoking the model", async () => {
+    stageTimeouts = { retrievalMs: 5, modelMs: 200 };
+    retrieval.retrieve = vi.fn(() => new Promise(() => {}));
+    const result = await handler()(request(token), env);
+
+    expect(result.status).toBe(504);
+    expect(await result.json()).toEqual({ error: "SEARCH_TIMEOUT" });
+    expect(model.generate).not.toHaveBeenCalled();
+    expect(quota.used).toBe(0);
+    expect(quota.releaseCalls).toBe(1);
+  });
+
+  it("cancels a pending model call and releases the reservation", async () => {
+    const controller = new AbortController();
+    let modelStarted: () => void = () => {};
+    const started = new Promise<void>((resolve) => {
+      modelStarted = resolve;
+    });
+    model.generate = vi.fn(() => {
+      modelStarted();
+      return new Promise(() => {});
+    });
+    const req = new Request(request(token), { signal: controller.signal });
+    const pending = handler()(req, env);
+    await started;
+    controller.abort();
+    const result = await pending;
+
+    expect(result.status).toBe(499);
+    expect(await result.json()).toEqual({ error: "REQUEST_CANCELLED" });
+    expect(quota.releaseCalls).toBe(1);
+    expect(quota.used).toBe(0);
+  });
+
+  it("streams idempotent retries without charging the same request twice", async () => {
+    const firstReq = request(token, "stream-idempotent");
+    firstReq.headers.set("accept", "text/event-stream");
+    const secondReq = request(token, "stream-idempotent");
+    secondReq.headers.set("accept", "text/event-stream");
+
+    const first = await handler()(firstReq, env);
+    const second = await handler()(secondReq, env);
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    expect(quota.used).toBe(1);
+    expect(quota.reserveCalls).toBe(2);
+    expect(quota.finalizeCalls).toBe(2);
+    expect(await first.text()).toContain("event: complete");
+    expect(await second.text()).toContain("event: complete");
   });
 });

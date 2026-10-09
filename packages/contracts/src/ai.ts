@@ -13,6 +13,7 @@ export const GroundedAiQueryRequestSchema = z
     query: z.string().trim().min(1).max(4000),
     idempotency_key: z.string().trim().min(1).max(128),
     library_id: GroundedAiLibraryIdSchema.optional(),
+    stream: z.boolean().optional(),
   })
   .strict();
 export type GroundedAiQueryRequest = z.infer<typeof GroundedAiQueryRequestSchema>;
@@ -38,3 +39,24 @@ export const GroundedAiQueryResponseSchema = z.object({
   usage: GroundedAiUsageSchema,
 });
 export type GroundedAiQueryResponse = z.infer<typeof GroundedAiQueryResponseSchema>;
+
+/**
+ * SSE transport events for `POST /v1/ai/query` when `stream: true`.
+ * Delta events are emitted only after the complete model draft, cited sources,
+ * and quota finalization have been validated server-side.
+ */
+export const GroundedAiStreamEventSchema = z.discriminatedUnion("type", [
+  z
+    .object({
+      type: z.literal("delta"),
+      text: z.string().min(1).max(256),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("complete"),
+      response: GroundedAiQueryResponseSchema,
+    })
+    .strict(),
+]);
+export type GroundedAiStreamEvent = z.infer<typeof GroundedAiStreamEventSchema>;

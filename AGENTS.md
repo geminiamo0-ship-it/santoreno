@@ -12,19 +12,11 @@ Any coding agent, AI assistant, or new developer must read the following before 
 
 ## Current priority
 
-Implement in order:
+The proven foundation through Issue #36 / Phase 7 is complete, including verified `/v1/session/exchange`, atomic `TenantMeterDO` quota, filtered global AI Search, and citation-validated, buffered SSE AI responses.
 
-```text
-#1 Bootstrap
-#2 Cloudflare foundation
-#3 Minimal B2B auth/tenancy/isolation
-#4 Customer server credentials
-#5 /v1/session/exchange
-#6 Atomic TenantMeterDO quota engine
-#7 Minimal grounded AI endpoint
-```
+**Active implementation issue: #43 — Phase 8 trusted sources, citation details, and R2 images.**
 
-Do not build the full portal before #5 and #6 are proven.
+Read Issue #8 and Issue #43, plus `PROJECT_STATUS.md`, before new code. Do not repeat completed Phase 7 work. Continue in roadmap order; ConversationDO, full widget, and full tenant portal remain deferred.
 
 ## Mandatory behavior after every meaningful change
 

@@ -20,8 +20,9 @@ Completed foundation and proven AI core prerequisites:
 - **P5 / #6 complete** — authoritative SQLite `TenantMeterDO`, atomic reserve/finalize/release, idempotency, live concurrency acceptance.
 - **P6 vertical slice / #7 complete** — authenticated grounded AI request through quota → AI Search → Workers AI → server-validated citation → structured response → exactly-once usage finalization.
 - **Phase 6 global retrieval / #33 complete** — global AI Search catalog, `All Libraries` default, validated `library_id` filtering, normalized retrieval metadata, library-scoped idempotency, and real two-library staging acceptance.
+- **Phase 7 full AI core / #36 complete** — centralized model policy, bounded evidence-only RAG prompts, strict structured JSON and SSE response contracts, server-validated citations, atomic quota finalization, timeout/cancellation safety, idempotent retries and real staging acceptance.
 
-### Latest completed phase — Phase 6 global retrieval / Issue #33
+### Phase 6 global retrieval — Issue #33
 
 PR #35 final clean head:
 
@@ -42,58 +43,24 @@ Exact post-merge `Verify`:
 
 Phase 6 therefore proves that one Santo-wide knowledge ecosystem can be filtered by stable library identifiers without turning library selection into tenant authorization.
 
-### Phase 7 incremental progress — Model Adapter (PR #38)
+### Latest completed phase — Phase 7 AI Core / Issue #36
 
-The first focused Phase 7 increment centralizes the Workers AI model factory and generation policy behind the existing `ModelPort`. It adds deterministic tests for configured model selection, required bindings, structured-output rejection, and upstream-error mapping.
+Phase 7 was delivered in clean increments:
 
-- Implementation head `2f4a3234b1cbcfdff4aa19aeafecfb015847721c` passed `Verify` **37926370958** (repository policy, lint/format, typecheck, tests, build, smoke).
-- PR #38 squash-merged as `ff8b5e517719c3a493a4492bd162ba1bb941acd6`; post-merge `Verify` **37926643388** passed.
-- **Issue #36 remains active.** Deterministic bounded prompt construction, streaming and validated stream delivery, timeout/cancellation policies, full Phase 7 regressions, and real-runtime staging acceptance are still pending.
+- PR #38 — centralized model adapter and generation policy; exact post-merge `Verify` **37926643388**.
+- PR #39 — deterministic, bounded, evidence-only prompts and injection-resistant source serialization; exact post-merge `Verify` **37927141394**.
+- PR #42 — explicit Zod JSON/SSE response contracts, fully validated buffered streaming, bounded retrieval/model deadlines and cancellation, structured errors, charge-free failure release and replay/idempotency regressions.
 
-### Phase 7 incremental progress — Bounded RAG prompt (PR #39)
+The final PR #42 head `6c1ba89448725507dcade62b95963753e127de10` passed both required exact-head gates:
 
-A deterministic prompt builder now uses bounded query/evidence JSON, preserves source/library identifiers for citation validation, explicitly treats retrieved content as untrusted, and fails closed on oversized evidence counts or identifiers. `workers/api/src/ai/prompt.test.ts` verifies determinism, normalized metadata, field/total limits, escaping, and fail-closed behavior.
+- `Verify` **37931171789** — repository policy, formatting/lint, strict typecheck, tests, build, smoke.
+- `P7 Validated Streaming Staging Acceptance` **37931165458** — real WorkOS tenant and session, two run-isolated AI Search libraries, Workers AI generation, MRCP/USMLE/All Libraries filters, validated citations, SSE delta/complete output, same-key quota replay, invalid-library rejection, and successful fixture cleanup.
 
-- Implementation head `6ccde819379139d1c0467ff9ec71eea613d0e7a7` passed `Verify` **37926933316** (repository policy, lint/format, typecheck, tests, build, smoke).
-- PR #39 squash-merged as `7f8d9d5bdaf943a8e69af37c53f8e5a44a9d7789`; exact post-merge `Verify` **37927141394** passed.
-- **Issue #36 remains active.** Streaming/response lifecycle, timeout/cancellation and other errors, complete Phase 7 regressions, and real-runtime Phase 7 staging acceptance are pending.
+PR #42 was squash-merged as `29805bc85ac864e66b7cdc7cd787ac52c1749613`. Exact post-merge `Verify` **37932098841** passed.
 
-### Phase 7 incremental progress — Validated SSE and bounded operations (PR #42)
+**Streaming limitation:** JSON-mode Workers AI does not provide provider-native token streaming. Santo intentionally buffers and validates the full output and finalizes quota before emitting SSE frames; this avoids unverified sourced medical content. Do not advertise provider-token time-to-first-byte streaming. See `docs/AI_STREAMING_CONTRACT.md`.
 
-PR #42 adds a narrow SSE response adapter and Zod-validated stream events. It waits for the existing authenticated query path to validate grounded citations and finalize authoritative quota before sending any answer delta or citation. The implementation deliberately buffers model output; it is not provider-token time-to-first-byte streaming.
-
-- Bounded retrieval/model deadlines, cancellation handling, and structured error codes now have deterministic regressions for quota release and no early streamed content.
-- Implementation head `a697ca7a749fef8d9c975b19523e4a1fa7167274` passed `Verify` **37930750168** (repository policy, formatting/lint, typecheck, tests, build, smoke).
-- Final documentation-head `Verify`, merge, and exact post-merge `Verify` are still required before the PR is considered merged and verified.
-- **Issue #36 remains active.** Phase 7 still needs any remaining failure-policy regressions and the required real-runtime staging acceptance on an exact final head. Do not mark the full issue complete or launch the full portal.
-
-### Phase 7 active implementation — validated streaming and failure lifecycle (PR #42)
-
-PR #42 adds a strictly schema-validated SSE `delta`/`complete` contract to the existing authenticated AI query route. The server buffers complete model output and performs server-side citation validation and quota finalization before emitting any streamed answer. Bounded retrieval/model deadlines and cancellation return structured errors; non-chargeable failures release the authoritative `TenantMeterDO` reservation. JSON responses remain backward compatible.
-
-New deterministic regressions cover Unicode-safe stream frames, invented-source rejection, quota-finalize failures, request abort, search/model timeouts, and idempotent streaming replay. `docs/AI_STREAMING_CONTRACT.md` documents the explicit trade-off: this is validated buffered SSE delivery, not provider-native token-by-token generation.
-
-The required gates for this increment are exact-head `Verify`, real Phase 7 staging acceptance with WorkOS + two AI Search libraries + Workers AI + streamed retry, and post-merge `Verify`. Consult Issue #36 evidence before claiming this increment or Phase 7 complete. Phase 7 remains open for any unproven error/stream policies and final acceptance.
-
-### Current active issue — #36
-
-**#36 — Phase 7: Full AI Core: prompt builder, streaming, model policy, and error handling.**
-
-Phase 7 must extend the proven #7/#33 path without moving authority into model/provider code.
-
-Current Phase 7 scope:
-
-- refine the model adapter boundary
-- add a deterministic evidence-only RAG prompt builder
-- make non-streaming and streaming response contracts explicit
-- add streaming without bypassing quota or citation validation
-- define timeout, cancellation, upstream-error, malformed-output, and no-evidence policies
-- preserve server-side citation validation
-- preserve `All Libraries` default and validated `library_id` filtering
-- add deterministic regressions for prompt/model/stream/error/quota/idempotency/citation behavior
-- add exact-head staging acceptance for the real Phase 7 runtime path
-
-Do not jump directly to sources/images, `ConversationDO`, the full widget, framework integrations, or the full tenant portal before Phase 7 is completed.
+Phase 7 is complete on tested acceptance criteria. **Current implementation target is Issue #43 — Phase 8 trusted sources, citation details and R2 images.** Do not jump ahead to ConversationDO, the full widget, or tenant portal.
 
 ## 2. Read order before implementation
 
@@ -104,7 +71,7 @@ Do not jump directly to sources/images, `ConversationDO`, the full widget, frame
 5. `CONTRIBUTING.md`
 6. GitHub Issue #8 — umbrella roadmap and release gates
 7. GitHub Issue #9 — engineering continuity/guardrails tracker
-8. **GitHub Issue #36 — current active implementation issue**
+8. **GitHub Issue #43 — current active implementation issue**
 
 ## 3. Active implementation order
 
@@ -118,14 +85,14 @@ Completed:
 - [x] **#6 — P5:** Atomic `TenantMeterDO` quota engine
 - [x] **#7 — P6 vertical slice:** Minimal grounded AI endpoint
 - [x] **#33 — Phase 6:** Global AI Search catalog and filtered retrieval
+- [x] **#36 — Phase 7:** Verified AI Core, validated SSE and bounded failure lifecycle
 
 Current:
 
-- [ ] **#36 — Phase 7:** Full AI Core — **CURRENT ACTIVE ISSUE**
+- [ ] **#43 — Phase 8:** Trusted sources, citation details and R2 images — **CURRENT ACTIVE ISSUE**
 
 Then, in roadmap order:
 
-- [ ] Phase 8 — sources and images
 - [ ] Phase 9 — `ConversationDO`
 - [ ] Phase 10 — full Lit `<santo-ai>` widget
 - [ ] Phase 11 — framework compatibility
@@ -325,14 +292,15 @@ For every meaningful step:
 - P5 / #6 — PR #22 final head `cd947538c1fefabe2abfb04acd2f26e07cf1a549`; `Verify` **37215999005 (#173)** green; P5 Staging Acceptance **37215996145 (#9)** green; squash-merged as `02994f482918364a8351bf947d50064f6fb34313`; post-merge `Verify` **37216156725 (#174)** green.
 - P6 vertical slice / #7 — PR #25 final docs head `59679a56eb273e2f343e2d6ee7d94babf9409b1e`; `Verify` **37305283632 (#250)** green; P6 Staging Acceptance **37305276676 (#26)** green; squash-merged as `8d1a422c514869844fefc9c5c29c1ffdf2bc923e`; exact post-merge `Verify` **37306176415 (#251)** green.
 - Phase 6 global retrieval / #33 — PR #35 final clean head `a5746b8b87ad23c6aeada29740e7c0ae7955e5bb`; `Verify` **37327203385 (#283)** green; P33 Global Search Staging Acceptance **37327194943 (#15)** green; squash-merged as `81d15a61140cee28d1a9a7909cb27e1a70b7ba14`; exact post-merge `Verify` **37330375869 (#284)** green.
+- Phase 7 AI Core / #36 — PRs #38/#39/#42; final PR #42 head `6c1ba89448725507dcade62b95963753e127de10`; `Verify` **37931171789** and P7 Staging Acceptance **37931165458** green on that head; merged `29805bc85ac864e66b7cdc7cd787ac52c1749613`; post-merge `Verify` **37932098841** green.
 
 ## 9. Next action
 
-Continue **Issue #36 only**.
+Continue **Issue #43 only — Phase 8 Trusted Sources, Citation Details and R2 Images**.
 
-First verify PR #42 on its exact final head: repository `Verify` plus `P7 Validated Streaming Staging Acceptance`. If either fails, fix it and rerun both on the same head. Record the exact run IDs and acceptance evidence in Issue #36, then merge only after the gates pass and verify the exact `main` post-merge commit.
+Start by inspecting the normalized evidence/citation contracts from completed #33/#36, then define the smallest strictly validated source-detail and R2 media-mapping contract. No generated/model-provided arbitrary source URL may become authoritative. Add deterministic forged-source, missing-asset, library-filter and session/tenant regression tests before implementing the resolver, then run exact-head `Verify` and real staging acceptance on the same head.
 
-Then close remaining Phase 7 gaps in the documented issue order. The SSE contract is deliberately buffered until citations are validated and quota is finalized; do not claim provider-native time-to-first-token streaming without a separate real-runtime proof. Full widget, ConversationDO, source images and the tenant portal remain deferred.
+For each meaningful change: implement → test → exact-head `Verify` → required staging gate → issue checklist/evidence → handoff and roadmap updates → merge → post-merge `Verify`. Do not work on ConversationDO, the full Lit widget or the full tenant portal before this phase is verified.
 
 ## 10. Repository administration note
 

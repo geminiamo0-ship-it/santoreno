@@ -12,6 +12,7 @@ import { GroundedAiError } from "./errors";
 import { createGroundedModel } from "./model";
 import { CloudflareAiSearchRetrieval } from "./retrieval";
 import { GroundedAiService } from "./service";
+import { streamValidatedGroundedAnswer } from "./stream";
 import { AnalyticsEngineAiTelemetry } from "./telemetry";
 import type { AiTelemetryPort, ModelPort, RetrievalPort } from "./types";
 
@@ -22,6 +23,7 @@ export interface GroundedAiHandlerDependencies {
   retrievalFactory?: (env: SantoBindings) => RetrievalPort;
   modelFactory?: (env: SantoBindings) => ModelPort;
   telemetryFactory?: (env: SantoBindings) => AiTelemetryPort;
+  stageTimeouts?: { retrievalMs: number; modelMs: number };
 }
 
 function errorResponse(code: string, status: number): Response {
@@ -89,9 +91,18 @@ export function createGroundedAiHandler(dependencies: GroundedAiHandlerDependenc
         retrievalFactory(env),
         modelFactory(env),
         telemetryFactory(env),
-      ).query(session, parsed.data);
+        undefined,
+        dependencies.stageTimeouts,
+      ).query(session, parsed.data, request.signal);
 
-      return Response.json(GroundedAiQueryResponseSchema.parse(response));
+      const validated = GroundedAiQueryResponseSchema.parse(response);
+      const accept = request.headers.get("accept") ?? "";
+      const wantsStream = accept
+        .split(",")
+        .some((item) => item.trim().split(";")[0]?.trim() === "text/event-stream");
+      return wantsStream
+        ? streamValidatedGroundedAnswer(validated)
+        : Response.json(validated);
     } catch (error) {
       if (
         error instanceof SessionTokenError ||

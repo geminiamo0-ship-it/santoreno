@@ -1,6 +1,11 @@
-import type { WorkersAiLike } from "../runtime/bindings";
+import type { SantoBindings, WorkersAiLike } from "../runtime/bindings";
 import { GroundedAiError } from "./errors";
 import type { GroundedModelDraft, ModelPort } from "./types";
+
+export const GROUNDED_MODEL_POLICY = {
+  temperature: 0.1,
+  maxTokens: 900,
+} as const;
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return typeof value === "object" && value !== null && !Array.isArray(value)
@@ -115,8 +120,8 @@ export class CloudflareWorkersAiModel implements ModelPort {
           type: "json_schema",
           json_schema: groundedResponseSchema,
         },
-        temperature: 0.1,
-        max_tokens: 900,
+        temperature: GROUNDED_MODEL_POLICY.temperature,
+        max_tokens: GROUNDED_MODEL_POLICY.maxTokens,
       });
       const text = modelText(raw);
       if (!text) {
@@ -130,4 +135,8 @@ export class CloudflareWorkersAiModel implements ModelPort {
       throw new GroundedAiError(502, "MODEL_FAILED", "Workers AI model request failed");
     }
   }
+}
+
+export function createGroundedModel(env: Pick<SantoBindings, "AI" | "SANTO_AI_MODEL">): ModelPort {
+  return new CloudflareWorkersAiModel(env.AI, env.SANTO_AI_MODEL);
 }

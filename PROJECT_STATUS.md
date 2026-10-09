@@ -42,6 +42,14 @@ Exact post-merge `Verify`:
 
 Phase 6 therefore proves that one Santo-wide knowledge ecosystem can be filtered by stable library identifiers without turning library selection into tenant authorization.
 
+### Phase 7 incremental progress — Model Adapter (PR #38)
+
+The first focused Phase 7 increment centralizes the Workers AI model factory and generation policy behind the existing `ModelPort`. It adds deterministic tests for configured model selection, required bindings, structured-output rejection, and upstream-error mapping.
+
+- Implementation head `2f4a3234b1cbcfdff4aa19aeafecfb015847721c` passed `Verify` **37926370958** (repository policy, lint/format, typecheck, tests, build, smoke).
+- PR #38 is the implementation record. Its final documentation head and post-merge `Verify` must also be green before this increment is considered merged and verified.
+- **Issue #36 remains active.** Deterministic bounded prompt construction, streaming and validated stream delivery, timeout/cancellation policies, full Phase 7 regressions, and real-runtime staging acceptance are still pending.
+
 ### Current active issue — #36
 
 **#36 — Phase 7: Full AI Core: prompt builder, streaming, model policy, and error handling.**

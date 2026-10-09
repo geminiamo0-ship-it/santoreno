@@ -9,7 +9,7 @@ import { SessionError, SessionExchangeService } from "../session/service";
 import { SantoSessionTokenService, SessionTokenError } from "../session/token";
 import { D1TenantRepository, type TenantRepository } from "../tenancy/repository";
 import { GroundedAiError } from "./errors";
-import { CloudflareWorkersAiModel } from "./model";
+import { createGroundedModel } from "./model";
 import { CloudflareAiSearchRetrieval } from "./retrieval";
 import { GroundedAiService } from "./service";
 import { AnalyticsEngineAiTelemetry } from "./telemetry";
@@ -56,9 +56,7 @@ export function createGroundedAiHandler(dependencies: GroundedAiHandlerDependenc
   const quotaServiceFactory = dependencies.quotaServiceFactory ?? defaultQuotaService;
   const retrievalFactory =
     dependencies.retrievalFactory ?? ((env) => new CloudflareAiSearchRetrieval(env.AI_SEARCH));
-  const modelFactory =
-    dependencies.modelFactory ??
-    ((env) => new CloudflareWorkersAiModel(env.AI, env.SANTO_AI_MODEL));
+  const modelFactory = dependencies.modelFactory ?? createGroundedModel;
   const telemetryFactory =
     dependencies.telemetryFactory ?? ((env) => new AnalyticsEngineAiTelemetry(env.USAGE_ANALYTICS));
 

@@ -137,8 +137,6 @@ export class CloudflareWorkersAiModel implements ModelPort {
   }
 }
 
-export function createGroundedModel(
-  env: Pick<SantoBindings, "AI" | "SANTO_AI_MODEL">,
-): ModelPort {
+export function createGroundedModel(env: Pick<SantoBindings, "AI" | "SANTO_AI_MODEL">): ModelPort {
   return new CloudflareWorkersAiModel(env.AI, env.SANTO_AI_MODEL);
 }

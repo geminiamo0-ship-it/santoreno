@@ -14,8 +14,7 @@ export function buildGroundedPrompt(query: string, evidence: readonly RetrievedE
     evidence.length > MAX_EVIDENCE_ITEMS ||
     evidence.some(
       (item) =>
-        item.sourceId.length > MAX_SOURCE_ID_CHARS ||
-        item.libraryId.length > MAX_LIBRARY_ID_CHARS,
+        item.sourceId.length > MAX_SOURCE_ID_CHARS || item.libraryId.length > MAX_LIBRARY_ID_CHARS,
     )
   ) {
     throw new GroundedAiError(502, "SEARCH_FAILED", "Retrieved evidence exceeds prompt limits");

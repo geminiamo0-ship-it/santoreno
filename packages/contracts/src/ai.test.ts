@@ -31,6 +31,7 @@ describe("GroundedAiQueryRequestSchema", () => {
 
     expect(parsed.success).toBe(false);
   });
+
   it("accepts explicit stream opt-in while keeping JSON as the default", () => {
     const plain = GroundedAiQueryRequestSchema.parse({
       query: "Sodium?",
@@ -54,12 +55,13 @@ describe("GroundedAiQueryRequestSchema", () => {
   });
 
   it("validates the streaming event union and rejects invented payload fields", () => {
-    expect(
-      GroundedAiStreamEventSchema.parse({ type: "delta", text: "validated answer" }),
-    ).toEqual({ type: "delta", text: "validated answer" });
-    expect(GroundedAiStreamEventSchema.safeParse({ type: "delta", text: "" }).success).toBe(
-      false,
-    );
+    const delta = GroundedAiStreamEventSchema.parse({
+      type: "delta",
+      text: "validated answer",
+    });
+    expect(delta).toEqual({ type: "delta", text: "validated answer" });
+    const invalidDelta = GroundedAiStreamEventSchema.safeParse({ type: "delta", text: "" });
+    expect(invalidDelta.success).toBe(false);
     expect(
       GroundedAiStreamEventSchema.safeParse({
         type: "delta",
@@ -74,5 +76,4 @@ describe("GroundedAiQueryRequestSchema", () => {
       }).success,
     ).toBe(false);
   });
-
 });

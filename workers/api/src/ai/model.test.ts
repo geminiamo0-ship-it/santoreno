@@ -2,11 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { WorkersAiLike } from "../runtime/bindings";
 import { GroundedAiError } from "./errors";
-import {
-  CloudflareWorkersAiModel,
-  createGroundedModel,
-  GROUNDED_MODEL_POLICY,
-} from "./model";
+import { CloudflareWorkersAiModel, createGroundedModel, GROUNDED_MODEL_POLICY } from "./model";
 
 describe("Cloudflare Workers AI model adapter", () => {
   it("selects the configured model and owns its generation policy", async () => {

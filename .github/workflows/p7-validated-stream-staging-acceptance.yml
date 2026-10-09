@@ -187,8 +187,8 @@ jobs:
             echo "- All Libraries default: verified"
             echo "- Unknown library: structured fail-closed response verified"
             echo "- Post-invalid successful request: reservation release verified"
-            echo "- Real Workers AI + server-side citation validation: verified
-            echo "- Authenticated SSE, completed response and idempotent replay: verified""
+            echo "- Real Workers AI + server-side citation validation: verified"
+            echo "- Authenticated SSE, completed response and idempotent replay: verified"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Cleanup P33 AI Search fixtures

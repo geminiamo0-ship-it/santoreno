@@ -38,3 +38,30 @@ export const GroundedAiQueryResponseSchema = z.object({
   usage: GroundedAiUsageSchema,
 });
 export type GroundedAiQueryResponse = z.infer<typeof GroundedAiQueryResponseSchema>;
+
+/**
+ * SSE frames for the buffered verified stream. No event is sent before
+ * grounded citations are server-validated and quota is finalized.
+ */
+export const GroundedAiStreamDeltaSchema = z
+  .object({
+    type: z.literal("delta"),
+    requestId: z.string().uuid(),
+    messageId: z.string().uuid(),
+    index: z.number().int().nonnegative(),
+    text: z.string().min(1).max(360),
+  })
+  .strict();
+
+export const GroundedAiStreamCompleteSchema = z
+  .object({
+    type: z.literal("complete"),
+    response: GroundedAiQueryResponseSchema,
+  })
+  .strict();
+
+export const GroundedAiStreamEventSchema = z.discriminatedUnion("type", [
+  GroundedAiStreamDeltaSchema,
+  GroundedAiStreamCompleteSchema,
+]);
+export type GroundedAiStreamEvent = z.infer<typeof GroundedAiStreamEventSchema>;

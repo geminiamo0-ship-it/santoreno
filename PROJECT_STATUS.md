@@ -67,6 +67,14 @@ PR #42 adds a narrow SSE response adapter and Zod-validated stream events. It wa
 - Final documentation-head `Verify`, merge, and exact post-merge `Verify` are still required before the PR is considered merged and verified.
 - **Issue #36 remains active.** Phase 7 still needs any remaining failure-policy regressions and the required real-runtime staging acceptance on an exact final head. Do not mark the full issue complete or launch the full portal.
 
+### Phase 7 active implementation — validated streaming and failure lifecycle (PR #42)
+
+PR #42 adds a strictly schema-validated SSE `delta`/`complete` contract to the existing authenticated AI query route. The server buffers complete model output and performs server-side citation validation and quota finalization before emitting any streamed answer. Bounded retrieval/model deadlines and cancellation return structured errors; non-chargeable failures release the authoritative `TenantMeterDO` reservation. JSON responses remain backward compatible.
+
+New deterministic regressions cover Unicode-safe stream frames, invented-source rejection, quota-finalize failures, request abort, search/model timeouts, and idempotent streaming replay. `docs/AI_STREAMING_CONTRACT.md` documents the explicit trade-off: this is validated buffered SSE delivery, not provider-native token-by-token generation.
+
+The required gates for this increment are exact-head `Verify`, real Phase 7 staging acceptance with WorkOS + two AI Search libraries + Workers AI + streamed retry, and post-merge `Verify`. Consult Issue #36 evidence before claiming this increment or Phase 7 complete. Phase 7 remains open for any unproven error/stream policies and final acceptance.
+
 ### Current active issue — #36
 
 **#36 — Phase 7: Full AI Core: prompt builder, streaming, model policy, and error handling.**
@@ -322,9 +330,9 @@ For every meaningful step:
 
 Continue **Issue #36 only**.
 
-The Model Adapter (PR #38) and bounded evidence-only RAG prompt (PR #39) are merged and post-merge verified. PR #42 provides a validation-gated buffered SSE response and bounded request deadline/cancellation handling; it must pass exact documentation-head `Verify`, be merged, and pass exact post-merge `Verify`.
+First verify PR #42 on its exact final head: repository `Verify` plus `P7 Validated Streaming Staging Acceptance`. If either fails, fix it and rerun both on the same head. Record the exact run IDs and acceptance evidence in Issue #36, then merge only after the gates pass and verify the exact `main` post-merge commit.
 
-Next, complete any remaining structured output/error/quota/idempotency and stream regression gaps. Add and run the Phase 7 real-runtime staging acceptance against an exact final implementation head, proving authenticated streaming, verified citations, library scope, quota finalization/release, and cleanup. Keep the Phase 7 issue open until *all* acceptance gates are satisfied. Do not jump to sources/images, ConversationDO, the full widget, or the full tenant portal.
+Then close remaining Phase 7 gaps in the documented issue order. The SSE contract is deliberately buffered until citations are validated and quota is finalized; do not claim provider-native time-to-first-token streaming without a separate real-runtime proof. Full widget, ConversationDO, source images and the tenant portal remain deferred.
 
 ## 10. Repository administration note
 

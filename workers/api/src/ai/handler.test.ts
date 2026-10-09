@@ -333,6 +333,7 @@ describe("grounded AI handler", () => {
     expect(second.status).toBe(200);
     expect(quota.used).toBe(2);
   });
+
   it("emits only validated answer deltas and a schema-checked final SSE event", async () => {
     const response = await handler()(request(token, "streamed", "sodium", "mrcp", true), env);
     expect(response.status).toBe(200);
@@ -359,9 +360,7 @@ describe("grounded AI handler", () => {
       throw new Error("Missing complete event");
     }
     expect(deltas.map((event) => event.text).join("")).toBe(last.response.answer);
-    expect(last.response.citations).toEqual([
-      { sourceId: SOURCE_ID, title: "Electrolytes", page: 12 },
-    ]);
+    expect(last.response.citations).toEqual([{ sourceId: SOURCE_ID, title: "Electrolytes", page: 12 }]);
     expect(last.response.usage).toEqual({ unitsCharged: 1, remaining: 9 });
   });
 
@@ -370,14 +369,16 @@ describe("grounded AI handler", () => {
       answer: "Unsupported",
       citationIds: ["not-retrieved"],
     }));
-    const invalidSource = await handler()(request(token, "stream-error", "sodium", "mrcp", true), env);
+    const invalidSourceRequest = request(token, "stream-error", "sodium", "mrcp", true);
+    const invalidSource = await handler()(invalidSourceRequest, env);
     expect(invalidSource.status).toBe(502);
     expect(invalidSource.headers.get("content-type")).toContain("application/json");
     expect(await invalidSource.json()).toEqual({ error: "CITATION_INVALID" });
     expect(quota.releaseCalls).toBe(1);
     expect(quota.used).toBe(0);
 
-    const invalidSession = await handler()(request("invalid-token", "auth", "sodium", "mrcp", true), env);
+    const invalidSessionRequest = request("invalid-token", "auth", "sodium", "mrcp", true);
+    const invalidSession = await handler()(invalidSessionRequest, env);
     expect(invalidSession.status).toBe(401);
     expect(invalidSession.headers.get("content-type")).toContain("application/json");
     expect(quota.reserveCalls).toBe(1);
@@ -385,11 +386,11 @@ describe("grounded AI handler", () => {
 
   it("reuses the same atomic charge when retrying the same request across JSON and SSE", async () => {
     const plain = await handler()(request(token, "same-transport-key", "sodium"), env);
-    const streamed = await handler()(request(token, "same-transport-key", "sodium", undefined, true), env);
+    const streamRequest = request(token, "same-transport-key", "sodium", undefined, true);
+    const streamed = await handler()(streamRequest, env);
     expect(plain.status).toBe(200);
     expect(streamed.status).toBe(200);
     expect(quota.used).toBe(1);
     expect(quota.finalizeCalls).toBe(2);
   });
-
 });

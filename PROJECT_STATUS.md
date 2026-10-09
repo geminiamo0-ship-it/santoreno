@@ -58,6 +58,15 @@ A deterministic prompt builder now uses bounded query/evidence JSON, preserves s
 - PR #39 squash-merged as `7f8d9d5bdaf943a8e69af37c53f8e5a44a9d7789`; exact post-merge `Verify` **37927141394** passed.
 - **Issue #36 remains active.** Streaming/response lifecycle, timeout/cancellation and other errors, complete Phase 7 regressions, and real-runtime Phase 7 staging acceptance are pending.
 
+### Phase 7 incremental progress — Validated SSE and bounded operations (PR #42)
+
+PR #42 adds a narrow SSE response adapter and Zod-validated stream events. It waits for the existing authenticated query path to validate grounded citations and finalize authoritative quota before sending any answer delta or citation. The implementation deliberately buffers model output; it is not provider-token time-to-first-byte streaming.
+
+- Bounded retrieval/model deadlines, cancellation handling, and structured error codes now have deterministic regressions for quota release and no early streamed content.
+- Implementation head `a697ca7a749fef8d9c975b19523e4a1fa7167274` passed `Verify` **37930750168** (repository policy, formatting/lint, typecheck, tests, build, smoke).
+- Final documentation-head `Verify`, merge, and exact post-merge `Verify` are still required before the PR is considered merged and verified.
+- **Issue #36 remains active.** Phase 7 still needs any remaining failure-policy regressions and the required real-runtime staging acceptance on an exact final head. Do not mark the full issue complete or launch the full portal.
+
 ### Current active issue — #36
 
 **#36 — Phase 7: Full AI Core: prompt builder, streaming, model policy, and error handling.**
@@ -313,11 +322,9 @@ For every meaningful step:
 
 Continue **Issue #36 only**.
 
-The first two Phase 7 increments are merged and post-merge verified: centralized Model Adapter policy (PR #38) and bounded deterministic evidence-only RAG prompt builder (PR #39). Do **not** repeat these completed increments.
+The Model Adapter (PR #38) and bounded evidence-only RAG prompt (PR #39) are merged and post-merge verified. PR #42 provides a validation-gated buffered SSE response and bounded request deadline/cancellation handling; it must pass exact documentation-head `Verify`, be merged, and pass exact post-merge `Verify`.
 
-The next incomplete work is an explicit, schema-validated streaming and non-streaming response contract. Implement safe streaming behind the authenticated AI route without emitting unvalidated sourced medical content or bypassing atomic quota reserve/finalize/release. Then define and verify timeout, cancellation, malformed-output, upstream-error, and no-evidence charge/release semantics.
-
-Add deterministic regressions and the required real-runtime Phase 7 staging acceptance. Require exact-head `Verify` and staging results, update Issue #36 checklist/evidence, and only then merge and perform exact post-merge `Verify`. Do not close Issue #36 until all of its acceptance criteria are proven.
+Next, complete any remaining structured output/error/quota/idempotency and stream regression gaps. Add and run the Phase 7 real-runtime staging acceptance against an exact final implementation head, proving authenticated streaming, verified citations, library scope, quota finalization/release, and cleanup. Keep the Phase 7 issue open until *all* acceptance gates are satisfied. Do not jump to sources/images, ConversationDO, the full widget, or the full tenant portal.
 
 ## 10. Repository administration note
 

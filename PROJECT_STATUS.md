@@ -55,7 +55,7 @@ The first focused Phase 7 increment centralizes the Workers AI model factory and
 A deterministic prompt builder now uses bounded query/evidence JSON, preserves source/library identifiers for citation validation, explicitly treats retrieved content as untrusted, and fails closed on oversized evidence counts or identifiers. `workers/api/src/ai/prompt.test.ts` verifies determinism, normalized metadata, field/total limits, escaping, and fail-closed behavior.
 
 - Implementation head `6ccde819379139d1c0467ff9ec71eea613d0e7a7` passed `Verify` **37926933316** (repository policy, lint/format, typecheck, tests, build, smoke).
-- PR #39 is the implementation record. Exact final documentation-head and post-merge `Verify` are required before merged completion.
+- PR #39 squash-merged as `7f8d9d5bdaf943a8e69af37c53f8e5a44a9d7789`; exact post-merge `Verify` **37927141394** passed.
 - **Issue #36 remains active.** Streaming/response lifecycle, timeout/cancellation and other errors, complete Phase 7 regressions, and real-runtime Phase 7 staging acceptance are pending.
 
 ### Current active issue — #36
@@ -313,18 +313,11 @@ For every meaningful step:
 
 Continue **Issue #36 only**.
 
-Start Phase 7 with the smallest clean AI Core increment. Preserve all proven #7/#33 boundaries and do not build the full widget, sources/images UI, conversation state, or tenant portal yet.
+The first two Phase 7 increments are merged and post-merge verified: centralized Model Adapter policy (PR #38) and bounded deterministic evidence-only RAG prompt builder (PR #39). Do **not** repeat these completed increments.
 
-Recommended first implementation sequence:
+The next incomplete work is an explicit, schema-validated streaming and non-streaming response contract. Implement safe streaming behind the authenticated AI route without emitting unvalidated sourced medical content or bypassing atomic quota reserve/finalize/release. Then define and verify timeout, cancellation, malformed-output, upstream-error, and no-evidence charge/release semantics.
 
-1. Inspect the existing model adapter, prompt construction, `/v1/ai/query` orchestration, response contracts, and current timeout/error behavior.
-2. Define the minimal Phase 7 interfaces/contracts before adding streaming.
-3. Add deterministic tests first for the selected increment.
-4. Implement the smallest adapter/prompt/error-policy change tied directly to #36 acceptance criteria.
-5. Run exact-head `Verify` before expanding scope.
-6. Add live/staging acceptance only when the increment reaches a real-runtime boundary that needs proof.
-
-For every change: implement → test → exact-head `Verify` → issue evidence → handoff update when project state changes.
+Add deterministic regressions and the required real-runtime Phase 7 staging acceptance. Require exact-head `Verify` and staging results, update Issue #36 checklist/evidence, and only then merge and perform exact post-merge `Verify`. Do not close Issue #36 until all of its acceptance criteria are proven.
 
 ## 10. Repository administration note
 

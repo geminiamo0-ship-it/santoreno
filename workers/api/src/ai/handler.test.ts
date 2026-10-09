@@ -397,7 +397,7 @@ describe("grounded AI handler", () => {
 
   it("releases quota after a model timeout rather than sending partial SSE", async () => {
     stageTimeouts = { retrievalMs: 200, modelMs: 5 };
-    model.generate = vi.fn(() => new Promise(() => {}));
+    model.generate = vi.fn(() => new Promise<Awaited<ReturnType<ModelPort["generate"]>>>(() => {}));
     const req = request(token);
     req.headers.set("accept", "text/event-stream");
     const result = await handler()(req, env);
@@ -410,7 +410,7 @@ describe("grounded AI handler", () => {
 
   it("releases quota after a retrieval timeout without invoking the model", async () => {
     stageTimeouts = { retrievalMs: 5, modelMs: 200 };
-    retrieval.retrieve = vi.fn(() => new Promise(() => {}));
+    retrieval.retrieve = vi.fn(() => new Promise<Awaited<ReturnType<RetrievalPort["retrieve"]>>>(() => {}));
     const result = await handler()(request(token), env);
 
     expect(result.status).toBe(504);
@@ -428,7 +428,7 @@ describe("grounded AI handler", () => {
     });
     model.generate = vi.fn(() => {
       modelStarted();
-      return new Promise(() => {});
+      return new Promise<Awaited<ReturnType<ModelPort["generate"]>>>(() => {});
     });
     const req = new Request(request(token), { signal: controller.signal });
     const pending = handler()(req, env);

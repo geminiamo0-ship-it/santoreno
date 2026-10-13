@@ -89,16 +89,20 @@ Phase 7 is complete on tested acceptance criteria. **Phase 8 / Issue #43 is also
 
 ### Phase 9 first implementation slice — Issue #52
 
-- **Draft PR #54:** strict conversation request/response contracts,
-  per-conversation SQLite Durable Object, owner-scoped create/read/append/delete
-  routes, transactional compare-and-append, idempotent replay, bounded
-  200-message storage and latest-50-message reads.
-- The user/tenant authority comes only from an authenticated Santo end-user
-  session; Durable Object routing IDs are not authorization grants.
-- Deterministic tests cover forged authority, identity isolation, 100
-  competing writes, retries, conflicts, state reconstruction and deletion.
-- Real WorkOS + SQLite Durable Object staging acceptance is being verified
-  using `P9 Conversation State Staging Acceptance` on the exact PR head.
+- **PR #54 completed first state-only slice:** strict conversation
+  contracts, per-conversation SQLite Durable Object, owner-scoped
+  create/read/append/delete routes, transactional compare-and-append, stable
+  idempotent replay, bounded 200-message storage and latest-50-message reads.
+- PR #54 final head `50fb8311b02e16ce15b81f1d8f6a096a2bc1f876`
+  passed exact-head **Verify 38435332142** and real **P9 Conversation State
+  Staging Acceptance 38435322343** on that same commit.
+- Live staging proved WorkOS-backed sessions, real SQLite DO state,
+  **1 success / 99 conflicts** in 100 simultaneous appends, same-key
+  replay, cross-tenant/user denial and run-scoped fixture cleanup.
+- Squash-merged into main as `1dc142677c34cf10a4450f01bde14cead3c2be16`;
+  exact post-merge **Verify 38435667470** passed.
+- User/tenant authority comes only from an authenticated Santo end-user
+  session; Durable Object routing IDs are never authorization grants.
 - **Not Phase 9 completion:** verified assistant turns, quota-linked AI
   follow-ups, bounded context summaries, stream coordination, complete
   failure lifecycle and final staging acceptance are still required.
@@ -342,11 +346,11 @@ For every meaningful step:
 
 Continue **Issue #52 only — Phase 9 ConversationDO ordered messages and follow-ups**.
 
-Continue PR #54 first-slice verification, then proceed to verified AI follow-ups. Before implementation read #8, #9, #52, and the completed #43. Review
+Start the **next Phase 9 slice**: authoritative assistant turn persistence, verified AI follow-ups, replay-safe quota coupling and bounded context. Before implementation read #8, #9, #52, and the completed #43. Review
 `workers/api/src/durable-objects/conversation.ts`, the Phase 7 quota/AI
 handler and Phase 8 server-verified source contracts. Implement in bounded
-increments: authenticated conversation state and ordering first; then
-idempotent turns, follow-up context and stream coordination. Never assume
+increments: state/ordering already proven; next implement
+idempotent grounded assistant turns, bounded follow-up context and stream coordination. Never assume
 an unguessable conversation ID is authorization; bind tenant + external user
 to every read/write. No second quota implementation or model-sourced citations.
 

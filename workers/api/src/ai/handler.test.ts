@@ -270,6 +270,18 @@ describe("grounded AI handler", () => {
     expect(quota.releaseCalls).toBe(1);
   });
 
+  it("keeps already finalized charge identity on a failed regeneration", async () => {
+    const first = await handler()(request(token, "charge-identity"), env);
+    expect(first.status).toBe(200);
+    expect(quota.used).toBe(1);
+    model.generate = vi.fn(async () => { throw new Error("model retry unavailable"); });
+    const second = await handler()(request(token, "charge-identity"), env);
+    expect(second.status).toBe(503);
+    expect(await second.json()).toEqual({ error: "CHARGED_GENERATION_RETRY_FAILED" });
+    expect(quota.used).toBe(1);
+    expect(quota.releaseCalls).toBe(0);
+  });
+
   it("runs session -> quota -> retrieval -> model -> verified citation -> finalize", async () => {
     const response = await handler()(request(token), env);
     const body = await response.json();

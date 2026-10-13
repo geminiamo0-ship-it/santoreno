@@ -431,6 +431,26 @@ For every meaningful step:
 - Runbook: `docs/PILOT_CREDENTIAL_CONSOLE.md`.
   The full portal remains deferred; Issue #58 stays OPEN.
 
+### Phase 10 Staging tenant-quota UI — pending verification
+
+- Royal Bank's verified deployed /santo pilot returned
+  `TENANT_QUOTA_NOT_CONFIGURED` after its Vercel server key was saved.
+  `SANTO_DEFAULT_STUDENT_QUOTA=100` does not configure the TenantMeterDO
+  tenant-wide allowance. The client integration is no longer blocked by
+  missing Santo server credentials.
+- Add **Initialize Tenant Quota** to the existing staging-only WorkOS
+  operator console (not to Royal Bank). The existing Super Admin-only
+  `POST /v1/admin/tenants/:tenantId/quota` remains authoritative and
+  server-authorized; UI requires verified selected tenant, explicit cap,
+  UTC cycle dates and confirmation of possible cycle-counter reset.
+- Zero-unit, reserved `santo-operator-bootstrap` user satisfies the
+  current contract without granting or modifying real Royal student quota.
+- This branch and workflow only supply the operator UI; **no actual tenant
+  quota is set**, no database changes, no production deployment and no
+  user secret required. Confirm Verify, staging deploy and actual WorkOS
+  operator activation before reporting Royal /santo runtime as accepted.
+- See `docs/PILOT_CREDENTIAL_CONSOLE.md` for use.
+
 ## 9. Next action
 
 **Royal Bank Pilot staging checkpoint — 2026-10-14:**

@@ -10,7 +10,7 @@
     "build": "turbo run build",
     "dev": "turbo run dev --parallel",
     "format": "prettier --write .",
-    "format:check": "prettier --write workers/api/src/quota/service.test.ts workers/api/src/app.ts workers/api/src/durable-objects/tenant-meter-core.ts workers/api/src/durable-objects/tenant-meter.ts workers/api/src/quota/service.ts packages/contracts/src/index.ts && for f in workers/api/src/quota/service.test.ts workers/api/src/app.ts workers/api/src/durable-objects/tenant-meter-core.ts workers/api/src/durable-objects/tenant-meter.ts workers/api/src/quota/service.ts packages/contracts/src/index.ts; do printf 'SANTO_FORMATTED:%s:' \"$f\"; base64 -w0 \"$f\"; printf '\\n'; done && prettier --check .",
+    "format:check": "prettier --write workers/api/src/quota/service.test.ts workers/api/src/pilot-quota.test.ts workers/api/src/app.ts workers/api/src/durable-objects/tenant-meter-core.ts workers/api/src/durable-objects/tenant-meter.ts workers/api/src/quota/service.ts packages/contracts/src/index.ts && for f in workers/api/src/quota/service.test.ts workers/api/src/pilot-quota.test.ts workers/api/src/app.ts workers/api/src/durable-objects/tenant-meter-core.ts workers/api/src/durable-objects/tenant-meter.ts workers/api/src/quota/service.ts packages/contracts/src/index.ts; do printf 'SANTO_FORMATTED:%s:' \"$f\"; base64 -w0 \"$f\"; printf '\\n'; done && prettier --check .",
     "lint": "oxlint . && pnpm format:check",
     "smoke": "node scripts/smoke.mjs",
     "test": "turbo run test",

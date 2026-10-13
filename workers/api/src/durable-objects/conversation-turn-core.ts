@@ -30,6 +30,7 @@ interface TurnRow {
   attempt_id: string;
   lease_until_ms: number;
   response_json: string | null;
+  context_text: string;
 }
 interface SequenceRow {
   next_sequence: number;
@@ -47,7 +48,8 @@ CREATE TABLE IF NOT EXISTS conversation_turns (
   status TEXT NOT NULL CHECK (status IN ('pending','completed','retryable')),
   attempt_id TEXT NOT NULL,
   lease_until_ms INTEGER NOT NULL,
-  response_json TEXT
+  response_json TEXT,
+  context_text TEXT NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS idx_turns_sequence ON conversation_turns (sequence DESC);
 `;
@@ -126,7 +128,7 @@ export class ConversationTurnCore {
         );
         const renewed = { ...existing, status: "pending" as const, attempt_id: attemptId };
         return ConversationBeginTurnResponseSchema.parse({
-          state: "started", attemptId, turn: toTurn(renewed), context: recentContext(sql),
+          state: "started", attemptId, turn: toTurn(renewed), context: existing.context_text,
         });
       }
       const competing = first<TurnRow>(
@@ -155,10 +157,10 @@ export class ConversationTurnCore {
       );
       sql.exec(
         `INSERT INTO conversation_turns
-          (idempotency_key, message_id, sequence, expected_sequence, question, library_id, status, attempt_id, lease_until_ms, response_json)
-         VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, NULL)`,
+          (idempotency_key, message_id, sequence, expected_sequence, question, library_id, status, attempt_id, lease_until_ms, response_json, context_text)
+         VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, NULL, ?)`,
         request.idempotencyKey, messageId, next, request.expectedSequence,
-        request.text, request.libraryId ?? null, attemptId, now + LEASE_MS,
+        request.text, request.libraryId ?? null, attemptId, now + LEASE_MS, context,
       );
       return ConversationBeginTurnResponseSchema.parse({
         state: "started", attemptId, context,

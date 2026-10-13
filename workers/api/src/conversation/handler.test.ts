@@ -53,7 +53,7 @@ describe("authenticated conversation handler", () => {
   let env: SantoBindings;
   let token: string;
   let forwarded: unknown[];
-  let calls: ReturnType<typeof vi.fn>;
+  let calls: (input: Request | string) => Promise<Response>;
   let suspended: boolean;
 
   beforeEach(async () => {

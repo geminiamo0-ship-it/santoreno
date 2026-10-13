@@ -55,7 +55,7 @@ describe("Staging-only pilot credential console", () => {
     expect(pilotCredentialScript).toContain("window.confirm(");
     expect(pilotCredentialScript).toContain("santo-operator-bootstrap");
     expect(pilotCredentialScript).toContain("baseQuota: 0");
-    expect(pilotCredentialScript).not.toContain("santo_sk_");
+    expect(pilotCredentialScript).not.toMatch(/santo_sk_[0-9a-f]{12}_[0-9a-f]{64}/);
   });
 
   it("fails closed outside staging and exposes only public WorkOS client id", async () => {

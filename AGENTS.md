@@ -12,11 +12,23 @@ Any coding agent, AI assistant, or new developer must read the following before 
 
 ## Current priority
 
-The proven foundation through Issue #43 / Phase 8 is complete, including verified `/v1/session/exchange`, atomic `TenantMeterDO` quota, filtered global AI Search, citation-validated buffered SSE, session-scoped trusted citation details and real R2 image delivery.
+The fully verified foundation now includes **Phase 9 / Issue #52**:
+authenticated SQLite ConversationDO state, strict tenant/user boundaries,
+ordered conversations and multi-turn AI follow-ups, validated citations
+and R2 source/image delivery, quota-safe idempotent replays, buffered SSE,
+persisted bounded verified context, and expiry-aware lease recovery.
+Phase 9's final PR #57 passed exact-head `Verify 38445457126` and real
+`P9 Summary & Lease Staging 38445450546` on the same SHA, merged as
+`17e032e3935cad4f6ec290ee770e3baaf09f6540` with post-merge
+`Verify 38446592614` success.
 
-**Active implementation issue: #52 — Phase 9 ConversationDO ordered messages and follow-ups.**
+**Active implementation issue: #58 — Phase 10 Santo embeddable Lit Widget.**
 
-Read Issue #8, Issue #9, Issue #52 and the completed Issue #43, plus `PROJECT_STATUS.md`, before new code. Do not repeat completed Phase 7/8 work. Continue in roadmap order; full widget and full tenant portal remain deferred.
+Read Issue #8, Issue #58, the completed Issue #52, `PROJECT_STATUS.md`
+and the master plan before code. Do not repeat the completed AI, quota,
+conversation or source-work. Reuse those through authenticated APIs only.
+The full tenant portal and framework compatibility sign-off are deferred
+to Phase 12 and Phase 11 respectively.
 
 ## Mandatory behavior after every meaningful change
 

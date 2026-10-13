@@ -179,8 +179,13 @@ export class GroundedAiService {
       if (!alreadyFinalized) {
         await this.releaseAfterFailure(session, quotaIdempotencyKey, error);
       }
-      const mapped =
-        error instanceof GroundedAiError
+      const mapped = alreadyFinalized
+        ? new GroundedAiError(
+            503,
+            "CHARGED_GENERATION_RETRY_FAILED",
+            "A charged request could not be regenerated; retry with the same key",
+          )
+        : error instanceof GroundedAiError
           ? error
           : new GroundedAiError(502, "MODEL_FAILED", "Grounded AI request failed");
       this.recordFailure(requestId, session, startedAt, mapped.code);

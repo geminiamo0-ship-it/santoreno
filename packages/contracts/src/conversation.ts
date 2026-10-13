@@ -86,3 +86,84 @@ export const ConversationInternalReadSchema = z
 
 export const ConversationDeleteResponseSchema = z.object({ deleted: z.literal(true) }).strict();
 export type ConversationDeleteResponse = z.infer<typeof ConversationDeleteResponseSchema>;
+
+/** Client-facing grounded follow-up request; tenant identity and response are never client-supplied. */
+export const ConversationAskRequestSchema = z
+  .object({
+    idempotencyKey: ConversationIdempotencyKeySchema,
+    expectedSequence: z.number().int().nonnegative().max(200),
+    text: ConversationTextSchema,
+    libraryId: z
+      .string()
+      .regex(/^[a-z0-9][a-z0-9_-]{0,63}$/)
+      .optional(),
+  })
+  .strict();
+export type ConversationAskRequest = z.infer<typeof ConversationAskRequestSchema>;
+
+export const ConversationTurnStatusSchema = z.enum(["pending", "completed", "retryable"]);
+export const ConversationTurnSchema = z
+  .object({
+    messageId: z.string().uuid(),
+    sequence: z.number().int().nonnegative(),
+    question: ConversationTextSchema,
+    libraryId: z.string().nullable(),
+    status: ConversationTurnStatusSchema,
+    response: z
+      .object({
+        requestId: z.string().uuid(),
+        messageId: z.string().uuid(),
+        answer: z.string().min(1),
+        citations: z
+          .array(
+            z.object({
+              sourceId: z.string().min(1),
+              title: z.string().min(1),
+              page: z.number().int().positive().nullable(),
+            }),
+          )
+          .min(1)
+          .max(5),
+        usage: z.object({ unitsCharged: z.literal(1), remaining: z.number().int().nonnegative() }),
+      })
+      .nullable(),
+  })
+  .strict();
+export type ConversationTurn = z.infer<typeof ConversationTurnSchema>;
+
+export const ConversationBeginTurnSchema = ConversationAskRequestSchema.extend({
+  actor: ConversationActorSchema,
+  conversationId: ConversationIdSchema,
+}).strict();
+
+export const ConversationBeginTurnResponseSchema = z
+  .object({
+    state: z.enum(["started", "completed"]),
+    attemptId: z.string().uuid().nullable(),
+    quotaEpoch: z.number().int().nonnegative(),
+    turn: ConversationTurnSchema,
+    context: z.string().max(1600),
+  })
+  .strict();
+export type ConversationBeginTurnResponse = z.infer<typeof ConversationBeginTurnResponseSchema>;
+
+export const ConversationFinishTurnSchema = z
+  .object({
+    actor: ConversationActorSchema,
+    conversationId: ConversationIdSchema,
+    idempotencyKey: ConversationIdempotencyKeySchema,
+    attemptId: z.string().uuid(),
+    response: ConversationTurnSchema.shape.response.unwrap(),
+  })
+  .strict();
+
+export const ConversationRetryTurnSchema = ConversationFinishTurnSchema.omit({
+  response: true,
+}).extend({
+  rotateQuotaKey: z.boolean().optional(),
+});
+export const ConversationTurnListResponseSchema = z
+  .object({
+    turns: z.array(ConversationTurnSchema).max(10),
+  })
+  .strict();

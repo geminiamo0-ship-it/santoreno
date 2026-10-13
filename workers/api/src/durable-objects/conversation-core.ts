@@ -72,7 +72,8 @@ export class ConversationStateError extends Error {
       | "CONVERSATION_ID_MISMATCH"
       | "CONVERSATION_IDEMPOTENCY_CONFLICT"
       | "CONVERSATION_SEQUENCE_CONFLICT"
-      | "CONVERSATION_LIMIT_REACHED",
+      | "CONVERSATION_LIMIT_REACHED"
+      | "CONVERSATION_TURN_BUSY",
   ) {
     super(code);
     this.name = "ConversationStateError";
@@ -193,6 +194,11 @@ export class ConversationStateCore {
           replayed: true,
         });
       }
+      const activeTurn = first<{ idempotency_key: string }>(
+        sql,
+        "SELECT idempotency_key FROM conversation_turns WHERE status = 'pending' LIMIT 1",
+      );
+      if (activeTurn) throw new ConversationStateError(409, "CONVERSATION_TURN_BUSY");
       const sequence = nextSequence(sql);
       if (sequence !== request.expectedSequence) {
         throw new ConversationStateError(409, "CONVERSATION_SEQUENCE_CONFLICT");
@@ -253,6 +259,7 @@ export class ConversationStateCore {
     return this.storage.transactionSync(() => {
       const sql = this.storage.sql;
       requireConversation(sql, request.actor, request.conversationId);
+      sql.exec("DELETE FROM conversation_turns");
       sql.exec("DELETE FROM conversation_messages");
       sql.exec("DELETE FROM conversation_meta WHERE singleton = 1");
       return ConversationDeleteResponseSchema.parse({ deleted: true });

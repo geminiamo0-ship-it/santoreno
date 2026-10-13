@@ -480,7 +480,6 @@ async function verifyP8Sources(
   }
 }
 
-
 async function verifyP9GroundedFollowups(workerUrl, smokeToken, secret, tenantId) {
   const userId = "p9-grounded-followup-user";
   const setup = await request(workerUrl, "/__infra/p33-global-search-acceptance/setup", {
@@ -495,27 +494,38 @@ async function verifyP9GroundedFollowups(workerUrl, smokeToken, secret, tenantId
   const id = crypto.randomUUID();
   const base = `/v1/conversations/${id}`;
   const initial = await request(workerUrl, "/v1/conversations", {
-    method: "POST", authorization,
+    method: "POST",
+    authorization,
     body: { conversationId: id, idempotencyKey: "p9-create", title: "P9 verified follow-up" },
   });
   expect(initial.status === 201, "P9 create failed");
   try {
     const question = SHARED_FILTER_QUERY;
     const firstInput = {
-      idempotencyKey: "p9-first", expectedSequence: 0,
-      text: question, libraryId: MRCP_INSTANCE_ID,
+      idempotencyKey: "p9-first",
+      expectedSequence: 0,
+      text: question,
+      libraryId: MRCP_INSTANCE_ID,
     };
     const first = await request(workerUrl, base + "/ask", {
-      method: "POST", authorization, body: firstInput,
+      method: "POST",
+      authorization,
+      body: firstInput,
     });
     expectSuccessfulAnswer(first, "23", [MRCP_INSTANCE_ID], 3);
     const replay = await request(workerUrl, base + "/ask", {
-      method: "POST", authorization, body: firstInput,
+      method: "POST",
+      authorization,
+      body: firstInput,
     });
-    expect(replay.status === 200 && JSON.stringify(replay.body) === JSON.stringify(first.body),
-      "P9 completed retry changed answer or repeated work");
+    expect(
+      replay.status === 200 && JSON.stringify(replay.body) === JSON.stringify(first.body),
+      "P9 completed retry changed answer or repeated work",
+    );
     const conflicting = await request(workerUrl, base + "/ask", {
-      method: "POST", authorization, body: { ...firstInput, text: "Changed query" },
+      method: "POST",
+      authorization,
+      body: { ...firstInput, text: "Changed query" },
     });
     expect(conflicting.status === 409, "P9 changed-key-content was not rejected");
 
@@ -525,13 +535,18 @@ async function verifyP9GroundedFollowups(workerUrl, smokeToken, secret, tenantId
     expect(outsiders.status === 404, "P9 another user accessed verified answer");
 
     const firstRead = await request(workerUrl, base + "/turns", { authorization });
-    expect(firstRead.status === 200 && firstRead.body?.turns?.length === 1,
-      "P9 first persisted turn is missing");
-    expect(firstRead.body.turns[0]?.response?.messageId === first.body?.messageId,
-      "P9 persisted response message ID drift");
+    expect(
+      firstRead.status === 200 && firstRead.body?.turns?.length === 1,
+      "P9 first persisted turn is missing",
+    );
+    expect(
+      firstRead.body.turns[0]?.response?.messageId === first.body?.messageId,
+      "P9 persisted response message ID drift",
+    );
 
     const followupInput = {
-      idempotencyKey: "p9-followup", expectedSequence: 1,
+      idempotencyKey: "p9-followup",
+      expectedSequence: 1,
       text: SHARED_FILTER_QUERY + " Explain the context in a follow-up.",
       libraryId: MRCP_INSTANCE_ID,
     };
@@ -540,58 +555,99 @@ async function verifyP9GroundedFollowups(workerUrl, smokeToken, secret, tenantId
       headers: { authorization, "content-type": "application/json", accept: "text/event-stream" },
       body: JSON.stringify(followupInput),
     });
-    expect(stream.status === 200 && stream.headers.get("content-type")?.includes("text/event-stream"),
-      "P9 verified SSE failed");
-    const frames = (await stream.text()).trim().split("\n\n").map((part) => {
-      const line = part.split("\n").find((v) => v.startsWith("data: "));
-      expect(Boolean(line), "P9 invalid SSE frame");
-      return JSON.parse(line.slice(6));
-    });
+    expect(
+      stream.status === 200 && stream.headers.get("content-type")?.includes("text/event-stream"),
+      "P9 verified SSE failed",
+    );
+    const frames = (await stream.text())
+      .trim()
+      .split("\n\n")
+      .map((part) => {
+        const line = part.split("\n").find((v) => v.startsWith("data: "));
+        expect(Boolean(line), "P9 invalid SSE frame");
+        return JSON.parse(line.slice(6));
+      });
     expect(frames.at(-1)?.type === "complete", "P9 SSE emitted no complete frame");
     const completed = frames.at(-1).response;
     expectSuccessfulAnswer({ status: stream.status, body: completed }, "23", [MRCP_INSTANCE_ID], 2);
-    expect(frames.slice(0,-1).map((x) => x.text).join("") === completed.answer,
-      "P9 buffered SSE content mismatch");
+    expect(
+      frames
+        .slice(0, -1)
+        .map((x) => x.text)
+        .join("") === completed.answer,
+      "P9 buffered SSE content mismatch",
+    );
     const secondReplay = await request(workerUrl, base + "/ask", {
-      method: "POST", authorization, body: followupInput,
+      method: "POST",
+      authorization,
+      body: followupInput,
     });
-    expect(secondReplay.status === 200 && secondReplay.body?.messageId === completed.messageId,
-      "P9 SSE retry repeated a billed generation");
+    expect(
+      secondReplay.status === 200 && secondReplay.body?.messageId === completed.messageId,
+      "P9 SSE retry repeated a billed generation",
+    );
     const turns = await request(workerUrl, base + "/turns", { authorization });
-    expect(turns.status === 200 && turns.body?.turns?.length === 2, "P9 follow-up history incomplete");
-    expect(turns.body.turns.every((x) => x.status === "completed" && x.response?.citations?.length),
-      "P9 saved unverified assistant turn");
+    expect(
+      turns.status === 200 && turns.body?.turns?.length === 2,
+      "P9 follow-up history incomplete",
+    );
+    expect(
+      turns.body.turns.every((x) => x.status === "completed" && x.response?.citations?.length),
+      "P9 saved unverified assistant turn",
+    );
 
     const sourceId = first.body.citations[0].sourceId;
     const source = await request(workerUrl, "/v1/sources/detail", {
-      method: "POST", authorization, body: { messageId: first.body.messageId, sourceId },
+      method: "POST",
+      authorization,
+      body: { messageId: first.body.messageId, sourceId },
     });
-    expect(source.status === 200 && source.body?.source?.sourceId === sourceId,
-      "P9 saved source provenance could not be resolved");
+    expect(
+      source.status === 200 && source.body?.source?.sourceId === sourceId,
+      "P9 saved source provenance could not be resolved",
+    );
 
     const invalid = await request(workerUrl, base + "/ask", {
-      method: "POST", authorization,
-      body: { idempotencyKey: "p9-invalid", expectedSequence: 2,
-        text: question, libraryId: INVALID_INSTANCE_ID },
+      method: "POST",
+      authorization,
+      body: {
+        idempotencyKey: "p9-invalid",
+        expectedSequence: 2,
+        text: question,
+        libraryId: INVALID_INSTANCE_ID,
+      },
     });
-    expect(invalid.status === 400 && invalid.body?.error === "INVALID_LIBRARY_FILTER",
-      "P9 invalid library did not fail closed");
+    expect(
+      invalid.status === 400 && invalid.body?.error === "INVALID_LIBRARY_FILTER",
+      "P9 invalid library did not fail closed",
+    );
     const afterFailure = await request(workerUrl, base + "/turns", { authorization });
-    expect(afterFailure.body.turns.at(-1)?.status === "retryable",
-      "P9 model failure did not preserve retryable turn");
+    expect(
+      afterFailure.body.turns.at(-1)?.status === "retryable",
+      "P9 model failure did not preserve retryable turn",
+    );
 
     const originalRetry = await request(workerUrl, base + "/ask", {
-      method: "POST", authorization,
-      body: { idempotencyKey: "p9-invalid", expectedSequence: 2,
-        text: question, libraryId: INVALID_INSTANCE_ID },
+      method: "POST",
+      authorization,
+      body: {
+        idempotencyKey: "p9-invalid",
+        expectedSequence: 2,
+        text: question,
+        libraryId: INVALID_INSTANCE_ID,
+      },
     });
-    expect(originalRetry.status === 400 && originalRetry.body?.error === "INVALID_LIBRARY_FILTER",
-      "P9 released quota could not be safely retried");
+    expect(
+      originalRetry.status === 400 && originalRetry.body?.error === "INVALID_LIBRARY_FILTER",
+      "P9 released quota could not be safely retried",
+    );
     console.log("P9 live grounded followups, cached replay, quota, citations and SSE passed.");
   } finally {
     const removed = await request(workerUrl, base, { method: "DELETE", authorization });
-    expect(removed.status === 200 && removed.body?.deleted === true,
-      "P9 conversation fixture cleanup failed");
+    expect(
+      removed.status === 200 && removed.body?.deleted === true,
+      "P9 conversation fixture cleanup failed",
+    );
   }
 }
 

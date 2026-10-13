@@ -142,7 +142,9 @@ export class SantoConversationClient {
 
   private async request(path: string, init: RequestInit = {}, retryAuth = true): Promise<Response> {
     const token = await this.options.sessionProvider();
-    if (!token || /\s/.test(token)) throw new SantoWidgetApiError(401, "SESSION_REQUIRED");
+    if (!token || /\s/.test(token) || token.startsWith("santo_sk_")) {
+      throw new SantoWidgetApiError(401, "SESSION_REQUIRED");
+    }
     let response: Response;
     try {
       response = await this.fetcher(this.base + path, {

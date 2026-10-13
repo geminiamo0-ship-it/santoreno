@@ -196,7 +196,8 @@ export class ConversationStateCore {
       }
       const activeTurn = first<{ idempotency_key: string }>(
         sql,
-        "SELECT idempotency_key FROM conversation_turns WHERE status = 'pending' LIMIT 1",
+        "SELECT idempotency_key FROM conversation_turns WHERE status = 'pending' AND lease_until_ms > ? LIMIT 1",
+        this.nowMs(),
       );
       if (activeTurn) throw new ConversationStateError(409, "CONVERSATION_TURN_BUSY");
       const sequence = nextSequence(sql);
@@ -259,6 +260,7 @@ export class ConversationStateCore {
     return this.storage.transactionSync(() => {
       const sql = this.storage.sql;
       requireConversation(sql, request.actor, request.conversationId);
+      sql.exec("DELETE FROM conversation_context_summary");
       sql.exec("DELETE FROM conversation_turns");
       sql.exec("DELETE FROM conversation_messages");
       sql.exec("DELETE FROM conversation_meta WHERE singleton = 1");

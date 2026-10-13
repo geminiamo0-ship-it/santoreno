@@ -520,7 +520,10 @@ async function verifyP9GroundedFollowups(workerUrl, smokeToken, secret, tenantId
       libraryId: MRCP_INSTANCE_ID,
     };
     const first = await requestGroundedTurnWithRetry(
-      workerUrl, base + "/ask", authorization, firstInput,
+      workerUrl,
+      base + "/ask",
+      authorization,
+      firstInput,
     );
     expectSuccessfulAnswer(first, "23", [MRCP_INSTANCE_ID], 3);
     const replay = await request(workerUrl, base + "/ask", {

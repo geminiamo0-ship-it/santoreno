@@ -28,8 +28,12 @@ function harness(onRequest: (path: string, init: RequestInit) => Response | Prom
   const values = new Map<string, string>();
   const store: WidgetConversationStore = {
     getItem: (key) => values.get(key) ?? null,
-    setItem: (key, value) => { values.set(key, value); },
-    removeItem: (key) => { values.delete(key); },
+    setItem: (key, value) => {
+      values.set(key, value);
+    },
+    removeItem: (key) => {
+      values.delete(key);
+    },
   };
   const fetchImpl = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const path = String(input);
@@ -57,12 +61,15 @@ describe("Santo widget conversation transport", () => {
     const h = harness((path, init) => {
       if (path.endsWith("/v1/conversations")) {
         const request = JSON.parse(String(init.body)) as { conversationId: string };
-        return Response.json({
-          conversationId: request.conversationId,
-          title: null,
-          createdAt: READ.createdAt,
-          nextSequence: 0,
-        }, { status: 201 });
+        return Response.json(
+          {
+            conversationId: request.conversationId,
+            title: null,
+            createdAt: READ.createdAt,
+            nextSequence: 0,
+          },
+          { status: 201 },
+        );
       }
       if (path.endsWith("/ask")) {
         const request = JSON.parse(String(init.body)) as { idempotencyKey: string };
@@ -93,30 +100,40 @@ describe("Santo widget conversation transport", () => {
     expect(seenKeys).toHaveLength(2);
     expect(seenKeys[0]).toBe(seenKeys[1]);
     expect(new Set(seenKeys).size).toBe(1);
-    expect(h.requests.every((req) =>
-      (req.init.headers as Record<string, string>).Authorization === "Bearer user-session-token",
-    )).toBe(true);
+    expect(
+      h.requests.every(
+        (req) =>
+          (req.init.headers as Record<string, string>).Authorization ===
+          "Bearer user-session-token",
+      ),
+    ).toBe(true);
   });
 
   it("reconnects using persisted owner-scoped ID and reads verified turns", async () => {
     const h = harness((path) => {
-      if (path.endsWith("/turns")) return Response.json({
-        turns: [{
-          messageId: "44444444-4444-4444-8444-444444444444",
-          sequence: 0,
-          question: "What is sodium?",
-          libraryId: "mrcp",
-          status: "completed",
-          response: ANSWER,
-        }],
-      });
+      if (path.endsWith("/turns"))
+        return Response.json({
+          turns: [
+            {
+              messageId: "44444444-4444-4444-8444-444444444444",
+              sequence: 0,
+              question: "What is sodium?",
+              libraryId: "mrcp",
+              status: "completed",
+              response: ANSWER,
+            },
+          ],
+        });
       return Response.json(READ);
     });
-    h.store.setItem("santo:conversation:tenant:student", JSON.stringify({
-      conversationId: CONVERSATION,
-      createKey: "55555555-5555-4555-8555-555555555555",
-      pending: null,
-    }));
+    h.store.setItem(
+      "santo:conversation:tenant:student",
+      JSON.stringify({
+        conversationId: CONVERSATION,
+        createKey: "55555555-5555-4555-8555-555555555555",
+        pending: null,
+      }),
+    );
     const client = new SantoConversationClient(h.options);
     const turns = await client.connect();
     expect(client.conversationId).toBe(CONVERSATION);
@@ -130,12 +147,17 @@ describe("Santo widget conversation transport", () => {
   });
 
   it("rejects stale/forged persisted state rather than trusting unvalidated identities", async () => {
-    const h = harness(() => { throw Error("not called"); });
-    h.store.setItem("santo:conversation:tenant:student", JSON.stringify({
-      conversationId: "../other-tenant",
-      createKey: "fake",
-      pending: null,
-    }));
+    const h = harness(() => {
+      throw Error("not called");
+    });
+    h.store.setItem(
+      "santo:conversation:tenant:student",
+      JSON.stringify({
+        conversationId: "../other-tenant",
+        createKey: "fake",
+        pending: null,
+      }),
+    );
     const client = new SantoConversationClient(h.options);
     expect(await client.connect()).toEqual([]);
     expect(client.conversationId).toBeNull();
@@ -146,23 +168,32 @@ describe("Santo widget conversation transport", () => {
     const h = harness((path, init) => {
       if (path.endsWith("/v1/conversations")) {
         const id = (JSON.parse(String(init.body)) as { conversationId: string }).conversationId;
-        return Response.json({ conversationId: id, title: null, createdAt: READ.createdAt, nextSequence: 0 }, { status: 201 });
+        return Response.json(
+          { conversationId: id, title: null, createdAt: READ.createdAt, nextSequence: 0 },
+          { status: 201 },
+        );
       }
       return Response.json({ error: "QUOTA_FINALIZE_FAILED" }, { status: 503 });
     });
     const client = new SantoConversationClient(h.options);
     await expect(client.ask("Original question", null)).rejects.toBeInstanceOf(SantoWidgetApiError);
     await expect(client.ask("Changed question", null)).rejects.toMatchObject({
-      status: 409, code: "PENDING_TURN_REQUIRES_RETRY",
+      status: 409,
+      code: "PENDING_TURN_REQUIRES_RETRY",
     });
   });
 
   it("fails closed for non-image media and does not blindly render image URLs", async () => {
-    const h = harness(() => new Response("<svg />", {
-      status: 200, headers: { "content-type": "text/html" },
-    }));
+    const h = harness(
+      () =>
+        new Response("<svg />", {
+          status: 200,
+          headers: { "content-type": "text/html" },
+        }),
+    );
     const client = new SantoConversationClient(h.options);
-    await expect(client.sourceImage(ANSWER.messageId, "mrcp:chunk-1", "image-1"))
-      .rejects.toMatchObject({ code: "WIDGET_INVALID_IMAGE" });
+    await expect(
+      client.sourceImage(ANSWER.messageId, "mrcp:chunk-1", "image-1"),
+    ).rejects.toMatchObject({ code: "WIDGET_INVALID_IMAGE" });
   });
 });

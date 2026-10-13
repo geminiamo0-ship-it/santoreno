@@ -62,6 +62,22 @@ PR #42 was squash-merged as `29805bc85ac864e66b7cdc7cd787ac52c1749613`. Exact po
 
 Phase 7 is complete on tested acceptance criteria. **Current implementation target is Issue #43 — Phase 8 trusted sources, citation details and R2 images.** Do not jump ahead to ConversationDO, the full widget, or tenant portal.
 
+### Phase 8 source and R2 media progress — Issue #43
+
+- **PR #49 completed:** strict source, citation-detail, image and internal R2
+  manifest contracts with six security-focused regressions.
+- PR #49 final head `6d4ddf5bb927147f9869f7f22385a71ca614c350`
+  passed `Verify` **38414736636**; squash-merged
+  `05b75ba9384ece2250983994e92190a69cfadd9b`.
+- Exact post-merge `Verify` **38415599816** passed.
+- **PR #50 in progress:** private R2 snapshots of verified citations,
+  session-authorized source/image handlers, safe media manifests and image
+  delivery, deterministic security tests, and a new exact-head real staging
+  acceptance workflow. See `docs/TRUSTED_SOURCE_CONTRACT.md`.
+- **Not yet complete:** final-head `Verify`, live P8 staging acceptance,
+  complete evidence, merged status and post-merge `Verify`.
+  Do not advance to Phase 9 until Issue #43 is fully proven.
+
 ## 2. Read order before implementation
 
 1. `PROJECT_STATUS.md`
@@ -298,7 +314,7 @@ For every meaningful step:
 
 Continue **Issue #43 only — Phase 8 Trusted Sources, Citation Details and R2 Images**.
 
-Start by inspecting the normalized evidence/citation contracts from completed #33/#36, then define the smallest strictly validated source-detail and R2 media-mapping contract. No generated/model-provided arbitrary source URL may become authoritative. Add deterministic forged-source, missing-asset, library-filter and session/tenant regression tests before implementing the resolver, then run exact-head `Verify` and real staging acceptance on the same head.
+Continue draft PR #50. Validate source/asset authorization against message-scoped server-verified R2 snapshots and canonical media manifests. No generated/model-provided arbitrary source URL may become authoritative. Add deterministic forged-source, missing-asset, library-filter and session/tenant regression tests before implementing the resolver, then run exact-head `Verify` and real staging acceptance on the same head.
 
 For each meaningful change: implement → test → exact-head `Verify` → required staging gate → issue checklist/evidence → handoff and roadmap updates → merge → post-merge `Verify`. Do not work on ConversationDO, the full Lit widget or the full tenant portal before this phase is verified.
 

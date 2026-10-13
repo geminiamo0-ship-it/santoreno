@@ -83,3 +83,6 @@ export const ConversationInternalReadSchema = z
     conversationId: ConversationIdSchema,
   })
   .strict();
+
+export const ConversationDeleteResponseSchema = z.object({ deleted: z.literal(true) }).strict();
+export type ConversationDeleteResponse = z.infer<typeof ConversationDeleteResponseSchema>;

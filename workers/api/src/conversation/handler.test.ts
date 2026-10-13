@@ -135,10 +135,7 @@ describe("authenticated conversation handler", () => {
     expect(createResponse.status).toBe(201);
     expect(createResponse.headers.get("cache-control")).toBe("no-store");
 
-    const read = await handler()(
-      request(`/v1/conversations/${CONVERSATION_ID}`, "GET"),
-      env,
-    );
+    const read = await handler()(request(`/v1/conversations/${CONVERSATION_ID}`, "GET"), env);
     expect(read.status).toBe(200);
     const append = await handler()(
       request(`/v1/conversations/${CONVERSATION_ID}/messages`, "POST", {
@@ -158,10 +155,15 @@ describe("authenticated conversation handler", () => {
 
   it("rejects an invalid session before any Durable Object operation", async () => {
     const response = await handler()(
-      request("/v1/conversations", "POST", {
-        conversationId: CONVERSATION_ID,
-        idempotencyKey: "key",
-      }, "tampered"),
+      request(
+        "/v1/conversations",
+        "POST",
+        {
+          conversationId: CONVERSATION_ID,
+          idempotencyKey: "key",
+        },
+        "tampered",
+      ),
       env,
     );
     expect(response.status).toBe(401);
@@ -170,10 +172,7 @@ describe("authenticated conversation handler", () => {
 
   it("blocks a suspended tenant before reading conversations", async () => {
     suspended = true;
-    const response = await handler()(
-      request(`/v1/conversations/${CONVERSATION_ID}`, "GET"),
-      env,
-    );
+    const response = await handler()(request(`/v1/conversations/${CONVERSATION_ID}`, "GET"), env);
     expect(response.status).toBe(403);
     expect(calls).not.toHaveBeenCalled();
   });

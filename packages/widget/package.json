@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@santo/contracts": "workspace:*",
     "lit": "3.3.3"
   },
   "devDependencies": {

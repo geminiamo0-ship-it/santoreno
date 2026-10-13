@@ -140,7 +140,7 @@ export const ConversationBeginTurnResponseSchema = z
   .object({
     state: z.enum(["started", "completed"]),
     attemptId: z.string().uuid().nullable(),
-  quotaEpoch: z.number().int().nonnegative(),
+    quotaEpoch: z.number().int().nonnegative(),
     turn: ConversationTurnSchema,
     context: z.string().max(1600),
   })
@@ -157,7 +157,9 @@ export const ConversationFinishTurnSchema = z
   })
   .strict();
 
-export const ConversationRetryTurnSchema = ConversationFinishTurnSchema.omit({ response: true }).extend({
+export const ConversationRetryTurnSchema = ConversationFinishTurnSchema.omit({
+  response: true,
+}).extend({
   rotateQuotaKey: z.boolean().optional(),
 });
 export const ConversationTurnListResponseSchema = z

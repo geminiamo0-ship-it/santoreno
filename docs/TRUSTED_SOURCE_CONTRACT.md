@@ -1,57 +1,100 @@
-# Phase 8 — Trusted source and medical image contract
+# Phase 8 — Trusted source and R2 media contract
 
-> Status: first contract slice in PR #49; **not** an implemented source resolver
-> or public API. The full Issue #43 acceptance and live R2 staging gate remain open.
+> Status: Phase 8 Issue #43. PR #49 delivered shared contracts. PR #50 adds the
+> authenticated resolver and its live acceptance gate. Phase 8 is not complete
+> until the staging gate and post-merge verification are both green.
 
-## Authority and lookup
+## Provenance and identity
 
-- A source belongs to a verified AI Search result: `sourceId = instanceId:chunkId`.
-- `libraryId` is a validated global retrieval filter, **never** tenant authorization.
-- `instanceId`, `itemKey`, title, page, and section must be taken from server-verified
-  retrieval/catalog metadata, not model output or user-provided JSON.
-- A future source-detail request includes `messageId` and `sourceId` only.
-  The API must authenticate a Santo end-user session, look up the cited message
-  within that session's tenant/user scope, verify that it cited this exact
-  `sourceId`, and then resolve canonical metadata. The schemas alone do not
-  perform authorization; a bare matching `sourceId` is never sufficient.
-- If the source is missing, ambiguous, forged, outside the selected library,
-  or absent from the authenticated message's verified citation set, fail closed.
+- Source metadata is copied **only** from an actually retrieved AI Search
+  evidence record after the model's citation IDs are server-validated.
+- A trusted source is identified by `sourceId = instanceId:chunkId` and retains
+  `libraryId`, `instanceId`, `itemKey`, title, page and section.
+- A global `libraryId` remains a retrieval filter, not tenant authorization.
+- Unknown citations, ambiguous IDs, mismatched instances and invalid metadata
+  fail closed. Browser input and model-provided URLs are never authoritative.
+- `@santo/contracts/source` is the shared Zod contract for source detail,
+  private snapshots, media manifests and client-safe image metadata.
 
-## Shared Zod contracts
+## Snapshot lifecycle and authorization
 
-All contracts live in `@santo/contracts/source`:
+A successful grounded query saves at most five **verified citation metadata**
+records to private R2 **before** finalizing quota. Failed writes return
+`SOURCE_SNAPSHOT_FAILED` and release a newly reserved quota unit. Orphaned
+snapshots from later finalize failures are not disclosed to clients.
 
-- `TrustedSourceIdSchema`: verified AI Search instance/chunk identity
-- `TrustedSourceMetadataSchema`: canonical library, instance, item, page and section
-- `TrustedSourceDetailRequestSchema`: message-scoped lookup; no tenant override
-- `TrustedSourceImageSchema`: browser-safe image metadata; no URL or object key
-- `TrustedSourceDetailResponseSchema`: source plus at most 50 mapped images
-- `TrustedSourceMediaManifestEntrySchema`: internal mapping to a safe R2 object key
+Snapshots are stored as private JSON at:
 
-The schemas reject arbitrary extra fields and explicitly reject direct URLs in
-client-facing image metadata. Image dimensions and content types are bounded.
+```text
+verified-messages/v1/<sha256(tenantId + NUL + externalUserId)>/<messageId>.json
+```
 
-## R2 access rules for the future resolver
+No prompt text, model output, server secret or R2 credential is stored there.
+The resolver checks the authenticated Santo session against the exact tenant
+and external-user identity, message ID and cited source ID. Snapshots expire
+**logically** 30 days after creation; configure an R2 lifecycle expiration
+rule (and audit it in staging/production) to **physically remove** old
+`verified-messages/v1/` objects. No claim of automatic physical deletion
+is made by this code alone.
 
-- The R2 `objectKey` is only ever obtained from a trusted manifest record.
-  Do not build it by concatenating `itemKey`, `sourceId`, a URL, or user input.
-- Store only under the canonical `source-media/` namespace. No path traversal,
-  percent-encoded traversal, absolute paths or external URLs.
-- Check exact source/library/instance/item/asset identity when joining manifest
-  entries to verified citations. Duplicate or mismatched mappings fail closed.
-- End-user APIs must never expose internal R2 keys or storage credentials.
-  Any media delivery endpoint must authenticate and revalidate access before
-  streaming an allowlisted image MIME type with safe response headers.
-- Missing media is an explicit, non-sensitive not-found result; never substitute
-  an arbitrary image URL.
-- The later widget must consume this contract without direct R2 access.
+The source lookup is deliberately independent from Phase 9
+`ConversationDO`. The future conversation implementation must not use
+client-supplied source IDs as authority or duplicate verified source records.
 
-## Testing and acceptance still required
+## Authenticated API
 
-The contract regressions cover forged IDs, mismatched search instances,
-client-side URL injection, path traversal, invalid image MIME types, and unwanted
-tenant selector fields. This is **not** proof of source authorization or R2 access.
+`POST /v1/sources/detail` accepts only:
 
-Issue #43 additionally requires a resolver, authenticated endpoints, actual R2
-fixtures, tenant/session isolation and retry tests, live staging acceptance on
-the same final commit as `Verify`, then post-merge `Verify`.
+```json
+{"messageId":"<uuid>","sourceId":"<verified instance:chunk>"}
+```
+
+The response is a strictly validated source object plus an array of safe
+image metadata (`assetId`, `altText`, `caption`, `contentType`,
+`width`, `height`). Neither arbitrary URL nor R2 object key is exposed.
+
+`GET /v1/sources/:messageId/:sourceId/images/:assetId` requires the same
+Santo Bearer token and authorization checks. The widget should use
+authenticated `fetch` and a short-lived object URL to render the returned
+blob, not a bare `<img src>` request lacking Authorization.
+
+Media responses are allowlisted to PNG/JPEG/WebP/AVIF, signature-checked,
+limited to 15 MiB, marked `nosniff`, and served with `private, no-store`.
+Unknown images, forged citations and missing R2 objects fail closed.
+
+## Canonical source manifest
+
+Curated image mappings live in the **private** R2 bucket at:
+
+```text
+source-manifests/v1/<sha256(libraryId + NUL + instanceId + NUL + itemKey)>.json
+```
+
+The manifest is a JSON array of
+`TrustedSourceMediaManifestEntrySchema` objects (up to 50 entries per
+document). Every entry includes the exact trusted `sourceId`,
+`libraryId`, `instanceId`, `itemKey`, `assetId`, safe R2 `objectKey`,
+allowlisted MIME type, alt text, caption and dimensions.
+
+Images live under `source-media/`. Manifest object keys cannot contain
+traversal sequences or arbitrary URLs. The resolver rejects contradictory
+source mappings and duplicate asset IDs, and never constructs the image key
+from browser input.
+
+Missing manifests return an empty image list. Missing, invalid, oversized
+or incorrectly typed mapped media is unavailable without a fallback to an
+untrusted URL.
+
+## Acceptance evidence required
+
+- Deterministic tests must cover forged source IDs, source ambiguity,
+  invalid manifests, missing assets, bytes masquerading as an image, auth
+  expiry, cross-tenant/user access, unauthorized media, and no-double-charge
+  / failed-persistence behavior.
+- GitHub `Verify` must pass on the **exact** final PR head.
+- `P8 Trusted Sources Staging Acceptance` must pass on that same head
+  against WorkOS, real AI Search, Workers AI and real R2 fixture objects.
+- Run-scoped staging fixtures must be cleaned up. Exact post-merge `Verify`
+  must then pass before closing Issue #43.
+
+Neither a unit-test pass nor source code alone proves live acceptance.

@@ -80,7 +80,8 @@ export class ConversationAskService {
       // If completion actually committed but its response was lost, replaying begin
       // returns the immutable completed answer and does not call AI again.
       const uncertain = error instanceof ConversationServiceError &&
-        (error.code === "QUOTA_FINALIZE_FAILED" || error.code === "QUOTA_RELEASE_FAILED");
+        (error.code === "QUOTA_FINALIZE_FAILED" || error.code === "QUOTA_RELEASE_FAILED" ||
+          error.code === "CHARGED_GENERATION_RETRY_FAILED");
       await this.conversations
         .failTurn(actor, conversationId, body.idempotencyKey, attemptId, !verified && !uncertain)
         .catch(() => undefined);

@@ -1,14 +1,13 @@
 import {
   TrustedSourceMediaManifestEntrySchema,
-  TrustedSourceMetadataSchema,
   VerifiedSourceSnapshotSchema as VerifiedSnapshotSchema,
   type TrustedSourceMediaManifestEntry,
   type TrustedSourceMetadata,
   type VerifiedSourceSnapshot as VerifiedSnapshot,
 } from "@santo/contracts/source";
+
 import type { R2BucketLike } from "../runtime/bindings";
 
-const MAX_SOURCES = 5;
 const MAX_IMAGES = 50;
 const SNAPSHOT_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 

@@ -1,6 +1,7 @@
 import {
   ConversationAppendResponseSchema,
   ConversationCreateResponseSchema,
+  ConversationDeleteResponseSchema,
   ConversationInternalAppendSchema,
   ConversationInternalCreateSchema,
   ConversationInternalReadSchema,
@@ -8,6 +9,7 @@ import {
   type ConversationActor,
   type ConversationAppendResponse,
   type ConversationCreateResponse,
+  type ConversationDeleteResponse,
   type ConversationMessage,
   type ConversationReadResponse,
 } from "@santo/contracts/conversation";
@@ -88,7 +90,7 @@ function requireConversation(
     throw new ConversationStateError(409, "CONVERSATION_ID_MISMATCH");
   }
   if (row.tenant_id !== actor.tenantId || row.external_user_id !== actor.externalUserId) {
-    throw new ConversationStateError(403, "CONVERSATION_OWNER_MISMATCH");
+    throw new ConversationStateError(404, "CONVERSATION_NOT_FOUND");
   }
   return row;
 }
@@ -246,4 +248,15 @@ export class ConversationStateCore {
       totalMessages: next,
     });
   }
+  delete(input: unknown): ConversationDeleteResponse {
+    const request = ConversationInternalReadSchema.parse(input);
+    return this.storage.transactionSync(() => {
+      const sql = this.storage.sql;
+      requireConversation(sql, request.actor, request.conversationId);
+      sql.exec("DELETE FROM conversation_messages");
+      sql.exec("DELETE FROM conversation_meta WHERE singleton = 1");
+      return ConversationDeleteResponseSchema.parse({ deleted: true });
+    });
+  }
+
 }

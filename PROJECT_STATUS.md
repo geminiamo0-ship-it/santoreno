@@ -408,6 +408,18 @@ For every meaningful step:
 
 ## 9. Next action
 
+**Royal Bank Pilot staging checkpoint — 2026-10-14:**
+
+- Royal Bank WorkOS Staging organization created; designated AuthKit owner accepted the invitation.
+- PR #65 fixes Super Admin + explicitly owned tenant access, with matching WorkOS org and D1 owner membership.
+- PR #65 merged as `9cba22c85b29ece0a063fe1be72ec5a7b92e2208`; post-merge Verify `38474767800` passed.
+- PR #66 merged as `ff13751fb82c796bfc1efab7c3c3a4b12e0b5907`; post-merge Verify `38475058909` passed.
+- **Staging Worker deployed and healthy:** Pilot Staging Worker Deploy `38475058919` SUCCESS.
+- Royal Bank Vercel has server-only Santo API origin and default quota configured.
+- **NOT DONE:** Santo tenant creation, tenant quota bootstrap, credential issue, Vercel Santo server key, Vercel BLOCKED release, real Royal browser acceptance, licensed corpus ingestion.
+- Issue #58 has exact operational evidence in the Royal Bank staging checkpoint comment.
+
+
 **Active: Issue #58 Phase 10 Pilot acceptance; code implementation is merged,
 real host acceptance still pending.**
 

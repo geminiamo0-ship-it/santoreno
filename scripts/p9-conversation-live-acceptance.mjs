@@ -101,7 +101,10 @@ async function verify() {
       authorization,
       body: create,
     });
-    expect(replay.status === 201 && replay.body?.createdAt === first.body?.createdAt, "Create replay failed");
+    expect(
+      replay.status === 201 && replay.body?.createdAt === first.body?.createdAt,
+      "Create replay failed",
+    );
     const conflict = await request(workerUrl, "/v1/conversations", {
       method: "POST",
       authorization,
@@ -143,10 +146,14 @@ async function verify() {
         }),
       ),
     );
-    const winners = raced.map((entry, index) => ({ ...entry, index })).filter((entry) => entry.status === 200);
+    const winners = raced
+      .map((entry, index) => ({ ...entry, index }))
+      .filter((entry) => entry.status === 200);
     const conflicts = raced.filter((entry) => entry.status === 409);
-    expect(winners.length === 1 && conflicts.length === attempts - 1,
-      `Expected 1 success / 99 conflicts, got ${winners.length} / ${conflicts.length}; statuses: ${JSON.stringify(raced.reduce((acc, r) => ({ ...acc, [r.status]: (acc[r.status] ?? 0) + 1 }), {}))}`);
+    expect(
+      winners.length === 1 && conflicts.length === attempts - 1,
+      `Expected 1 success / 99 conflicts, got ${winners.length} / ${conflicts.length}; statuses: ${JSON.stringify(raced.reduce((acc, r) => ({ ...acc, [r.status]: (acc[r.status] ?? 0) + 1 }), {}))}`,
+    );
 
     const winner = winners[0];
     expect(winner.body?.message?.sequence === 0, "First message sequence mismatch");
@@ -160,7 +167,10 @@ async function verify() {
       },
     });
     expect(retry.status === 200 && retry.body?.replayed === true, "Append retry was not replayed");
-    expect(retry.body?.message?.messageId === winner.body?.message?.messageId, "Retry generated a new message");
+    expect(
+      retry.body?.message?.messageId === winner.body?.message?.messageId,
+      "Retry generated a new message",
+    );
     const conflictingReplay = await request(workerUrl, `${conversationPath}/messages`, {
       method: "POST",
       authorization,
@@ -177,34 +187,55 @@ async function verify() {
       authorization,
       body: { idempotencyKey: "p9-next-turn", expectedSequence: 1, text: "Synthetic follow-up" },
     });
-    expect(next.status === 200 && next.body?.message?.sequence === 1, "Second ordered append failed");
+    expect(
+      next.status === 200 && next.body?.message?.sequence === 1,
+      "Second ordered append failed",
+    );
     const read = await request(workerUrl, conversationPath, { authorization });
-    expect(read.status === 200 && read.body?.totalMessages === 2, "Durable state did not survive calls");
-    expect(read.body.messages.map((message) => message.sequence).join(",") === "0,1", "Message ordering is incorrect");
+    expect(
+      read.status === 200 && read.body?.totalMessages === 2,
+      "Durable state did not survive calls",
+    );
+    expect(
+      read.body.messages.map((message) => message.sequence).join(",") === "0,1",
+      "Message ordering is incorrect",
+    );
 
     for (const other of [otherUser, otherTenant]) {
-      const deletion = await request(workerUrl, conversationPath, { method: "DELETE", authorization: other });
+      const deletion = await request(workerUrl, conversationPath, {
+        method: "DELETE",
+        authorization: other,
+      });
       expect(deletion.status === 404, "Another identity was allowed to erase a conversation");
     }
     if (process.env.GITHUB_STEP_SUMMARY) {
-      await appendFile(process.env.GITHUB_STEP_SUMMARY, [
-        "### Phase 9 real ConversationDO acceptance",
-        "",
-        "- Real WorkOS-backed tenant/session exchange: passed",
-        "- 100 overlapping writes: 1 success and 99 sequence conflicts",
-        "- Stable idempotent replay and conflicting replay denial: passed",
-        "- Cross-tenant and cross-user read/create/delete denial: passed",
-        "- SQLite read ordering and strict request authority: passed",
-        "- Authenticated owner deletion and cleanup: verified in finally",
-        "",
-      ].join("\n"), "utf8");
+      await appendFile(
+        process.env.GITHUB_STEP_SUMMARY,
+        [
+          "### Phase 9 real ConversationDO acceptance",
+          "",
+          "- Real WorkOS-backed tenant/session exchange: passed",
+          "- 100 overlapping writes: 1 success and 99 sequence conflicts",
+          "- Stable idempotent replay and conflicting replay denial: passed",
+          "- Cross-tenant and cross-user read/create/delete denial: passed",
+          "- SQLite read ordering and strict request authority: passed",
+          "- Authenticated owner deletion and cleanup: verified in finally",
+          "",
+        ].join("\n"),
+        "utf8",
+      );
     }
     console.log("P9 conversation state acceptance passed.");
   } finally {
     if (created) {
-      const removed = await request(workerUrl, conversationPath, { method: "DELETE", authorization });
-      expect(removed.status === 200 && removed.body?.deleted === true,
-        `Owner fixture cleanup failed: ${removed.status}`);
+      const removed = await request(workerUrl, conversationPath, {
+        method: "DELETE",
+        authorization,
+      });
+      expect(
+        removed.status === 200 && removed.body?.deleted === true,
+        `Owner fixture cleanup failed: ${removed.status}`,
+      );
       const missing = await request(workerUrl, conversationPath, { authorization });
       expect(missing.status === 404, "Deleted conversation is still readable");
     }

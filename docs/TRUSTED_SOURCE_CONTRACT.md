@@ -21,14 +21,12 @@
 
 All contracts live in `@santo/contracts/source`:
 
-| Schema | Responsibility |
-| --- | --- |
-| `TrustedSourceIdSchema` | Opaque verified AI Search instance/chunk identity |
-| `TrustedSourceMetadataSchema` | Canonical source, library, instance, item, page and section |
-| `TrustedSourceDetailRequestSchema` | Message-scoped lookup fields; no tenant override |
-| `TrustedSourceImageSchema` | Browser-safe image metadata; no URL, object key or credentials |
-| `TrustedSourceDetailResponseSchema` | Source metadata plus at most 50 mapped images |
-| `TrustedSourceMediaManifestEntrySchema` | **Internal only** canonical mapping to a safe R2 object key |
+- `TrustedSourceIdSchema`: verified AI Search instance/chunk identity
+- `TrustedSourceMetadataSchema`: canonical library, instance, item, page and section
+- `TrustedSourceDetailRequestSchema`: message-scoped lookup; no tenant override
+- `TrustedSourceImageSchema`: browser-safe image metadata; no URL or object key
+- `TrustedSourceDetailResponseSchema`: source plus at most 50 mapped images
+- `TrustedSourceMediaManifestEntrySchema`: internal mapping to a safe R2 object key
 
 The schemas reject arbitrary extra fields and explicitly reject direct URLs in
 client-facing image metadata. Image dimensions and content types are bounded.

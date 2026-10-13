@@ -49,7 +49,7 @@ function conversationService(env: SantoBindings): ConversationService {
 function route(
   url: URL,
   method: string,
-): { operation: "create" } | { operation: "read" | "append"; conversationId: string } | null {
+): { operation: "create" } | { operation: "read" | "append" | "delete"; conversationId: string } | null {
   if (url.pathname === "/v1/conversations" && method === "POST") {
     return { operation: "create" };
   }
@@ -58,6 +58,7 @@ function route(
   const conversationId = match[1] ?? "";
   if (!ConversationIdSchema.safeParse(conversationId).success) return null;
   if (!match[2] && method === "GET") return { operation: "read", conversationId };
+  if (!match[2] && method === "DELETE") return { operation: "delete", conversationId };
   if (match[2] && method === "POST") return { operation: "append", conversationId };
   return null;
 }
@@ -100,6 +101,11 @@ export function createConversationHandler(deps: ConversationHandlerDependencies 
         );
         if (!parsed.success) return errorResponse("INVALID_CONVERSATION_REQUEST", 400);
         return Response.json(await client.append(actor, selected.conversationId, parsed.data), {
+          headers: { "Cache-Control": "no-store" },
+        });
+      }
+      if (selected.operation === "delete") {
+        return Response.json(await client.delete(actor, selected.conversationId), {
           headers: { "Cache-Control": "no-store" },
         });
       }

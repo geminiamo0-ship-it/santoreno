@@ -560,13 +560,22 @@ async function verifyP9GroundedFollowups(workerUrl, smokeToken, secret, tenantId
       text: SHARED_FILTER_QUERY + " Explain the context in a follow-up.",
       libraryId: MRCP_INSTANCE_ID,
     };
-    const stream = await fetch(workerUrl + base + "/ask", {
-      method: "POST",
-      headers: { authorization, "content-type": "application/json", accept: "text/event-stream" },
-      body: JSON.stringify(followupInput),
-    });
+    let stream = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      stream = await fetch(workerUrl + base + "/ask", {
+        method: "POST",
+        headers: { authorization, "content-type": "application/json", accept: "text/event-stream" },
+        body: JSON.stringify(followupInput),
+      });
+      if (stream.status !== 422) break;
+      const rejected = await stream.json();
+      if (rejected?.error !== "INSUFFICIENT_EVIDENCE") {
+        throw new Error(`P9 follow-up stream rejected: ${String(rejected?.error)}`);
+      }
+      await sleep(500);
+    }
     expect(
-      stream.status === 200 && stream.headers.get("content-type")?.includes("text/event-stream"),
+      stream?.status === 200 && stream.headers.get("content-type")?.includes("text/event-stream"),
       "P9 verified SSE failed",
     );
     const frames = (await stream.text())

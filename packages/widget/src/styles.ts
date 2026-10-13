@@ -256,7 +256,10 @@ export const widgetStyles = css`
     padding: 10px 0;
     line-height: 1.65;
   }
-  .answer-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+  .answer-text {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
   .citation-list {
     display: flex;
     flex-wrap: wrap;
@@ -271,7 +274,10 @@ export const widgetStyles = css`
     font-size: 12px;
     padding: 6px 10px;
   }
-  .pending-message { font-size: 12px; color: #796b5a; }
+  .pending-message {
+    font-size: 12px;
+    color: #796b5a;
+  }
   .source-details {
     position: relative;
     padding: 13px 16px;
@@ -281,8 +287,13 @@ export const widgetStyles = css`
     border-top: 1px solid #e6d5bd;
     font-size: 12px;
   }
-  .source-details strong { display: block; padding-right: 30px; }
-  .source-details p { margin: 5px 0 8px; }
+  .source-details strong {
+    display: block;
+    padding-right: 30px;
+  }
+  .source-details p {
+    margin: 5px 0 8px;
+  }
   .source-details img {
     max-height: 180px;
     max-width: 100%;
@@ -309,6 +320,8 @@ export const widgetStyles = css`
     border-radius: 9px;
     font-weight: 650;
   }
-  .composer .send:disabled { cursor: not-allowed; opacity: 0.45; }
-
+  .composer .send:disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
+  }
 `;

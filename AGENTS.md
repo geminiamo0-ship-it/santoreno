@@ -22,13 +22,24 @@ Phase 9's final PR #57 passed exact-head `Verify 38445457126` and real
 `17e032e3935cad4f6ec290ee770e3baaf09f6540` with post-merge
 `Verify 38446592614` success.
 
-**Active implementation issue: #58 — Phase 10 Santo embeddable Lit Widget.**
+**Active implementation issue: #58 — Phase 10 Pilot website acceptance.**
 
-Read Issue #8, Issue #58, the completed Issue #52, `PROJECT_STATUS.md`
-and the master plan before code. Do not repeat the completed AI, quota,
-conversation or source-work. Reuse those through authenticated APIs only.
-The full tenant portal and framework compatibility sign-off are deferred
-to Phase 12 and Phase 11 respectively.
+The Pilot MVP code slices are merged: PR #61 typed widget API/retry/source
+client; PR #63 standalone ESM bundle; PR #62 tenant-authenticated student
+entitlements and Santo-only tenant cap bootstrap. All exact-head and
+post-merge Verify gates passed; **real medical-content ingestion and
+customer website integration are still untested and incomplete**.
+The step-by-step integration boundary is
+`docs/PILOT_SITE_INTEGRATION.md`.
+
+Next: use licensed medical source samples, verify AI Search/R2 retrieval
+and citations, configure tenant/student quotas, integrate the widget via
+an existing site's own authenticated server session endpoint and
+same-origin proxy, and run real browser staging acceptance. Never give
+the widget a server key. Do not repeat the completed AI/quota/state core.
+Issue #58 remains open until real pilot evidence exists.
+
+Full customer portal and framework compatibility stay deferred.
 
 ## Mandatory behavior after every meaningful change
 

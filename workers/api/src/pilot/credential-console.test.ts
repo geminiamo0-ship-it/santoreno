@@ -46,6 +46,9 @@ describe("Staging-only pilot credential console", () => {
     const app = createApp();
     const html = await (await app.request("/pilot/credentials", {}, staging)).text();
     expect(html).toContain("Initialize Tenant Quota");
+    expect(html).toContain("Find my Tenant ID");
+    expect(pilotCredentialScript).toContain("/v1/portal/my-tenant");
+    expect(pilotCredentialScript).toContain("findMyTenant");
     expect(html).toContain('id="quota-panel" hidden');
     expect(html).toContain('id="quota-cap" type="number"');
     // Compile the *rendered* script to detect incorrect escaping in the TS template.

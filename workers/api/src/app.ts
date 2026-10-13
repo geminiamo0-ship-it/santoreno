@@ -434,7 +434,10 @@ export function createApp(dependencies: SantoAppDependencies = {}) {
       return context.json(QuotaSnapshotSchema.parse(snapshot), 200, { "Cache-Control": "no-store" });
     } catch (error) {
       if (error instanceof QuotaServiceError) {
-        return context.json(errorPayload(error.code), error.status);
+        return Response.json(errorPayload(error.code), {
+          status: error.status,
+          headers: { "Cache-Control": "no-store" },
+        });
       }
       throw error;
     }
@@ -452,7 +455,10 @@ export function createApp(dependencies: SantoAppDependencies = {}) {
       return context.json(QuotaSnapshotSchema.parse(result), 200, { "Cache-Control": "no-store" });
     } catch (error) {
       if (error instanceof QuotaServiceError) {
-        return context.json(errorPayload(error.code), error.status);
+        return Response.json(errorPayload(error.code), {
+          status: error.status,
+          headers: { "Cache-Control": "no-store" },
+        });
       }
       throw error;
     }
@@ -472,7 +478,10 @@ export function createApp(dependencies: SantoAppDependencies = {}) {
       return context.json(QuotaSnapshotSchema.parse(result), 200, { "Cache-Control": "no-store" });
     } catch (error) {
       if (error instanceof QuotaServiceError) {
-        return context.json(errorPayload(error.code), error.status);
+        return Response.json(errorPayload(error.code), {
+          status: error.status,
+          headers: { "Cache-Control": "no-store" },
+        });
       }
       throw error;
     }

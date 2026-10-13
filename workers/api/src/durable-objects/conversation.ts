@@ -1,4 +1,5 @@
 import { ConversationStateCore, ConversationStateError } from "./conversation-core";
+import { ConversationTurnCore } from "./conversation-turn-core";
 import type { DurableObjectStorageLike } from "./tenant-meter-core";
 
 interface DurableObjectStateLike {
@@ -17,9 +18,11 @@ function failure(error: unknown): Response {
 
 export class ConversationDO {
   private readonly core: ConversationStateCore;
+  private readonly turns: ConversationTurnCore;
 
   constructor(state: DurableObjectStateLike) {
     this.core = new ConversationStateCore(state.storage);
+    this.turns = new ConversationTurnCore(state.storage);
   }
 
   async fetch(request: Request): Promise<Response> {
@@ -38,6 +41,14 @@ export class ConversationDO {
           return Response.json(this.core.create(payload));
         case "/append":
           return Response.json(this.core.append(payload));
+        case "/begin-turn":
+          return Response.json(this.turns.begin(payload));
+        case "/complete-turn":
+          return Response.json(this.turns.complete(payload));
+        case "/fail-turn":
+          return Response.json(this.turns.fail(payload));
+        case "/list-turns":
+          return Response.json(this.turns.list(payload));
         case "/read":
           return Response.json(this.core.read(payload));
         case "/delete":

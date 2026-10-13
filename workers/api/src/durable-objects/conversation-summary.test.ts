@@ -6,9 +6,9 @@ describe("bounded deterministic verified conversation summary", () => {
   it("retains only normalized excerpts of completed grounded turns", () => {
     const first = appendVerifiedTurnSummary("", "  What   is serum sodium? ", " 135–145   mmol/L ");
     expect(first).toBe("Q: What is serum sodium? | Verified A: 135–145 mmol/L");
-    expect(appendVerifiedTurnSummary(first, "And chloride?", "Reference applies to chloride.")).toContain(
-      "Q: And chloride? | Verified A: Reference applies to chloride.",
-    );
+    expect(
+      appendVerifiedTurnSummary(first, "And chloride?", "Reference applies to chloride."),
+    ).toContain("Q: And chloride? | Verified A: Reference applies to chloride.");
   });
 
   it("stays within 1,200 characters through 200 turns without growing history", () => {

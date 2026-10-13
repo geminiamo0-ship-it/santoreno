@@ -101,7 +101,7 @@ async function invokeGroundedAnswer(
   if (!response.ok) {
     const parsed = ApiErrorResponseSchema.safeParse(payload);
     const code = parsed.success ? parsed.data.error : "MODEL_FAILED";
-    throw new GroundedAiError(response.status, code, code);
+    throw new ConversationServiceError(response.status, code);
   }
   return GroundedAiQueryResponseSchema.parse(payload);
 }

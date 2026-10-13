@@ -10,7 +10,7 @@
     "build": "turbo run build",
     "dev": "turbo run dev --parallel",
     "format": "prettier --write .",
-    "format:check": "prettier --write docs/TRUSTED_SOURCE_CONTRACT.md && printf 'SANTO_FORMATTED:docs/TRUSTED_SOURCE_CONTRACT.md:' && base64 -w0 docs/TRUSTED_SOURCE_CONTRACT.md && printf '\\n' && prettier --check .",
+    "format:check": "prettier --check .",
     "lint": "oxlint . && pnpm format:check",
     "smoke": "node scripts/smoke.mjs",
     "test": "turbo run test",

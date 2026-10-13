@@ -12,11 +12,11 @@ Any coding agent, AI assistant, or new developer must read the following before 
 
 ## Current priority
 
-The proven foundation through Issue #36 / Phase 7 is complete, including verified `/v1/session/exchange`, atomic `TenantMeterDO` quota, filtered global AI Search, and citation-validated, buffered SSE AI responses.
+The proven foundation through Issue #43 / Phase 8 is complete, including verified `/v1/session/exchange`, atomic `TenantMeterDO` quota, filtered global AI Search, citation-validated buffered SSE, session-scoped trusted citation details and real R2 image delivery.
 
-**Active implementation issue: #43 — Phase 8 trusted sources, citation details, and R2 images.**
+**Active implementation issue: #52 — Phase 9 ConversationDO ordered messages and follow-ups.**
 
-Read Issue #8 and Issue #43, plus `PROJECT_STATUS.md`, before new code. Do not repeat completed Phase 7 work. Continue in roadmap order; ConversationDO, full widget, and full tenant portal remain deferred.
+Read Issue #8, Issue #9, Issue #52 and the completed Issue #43, plus `PROJECT_STATUS.md`, before new code. Do not repeat completed Phase 7/8 work. Continue in roadmap order; full widget and full tenant portal remain deferred.
 
 ## Mandatory behavior after every meaningful change
 

@@ -44,7 +44,7 @@ export const pilotCredentialScript = `(() => {
   function b64url(bytes) {
     let binary = "";
     for (const byte of bytes) binary += String.fromCharCode(byte);
-    return btoa(binary).replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
+    return btoa(binary).replace(/=/g, "").split("+").join("-").split("/").join("_");
   }
 
   async function request(path, options = {}) {

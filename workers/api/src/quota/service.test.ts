@@ -62,4 +62,38 @@ describe("DurableObjectQuotaService", () => {
       code: "TENANT_EXHAUSTED",
     });
   });
+  it("posts user-only entitlement to tenant-scoped DO and never substitutes tenant caps", async () => {
+    const snapshot = {
+      tenantId,
+      externalUserId: "student",
+      cycleStartAt: "2026-10-01T00:00:00.000Z",
+      cycleEndAt: "2026-11-01T00:00:00.000Z",
+      expiresAt: null,
+      tenantStatus: "active",
+      userStatus: "suspended",
+      tenant: { limit: 100, used: 17, reserved: 0, remaining: 83 },
+      user: { limit: 20, used: 3, reserved: 0, remaining: 17 },
+    };
+    const sent: Record<string, unknown>[] = [];
+    const { namespace, names, paths } = namespaceFor(async (request) => {
+      const body: unknown = await request.json();
+      sent.push(body as Record<string, unknown>);
+      return Response.json(snapshot);
+    });
+    const result = await new DurableObjectQuotaService(namespace).configureUser({
+      tenantId,
+      externalUserId: "student",
+      status: "suspended",
+      baseQuota: 20,
+      bonusQuota: 0,
+      expiresAt: null,
+    });
+    expect(result.userStatus).toBe("suspended");
+    expect(names).toEqual([tenantId]);
+    expect(paths).toEqual(["/user-entitlement"]);
+    expect(sent[0]).not.toHaveProperty("monthlyAllowance");
+    expect(sent[0]).not.toHaveProperty("cycleStartAt");
+    expect(sent[0]).toHaveProperty("tenantId", tenantId);
+  });
+
 });

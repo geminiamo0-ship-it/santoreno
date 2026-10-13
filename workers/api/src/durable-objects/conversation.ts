@@ -40,6 +40,8 @@ export class ConversationDO {
           return Response.json(this.core.append(payload));
         case "/read":
           return Response.json(this.core.read(payload));
+        case "/delete":
+          return Response.json(this.core.delete(payload));
         default:
           return Response.json({ error: "NOT_FOUND" }, { status: 404 });
       }

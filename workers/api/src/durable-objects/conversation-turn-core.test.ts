@@ -7,7 +7,11 @@ import { ConversationTurnCore } from "./conversation-turn-core";
 const conversationId = "11111111-1111-4111-8111-111111111111";
 const actor = { tenantId: "22222222-2222-4222-8222-222222222222", externalUserId: "student" };
 const ask = (key = "first", text = "What is sodium?", sequence = 0) => ({
-  actor, conversationId, idempotencyKey: key, expectedSequence: sequence, text,
+  actor,
+  conversationId,
+  idempotencyKey: key,
+  expectedSequence: sequence,
+  text,
 });
 const answer = {
   requestId: "33333333-3333-4333-8333-333333333333",
@@ -28,23 +32,50 @@ class State implements DurableObjectStorageLike {
       if (query.trimStart().startsWith("CREATE TABLE")) {
         // Production validates SQLite SQL in the separate live staging gate.
       } else if (query.includes("INSERT INTO conversation_meta")) {
-        this.meta = { conversation_id: params[0], tenant_id: params[1], external_user_id: params[2],
-          creation_key: params[3], title: params[4], created_at_ms: params[5] };
+        this.meta = {
+          conversation_id: params[0],
+          tenant_id: params[1],
+          external_user_id: params[2],
+          creation_key: params[3],
+          title: params[4],
+          created_at_ms: params[5],
+        };
       } else if (query.includes("INSERT INTO conversation_messages")) {
-        this.messages.push({ sequence: params[0], message_id: params[1],
-          idempotency_key: params[2], expected_sequence: params[3], role: "user",
-          text: params[4], created_at_ms: params[5] });
+        this.messages.push({
+          sequence: params[0],
+          message_id: params[1],
+          idempotency_key: params[2],
+          expected_sequence: params[3],
+          role: "user",
+          text: params[4],
+          created_at_ms: params[5],
+        });
       } else if (query.includes("INSERT INTO conversation_turns")) {
-        this.turns.push({ idempotency_key: params[0], message_id: params[1], sequence: params[2],
-          expected_sequence: params[3], question: params[4], library_id: params[5],
-          status: "pending", attempt_id: params[6], lease_until_ms: params[7],
-          response_json: null, context_text: params[8] });
+        this.turns.push({
+          idempotency_key: params[0],
+          message_id: params[1],
+          sequence: params[2],
+          expected_sequence: params[3],
+          question: params[4],
+          library_id: params[5],
+          status: "pending",
+          attempt_id: params[6],
+          lease_until_ms: params[7],
+          response_json: null,
+          context_text: params[8],
+        });
       } else if (query.startsWith("UPDATE conversation_turns SET status = 'pending'")) {
         const row = this.turns.find((t) => t.idempotency_key === params[2]);
-        if (row) Object.assign(row, { status: "pending", attempt_id: params[0], lease_until_ms: params[1] });
+        if (row)
+          Object.assign(row, {
+            status: "pending",
+            attempt_id: params[0],
+            lease_until_ms: params[1],
+          });
       } else if (query.startsWith("UPDATE conversation_turns SET status = 'completed'")) {
         const row = this.turns.find((t) => t.idempotency_key === params[1]);
-        if (row) Object.assign(row, { status: "completed", response_json: params[0], lease_until_ms: 0 });
+        if (row)
+          Object.assign(row, { status: "completed", response_json: params[0], lease_until_ms: 0 });
       } else if (query.startsWith("UPDATE conversation_turns SET status = 'retryable'")) {
         const row = this.turns.find((t) => t.idempotency_key === params[0]);
         if (row) Object.assign(row, { status: "retryable", lease_until_ms: 0 });
@@ -63,7 +94,10 @@ class State implements DurableObjectStorageLike {
       } else if (query.includes("FROM conversation_turns WHERE status = 'pending'")) {
         rows = this.turns.filter((t) => t.status === "pending").slice(0, 1);
       } else if (query.includes("FROM conversation_turns WHERE status = 'completed'")) {
-        rows = this.turns.filter((t) => t.status === "completed").reverse().slice(0, 3);
+        rows = this.turns
+          .filter((t) => t.status === "completed")
+          .reverse()
+          .slice(0, 3);
       } else if (query.includes("FROM conversation_turns ORDER BY sequence DESC")) {
         rows = [...this.turns].reverse().slice(0, 10);
       } else if (query.includes("FROM conversation_messages WHERE idempotency_key")) {
@@ -76,18 +110,27 @@ class State implements DurableObjectStorageLike {
       return { toArray: () => rows as T[] };
     },
   };
-  transactionSync<T>(callback: () => T): T { return callback(); }
+  transactionSync<T>(callback: () => T): T {
+    return callback();
+  }
 }
 
 function setup() {
   const storage = new State();
   let clock = Date.parse("2026-10-13T00:00:00Z");
   let counter = 0;
-  const id = () => `55555555-5555-4555-8555-${String(++counter).padStart(12,"0")}`;
+  const id = () => `55555555-5555-4555-8555-${String(++counter).padStart(12, "0")}`;
   const base = new ConversationStateCore(storage, () => clock, id);
   base.create({ actor, conversationId, idempotencyKey: "create" });
   const turns = new ConversationTurnCore(storage, () => clock, id);
-  return { storage, base, turns, advance: (ms: number) => { clock += ms; } };
+  return {
+    storage,
+    base,
+    turns,
+    advance: (ms: number) => {
+      clock += ms;
+    },
+  };
 }
 
 describe("verified conversation turn state", () => {
@@ -96,10 +139,22 @@ describe("verified conversation turn state", () => {
     const start = turns.begin(ask());
     expect(start).toMatchObject({ state: "started", turn: { sequence: 0, status: "pending" } });
     expect(() => turns.begin(ask())).toThrowError(ConversationStateError);
-    expect(() => base.append({ actor, conversationId, idempotencyKey: "different",
-      expectedSequence: 1, text: "Cannot bypass pending turn" })).toThrowError(ConversationStateError);
-    const persisted = turns.complete({ actor, conversationId, idempotencyKey: "first",
-      attemptId: start.attemptId, response: answer });
+    expect(() =>
+      base.append({
+        actor,
+        conversationId,
+        idempotencyKey: "different",
+        expectedSequence: 1,
+        text: "Cannot bypass pending turn",
+      }),
+    ).toThrowError(ConversationStateError);
+    const persisted = turns.complete({
+      actor,
+      conversationId,
+      idempotencyKey: "first",
+      attemptId: start.attemptId,
+      response: answer,
+    });
     expect(persisted.response).toEqual(answer);
     const replay = turns.begin(ask());
     expect(replay.state).toBe("completed");
@@ -112,14 +167,27 @@ describe("verified conversation turn state", () => {
     const { turns } = setup();
     const start = turns.begin(ask());
     expect(() => turns.begin(ask("first", "Changed"))).toThrowError(ConversationStateError);
-    expect(() => turns.list({ actor: { ...actor, externalUserId: "other" }, conversationId }))
-      .toThrowError(ConversationStateError);
-    expect(() => turns.complete({ actor, conversationId, idempotencyKey: "first",
-      attemptId: "66666666-6666-4666-8666-666666666666", response: answer }))
-      .toThrowError(ConversationStateError);
-    expect(() => turns.complete({ actor: { ...actor, externalUserId: "other" },
-      conversationId, idempotencyKey: "first", attemptId: start.attemptId, response: answer }))
-      .toThrowError(ConversationStateError);
+    expect(() =>
+      turns.list({ actor: { ...actor, externalUserId: "other" }, conversationId }),
+    ).toThrowError(ConversationStateError);
+    expect(() =>
+      turns.complete({
+        actor,
+        conversationId,
+        idempotencyKey: "first",
+        attemptId: "66666666-6666-4666-8666-666666666666",
+        response: answer,
+      }),
+    ).toThrowError(ConversationStateError);
+    expect(() =>
+      turns.complete({
+        actor: { ...actor, externalUserId: "other" },
+        conversationId,
+        idempotencyKey: "first",
+        attemptId: start.attemptId,
+        response: answer,
+      }),
+    ).toThrowError(ConversationStateError);
   });
 
   it("supports explicit failure retry without a second user message and fences stale attempts", () => {
@@ -129,10 +197,22 @@ describe("verified conversation turn state", () => {
     const retry = turns.begin(ask());
     expect(retry.attemptId).not.toBe(first.attemptId);
     expect(base.read({ actor, conversationId }).nextSequence).toBe(1);
-    expect(() => turns.complete({ actor, conversationId, idempotencyKey: "first",
-      attemptId: first.attemptId, response: answer })).toThrowError(ConversationStateError);
-    turns.complete({ actor, conversationId, idempotencyKey: "first",
-      attemptId: retry.attemptId, response: answer });
+    expect(() =>
+      turns.complete({
+        actor,
+        conversationId,
+        idempotencyKey: "first",
+        attemptId: first.attemptId,
+        response: answer,
+      }),
+    ).toThrowError(ConversationStateError);
+    turns.complete({
+      actor,
+      conversationId,
+      idempotencyKey: "first",
+      attemptId: retry.attemptId,
+      response: answer,
+    });
   });
 
   it("reclaims timed out leases and keeps identical context on retry", () => {
@@ -147,23 +227,36 @@ describe("verified conversation turn state", () => {
   it("derives bounded follow-up context exclusively from completed verified turns", () => {
     const { turns } = setup();
     const a = turns.begin(ask("first"));
-    turns.complete({ actor, conversationId, idempotencyKey: "first",
-      attemptId: a.attemptId, response: answer });
+    turns.complete({
+      actor,
+      conversationId,
+      idempotencyKey: "first",
+      attemptId: a.attemptId,
+      response: answer,
+    });
     const b = turns.begin(ask("second", "What about renal effects?", 1));
     expect(b.context).toContain("Verified assistant: Sodium ranges");
     expect(b.context.length).toBeLessThanOrEqual(1600);
-    expect(() => turns.begin(ask("another", "Concurrent question?", 2)))
-      .toThrowError(ConversationStateError);
+    expect(() => turns.begin(ask("another", "Concurrent question?", 2))).toThrowError(
+      ConversationStateError,
+    );
     turns.fail({ actor, conversationId, idempotencyKey: "second", attemptId: b.attemptId });
-    expect(turns.list({ actor, conversationId }).turns.map((t) => t.status))
-      .toEqual(["completed", "retryable"]);
+    expect(turns.list({ actor, conversationId }).turns.map((t) => t.status)).toEqual([
+      "completed",
+      "retryable",
+    ]);
   });
 
   it("preserves state across DO reconstruction and erases verified responses on delete", () => {
     const { turns, base, storage } = setup();
     const a = turns.begin(ask());
-    turns.complete({ actor, conversationId, idempotencyKey: "first", attemptId: a.attemptId,
-      response: answer });
+    turns.complete({
+      actor,
+      conversationId,
+      idempotencyKey: "first",
+      attemptId: a.attemptId,
+      response: answer,
+    });
     const reloaded = new ConversationTurnCore(storage);
     expect(reloaded.begin(ask()).turn.response?.messageId).toBe(answer.messageId);
     base.delete({ actor, conversationId });

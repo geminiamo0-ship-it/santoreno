@@ -188,9 +188,9 @@ jobs:
             echo "- Unknown library: structured fail-closed response verified"
             echo "- Post-invalid successful request: reservation release verified"
             echo "- Real Workers AI + server-side citation validation: verified"
-            echo "- Authenticated source details, canonical R2 media and binary response: verified
+            echo "- Authenticated source details, canonical R2 media and binary response: verified"
             echo "- Cross-tenant source and image access denied: verified"
-            echo "- R2 media fixture cleanup: verified""
+            echo "- R2 media fixture cleanup: verified"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Cleanup P33 AI Search fixtures

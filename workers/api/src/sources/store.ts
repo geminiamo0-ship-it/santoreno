@@ -1,28 +1,16 @@
 import {
   TrustedSourceMediaManifestEntrySchema,
   TrustedSourceMetadataSchema,
+  VerifiedSourceSnapshotSchema as VerifiedSnapshotSchema,
   type TrustedSourceMediaManifestEntry,
   type TrustedSourceMetadata,
+  type VerifiedSourceSnapshot as VerifiedSnapshot,
 } from "@santo/contracts/source";
-import { z } from "zod";
-
 import type { R2BucketLike } from "../runtime/bindings";
 
 const MAX_SOURCES = 5;
 const MAX_IMAGES = 50;
 const SNAPSHOT_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
-
-const VerifiedSnapshotSchema = z
-  .object({
-    tenantId: z.string().uuid(),
-    externalUserId: z.string().min(1).max(255),
-    messageId: z.string().uuid(),
-    createdAt: z.number().int().nonnegative(),
-    sources: z.array(TrustedSourceMetadataSchema).min(1).max(MAX_SOURCES),
-  })
-  .strict();
-
-type VerifiedSnapshot = z.infer<typeof VerifiedSnapshotSchema>;
 
 export class SourceResolutionError extends Error {
   constructor(

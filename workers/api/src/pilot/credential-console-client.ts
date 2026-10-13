@@ -11,6 +11,7 @@ export const pilotCredentialScript = `(() => {
   let accountUserId = null;
   let accountOrgId = null;
   let busy = false;
+  let isSuperAdmin = false;
 
   function notice(message, isError = false) {
     el("notice").textContent = message;
@@ -34,6 +35,9 @@ export const pilotCredentialScript = `(() => {
     selectedTenantId = null;
     accountUserId = null;
     accountOrgId = null;
+    isSuperAdmin = false;
+    el("quota-panel").hidden = true;
+    el("quota-result").hidden = true;
     resetSecret();
     el("auth-panel").hidden = false;
     el("tenant-panel").hidden = true;
@@ -104,6 +108,9 @@ export const pilotCredentialScript = `(() => {
     }
     selectedTenantId = tenant.id;
     el("credential-panel").hidden = false;
+    el("quota-panel").hidden = !isSuperAdmin;
+    el("quota-result").hidden = true;
+    el("initialize-quota").disabled = false;
     notice("Verified owner access to " + tenant.name + ". You can generate its server key.");
   }
 
@@ -118,7 +125,9 @@ export const pilotCredentialScript = `(() => {
       "Authorized WorkOS user: " + context.userId + " · Santo role: " + context.role;
     el("owner-id").value = context.userId;
     el("workos-org").value = accountOrgId || "";
-    el("create-panel").hidden = context.role !== "super_admin";
+    isSuperAdmin = context.role === "super_admin";
+    el("create-panel").hidden = !isSuperAdmin;
+    setCycleDefaults();
     if (context.tenant && typeof context.tenant.id === "string") {
       el("tenant-id").value = context.tenant.id;
       await verifyTenant();
@@ -232,6 +241,75 @@ export const pilotCredentialScript = `(() => {
     notice("Key issued. Copy it now and store it in Vercel as a Sensitive, server-only variable.");
   }
 
+  function setCycleDefaults() {
+    const now = new Date();
+    const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+    el("quota-start").value = start.toISOString().slice(0, 10);
+    el("quota-end").value = end.toISOString().slice(0, 10);
+  }
+
+  function quotaCycleDate(id) {
+    const raw = el(id).value;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+      throw new Error("Choose a valid UTC quota cycle date.");
+    }
+    const value = new Date(raw + "T00:00:00.000Z");
+    if (!Number.isFinite(value.getTime()) || value.toISOString().slice(0, 10) !== raw) {
+      throw new Error("Invalid quota cycle date.");
+    }
+    return value;
+  }
+
+  async function initializeQuota() {
+    if (!isSuperAdmin) throw new Error("Santo Super Admin authorization is required.");
+    const id = requireTenantId();
+    if (id !== selectedTenantId) throw new Error("Verify the tenant before updating quota.");
+    const monthlyAllowance = Number(el("quota-cap").value);
+    if (!Number.isSafeInteger(monthlyAllowance) || monthlyAllowance < 1 || monthlyAllowance > 100000000) {
+      throw new Error("Enter a monthly tenant allowance between 1 and 100,000,000 units.");
+    }
+    const start = quotaCycleDate("quota-start");
+    const end = quotaCycleDate("quota-end");
+    if (end <= start || end <= new Date()) {
+      throw new Error("Quota cycle end must be after the start and in the future.");
+    }
+    // Deliberate operator confirmation before a potentially destructive cycle reconfiguration.
+    const proceed = window.confirm(
+      "Initialize Santo Tenant Quota?\n\nTenant: " + id +
+      "\nMonthly allowance: " + monthlyAllowance +
+      "\nUTC cycle: " + start.toISOString().slice(0, 10) +
+      " through " + end.toISOString().slice(0, 10) +
+      "\n\nIMPORTANT: Reconfiguring an existing cycle may reset usage counters. Continue only for a new tenant or a planned quota change."
+    );
+    if (!proceed) return;
+    const snapshot = await request("/v1/admin/tenants/" + encodeURIComponent(id) + "/quota", {
+      method: "POST",
+      body: {
+        tenantStatus: "active",
+        monthlyAllowance,
+        cycleStartAt: start.toISOString(),
+        cycleEndAt: end.toISOString(),
+        user: {
+          externalUserId: "santo-operator-bootstrap",
+          status: "active",
+          baseQuota: 0,
+          bonusQuota: 0,
+          expiresAt: null,
+        },
+      },
+    });
+    if (snapshot.tenantId !== id || snapshot.tenant?.limit !== monthlyAllowance) {
+      throw new Error("Quota response did not match the requested tenant and allowance.");
+    }
+    el("quota-result").textContent =
+      "Tenant quota initialized: " + snapshot.tenant.remaining + " of " + snapshot.tenant.limit +
+      " units remaining. Students still receive their own quotas through Royal Bank.";
+    el("quota-result").hidden = false;
+    el("initialize-quota").disabled = true;
+    notice("Tenant quota activated. Return to Royal Bank /santo and retry; no new Vercel deploy is required.");
+  }
+
   async function copy(value, label) {
     if (!value) throw new Error("There is nothing to copy yet.");
     await navigator.clipboard.writeText(value);
@@ -247,6 +325,8 @@ export const pilotCredentialScript = `(() => {
   el("tenant-id").addEventListener("input", () => {
     selectedTenantId = null;
     el("credential-panel").hidden = true;
+    el("quota-panel").hidden = true;
+    el("quota-result").hidden = true;
     resetSecret();
   });
   el("copy-tenant").addEventListener("click", () => execute(async () => {
@@ -254,6 +334,7 @@ export const pilotCredentialScript = `(() => {
   }));
   el("create-tenant").addEventListener("click", () => execute(createTenant));
   el("generate-key").addEventListener("click", () => execute(generateKey));
+  el("initialize-quota").addEventListener("click", () => execute(initializeQuota));
   el("copy-secret").addEventListener("click", () => execute(async () => {
     await copy(secret, "Server API Key");
   }));

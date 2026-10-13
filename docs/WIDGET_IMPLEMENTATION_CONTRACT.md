@@ -28,7 +28,7 @@ no global style resets and no customer DB connections are permitted.
 ## Required next slices before widget acceptance
 
 1. Define a `sessionProvider` callback obtained from **customer backend**
-   session exchange. It returns a short-lived *Santo end-user* Bearer token,
+   session exchange. It returns a short-lived _Santo end-user_ Bearer token,
    not a tenant server credential. Widget must never read server secrets.
 2. Build a typed, retry-safe API adapter using existing shared Santo
    contracts: create/read/ask/turns and authenticated sources/details/image

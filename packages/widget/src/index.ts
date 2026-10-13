@@ -124,8 +124,7 @@ export class SantoAiElement extends LitElement {
               >
                 <option value="">All libraries</option>
                 ${options.map(
-                  (option) =>
-                    html`<option value="${option.id}">${option.label}</option>`,
+                  (option) => html`<option value="${option.id}">${option.label}</option>`,
                 )}
               </select>
             </div>
@@ -153,22 +152,24 @@ export class SantoAiElement extends LitElement {
       : nothing;
     return html`
       ${panel}
-      ${this.ui.fullscreen
-        ? nothing
-        : html`
-            <button
-              data-launcher
-              class="launcher"
-              type="button"
-              aria-controls="santo-panel"
-              aria-expanded="${this.ui.expanded}"
-              aria-label="${this.ui.expanded ? "Close Santo" : "Open Santo assistant"}"
-              @click=${this.toggle}
-            >
-              <span class="launcher-mark" aria-hidden="true">S</span>
-              ${this.ui.expanded ? "Close" : "Ask Santo"}
-            </button>
-          `}
+      ${
+        this.ui.fullscreen
+          ? nothing
+          : html`
+              <button
+                data-launcher
+                class="launcher"
+                type="button"
+                aria-controls="santo-panel"
+                aria-expanded="${this.ui.expanded}"
+                aria-label="${this.ui.expanded ? "Close Santo" : "Open Santo assistant"}"
+                @click=${this.toggle}
+              >
+                <span class="launcher-mark" aria-hidden="true">S</span>
+                ${this.ui.expanded ? "Close" : "Ask Santo"}
+              </button>
+            `
+      }
     `;
   }
 }

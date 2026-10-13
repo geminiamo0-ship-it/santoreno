@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createApp } from "../app";
 import type { SantoBindings } from "../runtime/bindings";
 import { exchangePilotAuthorizationCode } from "./credential-console";
+import { pilotCredentialScript } from "./credential-console-client";
 
 const staging: SantoBindings = {
   SANTO_ENV: "staging",
@@ -39,6 +40,22 @@ describe("Staging-only pilot credential console", () => {
     const scriptResponse = await app.request("/pilot/credentials.js", {}, staging);
     expect(scriptResponse.headers.get("content-type")).toContain("application/javascript");
     expect(await scriptResponse.text()).toContain("code_challenge_method");
+  });
+
+  it("shows tenant quota controls only in the operator shell and serves valid browser JS", async () => {
+    const app = createApp();
+    const html = await (await app.request("/pilot/credentials", {}, staging)).text();
+    expect(html).toContain("Initialize Tenant Quota");
+    expect(html).toContain('id="quota-panel" hidden');
+    expect(html).toContain('id="quota-cap" type="number"');
+    // Compile the *rendered* script to detect incorrect escaping in the TS template.
+    expect(() => new Function(pilotCredentialScript)).not.toThrow();
+    expect(pilotCredentialScript).toContain("/v1/admin/tenants/");
+    expect(pilotCredentialScript).toContain("isSuperAdmin");
+    expect(pilotCredentialScript).toContain("window.confirm(");
+    expect(pilotCredentialScript).toContain("santo-operator-bootstrap");
+    expect(pilotCredentialScript).toContain("baseQuota: 0");
+    expect(pilotCredentialScript).not.toContain("santo_sk_");
   });
 
   it("fails closed outside staging and exposes only public WorkOS client id", async () => {

@@ -29,7 +29,11 @@ export const TrustedSourceMetadataSchema = z
   .object({
     sourceId: TrustedSourceIdSchema,
     libraryId: GroundedAiLibraryIdSchema,
-    instanceId: z.string().min(1).max(128).regex(/^[A-Za-z0-9][A-Za-z0-9._-]*$/),
+    instanceId: z
+      .string()
+      .min(1)
+      .max(128)
+      .regex(/^[A-Za-z0-9][A-Za-z0-9._-]*$/),
     itemKey: z.string().min(1).max(1024),
     title: z.string().min(1).max(500),
     page: z.number().int().positive().nullable(),
@@ -92,7 +96,11 @@ export const TrustedSourceMediaManifestEntrySchema = z
   .object({
     sourceId: TrustedSourceIdSchema,
     libraryId: GroundedAiLibraryIdSchema,
-    instanceId: z.string().min(1).max(128).regex(/^[A-Za-z0-9][A-Za-z0-9._-]*$/),
+    instanceId: z
+      .string()
+      .min(1)
+      .max(128)
+      .regex(/^[A-Za-z0-9][A-Za-z0-9._-]*$/),
     itemKey: z.string().min(1).max(1024),
     assetId: TrustedImageAssetIdSchema,
     objectKey: z
@@ -117,6 +125,4 @@ export const TrustedSourceMediaManifestEntrySchema = z
     }
   });
 
-export type TrustedSourceMediaManifestEntry = z.infer<
-  typeof TrustedSourceMediaManifestEntrySchema
->;
+export type TrustedSourceMediaManifestEntry = z.infer<typeof TrustedSourceMediaManifestEntrySchema>;

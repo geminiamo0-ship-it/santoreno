@@ -1,0 +1,92 @@
+name: Pilot Staging Worker Deploy
+
+# One-time bootstrap deploy on introduction of this workflow. Later reruns must
+# be manually dispatched; ordinary main updates do not redeploy pilot staging.
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/pilot-staging-worker-deploy.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  checks: read
+
+concurrency:
+  group: santo-pilot-staging-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy-staging:
+    name: deploy-staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      GH_TOKEN: ${{ github.token }}
+      WORKER_URL: https://santo-api-staging.geminiamo0.workers.dev
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Wait for repository Verify for exact deployed commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 90); do
+            checks="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/check-runs")"
+            policy="$(jq -r '[.check_runs[] | select(.name == "repository-policy") | .conclusion] | map(select(. != null)) | .[0] // ""' <<<"$checks")"
+            quality="$(jq -r '[.check_runs[] | select(.name == "code-quality") | .conclusion] | map(select(. != null)) | .[0] // ""' <<<"$checks")"
+            if [[ "$policy" == "success" && "$quality" == "success" ]]; then
+              echo "Verify passed for ${GITHUB_SHA}."
+              exit 0
+            fi
+            for conclusion in "$policy" "$quality"; do
+              case "$conclusion" in
+                failure|cancelled|timed_out|action_required|startup_failure|stale)
+                  echo "Verify did not pass. repository-policy=$policy code-quality=$quality"
+                  exit 1 ;;
+              esac
+            done
+            sleep 10
+          done
+          echo "Timed out waiting for exact-head Verify."
+          exit 1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install pinned workspace dependencies
+        run: |
+          corepack enable
+          pnpm install --frozen-lockfile
+
+      - name: Deploy only the Santo Staging Worker, retaining dashboard variables
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+          test -n "$CLOUDFLARE_API_TOKEN"
+          cd workers/api
+          # --keep-vars preserves manually configured dashboard variables.
+          # Wrangler always preserves existing Secret bindings on deploy.
+          pnpm exec wrangler deploy --env staging --keep-vars
+
+      - name: Check live Staging Worker health
+        shell: bash
+        run: |
+          set -euo pipefail
+          health="$(curl --retry 10 --retry-delay 3 --retry-all-errors --fail --silent --show-error "$WORKER_URL/health")"
+          jq -e '.service == "santo-api" and .status == "ok"' <<<"$health" > /dev/null
+          echo "Santo staging Worker healthy at $WORKER_URL"
+          {
+            echo "## Santo Pilot staging deployment"
+            echo "- Commit: \`${GITHUB_SHA}\`"
+            echo "- Worker: \`${WORKER_URL}\`"
+            echo "- Scope: Staging Worker only (no production/D1/DO schema changes)"
+            echo "- Existing dashboard variables and secrets preserved"
+            echo "- Health: success"
+          } >> "$GITHUB_STEP_SUMMARY"

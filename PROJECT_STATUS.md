@@ -419,7 +419,6 @@ For every meaningful step:
 - **NOT DONE:** Santo tenant creation, tenant quota bootstrap, credential issue, Vercel Santo server key, Vercel BLOCKED release, real Royal browser acceptance, licensed corpus ingestion.
 - Issue #58 has exact operational evidence in the Royal Bank staging checkpoint comment.
 
-
 **Active: Issue #58 Phase 10 Pilot acceptance; code implementation is merged,
 real host acceptance still pending.**
 

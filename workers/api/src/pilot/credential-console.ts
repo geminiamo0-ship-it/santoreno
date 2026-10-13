@@ -47,6 +47,20 @@ export const pilotCredentialHtml = `<!doctype html>
         <p class="hint">Never put this secret into frontend code, chat, GitHub or a public environment variable. It cannot be retrieved again.</p>
       </div>
     </section>
+    <section class="panel" id="quota-panel" hidden>
+      <h2>4. Initialize Tenant Quota</h2>
+      <p>Staging Super Admin only. This sets the <strong>tenant-wide</strong> monthly cap in Santo. The Royal Bank student default quota is separate.</p>
+      <p class="hint">Only initialize once. Reconfiguring an existing quota with a different cycle start can reset usage counters. Choose the cap and cycle deliberately.</p>
+      <label for="quota-cap">Tenant monthly allowance (units)</label>
+      <input id="quota-cap" type="number" min="1" max="100000000" step="1" placeholder="e.g. 5000" autocomplete="off">
+      <label for="quota-start">Quota cycle starts (UTC)</label>
+      <input id="quota-start" type="date">
+      <label for="quota-end">Quota cycle ends (UTC, exclusive)</label>
+      <input id="quota-end" type="date">
+      <div class="actions"><button id="initialize-quota" type="button" class="secondary">Initialize Tenant Quota</button></div>
+      <p class="hint">This creates a zero-unit operator-only placeholder entitlement because the current quota API requires an initial user record. It does not replace or overwrite real Royal Bank students.</p>
+      <div id="quota-result" role="status" aria-live="polite" class="hint" hidden></div>
+    </section>
     <footer>Pilot operator tool · WorkOS-verified authorization · No full tenant portal</footer>
   </main>
 </body>

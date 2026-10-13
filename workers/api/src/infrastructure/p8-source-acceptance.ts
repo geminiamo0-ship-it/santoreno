@@ -46,9 +46,10 @@ export async function handleP8SourceAcceptance(
   }
 
   const payload: unknown = await request.json().catch(() => null);
-  const input = typeof payload === "object" && payload !== null && !Array.isArray(payload)
-    ? (payload as Record<string, unknown>)
-    : null;
+  const input =
+    typeof payload === "object" && payload !== null && !Array.isArray(payload)
+      ? (payload as Record<string, unknown>)
+      : null;
   const tenantId = input?.tenantId;
   const messageId = input?.messageId;
   const sourceId = input?.sourceId;

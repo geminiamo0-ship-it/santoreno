@@ -82,11 +82,18 @@ validated and finalized response does the conversation commit that answer.
 JSON and buffered SSE are emitted **after** that commit. The response uses
 the existing versioned Phase 7 response format.
 
-The last three **completed** server-verified turns are converted into
-a bounded 1,600-character history string. Current prompts keep no more than
-4,000 characters overall; historical content is explicitly labeled
-untrusted, never used as citation authority. A full durable summary and
-large-conversation compaction policy remain part of Issue #52.
+A persistent, deterministic rolling summary is built only from **completed**
+server-verified answer/question pairs. Each entry is an extractive snippet
+(question capped at 90 characters, answer at 155), and SQLite holds at most
+1,200 characters of recent compacted history. When the limit is reached,
+the oldest entries are evicted; this is intentionally **not** a semantic
+model-generated summary and does not promise perfect long-term recall.
+For pre-summary SQLite objects, the most recent three completed turns are
+safely compacted once as migration fallback. Summaries are written in the
+same SQLite transaction that marks a turn complete, and removed on owner
+deletion. Previously pinned context never changes when retrying a turn.
+All history is untrusted context, not citation authority. Current prompts
+still cap total text at 4,000 characters.
 
 On a confirmed charge-free failure, the turn is marked `retryable` and the
 Durable Object advances its billing epoch. This permits a new reservation
@@ -95,23 +102,29 @@ uncertain or generation succeeded but the conversation commit failed,
 the epoch stays unchanged; retries reuse the same billing key to prevent
 double charging. A previously finalized generation retry failure has its
 own `CHARGED_GENERATION_RETRY_FAILED` error and also preserves its epoch.
-Leases last 180 seconds and can be reclaimed when expired.
+Leases last 180 seconds and can be reclaimed when expired. A lease that
+has expired does not block unrelated new messages forever; a timed-out
+old turn may only reacquire its lease if no **other unexpired** turn is
+active. A newer verified answer may finish before an older reclaimed turn;
+the rolling summary only advances with increasing sequence, preventing
+older completions from overwriting newer memory. A caller should retry a
+failed turn with its original key to recover a missed answer.
 
 Deletion removes conversation-owned metadata, pending/completed turns,
 and user-message rows atomically. R2 snapshots remain governed by the
 existing 30-day logical retention and production lifecycle cleanup policy.
 
-## Not implemented yet
+## Delivery boundary
 
-The first #54 state slice did not generate answers. The next #56 slice
-adds server-verified turn persistence, follow-up retrieval and buffered
-stream coordination; durable context summarization and complete failure
-recovery still require Phase 9 acceptance. These are further requirements of Issue #52. It does
-not claim that Phase 9 is complete or that the full widget is ready.
-
-The existing Phase 7/8 AI and source authorization paths remain unchanged.
-Future assistant turn persistence must be coupled to the authoritative
-`TenantMeterDO` finalization and must not trust model-authored citations.
+PR #54 implemented ordered conversation storage; PR #56 implemented
+grounded follow-ups and quota-safe replay. The final Phase 9 slice adds
+durable, bounded extractive summary and stale lease fencing.
+This is **not** an unlimited conversation memory or model-generated
+clinical summary. Expiry and quota finalization uncertainty are surfaced
+as typed retry states, rather than implying that a failed request did not
+charge. The Phase 10 widget must persist and reuse conversation and
+idempotency keys, handle HTTP 409/503 and reconnect by reading `/turns`.
+The full widget/portal remain out of scope for Phase 9.
 
 ## Verification
 

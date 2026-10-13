@@ -13,6 +13,7 @@ import { GroundedAiQueryResponseSchema } from "@santo/contracts/ai";
 
 import type { DurableObjectStorageLike, SqlStorageLike } from "./tenant-meter-core";
 import { ConversationStateError } from "./conversation-core";
+import { appendVerifiedTurnSummary } from "./conversation-summary";
 
 interface MetaRow {
   conversation_id: string;
@@ -54,6 +55,11 @@ CREATE TABLE IF NOT EXISTS conversation_turns (
   quota_epoch INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_turns_sequence ON conversation_turns (sequence DESC);
+CREATE TABLE IF NOT EXISTS conversation_context_summary (
+  singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+  last_completed_sequence INTEGER NOT NULL,
+  summary_text TEXT NOT NULL
+);
 `;
 
 function first<T>(sql: SqlStorageLike, query: string, ...bindings: unknown[]): T | null {
@@ -90,19 +96,28 @@ function toTurn(row: TurnRow): ConversationTurn {
   });
 }
 
+interface SummaryRow {
+  last_completed_sequence: number;
+  summary_text: string;
+}
+
 function recentContext(sql: SqlStorageLike): string {
+  const summary = first<SummaryRow>(
+    sql,
+    "SELECT last_completed_sequence, summary_text FROM conversation_context_summary WHERE singleton = 1",
+  );
+  if (summary) return summary.summary_text.slice(0, 1200);
+  // Rehydrate bounded prior context for objects created before summaries existed.
   const rows = sql
     .exec<TurnRow>(
       "SELECT * FROM conversation_turns WHERE status = 'completed' ORDER BY sequence DESC LIMIT 3",
     )
     .toArray()
     .reverse();
-  const parts = rows.map((row) => {
+  return rows.reduce((acc, row) => {
     const response = toTurn(row).response;
-    if (!response) return "";
-    return `Previous user: ${row.question.slice(0, 160)}\nVerified assistant: ${response.answer.slice(0, 280)}`;
-  });
-  return parts.join("\n").slice(0, 1600);
+    return response ? appendVerifiedTurnSummary(acc, row.question, response.answer) : acc;
+  }, "");
 }
 
 /** This core owns only conversation sequencing and verified response persistence, never quota. */
@@ -145,6 +160,13 @@ export class ConversationTurnCore {
         if (existing.status === "pending" && existing.lease_until_ms > this.nowMs()) {
           throw new ConversationStateError(409, "CONVERSATION_TURN_BUSY");
         }
+        const activeOther = first<TurnRow>(
+          sql,
+          "SELECT * FROM conversation_turns WHERE status = 'pending' AND lease_until_ms > ? AND idempotency_key != ? LIMIT 1",
+          this.nowMs(),
+          request.idempotencyKey,
+        );
+        if (activeOther) throw new ConversationStateError(409, "CONVERSATION_TURN_BUSY");
         const attemptId = this.newId();
         sql.exec(
           "UPDATE conversation_turns SET status = 'pending', attempt_id = ?, lease_until_ms = ? WHERE idempotency_key = ?",
@@ -163,7 +185,8 @@ export class ConversationTurnCore {
       }
       const competing = first<TurnRow>(
         sql,
-        "SELECT * FROM conversation_turns WHERE status = 'pending' LIMIT 1",
+        "SELECT * FROM conversation_turns WHERE status = 'pending' AND lease_until_ms > ? LIMIT 1",
+        this.nowMs(),
       );
       if (competing) throw new ConversationStateError(409, "CONVERSATION_TURN_BUSY");
       const next =
@@ -237,11 +260,33 @@ export class ConversationTurnCore {
       if (!row || row.attempt_id !== request.attemptId || row.status !== "pending") {
         throw new ConversationStateError(409, "CONVERSATION_TURN_BUSY");
       }
+      const previousContext = recentContext(sql);
       sql.exec(
         "UPDATE conversation_turns SET status = 'completed', response_json = ?, lease_until_ms = 0 WHERE idempotency_key = ?",
         JSON.stringify(response),
         request.idempotencyKey,
       );
+      const latest = first<SummaryRow>(
+        sql,
+        "SELECT last_completed_sequence, summary_text FROM conversation_context_summary WHERE singleton = 1",
+      );
+      // A delayed old turn must not reorder existing context.
+      if (!latest || row.sequence > latest.last_completed_sequence) {
+        const summaryText = appendVerifiedTurnSummary(
+          latest?.summary_text ?? previousContext,
+          row.question,
+          response.answer,
+        );
+        sql.exec(
+          `INSERT INTO conversation_context_summary (singleton, last_completed_sequence, summary_text)
+           VALUES (1, ?, ?)
+           ON CONFLICT(singleton) DO UPDATE SET
+             last_completed_sequence = excluded.last_completed_sequence,
+             summary_text = excluded.summary_text`,
+          row.sequence,
+          summaryText,
+        );
+      }
       return toTurn({ ...row, status: "completed", response_json: JSON.stringify(response) });
     });
   }

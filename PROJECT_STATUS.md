@@ -109,22 +109,21 @@ Phase 7 is complete on tested acceptance criteria. **Phase 8 / Issue #43 is also
 - Source of network/state contract:
   `docs/CONVERSATION_STATE_CONTRACT.md`.
 
-### Phase 9 grounded follow-up implementation — PR #56 (validation ongoing)
+### Phase 9 grounded follow-ups — PR #56 merged and verified
 
-- Adds `/v1/conversations/:id/ask` and `/turns`, authoritative
-  SQLite-DO turn leases, persisted validated assistant replies, strict
-  ownership and bounded prior conversational context.
-- Reuses the existing Phase 7 authenticated AI, citation and atomic quota
-  lifecycle. A completed turn replays its saved answer without new model
-  or quota work; buffered SSE begins only after durable completion.
-- Separates definitively released quota attempts from uncertain/finalized
-  retries using conversation-owned billing epochs, without creating a
-  second quota engine.
-- Adds deterministic lease, context, ownership and failure regressions
-  plus a real WorkOS/AI Search/Workers AI staging gate. These gates **must
-  pass on an identical head** before merging.
-- **Issue #52 is still open:** Phase 9 is not complete until the broader
-  summary, cancellation/compaction and final live acceptance gates pass.
+- PR #56 added authenticated `/ask` and `/turns`, SQLite-backed AI turn
+  leases, verified persisted answers, bounded history, retry-safe quota
+  epochs, and no unverified SSE before quota finalization/DO commit.
+- Exact head `8538c076d27856b2486aeb6eafb18385a294c1d8` passed
+  **Verify 38441908597** and live **P9 Grounded Follow-ups 38441897200**.
+- Squash merged `5d386bbbc6849015e74579388d94d5938a36fb9a`;
+  post-merge **Verify 38444007239** passed.
+- **Finalization in progress:** durable rolling extractive summary of
+  completed verified turns (strict 1,200-character bound) and correct
+  handling of expired, competing turn leases. Tests and same-head real
+  staging remain the acceptance gate.
+- Issue #52 was accidentally auto-closed by PR #56 issue-number mention.
+  It was **reopened** until all Phase 9 finalization criteria are proven.
 
 ## 2. Read order before implementation
 
@@ -363,7 +362,7 @@ For every meaningful step:
 
 Continue **Issue #52 only — Phase 9 ConversationDO ordered messages and follow-ups**.
 
-Start the **next Phase 9 slice**: authoritative assistant turn persistence, verified AI follow-ups, replay-safe quota coupling and bounded context. Before implementation read #8, #9, #52, and the completed #43. Review
+Finish the **Phase 9 finalization slice**: persistent compact verified context, lease expiry/recovery, deterministic regressions and real staging. The previous state and AI follow-up implementations are already merged and verified. Before implementation read #8, #9, #52, and the completed #43. Review
 `workers/api/src/durable-objects/conversation.ts`, the Phase 7 quota/AI
 handler and Phase 8 server-verified source contracts. Implement in bounded
 increments: state/ordering already proven; next implement

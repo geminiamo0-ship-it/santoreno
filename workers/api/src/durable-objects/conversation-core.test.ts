@@ -59,6 +59,8 @@ class MemorySqlStorage implements DurableObjectStorageLike {
           text: String(bindings[4]),
           created_at_ms: Number(bindings[5]),
         });
+      } else if (query.startsWith("DELETE FROM conversation_context_summary")) {
+        // State-only fake has no rolling summary.
       } else if (query.startsWith("DELETE FROM conversation_turns")) {
         // This state-only fake has no AI turns.
       } else if (query.includes("FROM conversation_turns WHERE status")) {

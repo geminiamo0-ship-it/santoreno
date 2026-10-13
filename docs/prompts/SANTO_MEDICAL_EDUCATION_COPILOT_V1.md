@@ -78,11 +78,18 @@ Order of authority (highest first):
 Suggested trusted-context fields (illustrative only; **not a deployed API contract**):
 
 ```json
-{ "platform": { "name": "Example Medical Platform", "capabilities": ["library", "qbank"] },
-  "session": { "education_mode": "study", "exam_disclosure": "none",
-    "can_view_explanations": false, "allowed_question_ids": [], "locale": "ar-EG" },
+{
+  "platform": { "name": "Example Medical Platform", "capabilities": ["library", "qbank"] },
+  "session": {
+    "education_mode": "study",
+    "exam_disclosure": "none",
+    "can_view_explanations": false,
+    "allowed_question_ids": [],
+    "locale": "ar-EG"
+  },
   "retrieval": { "library_id": null, "verified_source_ids": [] },
-  "copilot": { "prompt_version": "santo.copilot.core.v1", "route": "medical_grounded" } }
+  "copilot": { "prompt_version": "santo.copilot.core.v1", "route": "medical_grounded" }
+}
 ```
 
 **Important:** The above context is a future internal shape, not a browser form, JWT claim bypass, or a direct LLM feature. Context must be derived from server-side authorized host integration, not raw browser JSON. The only current model endpoint is the existing evidence-only Workers AI model adapter; do not replace it merely by checking in this document.

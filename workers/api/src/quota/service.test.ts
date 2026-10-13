@@ -95,5 +95,4 @@ describe("DurableObjectQuotaService", () => {
     expect(sent[0]).not.toHaveProperty("cycleStartAt");
     expect(sent[0]).toHaveProperty("tenantId", tenantId);
   });
-
 });

@@ -46,10 +46,10 @@ function conversationService(env: SantoBindings): ConversationService {
   return new ConversationService(env.CONVERSATION);
 }
 
-function route(url: URL, method: string):
-  | { operation: "create" }
-  | { operation: "read" | "append"; conversationId: string }
-  | null {
+function route(
+  url: URL,
+  method: string,
+): { operation: "create" } | { operation: "read" | "append"; conversationId: string } | null {
   if (url.pathname === "/v1/conversations" && method === "POST") {
     return { operation: "create" };
   }
@@ -67,7 +67,10 @@ export function createConversationHandler(deps: ConversationHandlerDependencies 
   const users = deps.externalUserRepositoryFactory ?? externalUserRepository;
   const service = deps.serviceFactory ?? conversationService;
 
-  return async function handleConversation(request: Request, env: SantoBindings): Promise<Response> {
+  return async function handleConversation(
+    request: Request,
+    env: SantoBindings,
+  ): Promise<Response> {
     const selected = route(new URL(request.url), request.method);
     if (!selected) return errorResponse("NOT_FOUND", 404);
     try {

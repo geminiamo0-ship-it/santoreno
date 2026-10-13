@@ -260,6 +260,7 @@ export class ConversationTurnCore {
       if (!row || row.attempt_id !== request.attemptId || row.status !== "pending") {
         throw new ConversationStateError(409, "CONVERSATION_TURN_BUSY");
       }
+      const previousContext = recentContext(sql);
       sql.exec(
         "UPDATE conversation_turns SET status = 'completed', response_json = ?, lease_until_ms = 0 WHERE idempotency_key = ?",
         JSON.stringify(response),
@@ -272,7 +273,7 @@ export class ConversationTurnCore {
       // A delayed old turn must not reorder existing context.
       if (!latest || row.sequence > latest.last_completed_sequence) {
         const summaryText = appendVerifiedTurnSummary(
-          latest?.summary_text ?? recentContext(sql),
+          latest?.summary_text ?? previousContext,
           row.question,
           response.answer,
         );

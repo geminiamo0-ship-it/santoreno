@@ -51,7 +51,10 @@ export class TrustedSourceService {
     session: SessionContextResponse,
     request: TrustedSourceDetailRequest,
     assetId: string,
-  ): Promise<{ contentType: TrustedSourceMediaManifestEntry["contentType"]; bytes: Uint8Array<ArrayBuffer> }> {
+  ): Promise<{
+    contentType: TrustedSourceMediaManifestEntry["contentType"];
+    bytes: Uint8Array<ArrayBuffer>;
+  }> {
     if (!TrustedImageAssetIdSchema.safeParse(assetId).success) {
       throw new SourceResolutionError(400, "INVALID_SOURCE_REQUEST");
     }

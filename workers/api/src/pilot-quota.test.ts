@@ -15,12 +15,19 @@ const entitlement = {
 describe("pilot quota administration security", () => {
   it("refuses browser-supplied tenant caps or tenant identifiers in a user entitlement", () => {
     expect(QuotaUserEntitlementSchema.safeParse(entitlement).success).toBe(true);
-    expect(QuotaUserEntitlementSchema.safeParse({
-      ...entitlement, tenantId, monthlyAllowance: 99_999_999,
-    }).success).toBe(false);
-    expect(QuotaUserEntitlementSchema.safeParse({
-      ...entitlement, baseQuota: -1,
-    }).success).toBe(false);
+    expect(
+      QuotaUserEntitlementSchema.safeParse({
+        ...entitlement,
+        tenantId,
+        monthlyAllowance: 99_999_999,
+      }).success,
+    ).toBe(false);
+    expect(
+      QuotaUserEntitlementSchema.safeParse({
+        ...entitlement,
+        baseQuota: -1,
+      }).success,
+    ).toBe(false);
   });
 
   it("rejects any non-super-admin portal principal before initializing quota", async () => {

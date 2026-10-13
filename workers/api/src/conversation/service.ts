@@ -133,11 +133,12 @@ export class ConversationService {
     conversationId: string,
     idempotencyKey: string,
     attemptId: string,
+    rotateQuotaKey = false,
   ): Promise<void> {
     await this.call(
       conversationId,
       "fail-turn",
-      { actor, conversationId, idempotencyKey, attemptId },
+      { actor, conversationId, idempotencyKey, attemptId, rotateQuotaKey },
       (value) => {
         if ((value as { retryable?: unknown })?.retryable !== true)
           throw new ConversationServiceError(503, "CONVERSATION_UNAVAILABLE");

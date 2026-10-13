@@ -33,16 +33,30 @@ function harness() {
       response: persisted,
     },
   }));
-  const complete = vi.fn(async (_a: typeof actor, _id: string, _key: string, _attempt: string, answer: typeof response) => {
-    persisted = answer;
-    return {
-      messageId: "66666666-6666-4666-8666-666666666666", sequence: 0,
-      question: body.text, libraryId: null, status: "completed" as const, response: answer,
-    };
-  });
-  const fail = vi.fn(async (_a: typeof actor, _id: string, _key: string, _attempt: string, rotate: boolean) => {
-    if (rotate) quotaEpoch++;
-  });
+  const complete = vi.fn(
+    async (
+      _a: typeof actor,
+      _id: string,
+      _key: string,
+      _attempt: string,
+      answer: typeof response,
+    ) => {
+      persisted = answer;
+      return {
+        messageId: "66666666-6666-4666-8666-666666666666",
+        sequence: 0,
+        question: body.text,
+        libraryId: null,
+        status: "completed" as const,
+        response: answer,
+      };
+    },
+  );
+  const fail = vi.fn(
+    async (_a: typeof actor, _id: string, _key: string, _attempt: string, rotate: boolean) => {
+      if (rotate) quotaEpoch++;
+    },
+  );
   const client = {
     beginTurn: begin,
     completeTurn: complete,
@@ -70,16 +84,28 @@ describe("grounded turn billing/verification coordinator", () => {
     const t = harness();
     const keys: string[] = [];
     let attempt = 0;
-    const model = vi.fn(async (_token: string, _env: SantoBindings, input: { query: string; idempotency_key: string; library_id?: string }) => {
-      keys.push(input.idempotency_key);
-      if (++attempt === 1) throw new ConversationServiceError(502, "MODEL_FAILED");
-      return response;
-    });
+    const model = vi.fn(
+      async (
+        _token: string,
+        _env: SantoBindings,
+        input: { query: string; idempotency_key: string; library_id?: string },
+      ) => {
+        keys.push(input.idempotency_key);
+        if (++attempt === 1) throw new ConversationServiceError(502, "MODEL_FAILED");
+        return response;
+      },
+    );
     const ask = new ConversationAskService(t.client, model);
-    await expect(ask.ask(actor, conversationId, body, "Bearer signed", env, signal))
-      .rejects.toMatchObject({ code: "MODEL_FAILED" });
-    expect(t.fail).toHaveBeenCalledWith(actor, conversationId, body.idempotencyKey,
-      expect.any(String), true);
+    await expect(
+      ask.ask(actor, conversationId, body, "Bearer signed", env, signal),
+    ).rejects.toMatchObject({ code: "MODEL_FAILED" });
+    expect(t.fail).toHaveBeenCalledWith(
+      actor,
+      conversationId,
+      body.idempotencyKey,
+      expect.any(String),
+      true,
+    );
     expect(t.getEpoch()).toBe(1);
     await ask.ask(actor, conversationId, body, "Bearer signed", env, signal);
     expect(keys).toHaveLength(2);
@@ -95,8 +121,9 @@ describe("grounded turn billing/verification coordinator", () => {
       if (++attempt === 1) throw new ConversationServiceError(503, "QUOTA_FINALIZE_FAILED");
       return response;
     });
-    await expect(ask.ask(actor, conversationId, body, "Bearer signed", env, signal))
-      .rejects.toMatchObject({ code: "QUOTA_FINALIZE_FAILED" });
+    await expect(
+      ask.ask(actor, conversationId, body, "Bearer signed", env, signal),
+    ).rejects.toMatchObject({ code: "QUOTA_FINALIZE_FAILED" });
     expect(t.getEpoch()).toBe(0);
     await ask.ask(actor, conversationId, body, "Bearer signed", env, signal);
     expect(keys[0]).toEqual(keys[1]);
@@ -112,8 +139,11 @@ describe("grounded turn billing/verification coordinator", () => {
       }
       return {
         messageId: "66666666-6666-4666-8666-666666666666",
-        sequence: 0, question: body.text, libraryId: null,
-        status: "completed" as const, response: answer,
+        sequence: 0,
+        question: body.text,
+        libraryId: null,
+        status: "completed" as const,
+        response: answer,
       };
     });
     const keys: string[] = [];
@@ -121,8 +151,9 @@ describe("grounded turn billing/verification coordinator", () => {
       keys.push(input.idempotency_key);
       return response;
     });
-    await expect(ask.ask(actor, conversationId, body, "Bearer signed", env, signal))
-      .rejects.toMatchObject({ code: "CONVERSATION_UNAVAILABLE" });
+    await expect(
+      ask.ask(actor, conversationId, body, "Bearer signed", env, signal),
+    ).rejects.toMatchObject({ code: "CONVERSATION_UNAVAILABLE" });
     expect(t.getEpoch()).toBe(0);
     await ask.ask(actor, conversationId, body, "Bearer signed", env, signal);
     expect(keys[0]).toEqual(keys[1]);
@@ -133,9 +164,16 @@ describe("grounded turn billing/verification coordinator", () => {
     const controller = new AbortController();
     controller.abort();
     const model = vi.fn(async () => response);
-    await expect(new ConversationAskService(t.client, model)
-      .ask(actor, conversationId, body, "Bearer signed", env, controller.signal))
-      .rejects.toBeInstanceOf(GroundedAiError);
+    await expect(
+      new ConversationAskService(t.client, model).ask(
+        actor,
+        conversationId,
+        body,
+        "Bearer signed",
+        env,
+        controller.signal,
+      ),
+    ).rejects.toBeInstanceOf(GroundedAiError);
     expect(t.begin).not.toHaveBeenCalled();
     expect(model).not.toHaveBeenCalled();
   });

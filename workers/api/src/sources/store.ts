@@ -137,12 +137,13 @@ export class R2VerifiedSourceStore implements SourceSnapshotWriter {
       throw unavailable();
     }
 
-    let parsed: ReturnType<typeof TrustedSourceMediaManifestEntrySchema.array().max(MAX_IMAGES).safeParse>;
+    let manifest: unknown;
     try {
-      parsed = TrustedSourceMediaManifestEntrySchema.array().max(MAX_IMAGES).safeParse(JSON.parse(raw));
+      manifest = JSON.parse(raw);
     } catch {
       throw new SourceResolutionError(502, "SOURCE_MANIFEST_INVALID");
     }
+    const parsed = TrustedSourceMediaManifestEntrySchema.array().max(MAX_IMAGES).safeParse(manifest);
     if (!parsed.success) throw new SourceResolutionError(502, "SOURCE_MANIFEST_INVALID");
 
     const selected = parsed.data.filter((entry) => entry.sourceId === source.sourceId);

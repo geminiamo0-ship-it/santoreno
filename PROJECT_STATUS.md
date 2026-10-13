@@ -460,6 +460,22 @@ For every meaningful step:
 - Operator runbook: `docs/PILOT_CREDENTIAL_CONSOLE.md`. Phase 10 / #58
   remains OPEN; full portal is deferred.
 
+### WorkOS owner tenant-ID recovery — implementation pending (14 Oct 2026)
+
+- Royal Bank operator forgot the Santo Tenant UUID after successful
+  tenant/key creation and after encountering `TENANT_QUOTA_NOT_CONFIGURED`.
+  The WorkOS organization ID is known but is **not** a Santo UUID.
+- Add a read-only `GET /v1/portal/my-tenant` backed by existing
+  `findTenantByWorkOSOrgId` plus `getTenant` owner authorization. Neither
+  WorkOS Super Admin privilege alone nor a user-provided organization ID
+  grants access; a signed WorkOS organization + explicit owner membership is
+  required.
+- Staging console button **Find my Tenant ID** resolves and prefills the
+  UUID without creating a second tenant, key, or quota, while preserving the
+  active Super Admin quota bootstrap workflow.
+- Branch `feat/pilot-tenant-id-lookup`. CI, merge, staging deployment, real
+  WorkOS browser lookup and quota activation **still require verification**.
+
 ## 9. Next action
 
 **Royal Bank Pilot staging checkpoint — 2026-10-14:**

@@ -119,6 +119,21 @@ export const pilotCredentialScript = `(() => {
     notice("Verified owner access to " + tenant.name + ". You can generate its server key.");
   }
 
+  async function findMyTenant() {
+    resetSecret();
+    const tenant = await request("/v1/portal/my-tenant");
+    if (
+      !tenant ||
+      typeof tenant.id !== "string" ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(tenant.id)
+    ) {
+      throw new Error("Santo returned an invalid Tenant ID.");
+    }
+    el("tenant-id").value = tenant.id;
+    await verifyTenant();
+    notice("Found " + tenant.name + " — Santo Tenant ID: " + tenant.id + ". You can copy it and initialize the tenant quota below.");
+  }
+
   async function loadContext() {
     const context = await request("/v1/portal/context");
     if (context.role !== "owner" && context.role !== "super_admin") {
@@ -327,6 +342,7 @@ export const pilotCredentialScript = `(() => {
     clearAuth();
     notice("Console session ended. WorkOS may still have an external SSO session.");
   });
+  el("find-tenant").addEventListener("click", () => execute(findMyTenant));
   el("verify-tenant").addEventListener("click", () => execute(verifyTenant));
   el("tenant-id").addEventListener("input", () => {
     selectedTenantId = null;

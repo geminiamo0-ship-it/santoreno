@@ -301,6 +301,22 @@ export function createApp(dependencies: SantoAppDependencies = {}) {
     }
   });
 
+  // Read-only lookup for a forgotten tenant UUID. The signed WorkOS org
+  // and explicit Santo owner membership must both match (also for Super Admin).
+  app.get("/v1/portal/my-tenant", async (context) => {
+    try {
+      const tenant = await tenantService(context).getMyTenant(context.get("portalIdentity"));
+      return context.json(TenantSchema.parse(tenant), 200, { "Cache-Control": "no-store" });
+    } catch (error) {
+      if (error instanceof TenancyError) {
+        return context.json(errorPayload(error.code), error.status, {
+          "Cache-Control": "no-store",
+        });
+      }
+      throw error;
+    }
+  });
+
   app.get("/v1/portal/tenants/:tenantId", async (context) => {
     try {
       const tenant = await tenantService(context).getTenant(

@@ -102,6 +102,28 @@ export class TenantControlService {
     };
   }
 
+  /** Resolve the tenant from the signed WorkOS organization claim, without a caller tenant ID. */
+  async getMyTenant(identity: PortalIdentity): Promise<Tenant> {
+    if (!identity.organizationId) {
+      throw new TenancyError(
+        403,
+        "TENANT_CONTEXT_REQUIRED",
+        "Sign in with the intended WorkOS organization to find its tenant",
+      );
+    }
+    const tenant = await this.repository.findTenantByWorkOSOrgId(identity.organizationId);
+    if (!tenant) {
+      throw new TenancyError(
+        404,
+        "TENANT_NOT_FOUND",
+        "No Santo tenant exists for this organization",
+      );
+    }
+    // Reuse the existing explicit owner membership, active-state, and org checks.
+    // Being Super Admin alone does NOT authorize reading an arbitrary tenant.
+    return this.getTenant(identity, tenant.id);
+  }
+
   async createTenant(identity: PortalIdentity, input: CreateTenantRequest): Promise<Tenant> {
     const principal = await this.resolvePrincipal(identity);
     if (principal.role !== "super_admin") {

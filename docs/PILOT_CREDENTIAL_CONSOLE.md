@@ -22,16 +22,25 @@ secret is needed in the browser. The Worker already has `WORKOS_CLIENT_ID`,
    its own tenant automatically; a Santo Super Admin is not automatically
    an owner and must have matching WorkOS organization context **and**
    explicit D1 owner membership.
-3. For a **new** tenant, a Santo Super Admin can use **Initialize tenant**,
+3. **Forgot the Santo Tenant ID?** Click **Find my Tenant ID** after
+   WorkOS sign-in. Santo finds the existing UUID using the signed WorkOS
+   organization claim and verifies explicit ownership. The field is filled
+   automatically; click Copy Tenant ID if needed. No new tenant, key or
+   allowance is created. If the signed WorkOS session lacks an organization
+   claim, End Session and sign in again with the Royal Bank WorkOS
+   Organization ID entered in the first field. This lookup is read-only,
+   refuses cross-organization access, and is safe for a Super Admin only
+   when their WorkOS identity also has actual Owner membership.
+4. For a **new** tenant, a Santo Super Admin can use **Initialize tenant**,
    giving a tenant name/slug, matching WorkOS org ID and WorkOS owner user ID.
    The UI then attempts owner verification. If the JWT has no matching
    `org_id`, sign in again under the intended WorkOS organization before
    attempting to issue a key.
-4. Once verified, click **Generate API Key** and **Copy secret**. The key
+5. Once verified, click **Generate API Key** and **Copy secret**. The key
    begins with `santo_sk_`. Put it into the existing website **server-side**
    deployment secret store as `SANTO_SERVER_API_KEY`; for Royal Bank use a
    Sensitive Vercel Environment Variable, never a `NEXT_PUBLIC_` variable.
-5. Under **Initialize Tenant Quota** (Santo Super Admin only), enter the
+6. Under **Initialize Tenant Quota** (Santo Super Admin only), enter the
    intended tenant-wide allowance and UTC quota cycle start/end. The form
    defaults the dates to the current UTC calendar month; the allowance has no
    preselected value because the operator must choose it explicitly.
@@ -40,7 +49,7 @@ secret is needed in the browser. The Worker already has `WORKOS_CLIENT_ID`,
    enforces WorkOS Super Admin authorization and tenant existence.
    A zero-unit reserved `santo-operator-bootstrap` placeholder satisfies
    the initial-user contract without granting any real Royal account units.
-6. Once it says **Tenant quota activated**, retry Royal Bank `/santo`.
+7. Once it says **Tenant quota activated**, retry Royal Bank `/santo`.
    No additional Vercel variable or redeploy is needed. Royal Bank's
    `SANTO_DEFAULT_STUDENT_QUOTA` (100) provisions its actual students
    separately. Initial quota activation does not upload medical libraries.
@@ -60,6 +69,10 @@ secret is needed in the browser. The Worker already has `WORKOS_CLIENT_ID`,
   the requested tenant UUID, allowance and UTC cycle. Calling quota configure
   again with a new cycle start can reset the authoritative cycle counters:
   operators must not reinitialize active production usage by accident.
+- The `GET /v1/portal/my-tenant` lookup is a read-only owner-verification
+  operation bound to the signed WorkOS organization and Santo membership,
+  including when the caller is a Santo Super Admin. It does not enumerate
+  tenants or accept arbitrary organization IDs from the browser.
 - The server continues to verify WorkOS JWT signatures/issuer/client/expiry,
   Santo Super Admin creation rights, matching organization owner membership,
   active tenant state and existing active credential conflicts.

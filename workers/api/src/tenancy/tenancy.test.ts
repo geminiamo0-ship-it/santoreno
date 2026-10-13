@@ -145,6 +145,46 @@ describe("P2 tenant control plane", () => {
       tenant: null,
     });
 
+    const recovered = await app.request(
+      "/v1/portal/my-tenant",
+      { headers: { authorization: "Bearer super-owner" } },
+      env,
+    );
+    expect(recovered.status).toBe(200);
+    expect(recovered.headers.get("cache-control")).toBe("no-store");
+    await expect(recovered.json()).resolves.toMatchObject({
+      id: owned.id,
+      slug: "owned-by-admin",
+      workosOrgId: "org_medpark",
+    });
+
+    const noOrganization = await app.request(
+      "/v1/portal/my-tenant",
+      { headers: { authorization: "Bearer super" } },
+      env,
+    );
+    expect(noOrganization.status).toBe(403);
+    await expect(noOrganization.json()).resolves.toEqual({ error: "TENANT_CONTEXT_REQUIRED" });
+
+    const wrongOrganizationMembership = await app.request(
+      "/v1/portal/my-tenant",
+      { headers: { authorization: "Bearer medpark-second-org" } },
+      env,
+    );
+    expect(wrongOrganizationMembership.status).toBe(403);
+    await expect(wrongOrganizationMembership.json()).resolves.toEqual({ error: "FORBIDDEN" });
+
+    const otherOwner = await app.request(
+      "/v1/portal/my-tenant",
+      { headers: { authorization: "Bearer second" } },
+      env,
+    );
+    expect(otherOwner.status).toBe(200);
+    await expect(otherOwner.json()).resolves.toMatchObject({ id: other.id });
+
+    const withoutToken = await app.request("/v1/portal/my-tenant", {}, env);
+    expect(withoutToken.status).toBe(401);
+
     const ownRead = await app.request(
       `/v1/portal/tenants/${owned.id}`,
       { headers: { authorization: "Bearer super-owner" } },

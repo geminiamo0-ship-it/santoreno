@@ -6,16 +6,31 @@ export const widgetStyles = css`
     right: 20px;
     bottom: 20px;
     z-index: 2147483000;
-    font: 14px/1.5 ui-sans-serif, system-ui, -apple-system, sans-serif;
+    font:
+      14px/1.5 ui-sans-serif,
+      system-ui,
+      -apple-system,
+      sans-serif;
     color: #202932;
     direction: ltr;
     pointer-events: none;
     color-scheme: light;
   }
-  *, *::before, *::after { box-sizing: border-box; }
-  button, select, textarea { font: inherit; }
-  button { cursor: pointer; }
-  button:focus-visible, select:focus-visible {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+  button,
+  select,
+  textarea {
+    font: inherit;
+  }
+  button {
+    cursor: pointer;
+  }
+  button:focus-visible,
+  select:focus-visible {
     outline: 3px solid #ab8b60;
     outline-offset: 3px;
   }
@@ -73,10 +88,25 @@ export const widgetStyles = css`
     color: #fffaf2;
     padding: 15px 17px;
   }
-  .header-text { display: flex; flex-direction: column; min-width: 0; }
-  .name { font-size: 16px; line-height: 1.3; font-weight: 750; }
-  .caption { color: #ddd0bd; font-size: 11px; }
-  .header-actions { display: flex; gap: 6px; flex: none; }
+  .header-text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .name {
+    font-size: 16px;
+    line-height: 1.3;
+    font-weight: 750;
+  }
+  .caption {
+    color: #ddd0bd;
+    font-size: 11px;
+  }
+  .header-actions {
+    display: flex;
+    gap: 6px;
+    flex: none;
+  }
   .icon-button {
     border: 0;
     background: rgb(255 255 255 / 12%);
@@ -133,8 +163,16 @@ export const widgetStyles = css`
     place-items: center;
     border-radius: 16px;
   }
-  .empty h2 { margin: 0; font-size: 19px; letter-spacing: -0.025em; }
-  .empty p { margin: 0; color: #61707d; line-height: 1.6; }
+  .empty h2 {
+    margin: 0;
+    font-size: 19px;
+    letter-spacing: -0.025em;
+  }
+  .empty p {
+    margin: 0;
+    color: #61707d;
+    line-height: 1.6;
+  }
   .status {
     display: flex;
     align-items: center;
@@ -145,8 +183,16 @@ export const widgetStyles = css`
     padding: 10px 16px;
     font-size: 12px;
   }
-  .status-dot { width: 7px; height: 7px; background: #a17c47; border-radius: 50%; }
-  .composer { padding: 12px 14px; background: #fff; }
+  .status-dot {
+    width: 7px;
+    height: 7px;
+    background: #a17c47;
+    border-radius: 50%;
+  }
+  .composer {
+    padding: 12px 14px;
+    background: #fff;
+  }
   .composer textarea {
     width: 100%;
     resize: none;
@@ -157,13 +203,32 @@ export const widgetStyles = css`
     background: #f7f5f1;
     color: #75808a;
   }
-  .footer { color: #87919a; font-size: 10px; text-align: center; padding-top: 7px; }
+  .footer {
+    color: #87919a;
+    font-size: 10px;
+    text-align: center;
+    padding-top: 7px;
+  }
   @media (max-width: 540px) {
-    :host { right: 12px; bottom: 12px; }
-    .panel { width: calc(100vw - 24px); height: min(580px, calc(100dvh - 90px)); }
-    .panel.fullscreen { inset: 0; border-radius: 0; }
+    :host {
+      right: 12px;
+      bottom: 12px;
+    }
+    .panel {
+      width: calc(100vw - 24px);
+      height: min(580px, calc(100dvh - 90px));
+    }
+    .panel.fullscreen {
+      inset: 0;
+      border-radius: 0;
+    }
   }
   @media (prefers-reduced-motion: reduce) {
-    *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; }
+    *,
+    *::before,
+    *::after {
+      scroll-behavior: auto !important;
+      transition: none !important;
+    }
   }
 `;

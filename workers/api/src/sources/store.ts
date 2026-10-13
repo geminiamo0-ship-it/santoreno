@@ -50,7 +50,9 @@ export interface SourceSnapshotWriter {
 }
 
 async function sha256(value: string): Promise<string> {
-  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value)));
+  const digest = new Uint8Array(
+    await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value)),
+  );
   return Array.from(digest, (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
@@ -143,7 +145,9 @@ export class R2VerifiedSourceStore implements SourceSnapshotWriter {
     } catch {
       throw new SourceResolutionError(502, "SOURCE_MANIFEST_INVALID");
     }
-    const parsed = TrustedSourceMediaManifestEntrySchema.array().max(MAX_IMAGES).safeParse(manifest);
+    const parsed = TrustedSourceMediaManifestEntrySchema.array()
+      .max(MAX_IMAGES)
+      .safeParse(manifest);
     if (!parsed.success) throw new SourceResolutionError(502, "SOURCE_MANIFEST_INVALID");
 
     const selected = parsed.data.filter((entry) => entry.sourceId === source.sourceId);
@@ -178,7 +182,10 @@ export class R2VerifiedSourceStore implements SourceSnapshotWriter {
   }
 }
 
-function isSafeImage(bytes: Uint8Array, contentType: TrustedSourceMediaManifestEntry["contentType"]): boolean {
+function isSafeImage(
+  bytes: Uint8Array,
+  contentType: TrustedSourceMediaManifestEntry["contentType"],
+): boolean {
   if (contentType === "image/png") {
     return bytes.length >= 8 && [137, 80, 78, 71, 13, 10, 26, 10].every((n, i) => bytes[i] === n);
   }

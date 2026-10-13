@@ -61,11 +61,52 @@ current SQLite rows, allowing run-scoped staging fixtures to be cleaned up.
 Persistent provider backups or lower-level WAL retention are outside the
 API's guarantee and require an explicit production data-retention policy.
 
+## Phase 9 follow-up turn lifecycle (PR #56)
+
+The authenticated `POST /v1/conversations/:conversationId/ask` accepts
+`{idempotencyKey, expectedSequence, text, libraryId?}`. The matching
+`GET /v1/conversations/:conversationId/turns` returns the latest 10 turns,
+including their completion state and authoritative server-verified answer.
+
+The API verifies the Santo session before touching conversation state.
+`ConversationDO` atomically leases one pending turn and pins a stable
+idempotency key, query, library and bounded prior context. Competing
+concurrent turns fail with HTTP 409. Only one lease holder may commit the
+answer; a stale lease cannot overwrite a newer attempt. A completed retry
+replays the identical persisted response and bypasses model/quota work.
+
+Generation reuses the existing Phase 7 grounded AI handler, including
+authoritative `TenantMeterDO` reserve/finalize/release, AI Search, strict
+citation validation and R2 snapshot persistence. Only after it returns a
+validated and finalized response does the conversation commit that answer.
+JSON and buffered SSE are emitted **after** that commit. The response uses
+the existing versioned Phase 7 response format.
+
+The last three **completed** server-verified turns are converted into
+a bounded 1,600-character history string. Current prompts keep no more than
+4,000 characters overall; historical content is explicitly labeled
+untrusted, never used as citation authority. A full durable summary and
+large-conversation compaction policy remain part of Issue #52.
+
+On a confirmed charge-free failure, the turn is marked `retryable` and the
+Durable Object advances its billing epoch. This permits a new reservation
+without reusing a previously released quota key. If finalization is
+uncertain or generation succeeded but the conversation commit failed,
+the epoch stays unchanged; retries reuse the same billing key to prevent
+double charging. A previously finalized generation retry failure has its
+own `CHARGED_GENERATION_RETRY_FAILED` error and also preserves its epoch.
+Leases last 180 seconds and can be reclaimed when expired.
+
+Deletion removes conversation-owned metadata, pending/completed turns,
+and user-message rows atomically. R2 snapshots remain governed by the
+existing 30-day logical retention and production lifecycle cleanup policy.
+
 ## Not implemented yet
 
-This slice does **not** store assistant answers, generate follow-ups,
-summarize context, persist verified assistant citations, or coordinate AI
-streaming and quota. These are further requirements of Issue #52. It does
+The first #54 state slice did not generate answers. The next #56 slice
+adds server-verified turn persistence, follow-up retrieval and buffered
+stream coordination; durable context summarization and complete failure
+recovery still require Phase 9 acceptance. These are further requirements of Issue #52. It does
 not claim that Phase 9 is complete or that the full widget is ready.
 
 The existing Phase 7/8 AI and source authorization paths remain unchanged.

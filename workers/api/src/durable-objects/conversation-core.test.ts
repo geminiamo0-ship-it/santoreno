@@ -108,9 +108,9 @@ describe("conversation state core", () => {
       { tenantId: "44444444-4444-4444-8444-444444444444", externalUserId: "student" },
       { tenantId: TENANT_ID, externalUserId: "not-student" },
     ]) {
-      expect(() =>
-        state.read({ actor: other, conversationId: CONVERSATION_ID }),
-      ).toThrowError(ConversationStateError);
+      expect(() => state.read({ actor: other, conversationId: CONVERSATION_ID })).toThrowError(
+        ConversationStateError,
+      );
       expect(() => state.append({ ...append("other", 0), actor: other })).toThrowError(
         ConversationStateError,
       );
@@ -131,9 +131,7 @@ describe("conversation state core", () => {
       nextSequence: 1,
       replayed: true,
     });
-    expect(() => state.append(append("first", 0, "changed"))).toThrowError(
-      ConversationStateError,
-    );
+    expect(() => state.append(append("first", 0, "changed"))).toThrowError(ConversationStateError);
     expect(() => state.append(append("other", 0))).toThrowError(ConversationStateError);
     expect(state.read({ actor, conversationId: CONVERSATION_ID }).totalMessages).toBe(1);
   });
@@ -161,7 +159,9 @@ describe("conversation state core", () => {
     const second = after.append(append("second", 1));
     expect(second.message.sequence).toBe(1);
     expect(
-      after.read({ actor, conversationId: CONVERSATION_ID }).messages.map((message) => message.sequence),
+      after
+        .read({ actor, conversationId: CONVERSATION_ID })
+        .messages.map((message) => message.sequence),
     ).toEqual([0, 1]);
   });
 

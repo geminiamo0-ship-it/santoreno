@@ -33,14 +33,14 @@ function harness() {
       response: persisted,
     },
   }));
-  const complete = vi.fn(async (_a, _id, _key, _attempt, answer: typeof response) => {
+  const complete = vi.fn(async (_a: typeof actor, _id: string, _key: string, _attempt: string, answer: typeof response) => {
     persisted = answer;
     return {
       messageId: "66666666-6666-4666-8666-666666666666", sequence: 0,
       question: body.text, libraryId: null, status: "completed" as const, response: answer,
     };
   });
-  const fail = vi.fn(async (_a, _id, _key, _attempt, rotate: boolean) => {
+  const fail = vi.fn(async (_a: typeof actor, _id: string, _key: string, _attempt: string, rotate: boolean) => {
     if (rotate) quotaEpoch++;
   });
   const client = {
@@ -70,7 +70,7 @@ describe("grounded turn billing/verification coordinator", () => {
     const t = harness();
     const keys: string[] = [];
     let attempt = 0;
-    const model = vi.fn(async (_token, _env, input) => {
+    const model = vi.fn(async (_token: string, _env: SantoBindings, input: { query: string; idempotency_key: string; library_id?: string }) => {
       keys.push(input.idempotency_key);
       if (++attempt === 1) throw new ConversationServiceError(502, "MODEL_FAILED");
       return response;
@@ -113,7 +113,7 @@ describe("grounded turn billing/verification coordinator", () => {
       return {
         messageId: "66666666-6666-4666-8666-666666666666",
         sequence: 0, question: body.text, libraryId: null,
-        status: "completed", response: answer,
+        status: "completed" as const, response: answer,
       };
     });
     const keys: string[] = [];

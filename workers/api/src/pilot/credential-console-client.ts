@@ -12,6 +12,7 @@ export const pilotCredentialScript = `(() => {
   let accountOrgId = null;
   let busy = false;
   let isSuperAdmin = false;
+  let quotaInitialized = false;
 
   function notice(message, isError = false) {
     el("notice").textContent = message;
@@ -27,7 +28,9 @@ export const pilotCredentialScript = `(() => {
 
   function setBusy(value) {
     busy = value;
-    for (const button of document.querySelectorAll("button")) button.disabled = value;
+    for (const button of document.querySelectorAll("button")) {
+      button.disabled = value || (button.id === "initialize-quota" && quotaInitialized);
+    }
   }
 
   function clearAuth() {
@@ -36,6 +39,7 @@ export const pilotCredentialScript = `(() => {
     accountUserId = null;
     accountOrgId = null;
     isSuperAdmin = false;
+    quotaInitialized = false;
     el("quota-panel").hidden = true;
     el("quota-result").hidden = true;
     resetSecret();
@@ -110,6 +114,7 @@ export const pilotCredentialScript = `(() => {
     el("credential-panel").hidden = false;
     el("quota-panel").hidden = !isSuperAdmin;
     el("quota-result").hidden = true;
+    quotaInitialized = false;
     el("initialize-quota").disabled = false;
     notice("Verified owner access to " + tenant.name + ". You can generate its server key.");
   }
@@ -251,7 +256,7 @@ export const pilotCredentialScript = `(() => {
 
   function quotaCycleDate(id) {
     const raw = el(id).value;
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(raw)) {
       throw new Error("Choose a valid UTC quota cycle date.");
     }
     const value = new Date(raw + "T00:00:00.000Z");
@@ -276,11 +281,11 @@ export const pilotCredentialScript = `(() => {
     }
     // Deliberate operator confirmation before a potentially destructive cycle reconfiguration.
     const proceed = window.confirm(
-      "Initialize Santo Tenant Quota?\n\nTenant: " + id +
-      "\nMonthly allowance: " + monthlyAllowance +
-      "\nUTC cycle: " + start.toISOString().slice(0, 10) +
+      "Initialize Santo Tenant Quota?\\n\\nTenant: " + id +
+      "\\nMonthly allowance: " + monthlyAllowance +
+      "\\nUTC cycle: " + start.toISOString().slice(0, 10) +
       " through " + end.toISOString().slice(0, 10) +
-      "\n\nIMPORTANT: Reconfiguring an existing cycle may reset usage counters. Continue only for a new tenant or a planned quota change."
+      "\\n\\nIMPORTANT: Reconfiguring an existing cycle may reset usage counters. Continue only for a new tenant or a planned quota change."
     );
     if (!proceed) return;
     const snapshot = await request("/v1/admin/tenants/" + encodeURIComponent(id) + "/quota", {
@@ -306,6 +311,7 @@ export const pilotCredentialScript = `(() => {
       "Tenant quota initialized: " + snapshot.tenant.remaining + " of " + snapshot.tenant.limit +
       " units remaining. Students still receive their own quotas through Royal Bank.";
     el("quota-result").hidden = false;
+    quotaInitialized = true;
     el("initialize-quota").disabled = true;
     notice("Tenant quota activated. Return to Royal Bank /santo and retry; no new Vercel deploy is required.");
   }

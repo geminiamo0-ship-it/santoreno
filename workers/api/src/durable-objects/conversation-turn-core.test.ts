@@ -63,6 +63,7 @@ class State implements DurableObjectStorageLike {
           lease_until_ms: params[7],
           response_json: null,
           context_text: params[8],
+          quota_epoch: 0,
         });
       } else if (query.startsWith("UPDATE conversation_turns SET status = 'pending'")) {
         const row = this.turns.find((t) => t.idempotency_key === params[2]);
@@ -77,8 +78,8 @@ class State implements DurableObjectStorageLike {
         if (row)
           Object.assign(row, { status: "completed", response_json: params[0], lease_until_ms: 0 });
       } else if (query.startsWith("UPDATE conversation_turns SET status = 'retryable'")) {
-        const row = this.turns.find((t) => t.idempotency_key === params[0]);
-        if (row) Object.assign(row, { status: "retryable", lease_until_ms: 0 });
+        const row = this.turns.find((t) => t.idempotency_key === params[1]);
+        if (row) Object.assign(row, { status: "retryable", lease_until_ms: 0, quota_epoch: Number(row.quota_epoch) + Number(params[0]) });
       } else if (query.startsWith("DELETE FROM conversation_turns")) {
         this.turns = [];
       } else if (query.startsWith("DELETE FROM conversation_messages")) {
@@ -196,6 +197,7 @@ describe("verified conversation turn state", () => {
     turns.fail({ actor, conversationId, idempotencyKey: "first", attemptId: first.attemptId });
     const retry = turns.begin(ask());
     expect(retry.attemptId).not.toBe(first.attemptId);
+    expect(retry.quotaEpoch).toBe(0);
     expect(base.read({ actor, conversationId }).nextSequence).toBe(1);
     expect(() =>
       turns.complete({

@@ -43,6 +43,13 @@ async function sha256(value: string): Promise<string> {
   return Array.from(digest, (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
+export async function trustedSourceManifestKey(source: TrustedSourceMetadata): Promise<string> {
+  const documentId = await sha256(
+    `${source.libraryId}\u0000${source.instanceId}\u0000${source.itemKey}`,
+  );
+  return `source-manifests/v1/${documentId}.json`;
+}
+
 function unavailable(): SourceResolutionError {
   return new SourceResolutionError(503, "SOURCE_UNAVAILABLE");
 }
@@ -109,17 +116,11 @@ export class R2VerifiedSourceStore implements SourceSnapshotWriter {
     return snapshot.sources;
   }
 
-  private async manifestKey(source: TrustedSourceMetadata): Promise<string> {
-    const documentId = await sha256(
-      `${source.libraryId}\u0000${source.instanceId}\u0000${source.itemKey}`,
-    );
-    return `source-manifests/v1/${documentId}.json`;
-  }
 
   async images(source: TrustedSourceMetadata): Promise<readonly TrustedSourceMediaManifestEntry[]> {
     let raw: string;
     try {
-      const object = await this.bucket.get(await this.manifestKey(source));
+      const object = await this.bucket.get(await trustedSourceManifestKey(source));
       if (!object) return [];
       raw = await object.text();
     } catch {

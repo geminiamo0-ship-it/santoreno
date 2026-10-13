@@ -59,6 +59,10 @@ class MemorySqlStorage implements DurableObjectStorageLike {
           text: String(bindings[4]),
           created_at_ms: Number(bindings[5]),
         });
+      } else if (query.startsWith("DELETE FROM conversation_messages")) {
+        this.messages.length = 0;
+      } else if (query.startsWith("DELETE FROM conversation_meta")) {
+        this.meta = null;
       } else if (query.includes("FROM conversation_meta")) {
         rows = this.meta ? [this.meta] : [];
       } else if (query.includes("COALESCE(MAX(sequence)")) {
@@ -177,6 +181,23 @@ describe("conversation state core", () => {
     expect(read.messages[0]?.sequence).toBe(150);
     expect(read.messages[49]?.sequence).toBe(199);
     expect(() => state.append(append("overflow", 200))).toThrowError(ConversationStateError);
+  });
+
+  it("allows owner erasure without a cross-tenant delete bypass", () => {
+    const state = core();
+    state.create(create());
+    state.append(append("first", 0));
+    expect(() =>
+      state.delete({
+        actor: { tenantId: TENANT_ID, externalUserId: "not-owner" },
+        conversationId: CONVERSATION_ID,
+      }),
+    ).toThrowError(ConversationStateError);
+    expect(state.read({ actor, conversationId: CONVERSATION_ID }).totalMessages).toBe(1);
+    expect(state.delete({ actor, conversationId: CONVERSATION_ID })).toEqual({ deleted: true });
+    expect(() => state.read({ actor, conversationId: CONVERSATION_ID })).toThrowError(
+      ConversationStateError,
+    );
   });
 
   it("returns a typed not-found for a conversation that has not been created", () => {

@@ -68,10 +68,16 @@ export class SantoAiElement extends LitElement {
   configure(config: SantoWidgetConfiguration): void {
     if (this.busy) return;
     this.cleanupImage();
+    let store: Storage | undefined;
+    try {
+      store = config.sessionScope ? window.sessionStorage : undefined;
+    } catch {
+      // Private browsing or restricted frames may disable session storage.
+    }
     this.client = new SantoConversationClient({
       apiBaseUrl: config.apiBaseUrl,
       sessionProvider: config.sessionProvider,
-      store: config.sessionScope ? window.sessionStorage : undefined,
+      store,
       storeKey: config.sessionScope,
     });
     this.turns = [];

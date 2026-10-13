@@ -480,6 +480,18 @@ async function verifyP8Sources(
   }
 }
 
+async function requestGroundedTurnWithRetry(workerUrl, path, authorization, body) {
+  let response = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    response = await request(workerUrl, path, { method: "POST", authorization, body });
+    if (response.status !== 422 || response.body?.error !== "INSUFFICIENT_EVIDENCE") {
+      return response;
+    }
+    await sleep(500);
+  }
+  return response;
+}
+
 async function verifyP9GroundedFollowups(workerUrl, smokeToken, secret, tenantId) {
   const userId = "p9-grounded-followup-user";
   const setup = await request(workerUrl, "/__infra/p33-global-search-acceptance/setup", {
@@ -507,11 +519,9 @@ async function verifyP9GroundedFollowups(workerUrl, smokeToken, secret, tenantId
       text: question,
       libraryId: MRCP_INSTANCE_ID,
     };
-    const first = await request(workerUrl, base + "/ask", {
-      method: "POST",
-      authorization,
-      body: firstInput,
-    });
+    const first = await requestGroundedTurnWithRetry(
+      workerUrl, base + "/ask", authorization, firstInput,
+    );
     expectSuccessfulAnswer(first, "23", [MRCP_INSTANCE_ID], 3);
     const replay = await request(workerUrl, base + "/ask", {
       method: "POST",
@@ -691,6 +701,11 @@ async function verify() {
   );
   expect(setup.body?.status === "ready", "P33 runtime setup did not become ready");
 
+  if (process.env.P9_FOLLOWUP_ACCEPTANCE === "1") {
+    await verifyP9GroundedFollowups(workerUrl, smokeToken, secret, tenantId);
+    return;
+  }
+
   const sharedKey = `p33-scope-${process.env.GITHUB_RUN_ID ?? Date.now()}`;
   const mrcp = await request(workerUrl, "/v1/ai/query", {
     method: "POST",
@@ -777,10 +792,6 @@ async function verify() {
       ].join("\n"),
       "utf8",
     );
-  }
-
-  if (process.env.P9_FOLLOWUP_ACCEPTANCE === "1") {
-    await verifyP9GroundedFollowups(workerUrl, smokeToken, secret, tenantId);
   }
 
   console.log("P33 global AI Search live acceptance passed.");

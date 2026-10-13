@@ -23,7 +23,10 @@ const source = {
   section: "Sodium disorders",
 };
 const manifestEntry = {
-  ...source,
+  sourceId: source.sourceId,
+  libraryId: source.libraryId,
+  instanceId: source.instanceId,
+  itemKey: source.itemKey,
   assetId: "sodium-chart",
   objectKey: "source-media/mrcp/sodium-chart.png",
   contentType: "image/png" as const,

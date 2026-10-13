@@ -2,10 +2,7 @@ import type { Tenant } from "@santo/contracts";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import type { R2BucketLike, R2ObjectBodyLike, SantoBindings } from "../runtime/bindings";
-import type {
-  ExternalUserRecord,
-  ExternalUserRepository,
-} from "../session/repository";
+import type { ExternalUserRecord, ExternalUserRepository } from "../session/repository";
 import { SantoSessionTokenService } from "../session/token";
 import type { TenantRepository } from "../tenancy/repository";
 import { createTrustedSourceHandler } from "./handler";
@@ -49,7 +46,7 @@ class FakeBucket implements R2BucketLike {
     const data = this.values.get(key);
     if (data === undefined) return Promise.resolve(null);
     return Promise.resolve({
-      text: async () => typeof data === "string" ? data : new TextDecoder().decode(data),
+      text: async () => (typeof data === "string" ? data : new TextDecoder().decode(data)),
       arrayBuffer: async () => {
         const bytes = typeof data === "string" ? new TextEncoder().encode(data) : data;
         return bytes.slice().buffer;
@@ -65,9 +62,14 @@ class FakeBucket implements R2BucketLike {
 
 async function manifestKey(): Promise<string> {
   const input = `${source.libraryId}\u0000${source.instanceId}\u0000${source.itemKey}`;
-  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(input)));
-  return "source-manifests/v1/" +
-    Array.from(digest, (byte) => byte.toString(16).padStart(2, "0")).join("") + ".json";
+  const digest = new Uint8Array(
+    await crypto.subtle.digest("SHA-256", new TextEncoder().encode(input)),
+  );
+  return (
+    "source-manifests/v1/" +
+    Array.from(digest, (byte) => byte.toString(16).padStart(2, "0")).join("") +
+    ".json"
+  );
 }
 
 function repositoryTenant(): TenantRepository {
@@ -82,7 +84,7 @@ function repositoryTenant(): TenantRepository {
   };
   return {
     createTenantWithOwner: async () => tenant,
-    findTenantById: async (id) => id === TENANT_ID || id === OTHER_TENANT ? tenant : null,
+    findTenantById: async (id) => (id === TENANT_ID || id === OTHER_TENANT ? tenant : null),
     findTenantByWorkOSOrgId: async () => tenant,
     findMembership: async () => null,
     updateTenantName: async () => tenant,
@@ -102,8 +104,7 @@ function repositoryUser(): ExternalUserRepository {
   });
   return {
     upsertExternalUser: async () => fake(TENANT_ID, "student"),
-    findByTenantAndExternalId: async (tenantId, externalUserId) =>
-      fake(tenantId, externalUserId),
+    findByTenantAndExternalId: async (tenantId, externalUserId) => fake(tenantId, externalUserId),
   };
 }
 
@@ -131,10 +132,9 @@ describe("authenticated source details and media", () => {
 
   const image = (accessToken: string, assetId = manifestEntry.assetId) =>
     handler(
-      new Request(
-        `https://santo.test/v1/sources/${MESSAGE_ID}/${SOURCE_ID}/images/${assetId}`,
-        { headers: { Authorization: `Bearer ${accessToken}` } },
-      ),
+      new Request(`https://santo.test/v1/sources/${MESSAGE_ID}/${SOURCE_ID}/images/${assetId}`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      }),
       env,
     );
 
@@ -142,14 +142,15 @@ describe("authenticated source details and media", () => {
     bucket = new FakeBucket();
     env = { SANTO_SESSION_SIGNING_KEY: SIGNING_KEY };
     store = new R2VerifiedSourceStore(bucket);
-    token = (await new SantoSessionTokenService(env).issue({
-      tenantId: TENANT_ID,
-      externalUserId: "student",
-    })).token;
-    await store.save(
-      { tenantId: TENANT_ID, externalUserId: "student", messageId: MESSAGE_ID },
-      [source],
-    );
+    token = (
+      await new SantoSessionTokenService(env).issue({
+        tenantId: TENANT_ID,
+        externalUserId: "student",
+      })
+    ).token;
+    await store.save({ tenantId: TENANT_ID, externalUserId: "student", messageId: MESSAGE_ID }, [
+      source,
+    ]);
     bucket.values.set(await manifestKey(), JSON.stringify([manifestEntry]));
     bucket.values.set(manifestEntry.objectKey, png);
   });
@@ -161,20 +162,24 @@ describe("authenticated source details and media", () => {
     const body = await response.json();
     expect(body).toEqual({
       source,
-      images: [{
-        assetId: manifestEntry.assetId,
-        altText: manifestEntry.altText,
-        caption: null,
-        contentType: "image/png",
-        width: 400,
-        height: 200,
-      }],
+      images: [
+        {
+          assetId: manifestEntry.assetId,
+          altText: manifestEntry.altText,
+          caption: null,
+          contentType: "image/png",
+          width: 400,
+          height: 200,
+        },
+      ],
     });
     expect(JSON.stringify(body)).not.toContain("source-media/");
   });
 
   it("requires a valid session before accessing source records", async () => {
-    expect((await detail("invalid", { messageId: MESSAGE_ID, sourceId: SOURCE_ID })).status).toBe(401);
+    expect((await detail("invalid", { messageId: MESSAGE_ID, sourceId: SOURCE_ID })).status).toBe(
+      401,
+    );
     const response = await handler(
       new Request("https://santo.test/v1/sources/detail", {
         method: "POST",
@@ -186,20 +191,32 @@ describe("authenticated source details and media", () => {
   });
 
   it("enforces both tenant and external user isolation", async () => {
-    for (const [tenantId, userId] of [[OTHER_TENANT, "student"], [TENANT_ID, "other"]]) {
-      const forgedToken = (await new SantoSessionTokenService(env).issue({
-        tenantId: tenantId!,
-        externalUserId: userId!,
-      })).token;
-      expect((await detail(forgedToken, { messageId: MESSAGE_ID, sourceId: SOURCE_ID })).status).toBe(404);
+    for (const [tenantId, userId] of [
+      [OTHER_TENANT, "student"],
+      [TENANT_ID, "other"],
+    ]) {
+      const forgedToken = (
+        await new SantoSessionTokenService(env).issue({
+          tenantId: tenantId!,
+          externalUserId: userId!,
+        })
+      ).token;
+      expect(
+        (await detail(forgedToken, { messageId: MESSAGE_ID, sourceId: SOURCE_ID })).status,
+      ).toBe(404);
       expect((await image(forgedToken)).status).toBe(404);
     }
   });
 
   it("rejects uncited sources, unknown assets, and caller-supplied tenant ids", async () => {
-    expect((await detail(token, { messageId: MESSAGE_ID, sourceId: "instance-mrcp:forged" })).status).toBe(404);
+    expect(
+      (await detail(token, { messageId: MESSAGE_ID, sourceId: "instance-mrcp:forged" })).status,
+    ).toBe(404);
     expect((await image(token, "forged-asset")).status).toBe(404);
-    expect((await detail(token, { messageId: MESSAGE_ID, sourceId: SOURCE_ID, tenantId: TENANT_ID })).status).toBe(400);
+    expect(
+      (await detail(token, { messageId: MESSAGE_ID, sourceId: SOURCE_ID, tenantId: TENANT_ID }))
+        .status,
+    ).toBe(400);
   });
 
   it("delivers valid image bytes with safe headers and no public caching", async () => {
@@ -219,9 +236,15 @@ describe("authenticated source details and media", () => {
   });
 
   it("fails closed on forged or malformed manifest records", async () => {
-    bucket.values.set(await manifestKey(), JSON.stringify([{ ...manifestEntry, libraryId: "usmle" }]));
+    bucket.values.set(
+      await manifestKey(),
+      JSON.stringify([{ ...manifestEntry, libraryId: "usmle" }]),
+    );
     expect((await detail(token, { messageId: MESSAGE_ID, sourceId: SOURCE_ID })).status).toBe(502);
-    bucket.values.set(await manifestKey(), JSON.stringify([{ ...manifestEntry, objectKey: "../secret.png" }]));
+    bucket.values.set(
+      await manifestKey(),
+      JSON.stringify([{ ...manifestEntry, objectKey: "../secret.png" }]),
+    );
     expect((await image(token)).status).toBe(502);
   });
 
@@ -235,7 +258,10 @@ describe("authenticated source details and media", () => {
   it("fails closed on snapshots that exceed the retention window", async () => {
     const oldStore = new R2VerifiedSourceStore(bucket, () => 0);
     const oldMessageId = "66666666-6666-4666-8666-666666666666";
-    await oldStore.save({ tenantId: TENANT_ID, externalUserId: "student", messageId: oldMessageId }, [source]);
+    await oldStore.save(
+      { tenantId: TENANT_ID, externalUserId: "student", messageId: oldMessageId },
+      [source],
+    );
     const response = await detail(token, { messageId: oldMessageId, sourceId: SOURCE_ID });
     expect(response.status).toBe(404);
   });

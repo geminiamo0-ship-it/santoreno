@@ -274,7 +274,9 @@ describe("grounded AI handler", () => {
     const first = await handler()(request(token, "charge-identity"), env);
     expect(first.status).toBe(200);
     expect(quota.used).toBe(1);
-    model.generate = vi.fn(async () => { throw new Error("model retry unavailable"); });
+    model.generate = vi.fn(async () => {
+      throw new Error("model retry unavailable");
+    });
     const second = await handler()(request(token, "charge-identity"), env);
     expect(second.status).toBe(503);
     expect(await second.json()).toEqual({ error: "CHARGED_GENERATION_RETRY_FAILED" });

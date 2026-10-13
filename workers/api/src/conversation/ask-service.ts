@@ -50,7 +50,9 @@ export class ConversationAskService {
       : body.text;
     const hash = await crypto.subtle.digest(
       "SHA-256",
-      new TextEncoder().encode(`${conversationId}\u0000${body.idempotencyKey}\u0000${started.quotaEpoch}`),
+      new TextEncoder().encode(
+        `${conversationId}\u0000${body.idempotencyKey}\u0000${started.quotaEpoch}`,
+      ),
     );
     const key = `conversation:${Array.from(new Uint8Array(hash), (n) => n.toString(16).padStart(2, "0")).join("")}`;
 
@@ -79,8 +81,10 @@ export class ConversationAskService {
       // A failed model/charge/persist attempt must not permanently lock the turn.
       // If completion actually committed but its response was lost, replaying begin
       // returns the immutable completed answer and does not call AI again.
-      const uncertain = error instanceof ConversationServiceError &&
-        (error.code === "QUOTA_FINALIZE_FAILED" || error.code === "QUOTA_RELEASE_FAILED" ||
+      const uncertain =
+        error instanceof ConversationServiceError &&
+        (error.code === "QUOTA_FINALIZE_FAILED" ||
+          error.code === "QUOTA_RELEASE_FAILED" ||
           error.code === "CHARGED_GENERATION_RETRY_FAILED");
       await this.conversations
         .failTurn(actor, conversationId, body.idempotencyKey, attemptId, !verified && !uncertain)

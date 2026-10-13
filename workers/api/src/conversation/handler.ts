@@ -1,11 +1,15 @@
 import { ApiErrorResponseSchema } from "@santo/contracts";
 import {
   ConversationAppendRequestSchema,
+  ConversationAskRequestSchema,
   ConversationCreateRequestSchema,
   ConversationIdSchema,
 } from "@santo/contracts/conversation";
 
 import type { SantoBindings } from "../runtime/bindings";
+import { GroundedAiError } from "../ai/errors";
+import { streamValidatedGroundedAnswer } from "../ai/stream";
+import { ConversationAskService } from "./ask-service";
 import { D1ExternalUserRepository, type ExternalUserRepository } from "../session/repository";
 import { SessionError, SessionExchangeService } from "../session/service";
 import { SantoSessionTokenService, SessionTokenError } from "../session/token";
@@ -16,6 +20,7 @@ interface ConversationHandlerDependencies {
   tenantRepositoryFactory?: (env: SantoBindings) => TenantRepository;
   externalUserRepositoryFactory?: (env: SantoBindings) => ExternalUserRepository;
   serviceFactory?: (env: SantoBindings) => ConversationService;
+  askServiceFactory?: (client: ConversationService) => ConversationAskService;
 }
 
 function errorResponse(code: string, status: number): Response {
@@ -51,18 +56,20 @@ function route(
   method: string,
 ):
   | { operation: "create" }
-  | { operation: "read" | "append" | "delete"; conversationId: string }
+  | { operation: "read" | "append" | "delete" | "ask" | "turns"; conversationId: string }
   | null {
   if (url.pathname === "/v1/conversations" && method === "POST") {
     return { operation: "create" };
   }
-  const match = /^\/v1\/conversations\/([^/]+)(\/messages)?$/.exec(url.pathname);
+  const match = /^\/v1\/conversations\/([^/]+)(\/messages|\/ask|\/turns)?$/.exec(url.pathname);
   if (!match) return null;
   const conversationId = match[1] ?? "";
   if (!ConversationIdSchema.safeParse(conversationId).success) return null;
   if (!match[2] && method === "GET") return { operation: "read", conversationId };
   if (!match[2] && method === "DELETE") return { operation: "delete", conversationId };
-  if (match[2] && method === "POST") return { operation: "append", conversationId };
+  if (match[2] === "/messages" && method === "POST") return { operation: "append", conversationId };
+  if (match[2] === "/ask" && method === "POST") return { operation: "ask", conversationId };
+  if (match[2] === "/turns" && method === "GET") return { operation: "turns", conversationId };
   return null;
 }
 
@@ -70,6 +77,7 @@ export function createConversationHandler(deps: ConversationHandlerDependencies 
   const tenants = deps.tenantRepositoryFactory ?? tenantRepository;
   const users = deps.externalUserRepositoryFactory ?? externalUserRepository;
   const service = deps.serviceFactory ?? conversationService;
+  const askService = deps.askServiceFactory ?? ((client: ConversationService) => new ConversationAskService(client));
 
   return async function handleConversation(
     request: Request,
@@ -107,6 +115,23 @@ export function createConversationHandler(deps: ConversationHandlerDependencies 
           headers: { "Cache-Control": "no-store" },
         });
       }
+      if (selected.operation === "ask") {
+        const parsed = ConversationAskRequestSchema.safeParse(await request.json().catch(() => null));
+        if (!parsed.success) return errorResponse("INVALID_CONVERSATION_REQUEST", 400);
+        const answer = await askService(client).ask(
+          actor, selected.conversationId, parsed.data,
+          request.headers.get("authorization") ?? "", env, request.signal,
+        );
+        const acceptsSse = (request.headers.get("accept") ?? "").split(",")
+          .some((item) => item.trim().split(";")[0]?.trim() === "text/event-stream");
+        return acceptsSse
+          ? streamValidatedGroundedAnswer(answer)
+          : Response.json(answer, { headers: { "Cache-Control": "no-store" } });
+      }
+      if (selected.operation === "turns") {
+        return Response.json({ turns: await client.listTurns(actor, selected.conversationId) },
+          { headers: { "Cache-Control": "no-store" } });
+      }
       if (selected.operation === "delete") {
         return Response.json(await client.delete(actor, selected.conversationId), {
           headers: { "Cache-Control": "no-store" },
@@ -119,7 +144,8 @@ export function createConversationHandler(deps: ConversationHandlerDependencies 
       if (
         error instanceof SessionTokenError ||
         error instanceof SessionError ||
-        error instanceof ConversationServiceError
+        error instanceof ConversationServiceError ||
+        error instanceof GroundedAiError
       ) {
         return errorResponse(error.code, error.status);
       }

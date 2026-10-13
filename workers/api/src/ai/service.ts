@@ -168,7 +168,11 @@ export class GroundedAiService {
             sources,
           );
         } catch {
-          throw new GroundedAiError(503, "SOURCE_SNAPSHOT_FAILED", "Could not save verified sources");
+          throw new GroundedAiError(
+            503,
+            "SOURCE_SNAPSHOT_FAILED",
+            "Could not save verified sources",
+          );
         }
       }
     } catch (error) {

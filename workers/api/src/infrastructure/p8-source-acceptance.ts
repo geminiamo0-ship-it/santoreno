@@ -8,7 +8,9 @@ import {
 } from "../sources/store";
 
 const FIXTURE_INSTANCE_ID = /^santo-p33-mrcp-[0-9a-f]{12}$/;
-const FIXTURE_IMAGE_BYTES = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 0]);
+const FIXTURE_PNG_BASE64 =
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9pVjYAAAAASUVORK5CYII=";
+const FIXTURE_IMAGE_BYTES = Uint8Array.from(atob(FIXTURE_PNG_BASE64), (char) => char.charCodeAt(0));
 const FIXTURE_USER_ID = "p33-global-search-user";
 
 function isAuthorized(request: Request, env: SantoBindings): boolean {

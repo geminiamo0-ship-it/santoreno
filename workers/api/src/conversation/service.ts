@@ -2,12 +2,14 @@ import { ApiErrorResponseSchema } from "@santo/contracts";
 import {
   ConversationAppendResponseSchema,
   ConversationCreateResponseSchema,
+  ConversationDeleteResponseSchema,
   ConversationReadResponseSchema,
   type ConversationActor,
   type ConversationAppendRequest,
   type ConversationAppendResponse,
   type ConversationCreateRequest,
   type ConversationCreateResponse,
+  type ConversationDeleteResponse,
   type ConversationReadResponse,
 } from "@santo/contracts/conversation";
 
@@ -29,7 +31,7 @@ export class ConversationService {
 
   private async call<T>(
     conversationId: string,
-    operation: "create" | "read" | "append",
+    operation: "create" | "read" | "append" | "delete",
     payload: unknown,
     validate: (value: unknown) => T,
   ): Promise<T> {
@@ -82,4 +84,10 @@ export class ConversationService {
       ConversationReadResponseSchema.parse(body),
     );
   }
+  delete(actor: ConversationActor, conversationId: string): Promise<ConversationDeleteResponse> {
+    return this.call(conversationId, "delete", { actor, conversationId }, (body) =>
+      ConversationDeleteResponseSchema.parse(body),
+    );
+  }
+
 }

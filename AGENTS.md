@@ -39,6 +39,14 @@ same-origin proxy, and run real browser staging acceptance. Never give
 the widget a server key. Do not repeat the completed AI/quota/state core.
 Issue #58 remains open until real pilot evidence exists.
 
+Royal Bank staging owner-bootstrap status: PR #65 merged with verified
+tenant owner/super-admin privilege separation, and PR #66 deployed
+the fixed Santo Staging Worker successfully (run 38475058919).
+The actual Royal Bank Santo tenant, quota, and server credential are
+NOT yet issued; Vercel's latest Git deployment was BLOCKED. Do not
+claim that Royal Bank is live until the owner-authenticated bootstrap,
+server-secret installation, and real browser acceptance succeed.
+
 Full customer portal and framework compatibility stay deferred.
 
 ## Mandatory behavior after every meaningful change

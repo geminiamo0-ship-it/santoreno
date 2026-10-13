@@ -36,6 +36,13 @@ import {
 } from "./credentials/service";
 import { runInfrastructureSmoke, wasQueueSmokeProcessed } from "./infrastructure/smoke";
 import type { SantoBindings } from "./runtime/bindings";
+import {
+  exchangePilotAuthorizationCode,
+  pilotCredentialCss,
+  pilotCredentialHeaders,
+  pilotCredentialHtml,
+} from "./pilot/credential-console";
+import { pilotCredentialScript } from "./pilot/credential-console-client";
 import { DurableObjectQuotaService, QuotaServiceError } from "./quota/service";
 import { D1ExternalUserRepository, type ExternalUserRepository } from "./session/repository";
 import { SessionError, SessionExchangeService } from "./session/service";
@@ -173,6 +180,45 @@ export function createApp(dependencies: SantoAppDependencies = {}) {
       throw error;
     }
   };
+
+  // Small, staging-only owner console for pilot setup. All mutations reuse
+  // existing authenticated Santo tenant/credential APIs; never expose secrets here.
+  app.get("/pilot/credentials", (context) => {
+    if (context.env.SANTO_ENV !== "staging") return context.notFound();
+    return new Response(pilotCredentialHtml, {
+      headers: { ...pilotCredentialHeaders, "Content-Type": "text/html; charset=utf-8" },
+    });
+  });
+
+  app.get("/pilot/credentials.css", (context) => {
+    if (context.env.SANTO_ENV !== "staging") return context.notFound();
+    return new Response(pilotCredentialCss, {
+      headers: { ...pilotCredentialHeaders, "Content-Type": "text/css; charset=utf-8" },
+    });
+  });
+
+  app.get("/pilot/credentials.js", (context) => {
+    if (context.env.SANTO_ENV !== "staging") return context.notFound();
+    return new Response(pilotCredentialScript, {
+      headers: {
+        ...pilotCredentialHeaders,
+        "Content-Type": "application/javascript; charset=utf-8",
+      },
+    });
+  });
+
+  app.get("/pilot/credentials/config", (context) => {
+    if (context.env.SANTO_ENV !== "staging") return context.notFound();
+    if (!context.env.WORKOS_CLIENT_ID) {
+      return context.json({ error: "WORKOS_NOT_CONFIGURED" }, 503, pilotCredentialHeaders);
+    }
+    return context.json({ clientId: context.env.WORKOS_CLIENT_ID }, 200, pilotCredentialHeaders);
+  });
+
+  app.post("/pilot/credentials/exchange", (context) => {
+    if (context.env.SANTO_ENV !== "staging") return context.notFound();
+    return exchangePilotAuthorizationCode(context.req.raw, context.env);
+  });
 
   app.get("/", (context) => context.text("Santo API"));
 

@@ -79,7 +79,8 @@ function readState(value: string | null): PersistedState | null {
         pending.text.length > 4000 ||
         (pending.libraryId !== null &&
           (typeof pending.libraryId !== "string" || !LIBRARY.test(pending.libraryId)))
-      ) return null;
+      )
+        return null;
     }
     return state as PersistedState;
   } catch {
@@ -100,14 +101,15 @@ export class SantoConversationClient {
     const base = options.apiBaseUrl.trim().replace(/\/+$/, "");
     if (
       !base ||
-      !(base.startsWith("/") && !base.startsWith("//")) &&
-        !(base.startsWith("https://") && !base.includes("@"))
+      (!(base.startsWith("/") && !base.startsWith("//")) &&
+        !(base.startsWith("https://") && !base.includes("@")))
     ) {
       throw new Error("WIDGET_INVALID_API_ORIGIN");
     }
     this.base = base;
     this.fetcher = options.fetchImpl ?? fetch;
-    this.key = options.store && options.storeKey?.trim() ? `santo:conversation:${options.storeKey}` : null;
+    this.key =
+      options.store && options.storeKey?.trim() ? `santo:conversation:${options.storeKey}` : null;
     try {
       this.state = this.key ? readState(options.store?.getItem(this.key) ?? null) : null;
     } catch {
@@ -115,10 +117,18 @@ export class SantoConversationClient {
     }
   }
 
-  get conversationId(): string | null { return this.state?.conversationId ?? null; }
-  get nextSequence(): number { return this.sequence; }
-  get pending(): PendingQuestion | null { return this.state?.pending ?? null; }
-  get completedTurns(): readonly ConversationTurn[] { return this.turns; }
+  get conversationId(): string | null {
+    return this.state?.conversationId ?? null;
+  }
+  get nextSequence(): number {
+    return this.sequence;
+  }
+  get pending(): PendingQuestion | null {
+    return this.state?.pending ?? null;
+  }
+  get completedTurns(): readonly ConversationTurn[] {
+    return this.turns;
+  }
 
   private persist(): void {
     if (!this.key || !this.options.store) return;
@@ -161,10 +171,15 @@ export class SantoConversationClient {
   }
 
   private async json<T>(path: string, parse: (value: unknown) => T, body?: object): Promise<T> {
-    const response = await this.request(path, body ? {
-      method: "POST",
-      body: JSON.stringify(body),
-    } : { method: "GET" });
+    const response = await this.request(
+      path,
+      body
+        ? {
+            method: "POST",
+            body: JSON.stringify(body),
+          }
+        : { method: "GET" },
+    );
     try {
       return parse(await response.json());
     } catch {
@@ -177,11 +192,14 @@ export class SantoConversationClient {
     const id = this.state.conversationId;
     try {
       const read = await this.json(`/v1/conversations/${id}`, (input) =>
-        ConversationReadResponseSchema.parse(input));
-      if (read.conversationId !== id) throw new SantoWidgetApiError(502, "WIDGET_INVALID_SERVER_RESPONSE");
+        ConversationReadResponseSchema.parse(input),
+      );
+      if (read.conversationId !== id)
+        throw new SantoWidgetApiError(502, "WIDGET_INVALID_SERVER_RESPONSE");
       this.sequence = read.nextSequence;
       const listed = await this.json(`/v1/conversations/${id}/turns`, (input) =>
-        ConversationTurnListResponseSchema.parse(input));
+        ConversationTurnListResponseSchema.parse(input),
+      );
       this.turns = listed.turns;
       return this.turns;
     } catch (error) {
@@ -208,7 +226,8 @@ export class SantoConversationClient {
       (input) => ConversationCreateResponseSchema.parse(input),
       { conversationId: id, idempotencyKey: this.state.createKey },
     );
-    if (created.conversationId !== id) throw new SantoWidgetApiError(502, "WIDGET_INVALID_SERVER_RESPONSE");
+    if (created.conversationId !== id)
+      throw new SantoWidgetApiError(502, "WIDGET_INVALID_SERVER_RESPONSE");
     this.sequence = created.nextSequence;
     return id;
   }
@@ -220,8 +239,10 @@ export class SantoConversationClient {
     }
     // Do not make ANY network call with changed payload during a pending
     // finalized/uncertain turn; only an identical request may be replayed.
-    if (this.state?.pending &&
-      (this.state.pending.text !== question || this.state.pending.libraryId !== libraryId)) {
+    if (
+      this.state?.pending &&
+      (this.state.pending.text !== question || this.state.pending.libraryId !== libraryId)
+    ) {
       throw new SantoWidgetApiError(409, "PENDING_TURN_REQUIRES_RETRY");
     }
     const id = await this.ensureConversation();
@@ -264,8 +285,11 @@ export class SantoConversationClient {
   }
 
   async sourceDetails(messageId: string, sourceId: string): Promise<TrustedSourceDetailResponse> {
-    return this.json("/v1/sources/detail", (input) =>
-      TrustedSourceDetailResponseSchema.parse(input), { messageId, sourceId });
+    return this.json(
+      "/v1/sources/detail",
+      (input) => TrustedSourceDetailResponseSchema.parse(input),
+      { messageId, sourceId },
+    );
   }
 
   async sourceImage(messageId: string, sourceId: string, assetId: string): Promise<Blob> {

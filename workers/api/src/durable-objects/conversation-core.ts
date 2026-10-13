@@ -258,5 +258,4 @@ export class ConversationStateCore {
       return ConversationDeleteResponseSchema.parse({ deleted: true });
     });
   }
-
 }

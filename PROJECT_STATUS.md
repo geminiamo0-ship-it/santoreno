@@ -157,9 +157,6 @@ Completed:
 - [x] **#33 — Phase 6:** Global AI Search catalog and filtered retrieval
 - [x] **#36 — Phase 7:** Verified AI Core, validated SSE and bounded failure lifecycle
 - [x] **#43 — Phase 8:** Trusted sources, citation details and R2 images (post-merge verified)
-
-Completed:
-
 - [x] **#52 — Phase 9:** ConversationDO ordered state, grounded follow-ups, verified memory and lease recovery — **COMPLETE**
 
 Current:
@@ -167,6 +164,7 @@ Current:
 - [ ] **#58 — Phase 10:** full embeddable Lit `<santo-ai>` widget — **CURRENT ACTIVE ISSUE**
 
 Then, in roadmap order:
+
 - [ ] Phase 11 — framework compatibility
 - [ ] Phase 12 — full tenant portal
 - [ ] Phase 13+ — branding, management API, queues/webhooks, analytics, security hardening, load testing, pilot, production launch

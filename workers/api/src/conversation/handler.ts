@@ -49,7 +49,10 @@ function conversationService(env: SantoBindings): ConversationService {
 function route(
   url: URL,
   method: string,
-): { operation: "create" } | { operation: "read" | "append" | "delete"; conversationId: string } | null {
+):
+  | { operation: "create" }
+  | { operation: "read" | "append" | "delete"; conversationId: string }
+  | null {
   if (url.pathname === "/v1/conversations" && method === "POST") {
     return { operation: "create" };
   }

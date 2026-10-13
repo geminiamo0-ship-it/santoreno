@@ -47,6 +47,22 @@ raise the tenant cap or change quota cycles. Be careful when changing an
 existing tenant's `cycleStartAt`: the authoritative quota engine starts a
 new cycle and resets cycle counters. Production operators must audit changes.
 
+### Owner who is also the Santo Super Admin
+
+A verified WorkOS Super Admin can bootstrap a new tenant and assign their own
+WorkOS user ID as `ownerWorkosUserId`. To issue its server credential using
+`POST /v1/portal/tenants/<TENANT_UUID>/credentials`, their **end-user WorkOS
+access token must include the matching organization context** (`org_id`).
+Santo additionally verifies that the tenant's WorkOS organization matches and
+that D1 contains an explicit owner membership for this same user. Merely being
+a Super Admin is never enough to read or issue a different tenant's credential.
+
+The WorkOS Dashboard login session is **not** a Santo portal bearer token.
+Authenticate with WorkOS AuthKit for the configured Santo application, and do
+not paste a WorkOS password, WorkOS API key, access token, or Santo server key
+into ChatGPT, GitHub code/issues/Actions logs, or a browser console.
+
+
 ## 2. Student entitlement from an existing customer backend
 
 After authenticating the student and checking the site's paid entitlement,

@@ -47,6 +47,14 @@ NOT yet issued; Vercel's latest Git deployment was BLOCKED. Do not
 claim that Royal Bank is live until the owner-authenticated bootstrap,
 server-secret installation, and real browser acceptance succeed.
 
+The staging-only owner credential console is now deployed at
+`https://santo-api-staging.geminiamo0.workers.dev/pilot/credentials`.
+PR #68 merged with exact-head Verify 38477996865, post-merge Verify
+38478107926 and staging Worker deploy 38478108210 all SUCCESS.
+The WorkOS Staging redirect URL is registered. This is a *code/deployment*
+gate, not an actual Royal Bank server-key issuance or browser acceptance.
+Use `docs/PILOT_CREDENTIAL_CONSOLE.md` for the operator handoff.
+
 Full customer portal and framework compatibility stay deferred.
 
 ## Mandatory behavior after every meaningful change

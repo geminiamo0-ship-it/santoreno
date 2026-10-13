@@ -58,7 +58,10 @@ export class ConversationService {
     return parsed;
   }
 
-  create(actor: ConversationActor, request: ConversationCreateRequest): Promise<ConversationCreateResponse> {
+  create(
+    actor: ConversationActor,
+    request: ConversationCreateRequest,
+  ): Promise<ConversationCreateResponse> {
     return this.call(request.conversationId, "create", { ...request, actor }, (body) =>
       ConversationCreateResponseSchema.parse(body),
     );

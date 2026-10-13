@@ -13,6 +13,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { QuotaService } from "../quota/types";
 import type { SantoBindings } from "../runtime/bindings";
+import type { SourceSnapshotWriter } from "../sources/store";
 import type {
   ExternalUserRecord,
   ExternalUserRepository,
@@ -223,7 +224,7 @@ describe("grounded AI handler", () => {
     ).token;
   });
 
-  function handler() {
+  function handler(sourceStore?: SourceSnapshotWriter) {
     return createGroundedAiHandler({
       tenantRepositoryFactory: () => tenantRepository(),
       externalUserRepositoryFactory: () => externalUserRepository(),
@@ -232,8 +233,42 @@ describe("grounded AI handler", () => {
       modelFactory: () => model,
       telemetryFactory: () => telemetry,
       stageTimeouts,
+      sourceStoreFactory: () => sourceStore ?? null,
     });
   }
+
+  it("saves only verified citation metadata before finalizing quota", async () => {
+    const save = vi.fn(async () => undefined);
+    const response = await handler({ save })(request(token), env);
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(save).toHaveBeenCalledWith(
+      { tenantId: TENANT_ID, externalUserId: USER_ID, messageId: body.messageId },
+      [
+        {
+          sourceId: SOURCE_ID,
+          libraryId: "medical",
+          instanceId: "medical",
+          itemKey: "electrolytes.md",
+          title: "Electrolytes",
+          page: 12,
+          section: "Sodium disorders",
+        },
+      ],
+    );
+    expect(quota.used).toBe(1);
+  });
+
+  it("does not finalize quota if verified source persistence fails", async () => {
+    const save = vi.fn(async () => {
+      throw new Error("R2 is unavailable");
+    });
+    const result = await handler({ save })(request(token), env);
+    expect(result.status).toBe(503);
+    expect(await result.json()).toEqual({ error: "SOURCE_SNAPSHOT_FAILED" });
+    expect(quota.used).toBe(0);
+    expect(quota.releaseCalls).toBe(1);
+  });
 
   it("runs session -> quota -> retrieval -> model -> verified citation -> finalize", async () => {
     const response = await handler()(request(token), env);

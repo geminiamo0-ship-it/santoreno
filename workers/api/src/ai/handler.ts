@@ -4,6 +4,7 @@ import { GroundedAiQueryRequestSchema, GroundedAiQueryResponseSchema } from "@sa
 import { DurableObjectQuotaService, QuotaServiceError } from "../quota/service";
 import type { QuotaService } from "../quota/types";
 import type { SantoBindings } from "../runtime/bindings";
+import { R2VerifiedSourceStore, type SourceSnapshotWriter } from "../sources/store";
 import { D1ExternalUserRepository, type ExternalUserRepository } from "../session/repository";
 import { SessionError, SessionExchangeService } from "../session/service";
 import { SantoSessionTokenService, SessionTokenError } from "../session/token";
@@ -23,6 +24,7 @@ export interface GroundedAiHandlerDependencies {
   retrievalFactory?: (env: SantoBindings) => RetrievalPort;
   modelFactory?: (env: SantoBindings) => ModelPort;
   telemetryFactory?: (env: SantoBindings) => AiTelemetryPort;
+  sourceStoreFactory?: (env: SantoBindings) => SourceSnapshotWriter | null;
   stageTimeouts?: { retrievalMs: number; modelMs: number };
 }
 
@@ -59,6 +61,10 @@ export function createGroundedAiHandler(dependencies: GroundedAiHandlerDependenc
   const retrievalFactory =
     dependencies.retrievalFactory ?? ((env) => new CloudflareAiSearchRetrieval(env.AI_SEARCH));
   const modelFactory = dependencies.modelFactory ?? createGroundedModel;
+  const sourceStoreFactory =
+    dependencies.sourceStoreFactory ??
+    ((env: SantoBindings) =>
+      env.CONTENT_BUCKET ? new R2VerifiedSourceStore(env.CONTENT_BUCKET) : null);
   const telemetryFactory =
     dependencies.telemetryFactory ?? ((env) => new AnalyticsEngineAiTelemetry(env.USAGE_ANALYTICS));
 
@@ -93,6 +99,7 @@ export function createGroundedAiHandler(dependencies: GroundedAiHandlerDependenc
         telemetryFactory(env),
         undefined,
         dependencies.stageTimeouts,
+        sourceStoreFactory(env),
       ).query(session, parsed.data, request.signal);
 
       const validated = GroundedAiQueryResponseSchema.parse(response);

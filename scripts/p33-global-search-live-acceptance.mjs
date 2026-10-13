@@ -380,6 +380,106 @@ async function verifyP7ValidatedStream(workerUrl, sessionToken, sharedKey) {
   console.log("P7 real authenticated validated SSE, quota replay and fail-closed checks passed.");
 }
 
+async function verifyP8Sources(
+  workerUrl,
+  smokeToken,
+  sessionToken,
+  isolationToken,
+  tenantId,
+  answer,
+) {
+  const messageId = answer?.messageId;
+  const sourceId = answer?.citations?.[0]?.sourceId;
+  const instanceId = MRCP_INSTANCE_ID;
+  expect(typeof messageId === "string", "P8: verified message ID missing");
+  expect(typeof sourceId === "string", "P8: verified citation ID missing");
+
+  const lookup = { messageId, sourceId };
+  const first = await request(workerUrl, "/v1/sources/detail", {
+    method: "POST",
+    authorization: `Bearer ${sessionToken}`,
+    body: lookup,
+  });
+  expect(first.status === 200, "P8: authenticated source lookup failed");
+  expect(first.body?.source?.sourceId === sourceId, "P8: wrong source ID");
+  expect(first.body?.source?.libraryId === instanceId, "P8: wrong library");
+  expect(first.body?.source?.instanceId === instanceId, "P8: wrong instance");
+  expect(Array.isArray(first.body?.images), "P8: malformed media list");
+
+  const forged = await request(workerUrl, "/v1/sources/detail", {
+    method: "POST",
+    authorization: `Bearer ${sessionToken}`,
+    body: { messageId, sourceId: `${instanceId}:not-cited` },
+  });
+  expect(forged.status === 404, "P8: forged citation must fail closed");
+
+  const wrongTenant = await request(workerUrl, "/v1/sources/detail", {
+    method: "POST",
+    authorization: `Bearer ${isolationToken}`,
+    body: lookup,
+  });
+  expect(wrongTenant.status === 404, "P8: cross-tenant source access was not denied");
+
+  const fixture = { tenantId, messageId, sourceId, instanceId };
+  let started = false;
+  try {
+    started = true;
+    const setup = await request(workerUrl, "/__infra/p8-source-acceptance/setup", {
+      method: "POST",
+      smokeToken,
+      body: fixture,
+    });
+    expect(setup.status === 200 && setup.body?.status === "ready", "P8: real R2 setup failed");
+    const assetId = setup.body?.assetId;
+    expect(typeof assetId === "string", "P8: setup returned no asset id");
+
+    const afterSetup = await request(workerUrl, "/v1/sources/detail", {
+      method: "POST",
+      authorization: `Bearer ${sessionToken}`,
+      body: lookup,
+    });
+    expect(afterSetup.status === 200, "P8: mapped source detail failed");
+    expect(afterSetup.body?.images?.length === 1, "P8: missing mapped image");
+    expect(afterSetup.body.images[0].assetId === assetId, "P8: wrong mapped asset");
+    expect(!JSON.stringify(afterSetup.body).includes("source-media/"), "P8: leaked R2 key");
+
+    const imagePath = `/v1/sources/${messageId}/${encodeURIComponent(sourceId)}/images/${assetId}`;
+    const imageResponse = await fetch(workerUrl + imagePath, {
+      headers: { authorization: `Bearer ${sessionToken}` },
+    });
+    expect(imageResponse.status === 200, "P8: R2 media delivery failed");
+    expect(imageResponse.headers.get("content-type") === "image/png", "P8: bad media type");
+    expect(
+      imageResponse.headers.get("x-content-type-options") === "nosniff",
+      "P8: missing nosniff",
+    );
+    expect(imageResponse.headers.get("cache-control")?.includes("no-store"), "P8: unsafe caching");
+    const imageBytes = new Uint8Array(await imageResponse.arrayBuffer());
+    expect(imageBytes.length >= 8 && imageBytes[0] === 137, "P8: invalid real R2 image");
+
+    const unauthenticated = await fetch(workerUrl + imagePath);
+    expect(unauthenticated.status === 401, "P8: image allowed unauthenticated access");
+    const missingImage = await fetch(workerUrl + imagePath.replace(`/${assetId}`, "/not-mapped"), {
+      headers: { authorization: `Bearer ${sessionToken}` },
+    });
+    expect(missingImage.status === 404, "P8: unlisted image was accessible");
+    const otherTenantImage = await fetch(workerUrl + imagePath, {
+      headers: { authorization: `Bearer ${isolationToken}` },
+    });
+    expect(otherTenantImage.status === 404, "P8: cross-tenant image access was not denied");
+    console.log("P8 verified sources and authenticated real R2 media passed.");
+  } finally {
+    if (started) {
+      const cleanup = await request(workerUrl, "/__infra/p8-source-acceptance/cleanup", {
+        method: "POST",
+        smokeToken,
+        body: fixture,
+      });
+      expect(cleanup.status === 200, "P8: media fixture cleanup failed");
+    }
+  }
+}
+
 async function verify() {
   const workerUrl = requireEnv("WORKER_URL").replace(/\/+$/, "");
   const smokeToken = requireEnv("INFRA_SMOKE_TOKEN");
@@ -392,6 +492,14 @@ async function verify() {
   // Issue the persistent Santo credential while the short-lived WorkOS owner token is still fresh.
   // Fixture indexing can take several minutes; session exchange happens afterwards from this credential.
   const secret = await issueCredential(workerUrl, tenantId, ownerToken);
+  let isolationSecret = null;
+  if (process.env.P8_SOURCE_ACCEPTANCE === "1") {
+    const isolationTenantId = p2.santo?.tenants?.isolation?.id;
+    const isolationOwnerToken = p2.workos?.users?.isolationOwner?.accessToken;
+    expect(typeof isolationTenantId === "string", "P8: isolation tenant missing");
+    expect(typeof isolationOwnerToken === "string", "P8: isolation owner token missing");
+    isolationSecret = await issueCredential(workerUrl, isolationTenantId, isolationOwnerToken);
+  }
 
   await prepareFixtures(workerUrl, smokeToken);
 
@@ -423,6 +531,11 @@ async function verify() {
     },
   });
   expectSuccessfulAnswer(mrcp, "23", [MRCP_INSTANCE_ID], 3);
+  if (process.env.P8_SOURCE_ACCEPTANCE === "1") {
+    expect(isolationSecret !== null, "P8: missing isolation credential");
+    const isolationToken = await exchangeSession(workerUrl, isolationSecret);
+    await verifyP8Sources(workerUrl, smokeToken, sessionToken, isolationToken, tenantId, mrcp.body);
+  }
 
   const usmle = await request(workerUrl, "/v1/ai/query", {
     method: "POST",

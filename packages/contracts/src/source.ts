@@ -126,3 +126,19 @@ export const TrustedSourceMediaManifestEntrySchema = z
   });
 
 export type TrustedSourceMediaManifestEntry = z.infer<typeof TrustedSourceMediaManifestEntrySchema>;
+
+/**
+ * Internal, private R2 snapshot. The stored identity must be compared against
+ * the authenticated Santo session before any citation is resolved.
+ */
+export const VerifiedSourceSnapshotSchema = z
+  .object({
+    tenantId: z.string().uuid(),
+    externalUserId: z.string().min(1).max(255),
+    messageId: z.string().uuid(),
+    createdAt: z.number().int().nonnegative(),
+    sources: z.array(TrustedSourceMetadataSchema).min(1).max(5),
+  })
+  .strict();
+
+export type VerifiedSourceSnapshot = z.infer<typeof VerifiedSourceSnapshotSchema>;

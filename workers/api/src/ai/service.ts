@@ -1,8 +1,10 @@
 import type { SessionContextResponse } from "@santo/contracts";
 import type { GroundedAiQueryRequest, GroundedAiQueryResponse } from "@santo/contracts/ai";
+import { TrustedSourceMetadataSchema } from "@santo/contracts/source";
 
 import { QuotaServiceError } from "../quota/service";
 import type { QuotaService } from "../quota/types";
+import type { SourceSnapshotWriter } from "../sources/store";
 import { validateGroundedCitations } from "./citations";
 import { AI_STAGE_TIMEOUTS, withAiDeadline } from "./deadline";
 import { GroundedAiError } from "./errors";
@@ -55,6 +57,7 @@ export class GroundedAiService {
     private readonly telemetry: AiTelemetryPort,
     private readonly nowMs: () => number = () => Date.now(),
     private readonly timeouts: { retrievalMs: number; modelMs: number } = AI_STAGE_TIMEOUTS,
+    private readonly sourceStore?: SourceSnapshotWriter | null,
   ) {}
 
   async query(
@@ -134,6 +137,44 @@ export class GroundedAiService {
 
       answer = draft.answer;
       citations = validateGroundedCitations(draft, evidence);
+      if (this.sourceStore) {
+        const sources = citations.map((citation) => {
+          const matching = evidence.filter((item) => item.sourceId === citation.sourceId);
+          if (matching.length !== 1) {
+            throw new GroundedAiError(502, "CITATION_INVALID", "Ambiguous retrieved citation");
+          }
+          const item = matching[0]!;
+          const parsed = TrustedSourceMetadataSchema.safeParse({
+            sourceId: item.sourceId,
+            libraryId: item.libraryId,
+            instanceId: item.instanceId,
+            itemKey: item.itemKey,
+            title: item.title,
+            page: item.page,
+            section: item.section,
+          });
+          if (!parsed.success) {
+            throw new GroundedAiError(502, "CITATION_INVALID", "Invalid source metadata");
+          }
+          return parsed.data;
+        });
+        try {
+          await this.sourceStore.save(
+            {
+              tenantId: session.tenantId,
+              externalUserId: session.externalUserId,
+              messageId,
+            },
+            sources,
+          );
+        } catch {
+          throw new GroundedAiError(
+            503,
+            "SOURCE_SNAPSHOT_FAILED",
+            "Could not save verified sources",
+          );
+        }
+      }
     } catch (error) {
       if (!alreadyFinalized) {
         await this.releaseAfterFailure(session, quotaIdempotencyKey, error);

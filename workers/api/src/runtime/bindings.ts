@@ -13,10 +13,11 @@ export interface D1DatabaseLike {
 
 export interface R2ObjectBodyLike {
   text(): Promise<string>;
+  arrayBuffer?(): Promise<ArrayBuffer>;
 }
 
 export interface R2BucketLike {
-  put(key: string, value: string): Promise<unknown>;
+  put(key: string, value: string | ArrayBuffer | Uint8Array): Promise<unknown>;
   get(key: string): Promise<R2ObjectBodyLike | null>;
   delete(key: string): Promise<void>;
 }

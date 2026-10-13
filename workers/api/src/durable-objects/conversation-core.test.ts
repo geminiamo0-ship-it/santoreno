@@ -37,7 +37,7 @@ class MemorySqlStorage implements DurableObjectStorageLike {
   readonly sql: SqlStorageLike = {
     exec: <T>(query: string, ...bindings: unknown[]) => {
       let rows: unknown[] = [];
-      if (query.startsWith("CREATE TABLE")) {
+      if (query.trimStart().startsWith("CREATE TABLE")) {
         // Mock only: live staging must separately verify real SQLite.
       } else if (query.includes("INSERT INTO conversation_meta")) {
         this.meta = {
@@ -79,12 +79,12 @@ class MemorySqlStorage implements DurableObjectStorageLike {
   }
 }
 
+let nextMessageId = 0;
 function core(storage = new MemorySqlStorage()): ConversationStateCore {
-  let next = 0;
   return new ConversationStateCore(
     storage,
     () => Date.parse("2026-10-13T00:00:00.000Z"),
-    () => `33333333-3333-4333-8333-${String(++next).padStart(12, "0")}`,
+    () => `33333333-3333-4333-8333-${String(++nextMessageId).padStart(12, "0")}`,
   );
 }
 

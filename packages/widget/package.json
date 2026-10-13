@@ -7,7 +7,7 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "build": "tsc --project tsconfig.build.json",
+    "build": "tsc --project tsconfig.build.json && vite build",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
@@ -17,6 +17,7 @@
   },
   "devDependencies": {
     "typescript": "7.0.2",
-    "vitest": "5.0.3"
+    "vitest": "5.0.3",
+    "vite": "8.3.2"
   }
 }

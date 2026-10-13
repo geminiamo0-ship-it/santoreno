@@ -77,7 +77,8 @@ export function createConversationHandler(deps: ConversationHandlerDependencies 
   const tenants = deps.tenantRepositoryFactory ?? tenantRepository;
   const users = deps.externalUserRepositoryFactory ?? externalUserRepository;
   const service = deps.serviceFactory ?? conversationService;
-  const askService = deps.askServiceFactory ?? ((client: ConversationService) => new ConversationAskService(client));
+  const askService =
+    deps.askServiceFactory ?? ((client: ConversationService) => new ConversationAskService(client));
 
   return async function handleConversation(
     request: Request,
@@ -116,21 +117,30 @@ export function createConversationHandler(deps: ConversationHandlerDependencies 
         });
       }
       if (selected.operation === "ask") {
-        const parsed = ConversationAskRequestSchema.safeParse(await request.json().catch(() => null));
+        const parsed = ConversationAskRequestSchema.safeParse(
+          await request.json().catch(() => null),
+        );
         if (!parsed.success) return errorResponse("INVALID_CONVERSATION_REQUEST", 400);
         const answer = await askService(client).ask(
-          actor, selected.conversationId, parsed.data,
-          request.headers.get("authorization") ?? "", env, request.signal,
+          actor,
+          selected.conversationId,
+          parsed.data,
+          request.headers.get("authorization") ?? "",
+          env,
+          request.signal,
         );
-        const acceptsSse = (request.headers.get("accept") ?? "").split(",")
+        const acceptsSse = (request.headers.get("accept") ?? "")
+          .split(",")
           .some((item) => item.trim().split(";")[0]?.trim() === "text/event-stream");
         return acceptsSse
           ? streamValidatedGroundedAnswer(answer)
           : Response.json(answer, { headers: { "Cache-Control": "no-store" } });
       }
       if (selected.operation === "turns") {
-        return Response.json({ turns: await client.listTurns(actor, selected.conversationId) },
-          { headers: { "Cache-Control": "no-store" } });
+        return Response.json(
+          { turns: await client.listTurns(actor, selected.conversationId) },
+          { headers: { "Cache-Control": "no-store" } },
+        );
       }
       if (selected.operation === "delete") {
         return Response.json(await client.delete(actor, selected.conversationId), {

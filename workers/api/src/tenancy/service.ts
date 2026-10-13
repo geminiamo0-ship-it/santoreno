@@ -113,7 +113,11 @@ export class TenantControlService {
     }
     const tenant = await this.repository.findTenantByWorkOSOrgId(identity.organizationId);
     if (!tenant) {
-      throw new TenancyError(404, "TENANT_NOT_FOUND", "No Santo tenant exists for this organization");
+      throw new TenancyError(
+        404,
+        "TENANT_NOT_FOUND",
+        "No Santo tenant exists for this organization",
+      );
     }
     // Reuse the existing explicit owner membership, active-state, and org checks.
     // Being Super Admin alone does NOT authorize reading an arbitrary tenant.

@@ -476,26 +476,28 @@ For every meaningful step:
 - Branch `feat/pilot-tenant-id-lookup`. CI, merge, staging deployment, real
   WorkOS browser lookup and quota activation **still require verification**.
 
-### Santo Medical Education Copilot v1 — design specification in review (14 Oct 2026)
+### Santo Medical Education Copilot v1 — verified design, implementation pending (14 Oct 2026)
 
-- Product direction approved in conversation: **Santo Medical Education Copilot**,
-  a generic B2B2C medical tutor/QBank/library/study companion, rather than
-  only a medical Q&A bot. This changes no already-deployed functionality.
-- **Issue #73**, branch `docs/copilot-v1-system-prompt-routing`: versioned
-  candidate system prompt `santo.copilot.core.v1` at
-  `docs/prompts/SANTO_MEDICAL_EDUCATION_COPILOT_V1.md`;
-  proposed conservative routing, quota, safety and acceptance rules at
-  `docs/COPILOT_ROUTING_V1.md`, and ADR `docs/adr/0001-copilot-intent-routing.md`.
-- Routing concept: signed session/tenant/role/exam checks first; deterministic
-  greetings and off-topic redirects; non-factual study conversation;
-  medical answers remain grounded with server-verified citations and existing
-  atomic quota semantics; urgent safety messages must not await retrieval.
-- **Scope is documentation/specification only. No model/provider, AI Search,
-  prompt.ts, RAG, quota, widget, server env, staging or production behavior
-  has been changed.** The current `hi` behavior remains
-  `INSUFFICIENT_EVIDENCE` until a separate implementation/staging acceptance.
-- Next: complete exact-head Verify, merge and post-merge Verify for spec;
-  implementation after planning/approval, with feature flag and tests.
+- Approved product direction: a provider-neutral medical tutor, question-bank
+  and medical-library assistant with natural medically relevant conversation.
+- **Design Issue #73 CLOSED**, **PR #74 merged** at
+  `34928d166af8520c3cbdb92a9a12e3089fc3d28f`.
+- Final PR head `7e3b92500d00c2701745a90aa4331b3d24c3b07a` passed
+  repository-policy and code-quality. Exact post-merge **Verify 38486395119**
+  passed both checks (format/lint, typecheck, test, build and smoke).
+- Canonical candidate prompt version `santo.copilot.core.v1`:
+  `docs/prompts/SANTO_MEDICAL_EDUCATION_COPILOT_V1.md`; routing, citations,
+  quota, exam-disclosure and bilingual acceptance:
+  `docs/COPILOT_ROUTING_V1.md`; proposed ADR:
+  `docs/adr/0001-copilot-intent-routing.md`.
+- **Implementation Issue #75 OPEN** (not implemented). Preserve current
+  authenticated RAG/Workers AI/AI Search/citation/atomic-quota behavior.
+  Deterministic greetings, intent classification and clinical safety UX
+  are design goals, **NOT LIVE**. The existing `hi` call can still return
+  `INSUFFICIENT_EVIDENCE` until implementation and staging gates pass.
+- Full Phase 10 Pilot / Issue #58 still needs licensed medical content,
+  authoritative exam-context integration, real host/browser acceptance and
+  separate rollout confirmation. No Santo/Royal production changes here.
 
 ## 9. Next action
 

@@ -218,13 +218,15 @@ export class SantoConversationClient {
     if (!question || question.length > 4000 || (libraryId !== null && !LIBRARY.test(libraryId))) {
       throw new SantoWidgetApiError(400, "INVALID_CONVERSATION_REQUEST");
     }
+    // Do not make ANY network call with changed payload during a pending
+    // finalized/uncertain turn; only an identical request may be replayed.
+    if (this.state?.pending &&
+      (this.state.pending.text !== question || this.state.pending.libraryId !== libraryId)) {
+      throw new SantoWidgetApiError(409, "PENDING_TURN_REQUIRES_RETRY");
+    }
     const id = await this.ensureConversation();
     if (!this.state) throw new SantoWidgetApiError(503, "CONVERSATION_UNAVAILABLE");
-    if (this.state.pending) {
-      if (this.state.pending.text !== question || this.state.pending.libraryId !== libraryId) {
-        throw new SantoWidgetApiError(409, "PENDING_TURN_REQUIRES_RETRY");
-      }
-    } else {
+    if (!this.state.pending) {
       this.state.pending = {
         idempotencyKey: crypto.randomUUID(),
         expectedSequence: this.sequence,

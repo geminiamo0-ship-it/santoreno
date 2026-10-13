@@ -74,6 +74,8 @@ const verifyPortalToken: PortalTokenVerifier = async (_env, authorizationHeader)
   switch (authorizationHeader) {
     case "Bearer super":
       return { userId: "user_super", organizationId: null, tokenRole: null };
+    case "Bearer super-owner":
+      return { userId: "user_super", organizationId: "org_medpark", tokenRole: "owner" };
     case "Bearer medpark":
       return { userId: "user_medpark", organizationId: "org_medpark", tokenRole: "owner" };
     case "Bearer second":
@@ -112,6 +114,82 @@ async function createTenant(
 }
 
 describe("P2 tenant control plane", () => {
+  it("allows a super-admin to act only as an explicitly verified owner of the matching organization", async () => {
+    const repository = new InMemoryTenantRepository();
+    const app = createApp({
+      verifyPortalToken,
+      tenantRepositoryFactory: () => repository,
+    });
+
+    const owned = await createTenant(app, {
+      slug: "owned-by-admin",
+      name: "Admin-owned tenant",
+      workosOrgId: "org_medpark",
+      ownerWorkosUserId: "user_super",
+    });
+    const other = await createTenant(app, {
+      slug: "other-tenant",
+      name: "Other tenant",
+      workosOrgId: "org_second",
+      ownerWorkosUserId: "user_second",
+    });
+
+    const adminContext = await app.request(
+      "/v1/portal/context",
+      { headers: { authorization: "Bearer super-owner" } },
+      env,
+    );
+    expect(adminContext.status).toBe(200);
+    await expect(adminContext.json()).resolves.toMatchObject({
+      role: "super_admin",
+      tenant: null,
+    });
+
+    const ownRead = await app.request(
+      `/v1/portal/tenants/${owned.id}`,
+      { headers: { authorization: "Bearer super-owner" } },
+      env,
+    );
+    expect(ownRead.status).toBe(200);
+
+    const ownWrite = await app.request(
+      `/v1/portal/tenants/${owned.id}`,
+      {
+        method: "PATCH",
+        headers: { authorization: "Bearer super-owner", "content-type": "application/json" },
+        body: JSON.stringify({ name: "Renamed by verified owner" }),
+      },
+      env,
+    );
+    expect(ownWrite.status).toBe(200);
+
+    const crossRead = await app.request(
+      `/v1/portal/tenants/${other.id}`,
+      { headers: { authorization: "Bearer super-owner" } },
+      env,
+    );
+    expect(crossRead.status).toBe(403);
+
+    const crossWrite = await app.request(
+      `/v1/portal/tenants/${other.id}`,
+      {
+        method: "PATCH",
+        headers: { authorization: "Bearer super-owner", "content-type": "application/json" },
+        body: JSON.stringify({ name: "Wrong" }),
+      },
+      env,
+    );
+    expect(crossWrite.status).toBe(403);
+    expect((await repository.findTenantById(other.id))?.name).toBe("Other tenant");
+
+    const noOrg = await app.request(
+      `/v1/portal/tenants/${owned.id}`,
+      { headers: { authorization: "Bearer super" } },
+      env,
+    );
+    expect(noOrg.status).toBe(403);
+  });
+
   it("blocks cross-tenant reads and writes from verified owner context", async () => {
     const repository = new InMemoryTenantRepository();
     const app = createApp({

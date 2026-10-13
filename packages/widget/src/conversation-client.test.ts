@@ -146,7 +146,7 @@ describe("Santo widget conversation transport", () => {
     const h = harness((path, init) => {
       if (path.endsWith("/v1/conversations")) {
         const id = (JSON.parse(String(init.body)) as { conversationId: string }).conversationId;
-        return Response.json({ ...READ, conversationId: id, nextSequence: 0 }, { status: 201 });
+        return Response.json({ conversationId: id, title: null, createdAt: READ.createdAt, nextSequence: 0 }, { status: 201 });
       }
       return Response.json({ error: "QUOTA_FINALIZE_FAILED" }, { status: 503 });
     });

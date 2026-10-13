@@ -131,6 +131,47 @@ Phase 7 and Phase 8 are fully verified. **Phase 9 / Issue #52 is now also comple
   is closed after evidence update. Earlier mistaken auto-close by PR #56
   was corrected before final acceptance.
 
+### Phase 10 pilot-first delivery — PRs #61, #63, #62
+
+The **Pilot MVP implementation slice** is merged and passes code/unit/build
+gates. It does NOT claim that a real customer site has been connected or that
+production medical libraries have been ingested.
+
+- **PR #61**: verified typed Lit conversation client, owner-scoped reconnect,
+  per-student optional browser-session conversation IDs, stable same-key retries,
+  grounded JSON responses, server-owned citation details and authenticated
+  source images. Final head `4b7726152a0cbf4e067be0d736b7cd7d62af4d07`
+  passed **Verify 38452224965**, merged
+  `3a14a2008885f0fee3b9b2d1c3d8c287b5bdfd5b`; exact post-merge
+  **Verify 38452409599** passed.
+- **PR #63**: bundle stand-alone Lit+contracts web component at
+  `packages/widget/dist/browser/santo-ai.js` via pinned Vite,
+  head `98c98e24925ad85f69e03ecf3283f474a2e11e4b`
+  **Verify 38452754183**, merged
+  `d9f5982a5d0ee0c84d785e67717e6ac699cd7114`;
+  exact post-merge **Verify 38453040414** passed.
+- **PR #62**: secure customer-backend-only student quota operations
+  `POST /v1/server/quota/users`, `GET /v1/server/quota/users/:externalUserId`,
+  and Santo WorkOS Super Admin-only tenant cap bootstrapping
+  `POST /v1/admin/tenants/:tenantId/quota`. Calls scope tenant only from
+  verified credentials; user quota updates preserve spent/reserved units.
+  Final head `26440b8352317fb1dabe1ec97c32ecbe0c33377b`
+  **Verify 38453258247** passed; merged
+  `022c4e54bd5bc8e525d2df5c6dfff8c42673c5f6`;
+  exact post-merge **Verify 38453505941** passed.
+- **Pilot integration instructions:** `docs/PILOT_SITE_INTEGRATION.md`
+  is the customer-backend session and entitlement handoff. No tenant server
+  secrets may reach browser code. Website must supply a safe same-origin proxy
+  and short-lived user session token.
+- **Remaining external pilot gates:** legal licensed medical content ingestion
+  and source quality checks; operator-authorized tenant setup; connected
+  customer website backend/session/proxy; real browser/mobile + live staging
+  acceptance including quota exhaustion/suspension, auth isolation, reconnect,
+  citations/images, and actual pilot release smoke evidence.
+- Full customer portal, commercial billing, visual polish and broad
+  compatibility are deferred. **Issue #58 stays OPEN** until real widget
+  acceptance; do not claim Phase 10 or launch complete from Verify alone.
+
 ## 2. Read order before implementation
 
 1. `PROJECT_STATUS.md`
@@ -367,20 +408,20 @@ For every meaningful step:
 
 ## 9. Next action
 
-Start **Issue #58 only — Phase 10 embeddable Lit `<santo-ai>` widget**.
+**Active: Issue #58 Phase 10 Pilot acceptance; code implementation is merged,
+real host acceptance still pending.**
 
-Read #8, #58, the completed #52 and all repository guardrails first.
-The baseline `packages/widget/src/index.ts` is only a Lit placeholder;
-implement the browser view/network adapter in bounded slices. Reuse
-the existing Phase 9 authenticated `/v1/conversations`, `/ask` and
-`/turns`, Phase 8 source/image proxy and `/v1/session/exchange`
-via a **customer backend**. Never place customer server credentials in
-browser/widget code. Preserve idempotency keys, optimistic sequence,
-safe replay/reconnect, no unvalidated SSE, verified source identity and
-Shadow DOM CSS isolation. Complete incremental unit/browser tests, exact-
-head `Verify`, live staging, merge and exact post-merge `Verify` before
-marking each deliverable done. Phase 11 compatibility and Phase 12 full
-portal remain deferred; no direct customer DB access or quota replication.
+Do NOT rewrite the completed conversation, AI, citation or quota engines.
+The next user-agreed handoff is: confirm licensed medical sample dataset and
+ingest into the global Santo AI Search/R2 library with stable metadata and
+verified citation/image mapping; configure tenant cap and per-student quotas;
+integrate `dist/browser/santo-ai.js` with the authenticated backend of an
+existing website following `docs/PILOT_SITE_INTEGRATION.md`; run real browser,
+mobile, HTTP/auth, quota, source and retry acceptance. Use exact live evidence,
+not synthetic-only fixtures, before closing Issue #58 or claiming Pilot live.
+
+Full Santo customer portal, advanced branding, analytics and billing are
+deferred until after this Pilot. Never expose server credentials to browsers.
 
 ## 10. Repository administration note
 

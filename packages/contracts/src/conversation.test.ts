@@ -85,9 +85,9 @@ describe("conversation API contracts", () => {
       text: "Clinical question",
     };
     expect(ConversationInternalAppendSchema.parse(request)).toEqual(request);
-    expect(
-      ConversationInternalAppendSchema.safeParse({ ...request, admin: true }).success,
-    ).toBe(false);
+    expect(ConversationInternalAppendSchema.safeParse({ ...request, admin: true }).success).toBe(
+      false,
+    );
   });
 
   it("validates replay and bounded read response envelopes", () => {

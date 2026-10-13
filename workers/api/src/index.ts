@@ -5,6 +5,7 @@ import { handleP5QuotaAcceptance } from "./infrastructure/p5-quota-acceptance";
 import { handleP6GroundedAiAcceptance } from "./infrastructure/p6-grounded-ai-acceptance";
 import { handleInfrastructureQueue } from "./infrastructure/queue";
 import type { SantoBindings } from "./runtime/bindings";
+import { handleTrustedSourceRequest } from "./sources/handler";
 
 export { ConversationDO } from "./durable-objects/conversation";
 export { TenantMeterDO } from "./durable-objects/tenant-meter";
@@ -19,6 +20,9 @@ const fetch: typeof app.fetch = async (request, env, executionContext) => {
   }
   if (url.pathname.startsWith("/__infra/p33-global-search-acceptance")) {
     return handleP33GlobalSearchAcceptance(request, env as SantoBindings);
+  }
+  if (url.pathname.startsWith("/v1/sources/")) {
+    return handleTrustedSourceRequest(request, env as SantoBindings);
   }
   if (url.pathname === "/v1/ai/query") {
     return handleGroundedAiQuery(request, env as SantoBindings);

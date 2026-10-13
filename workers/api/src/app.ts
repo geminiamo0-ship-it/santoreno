@@ -200,7 +200,10 @@ export function createApp(dependencies: SantoAppDependencies = {}) {
   app.get("/pilot/credentials.js", (context) => {
     if (context.env.SANTO_ENV !== "staging") return context.notFound();
     return new Response(pilotCredentialScript, {
-      headers: { ...pilotCredentialHeaders, "Content-Type": "application/javascript; charset=utf-8" },
+      headers: {
+        ...pilotCredentialHeaders,
+        "Content-Type": "application/javascript; charset=utf-8",
+      },
     });
   });
 
@@ -209,11 +212,7 @@ export function createApp(dependencies: SantoAppDependencies = {}) {
     if (!context.env.WORKOS_CLIENT_ID) {
       return context.json({ error: "WORKOS_NOT_CONFIGURED" }, 503, pilotCredentialHeaders);
     }
-    return context.json(
-      { clientId: context.env.WORKOS_CLIENT_ID },
-      200,
-      pilotCredentialHeaders,
-    );
+    return context.json({ clientId: context.env.WORKOS_CLIENT_ID }, 200, pilotCredentialHeaders);
   });
 
   app.post("/pilot/credentials/exchange", (context) => {

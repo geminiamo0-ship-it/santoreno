@@ -14,10 +14,7 @@ const validPayload = {
   codeVerifier: "v".repeat(43),
 };
 
-function exchangeRequest(
-  body: unknown,
-  origin = "https://santo.example",
-): Request {
+function exchangeRequest(body: unknown, origin = "https://santo.example"): Request {
   return new Request("https://santo.example/pilot/credentials/exchange", {
     method: "POST",
     headers: { origin, "content-type": "application/json" },
@@ -56,11 +53,7 @@ describe("Staging-only pilot credential console", () => {
     const config = await app.request("/pilot/credentials/config", {}, staging);
     expect(config.status).toBe(200);
     await expect(config.json()).resolves.toEqual({ clientId: "client_test123" });
-    const missing = await app.request(
-      "/pilot/credentials/config",
-      {},
-      { SANTO_ENV: "staging" },
-    );
+    const missing = await app.request("/pilot/credentials/config", {}, { SANTO_ENV: "staging" });
     expect(missing.status).toBe(503);
   });
 
@@ -113,9 +106,11 @@ describe("Staging-only pilot credential console", () => {
   });
 
   it("does not forward upstream identity data or secrets on WorkOS failure", async () => {
-    const exchange = vi.fn<typeof fetch>().mockResolvedValue(
-      Response.json({ error: "bad_code", refresh_token: "leak" }, { status: 401 }),
-    );
+    const exchange = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(
+        Response.json({ error: "bad_code", refresh_token: "leak" }, { status: 401 }),
+      );
     const result = await exchangePilotAuthorizationCode(
       exchangeRequest(validPayload),
       staging,

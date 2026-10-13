@@ -18,7 +18,8 @@ export type GroundedAiErrorCode =
   | "USER_QUOTA_EXHAUSTED"
   | "QUOTA_UNAVAILABLE"
   | "QUOTA_RELEASE_FAILED"
-  | "QUOTA_FINALIZE_FAILED";
+  | "QUOTA_FINALIZE_FAILED"
+  | "CHARGED_GENERATION_RETRY_FAILED";
 
 export class GroundedAiError extends Error {
   constructor(

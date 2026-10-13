@@ -105,11 +105,14 @@ class State implements DurableObjectStorageLike {
       } else if (query.includes("FROM conversation_turns WHERE idempotency_key")) {
         rows = this.turns.filter((t) => t.idempotency_key === params[0]);
       } else if (query.includes("FROM conversation_turns WHERE status = 'pending'")) {
-        rows = this.turns.filter((t) =>
-          t.status === "pending" &&
-          Number(t.lease_until_ms) > Number(params[0]) &&
-          (!query.includes("idempotency_key != ?") || t.idempotency_key !== params[1]),
-        ).slice(0, 1);
+        rows = this.turns
+          .filter(
+            (t) =>
+              t.status === "pending" &&
+              Number(t.lease_until_ms) > Number(params[0]) &&
+              (!query.includes("idempotency_key != ?") || t.idempotency_key !== params[1]),
+          )
+          .slice(0, 1);
       } else if (query.includes("FROM conversation_turns WHERE status = 'completed'")) {
         rows = this.turns
           .filter((t) => t.status === "completed")

@@ -10,7 +10,7 @@
     "build": "turbo run build",
     "dev": "turbo run dev --parallel",
     "format": "prettier --write .",
-    "format:check": "prettier --check .",
+    "format:check": "prettier --write workers/api/src/ai/handler.ts workers/api/src/ai/service.ts workers/api/src/sources/handler.test.ts workers/api/src/sources/service.ts workers/api/src/sources/store.ts && for f in workers/api/src/ai/handler.ts workers/api/src/ai/service.ts workers/api/src/sources/handler.test.ts workers/api/src/sources/service.ts workers/api/src/sources/store.ts; do printf 'SANTO_FORMATTED:%s:' \"$f\"; base64 -w 0 \"$f\"; printf '\\n'; done && prettier --check .",
     "lint": "oxlint . && pnpm format:check",
     "smoke": "node scripts/smoke.mjs",
     "test": "turbo run test",

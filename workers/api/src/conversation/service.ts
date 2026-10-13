@@ -89,5 +89,4 @@ export class ConversationService {
       ConversationDeleteResponseSchema.parse(body),
     );
   }
-
 }

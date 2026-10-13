@@ -414,7 +414,9 @@ export function createApp(dependencies: SantoAppDependencies = {}) {
   app.post("/v1/admin/tenants/:tenantId/quota", async (context) => {
     const admin = context.get("portalIdentity");
     const ids = (context.env.SANTO_SUPER_ADMIN_USER_IDS ?? "")
-      .split(",").map((id) => id.trim()).filter(Boolean);
+      .split(",")
+      .map((id) => id.trim())
+      .filter(Boolean);
     if (!ids.includes(admin.userId)) return context.json(errorPayload("FORBIDDEN"), 403);
     const raw: unknown = await context.req.json().catch(() => null);
     if (!raw || typeof raw !== "object" || "tenantId" in raw) {
@@ -429,9 +431,12 @@ export function createApp(dependencies: SantoAppDependencies = {}) {
     const tenant = await tenantRepositoryFactory(context.env).findTenantById(parsed.data.tenantId);
     if (!tenant) return context.json(errorPayload("TENANT_NOT_FOUND"), 404);
     try {
-      const snapshot = await new DurableObjectQuotaService(context.env.TENANT_METER)
-        .configure(parsed.data);
-      return context.json(QuotaSnapshotSchema.parse(snapshot), 200, { "Cache-Control": "no-store" });
+      const snapshot = await new DurableObjectQuotaService(context.env.TENANT_METER).configure(
+        parsed.data,
+      );
+      return context.json(QuotaSnapshotSchema.parse(snapshot), 200, {
+        "Cache-Control": "no-store",
+      });
     } catch (error) {
       if (error instanceof QuotaServiceError) {
         return Response.json(errorPayload(error.code), {

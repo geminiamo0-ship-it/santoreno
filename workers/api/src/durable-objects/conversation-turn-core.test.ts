@@ -79,7 +79,12 @@ class State implements DurableObjectStorageLike {
           Object.assign(row, { status: "completed", response_json: params[0], lease_until_ms: 0 });
       } else if (query.startsWith("UPDATE conversation_turns SET status = 'retryable'")) {
         const row = this.turns.find((t) => t.idempotency_key === params[1]);
-        if (row) Object.assign(row, { status: "retryable", lease_until_ms: 0, quota_epoch: Number(row.quota_epoch) + Number(params[0]) });
+        if (row)
+          Object.assign(row, {
+            status: "retryable",
+            lease_until_ms: 0,
+            quota_epoch: Number(row.quota_epoch) + Number(params[0]),
+          });
       } else if (query.startsWith("DELETE FROM conversation_turns")) {
         this.turns = [];
       } else if (query.startsWith("DELETE FROM conversation_messages")) {

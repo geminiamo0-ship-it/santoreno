@@ -109,6 +109,23 @@ Phase 7 is complete on tested acceptance criteria. **Phase 8 / Issue #43 is also
 - Source of network/state contract:
   `docs/CONVERSATION_STATE_CONTRACT.md`.
 
+### Phase 9 grounded follow-up implementation — PR #56 (validation ongoing)
+
+- Adds `/v1/conversations/:id/ask` and `/turns`, authoritative
+  SQLite-DO turn leases, persisted validated assistant replies, strict
+  ownership and bounded prior conversational context.
+- Reuses the existing Phase 7 authenticated AI, citation and atomic quota
+  lifecycle. A completed turn replays its saved answer without new model
+  or quota work; buffered SSE begins only after durable completion.
+- Separates definitively released quota attempts from uncertain/finalized
+  retries using conversation-owned billing epochs, without creating a
+  second quota engine.
+- Adds deterministic lease, context, ownership and failure regressions
+  plus a real WorkOS/AI Search/Workers AI staging gate. These gates **must
+  pass on an identical head** before merging.
+- **Issue #52 is still open:** Phase 9 is not complete until the broader
+  summary, cancellation/compaction and final live acceptance gates pass.
+
 ## 2. Read order before implementation
 
 1. `PROJECT_STATUS.md`

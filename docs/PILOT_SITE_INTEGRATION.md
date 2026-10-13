@@ -110,19 +110,22 @@ customer's normal asset origin (or a trusted Santo CDN).
   const widget = document.querySelector("santo-ai");
   widget.libraries = [
     { id: "mrcp", label: "MRCP" },
-    { id: "usmle", label: "USMLE" }
+    { id: "usmle", label: "USMLE" },
   ];
   widget.configure({
     apiBaseUrl: "/santo",
     // This user-authenticated same-origin endpoint obtains a short-lived
     // end-user Santo session from the customer backend, NOT a server key.
     sessionProvider: async () => {
-      const response = await fetch("/api/santo/session", { credentials: "same-origin", cache: "no-store" });
+      const response = await fetch("/api/santo/session", {
+        credentials: "same-origin",
+        cache: "no-store",
+      });
       if (!response.ok) throw new Error("Unable to obtain Santo user session");
       return (await response.json()).accessToken;
     },
     // Scope to BOTH verified tenant and student; avoid raw email addresses.
-    sessionScope: "tenant-scoped-student-identifier"
+    sessionScope: "tenant-scoped-student-identifier",
   });
 </script>
 ```

@@ -431,25 +431,34 @@ For every meaningful step:
 - Runbook: `docs/PILOT_CREDENTIAL_CONSOLE.md`.
   The full portal remains deferred; Issue #58 stays OPEN.
 
-### Phase 10 Staging tenant-quota UI — pending verification
+### Phase 10 Staging tenant-quota UI — verified staging deployment (14 Oct 2026)
 
-- Royal Bank's verified deployed /santo pilot returned
-  `TENANT_QUOTA_NOT_CONFIGURED` after its Vercel server key was saved.
-  `SANTO_DEFAULT_STUDENT_QUOTA=100` does not configure the TenantMeterDO
-  tenant-wide allowance. The client integration is no longer blocked by
-  missing Santo server credentials.
-- Add **Initialize Tenant Quota** to the existing staging-only WorkOS
-  operator console (not to Royal Bank). The existing Super Admin-only
-  `POST /v1/admin/tenants/:tenantId/quota` remains authoritative and
-  server-authorized; UI requires verified selected tenant, explicit cap,
-  UTC cycle dates and confirmation of possible cycle-counter reset.
-- Zero-unit, reserved `santo-operator-bootstrap` user satisfies the
-  current contract without granting or modifying real Royal student quota.
-- This branch and workflow only supply the operator UI; **no actual tenant
-  quota is set**, no database changes, no production deployment and no
-  user secret required. Confirm Verify, staging deploy and actual WorkOS
-  operator activation before reporting Royal /santo runtime as accepted.
-- See `docs/PILOT_CREDENTIAL_CONSOLE.md` for use.
+- Royal Bank live `/santo` moved from `SANTO_NOT_CONFIGURED` to
+  `TENANT_QUOTA_NOT_CONFIGURED` after its Vercel server secret was installed.
+  Student default `SANTO_DEFAULT_STUDENT_QUOTA=100` is distinct from
+  the tenant-wide TenantMeterDO cap.
+- **PR #70 merged** `c14aa940b94dabcbfb7811836ee68d6a46981757`.
+  Exact-head Verify passed at `fb69a60c3c4f3b3dcdb9aed5bcb5c6556a4a6ec8`;
+  exact post-merge **Verify 38482416299** passed, including policy, lint,
+  formatting, TypeScript, tests and build.
+- Staging-only Worker **Deploy 38482416486 SUCCESS**, preserving dashboard
+  secrets/variables and smoke-testing health, console, WorkOS client config
+  and the new **Initialize Tenant Quota** control.
+- Operator console: `https://santo-api-staging.geminiamo0.workers.dev/pilot/credentials`.
+  WorkOS Super Admin verifies an existing tenant, chooses explicit monthly cap
+  and UTC cycle dates and confirms a possible cycle reset. The existing
+  Super Admin-only `POST /v1/admin/tenants/:tenantId/quota` is unchanged.
+  No customer/tenant-specific bypass or new browser-accessible server key.
+- The generic `santo-operator-bootstrap` placeholder has 0 user units, to
+  satisfy the existing initial-user request contract. Royal students remain
+  provisioned independently from their own authenticated website backend.
+- **Live operator bootstrap NOT YET PERFORMED**: user must sign in with
+  WorkOS and submit the chosen quota cap/cycle for the existing Royal tenant.
+  Royal /santo end-to-end live acceptance, licensed content ingestion, quality
+  and grounded AI success are **not yet proven**. No production deployment
+  or actual tenant quota mutation was performed here.
+- Operator runbook: `docs/PILOT_CREDENTIAL_CONSOLE.md`. Phase 10 / #58
+  remains OPEN; full portal is deferred.
 
 ## 9. Next action
 

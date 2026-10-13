@@ -63,7 +63,8 @@ export function createGroundedAiHandler(dependencies: GroundedAiHandlerDependenc
   const modelFactory = dependencies.modelFactory ?? createGroundedModel;
   const sourceStoreFactory =
     dependencies.sourceStoreFactory ??
-    ((env: SantoBindings) => (env.CONTENT_BUCKET ? new R2VerifiedSourceStore(env.CONTENT_BUCKET) : null));
+    ((env: SantoBindings) =>
+      env.CONTENT_BUCKET ? new R2VerifiedSourceStore(env.CONTENT_BUCKET) : null);
   const telemetryFactory =
     dependencies.telemetryFactory ?? ((env) => new AnalyticsEngineAiTelemetry(env.USAGE_ANALYTICS));
 

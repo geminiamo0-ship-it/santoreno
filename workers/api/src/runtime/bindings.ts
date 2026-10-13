@@ -17,7 +17,7 @@ export interface R2ObjectBodyLike {
 }
 
 export interface R2BucketLike {
-  put(key: string, value: string): Promise<unknown>;
+  put(key: string, value: string | ArrayBuffer | Uint8Array): Promise<unknown>;
   get(key: string): Promise<R2ObjectBodyLike | null>;
   delete(key: string): Promise<void>;
 }

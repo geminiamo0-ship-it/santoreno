@@ -380,7 +380,14 @@ async function verifyP7ValidatedStream(workerUrl, sessionToken, sharedKey) {
   console.log("P7 real authenticated validated SSE, quota replay and fail-closed checks passed.");
 }
 
-async function verifyP8Sources(workerUrl, smokeToken, sessionToken, isolationToken, tenantId, answer) {
+async function verifyP8Sources(
+  workerUrl,
+  smokeToken,
+  sessionToken,
+  isolationToken,
+  tenantId,
+  answer,
+) {
   const messageId = answer?.messageId;
   const sourceId = answer?.citations?.[0]?.sourceId;
   const instanceId = MRCP_INSTANCE_ID;
@@ -442,17 +449,19 @@ async function verifyP8Sources(workerUrl, smokeToken, sessionToken, isolationTok
     });
     expect(imageResponse.status === 200, "P8: R2 media delivery failed");
     expect(imageResponse.headers.get("content-type") === "image/png", "P8: bad media type");
-    expect(imageResponse.headers.get("x-content-type-options") === "nosniff", "P8: missing nosniff");
+    expect(
+      imageResponse.headers.get("x-content-type-options") === "nosniff",
+      "P8: missing nosniff",
+    );
     expect(imageResponse.headers.get("cache-control")?.includes("no-store"), "P8: unsafe caching");
     const imageBytes = new Uint8Array(await imageResponse.arrayBuffer());
     expect(imageBytes.length >= 8 && imageBytes[0] === 137, "P8: invalid real R2 image");
 
     const unauthenticated = await fetch(workerUrl + imagePath);
     expect(unauthenticated.status === 401, "P8: image allowed unauthenticated access");
-    const missingImage = await fetch(
-      workerUrl + imagePath.replace(`/${assetId}`, "/not-mapped"),
-      { headers: { authorization: `Bearer ${sessionToken}` } },
-    );
+    const missingImage = await fetch(workerUrl + imagePath.replace(`/${assetId}`, "/not-mapped"), {
+      headers: { authorization: `Bearer ${sessionToken}` },
+    });
     expect(missingImage.status === 404, "P8: unlisted image was accessible");
     const otherTenantImage = await fetch(workerUrl + imagePath, {
       headers: { authorization: `Bearer ${isolationToken}` },

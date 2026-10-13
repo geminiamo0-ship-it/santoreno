@@ -406,22 +406,30 @@ For every meaningful step:
 - Phase 7 AI Core / #36 — PRs #38/#39/#42; final PR #42 head `6c1ba89448725507dcade62b95963753e127de10`; `Verify` **37931171789** and P7 Staging Acceptance **37931165458** green on that head; merged `29805bc85ac864e66b7cdc7cd787ac52c1749613`; post-merge `Verify` **37932098841** green.
 - Phase 8 / #43 — PR #49 post-merge `Verify` **38415599816**; PR #50 final head `3769cdc9d79e4deb671bb512e9d9c02f4b05f7dd` with exact-head `Verify` **38419869177** and P8 real staging **38419858440** passed; merged `93ac404f3de1c59949eb856e41d5a8cb433afb8a`; post-merge `Verify` **38420860631** passed.
 
-### Staging pilot credential button — implementation pending verification (14 Oct 2026)
+### Staging pilot credential button — merged and deployed (14 Oct 2026)
 
-- New **staging-only same-origin operator console** at
-  `/pilot/credentials` on `santo-api-staging`. It uses hosted WorkOS
-  PKCE sign-in, verified Santo tenant ownership, optional Super Admin tenant
-  initialization and **Generate API Key / Copy** buttons.
-- Only existing authenticated tenant/credential API endpoints can issue the
-  key; no additional browser authority, user-specific shortcut or extra
-  credential store was introduced.
-- Browser never persists the WorkOS access token or generated server secret;
-  the Worker discards any WorkOS refresh token during code exchange.
-- WorkOS Staging AuthKit callback was configured for the new same-origin URL.
-- Implementation is on branch `feat/pilot-credential-button`; the exact-head
-  Verify, merge, deployment smoke, live owner sign-in and real credential
-  issuance are **not yet evidenced**. Do not call the pilot activated.
-- Runbook: `docs/PILOT_CREDENTIAL_CONSOLE.md`. The full portal remains deferred.
+- **PR #68 merged** `af0998f3b97bb7d4fec08678c87204898f9a39c5`.
+  Exact-head Verify **38477996865** and exact post-merge Verify
+  **38478107926** both passed.
+- **Staging Worker deployment 38478108210 succeeded**, preserving Cloudflare
+  user-managed vars/secrets and smoke-testing `/health`, the console page
+  and non-secret WorkOS client configuration. Production was not deployed.
+- **Operator URL:** `https://santo-api-staging.geminiamo0.workers.dev/pilot/credentials`.
+  The exact callback is registered as an allowed WorkOS Staging Redirect URI.
+- Hosted WorkOS PKCE sign-in; one-time Generate API Key / Copy buttons;
+  optional Super Admin tenant initialization and existing owner-verified
+  tenant/credential APIs. No customer-specific bypass, second credential
+  store or direct browser access to Santo internal infrastructure.
+- WorkOS access token and generated Santo secret are held only in browser
+  memory; WorkOS refresh token is discarded by the Worker and never
+  returned to the browser. Browser UI is staging-only with strict CSP.
+- **Not yet proven live:** real owner browser sign-in, tenant creation,
+  actual `santo_sk_` credential issuance, quota bootstrap, Vercel sensitive
+  key installation, Vercel BLOCKED release resolution, Royal Bank browser
+  end-to-end acceptance, and licensed-content ingestion. Do not claim
+  Santo Pilot or Royal Bank integration is fully live.
+- Runbook: `docs/PILOT_CREDENTIAL_CONSOLE.md`.
+  The full portal remains deferred; Issue #58 stays OPEN.
 
 ## 9. Next action
 

@@ -118,13 +118,32 @@ export class TenantControlService {
 
   async getTenant(identity: PortalIdentity, requestedTenantId: string): Promise<Tenant> {
     const principal = await this.resolvePrincipal(identity);
-    if (principal.role !== "owner" || principal.tenant.id !== requestedTenantId) {
+    if (principal.role === "owner" && principal.tenant.id !== requestedTenantId) {
       throw new TenancyError(403, "FORBIDDEN", "Cross-tenant access is forbidden");
     }
 
-    const tenant = await this.repository.findTenantById(principal.tenant.id);
+    // A Super Admin may also be the explicit owner of a tenant. The token's
+    // WorkOS organization and D1 owner membership must BOTH match; global
+    // admin privilege alone cannot read or mutate another tenant's credentials.
+    if (principal.role === "super_admin" && !identity.organizationId) {
+      throw new TenancyError(403, "FORBIDDEN", "Tenant owner context is required");
+    }
+
+    const tenant = await this.repository.findTenantById(requestedTenantId);
     if (!tenant) {
       throw new TenancyError(404, "TENANT_NOT_FOUND", "Tenant no longer exists");
+    }
+    if (principal.role === "super_admin") {
+      if (tenant.workosOrgId !== identity.organizationId) {
+        throw new TenancyError(403, "FORBIDDEN", "Cross-tenant access is forbidden");
+      }
+      const membership = await this.repository.findMembership(tenant.id, identity.userId);
+      if (!membership || membership.role !== "owner") {
+        throw new TenancyError(403, "FORBIDDEN", "Tenant owner membership is required");
+      }
+      if (tenant.status !== "active") {
+        throw new TenancyError(403, "TENANT_INACTIVE", "Tenant is not active");
+      }
     }
 
     return tenant;
@@ -135,16 +154,11 @@ export class TenantControlService {
     requestedTenantId: string,
     input: UpdateTenantRequest,
   ): Promise<Tenant> {
-    const principal = await this.resolvePrincipal(identity);
-    if (principal.role !== "owner" || principal.tenant.id !== requestedTenantId) {
-      throw new TenancyError(403, "FORBIDDEN", "Cross-tenant mutation is forbidden");
-    }
-
-    const tenant = await this.repository.updateTenantName(principal.tenant.id, input.name);
-    if (!tenant) {
+    const tenant = await this.getTenant(identity, requestedTenantId);
+    const updated = await this.repository.updateTenantName(tenant.id, input.name);
+    if (!updated) {
       throw new TenancyError(404, "TENANT_NOT_FOUND", "Tenant no longer exists");
     }
-
-    return tenant;
+    return updated;
   }
 }

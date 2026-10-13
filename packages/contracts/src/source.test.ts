@@ -29,9 +29,9 @@ const image = {
 describe("trusted source contracts", () => {
   it("accepts stable metadata from a verified search citation", () => {
     expect(TrustedSourceMetadataSchema.parse(source)).toEqual(source);
-    expect(
-      TrustedSourceDetailResponseSchema.parse({ source, images: [image] }).images,
-    ).toEqual([image]);
+    expect(TrustedSourceDetailResponseSchema.parse({ source, images: [image] }).images).toEqual([
+      image,
+    ]);
   });
 
   it("rejects ambiguous cross-instance citations", () => {

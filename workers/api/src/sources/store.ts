@@ -116,7 +116,6 @@ export class R2VerifiedSourceStore implements SourceSnapshotWriter {
     return snapshot.sources;
   }
 
-
   async images(source: TrustedSourceMetadata): Promise<readonly TrustedSourceMediaManifestEntry[]> {
     let raw: string;
     try {

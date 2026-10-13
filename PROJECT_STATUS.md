@@ -87,6 +87,24 @@ Phase 7 is complete on tested acceptance criteria. **Phase 8 / Issue #43 is also
   summary, idempotency and stream coordination. Do not begin Phase 10/portal
   before Phase 9 acceptance is proven.
 
+### Phase 9 first implementation slice — Issue #52
+
+- **Draft PR #54:** strict conversation request/response contracts,
+  per-conversation SQLite Durable Object, owner-scoped create/read/append/delete
+  routes, transactional compare-and-append, idempotent replay, bounded
+  200-message storage and latest-50-message reads.
+- The user/tenant authority comes only from an authenticated Santo end-user
+  session; Durable Object routing IDs are not authorization grants.
+- Deterministic tests cover forged authority, identity isolation, 100
+  competing writes, retries, conflicts, state reconstruction and deletion.
+- Real WorkOS + SQLite Durable Object staging acceptance is being verified
+  using `P9 Conversation State Staging Acceptance` on the exact PR head.
+- **Not Phase 9 completion:** verified assistant turns, quota-linked AI
+  follow-ups, bounded context summaries, stream coordination, complete
+  failure lifecycle and final staging acceptance are still required.
+- Source of network/state contract:
+  `docs/CONVERSATION_STATE_CONTRACT.md`.
+
 ## 2. Read order before implementation
 
 1. `PROJECT_STATUS.md`
@@ -324,7 +342,7 @@ For every meaningful step:
 
 Continue **Issue #52 only — Phase 9 ConversationDO ordered messages and follow-ups**.
 
-Before implementation read #8, #9, #52, and the completed #43. Review
+Continue PR #54 first-slice verification, then proceed to verified AI follow-ups. Before implementation read #8, #9, #52, and the completed #43. Review
 `workers/api/src/durable-objects/conversation.ts`, the Phase 7 quota/AI
 handler and Phase 8 server-verified source contracts. Implement in bounded
 increments: authenticated conversation state and ordering first; then

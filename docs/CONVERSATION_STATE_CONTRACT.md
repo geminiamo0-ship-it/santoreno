@@ -23,12 +23,12 @@ is involved in this slice.
 All routes require a current Santo end-user `Authorization: Bearer` session
 and return `Cache-Control: no-store`.
 
-| Route | Behavior |
-| --- | --- |
-| `POST /v1/conversations` | Create; body `{conversationId, idempotencyKey, title?}` |
-| `GET /v1/conversations/:conversationId` | Read owner-scoped conversation metadata and latest messages |
+| Route                                             | Behavior                                                                 |
+| ------------------------------------------------- | ------------------------------------------------------------------------ |
+| `POST /v1/conversations`                          | Create; body `{conversationId, idempotencyKey, title?}`                  |
+| `GET /v1/conversations/:conversationId`           | Read owner-scoped conversation metadata and latest messages              |
 | `POST /v1/conversations/:conversationId/messages` | Append one user message; body `{idempotencyKey, expectedSequence, text}` |
-| `DELETE /v1/conversations/:conversationId` | Remove owner-scoped SQLite message and metadata rows |
+| `DELETE /v1/conversations/:conversationId`        | Remove owner-scoped SQLite message and metadata rows                     |
 
 Public requests must not contain `actor`, `tenantId`, `externalUserId`,
 roles, assistant content, or client-selected citations. The shared Zod

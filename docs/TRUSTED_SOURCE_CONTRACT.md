@@ -46,7 +46,7 @@ client-supplied source IDs as authority or duplicate verified source records.
 `POST /v1/sources/detail` accepts only:
 
 ```json
-{"messageId":"<uuid>","sourceId":"<verified instance:chunk>"}
+{ "messageId": "<uuid>", "sourceId": "<verified instance:chunk>" }
 ```
 
 The response is a strictly validated source object plus an array of safe

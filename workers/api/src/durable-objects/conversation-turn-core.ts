@@ -31,6 +31,7 @@ interface TurnRow {
   lease_until_ms: number;
   response_json: string | null;
   context_text: string;
+  quota_epoch: number;
 }
 interface SequenceRow {
   next_sequence: number;
@@ -49,7 +50,8 @@ CREATE TABLE IF NOT EXISTS conversation_turns (
   attempt_id TEXT NOT NULL,
   lease_until_ms INTEGER NOT NULL,
   response_json TEXT,
-  context_text TEXT NOT NULL DEFAULT ''
+  context_text TEXT NOT NULL DEFAULT '',
+  quota_epoch INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_turns_sequence ON conversation_turns (sequence DESC);
 `;
@@ -137,6 +139,7 @@ export class ConversationTurnCore {
             attemptId: null,
             turn: toTurn(existing),
             context: "",
+            quotaEpoch: existing.quota_epoch,
           });
         }
         if (existing.status === "pending" && existing.lease_until_ms > this.nowMs()) {
@@ -155,6 +158,7 @@ export class ConversationTurnCore {
           attemptId,
           turn: toTurn(renewed),
           context: existing.context_text,
+          quotaEpoch: existing.quota_epoch,
         });
       }
       const competing = first<TurnRow>(
@@ -190,8 +194,8 @@ export class ConversationTurnCore {
       );
       sql.exec(
         `INSERT INTO conversation_turns
-          (idempotency_key, message_id, sequence, expected_sequence, question, library_id, status, attempt_id, lease_until_ms, response_json, context_text)
-         VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, NULL, ?)`,
+          (idempotency_key, message_id, sequence, expected_sequence, question, library_id, status, attempt_id, lease_until_ms, response_json, context_text, quota_epoch)
+         VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, NULL, ?, 0)`,
         request.idempotencyKey,
         messageId,
         next,
@@ -206,6 +210,7 @@ export class ConversationTurnCore {
         state: "started",
         attemptId,
         context,
+        quotaEpoch: 0,
         turn: {
           messageId,
           sequence: next,
@@ -255,7 +260,8 @@ export class ConversationTurnCore {
         throw new ConversationStateError(409, "CONVERSATION_TURN_BUSY");
       }
       sql.exec(
-        "UPDATE conversation_turns SET status = 'retryable', lease_until_ms = 0 WHERE idempotency_key = ?",
+        "UPDATE conversation_turns SET status = 'retryable', lease_until_ms = 0, quota_epoch = quota_epoch + ? WHERE idempotency_key = ?",
+        request.rotateQuotaKey === true ? 1 : 0,
         request.idempotencyKey,
       );
       return { retryable: true };

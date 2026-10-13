@@ -25,7 +25,8 @@ export const pilotCredentialHtml = `<!doctype html>
       <p id="identity" class="hint"></p>
       <label for="tenant-id">Santo Tenant ID <span class="hint">(UUID — not WorkOS org ID)</span></label>
       <input id="tenant-id" autocomplete="off" placeholder="Paste existing tenant UUID" spellcheck="false">
-      <div class="actions"><button id="verify-tenant" type="button" class="secondary">Verify tenant ownership</button><button id="copy-tenant" type="button" class="quiet">Copy Tenant ID</button></div>
+      <div class="actions"><button id="find-tenant" type="button" class="secondary">Find my Tenant ID</button><button id="verify-tenant" type="button" class="secondary">Verify tenant ownership</button><button id="copy-tenant" type="button" class="quiet">Copy Tenant ID</button></div>
+      <p class="hint">Forgot the UUID? Find it from your signed WorkOS organization and existing owner membership. No new tenant or key is created.</p>
       <div id="create-panel" class="create" hidden>
         <h3>First-time tenant initialization</h3>
         <p class="hint">Santo Super Admin only. If tenant already exists, paste its UUID above instead.</p>

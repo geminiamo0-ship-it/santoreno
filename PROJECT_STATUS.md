@@ -60,7 +60,7 @@ PR #42 was squash-merged as `29805bc85ac864e66b7cdc7cd787ac52c1749613`. Exact po
 
 **Streaming limitation:** JSON-mode Workers AI does not provide provider-native token streaming. Santo intentionally buffers and validates the full output and finalizes quota before emitting SSE frames; this avoids unverified sourced medical content. Do not advertise provider-token time-to-first-byte streaming. See `docs/AI_STREAMING_CONTRACT.md`.
 
-Phase 7 is complete on tested acceptance criteria. **Phase 8 / Issue #43 is also complete and post-merge verified.** Next implementation target: **Issue #52 — Phase 9 ConversationDO**. Keep full widget and portal deferred.
+Phase 7 and Phase 8 are fully verified. **Phase 9 / Issue #52 is now also complete and post-merge verified.** Next implementation target: **Issue #58 — Phase 10 Santo Widget**. Full tenant portal remains deferred.
 
 ### Latest completed phase — Phase 8 trusted sources and R2 media / Issue #43
 
@@ -118,12 +118,18 @@ Phase 7 is complete on tested acceptance criteria. **Phase 8 / Issue #43 is also
   **Verify 38441908597** and live **P9 Grounded Follow-ups 38441897200**.
 - Squash merged `5d386bbbc6849015e74579388d94d5938a36fb9a`;
   post-merge **Verify 38444007239** passed.
-- **Finalization in progress:** durable rolling extractive summary of
-  completed verified turns (strict 1,200-character bound) and correct
-  handling of expired, competing turn leases. Tests and same-head real
-  staging remain the acceptance gate.
-- Issue #52 was accidentally auto-closed by PR #56 issue-number mention.
-  It was **reopened** until all Phase 9 finalization criteria are proven.
+- Final summary/lease hardening merged as **PR #57**:
+  `17e032e3935cad4f6ec290ee770e3baaf09f6540`.
+  Final head `84e785a7067fc0257f843655f84e2eb89956b279`
+  passed exact-head **Verify 38445457126** and live **P9 Summary & Lease
+  Staging Acceptance 38445450546** on the identical SHA.
+- Exact post-merge **Verify 38446592614** passed on the squash commit.
+- Adds SQLite-transactional, bounded **1,200-character extractive summary**
+  of completed server-verified turns only (not unbounded model memory),
+  owner deletion, upgrade fallback and expiry-aware active lease fencing.
+- **Phase 9 complete under the scoped accepted contracts.** Issue #52
+  is closed after evidence update. Earlier mistaken auto-close by PR #56
+  was corrected before final acceptance.
 
 ## 2. Read order before implementation
 
@@ -134,7 +140,8 @@ Phase 7 is complete on tested acceptance criteria. **Phase 8 / Issue #43 is also
 5. `CONTRIBUTING.md`
 6. GitHub Issue #8 — umbrella roadmap and release gates
 7. GitHub Issue #9 — engineering continuity/guardrails tracker
-8. **GitHub Issue #52 — current active implementation issue**
+8. **GitHub Issue #52 — completed Phase 9 acceptance**
+9. **GitHub Issue #58 — current active implementation issue, Phase 10**
 
 ## 3. Active implementation order
 
@@ -151,13 +158,15 @@ Completed:
 - [x] **#36 — Phase 7:** Verified AI Core, validated SSE and bounded failure lifecycle
 - [x] **#43 — Phase 8:** Trusted sources, citation details and R2 images (post-merge verified)
 
+Completed:
+
+- [x] **#52 — Phase 9:** ConversationDO ordered state, grounded follow-ups, verified memory and lease recovery — **COMPLETE**
+
 Current:
 
-- [ ] **#52 — Phase 9:** ConversationDO, ordered multi-turn state and follow-ups — **CURRENT ACTIVE ISSUE**
+- [ ] **#58 — Phase 10:** full embeddable Lit `<santo-ai>` widget — **CURRENT ACTIVE ISSUE**
 
 Then, in roadmap order:
-
-- [ ] Phase 10 — full Lit `<santo-ai>` widget
 - [ ] Phase 11 — framework compatibility
 - [ ] Phase 12 — full tenant portal
 - [ ] Phase 13+ — branding, management API, queues/webhooks, analytics, security hardening, load testing, pilot, production launch
@@ -360,20 +369,20 @@ For every meaningful step:
 
 ## 9. Next action
 
-Continue **Issue #52 only — Phase 9 ConversationDO ordered messages and follow-ups**.
+Start **Issue #58 only — Phase 10 embeddable Lit `<santo-ai>` widget**.
 
-Finish the **Phase 9 finalization slice**: persistent compact verified context, lease expiry/recovery, deterministic regressions and real staging. The previous state and AI follow-up implementations are already merged and verified. Before implementation read #8, #9, #52, and the completed #43. Review
-`workers/api/src/durable-objects/conversation.ts`, the Phase 7 quota/AI
-handler and Phase 8 server-verified source contracts. Implement in bounded
-increments: state/ordering already proven; next implement
-idempotent grounded assistant turns, bounded follow-up context and stream coordination. Never assume
-an unguessable conversation ID is authorization; bind tenant + external user
-to every read/write. No second quota implementation or model-sourced citations.
-
-For each meaningful change: implement -> test -> exact-head `Verify` ->
-required live staging -> issue checklist/evidence -> handoff/roadmap updates ->
-merge -> exact post-merge `Verify`. Do not build full widget/portal until this
-phase is verified.
+Read #8, #58, the completed #52 and all repository guardrails first.
+The baseline `packages/widget/src/index.ts` is only a Lit placeholder;
+implement the browser view/network adapter in bounded slices. Reuse
+the existing Phase 9 authenticated `/v1/conversations`, `/ask` and
+`/turns`, Phase 8 source/image proxy and `/v1/session/exchange`
+via a **customer backend**. Never place customer server credentials in
+browser/widget code. Preserve idempotency keys, optimistic sequence,
+safe replay/reconnect, no unvalidated SSE, verified source identity and
+Shadow DOM CSS isolation. Complete incremental unit/browser tests, exact-
+head `Verify`, live staging, merge and exact post-merge `Verify` before
+marking each deliverable done. Phase 11 compatibility and Phase 12 full
+portal remain deferred; no direct customer DB access or quota replication.
 
 ## 10. Repository administration note
 

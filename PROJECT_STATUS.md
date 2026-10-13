@@ -60,23 +60,32 @@ PR #42 was squash-merged as `29805bc85ac864e66b7cdc7cd787ac52c1749613`. Exact po
 
 **Streaming limitation:** JSON-mode Workers AI does not provide provider-native token streaming. Santo intentionally buffers and validates the full output and finalizes quota before emitting SSE frames; this avoids unverified sourced medical content. Do not advertise provider-token time-to-first-byte streaming. See `docs/AI_STREAMING_CONTRACT.md`.
 
-Phase 7 is complete on tested acceptance criteria. **Current implementation target is Issue #43 — Phase 8 trusted sources, citation details and R2 images.** Do not jump ahead to ConversationDO, the full widget, or tenant portal.
+Phase 7 is complete on tested acceptance criteria. **Phase 8 / Issue #43 is also complete and post-merge verified.** Next implementation target: **Issue #52 — Phase 9 ConversationDO**. Keep full widget and portal deferred.
 
-### Phase 8 source and R2 media progress — Issue #43
+### Latest completed phase — Phase 8 trusted sources and R2 media / Issue #43
 
-- **PR #49 completed:** strict source, citation-detail, image and internal R2
-  manifest contracts with six security-focused regressions.
-- PR #49 final head `6d4ddf5bb927147f9869f7f22385a71ca614c350`
-  passed `Verify` **38414736636**; squash-merged
-  `05b75ba9384ece2250983994e92190a69cfadd9b`.
-- Exact post-merge `Verify` **38415599816** passed.
-- **PR #50 in progress:** private R2 snapshots of verified citations,
-  session-authorized source/image handlers, safe media manifests and image
-  delivery, deterministic security tests, and a new exact-head real staging
-  acceptance workflow. See `docs/TRUSTED_SOURCE_CONTRACT.md`.
-- **Not yet complete:** final-head `Verify`, live P8 staging acceptance,
-  complete evidence, merged status and post-merge `Verify`.
-  Do not advance to Phase 9 until Issue #43 is fully proven.
+- PR #49 added strict server-verified citation/source-detail metadata and
+  canonical image/R2 manifest contracts, including six security regressions.
+  Final head `6d4ddf5bb927147f9869f7f22385a71ca614c350` passed
+  **Verify 38414736636**. Squash merge: `05b75ba9384ece2250983994e92190a69cfadd9b`;
+  exact post-merge **Verify 38415599816** passed.
+- PR #50 implemented tenant/user/message-scoped verified source snapshots,
+  authenticated source details and images, R2 canonical media manifests,
+  fail-closed image handling, no-store delivery and source-persistence-before-
+  quota-finalize safety, with deterministic regression tests.
+- PR #50 final head `3769cdc9d79e4deb671bb512e9d9c02f4b05f7dd`
+  passed **Verify 38419869177** and **P8 Trusted Sources Staging Acceptance
+  38419858440** on the exact same commit. Live acceptance exercised real
+  WorkOS-backed sessions, indexed AI Search fixtures, Workers AI, R2 media,
+  cross-tenant isolation, authorized image delivery and cleanup.
+- PR #50 squash merge: `93ac404f3de1c59949eb856e41d5a8cb433afb8a`;
+  exact post-merge **Verify 38420860631** passed.
+- **Phase 8 code/staging acceptance complete.** Source storage access is
+  logically time-bounded; configure physical R2 lifecycle cleanup as documented
+  in `docs/TRUSTED_SOURCE_CONTRACT.md` before production launch.
+- Next: **#52 Phase 9 ConversationDO**, state, follow-ups, ordering, context
+  summary, idempotency and stream coordination. Do not begin Phase 10/portal
+  before Phase 9 acceptance is proven.
 
 ## 2. Read order before implementation
 
@@ -87,7 +96,7 @@ Phase 7 is complete on tested acceptance criteria. **Current implementation targ
 5. `CONTRIBUTING.md`
 6. GitHub Issue #8 — umbrella roadmap and release gates
 7. GitHub Issue #9 — engineering continuity/guardrails tracker
-8. **GitHub Issue #43 — current active implementation issue**
+8. **GitHub Issue #52 — current active implementation issue**
 
 ## 3. Active implementation order
 
@@ -102,14 +111,14 @@ Completed:
 - [x] **#7 — P6 vertical slice:** Minimal grounded AI endpoint
 - [x] **#33 — Phase 6:** Global AI Search catalog and filtered retrieval
 - [x] **#36 — Phase 7:** Verified AI Core, validated SSE and bounded failure lifecycle
+- [x] **#43 — Phase 8:** Trusted sources, citation details and R2 images (post-merge verified)
 
 Current:
 
-- [ ] **#43 — Phase 8:** Trusted sources, citation details and R2 images — **CURRENT ACTIVE ISSUE**
+- [ ] **#52 — Phase 9:** ConversationDO, ordered multi-turn state and follow-ups — **CURRENT ACTIVE ISSUE**
 
 Then, in roadmap order:
 
-- [ ] Phase 9 — `ConversationDO`
 - [ ] Phase 10 — full Lit `<santo-ai>` widget
 - [ ] Phase 11 — framework compatibility
 - [ ] Phase 12 — full tenant portal
@@ -309,14 +318,24 @@ For every meaningful step:
 - P6 vertical slice / #7 — PR #25 final docs head `59679a56eb273e2f343e2d6ee7d94babf9409b1e`; `Verify` **37305283632 (#250)** green; P6 Staging Acceptance **37305276676 (#26)** green; squash-merged as `8d1a422c514869844fefc9c5c29c1ffdf2bc923e`; exact post-merge `Verify` **37306176415 (#251)** green.
 - Phase 6 global retrieval / #33 — PR #35 final clean head `a5746b8b87ad23c6aeada29740e7c0ae7955e5bb`; `Verify` **37327203385 (#283)** green; P33 Global Search Staging Acceptance **37327194943 (#15)** green; squash-merged as `81d15a61140cee28d1a9a7909cb27e1a70b7ba14`; exact post-merge `Verify` **37330375869 (#284)** green.
 - Phase 7 AI Core / #36 — PRs #38/#39/#42; final PR #42 head `6c1ba89448725507dcade62b95963753e127de10`; `Verify` **37931171789** and P7 Staging Acceptance **37931165458** green on that head; merged `29805bc85ac864e66b7cdc7cd787ac52c1749613`; post-merge `Verify` **37932098841** green.
+- Phase 8 / #43 — PR #49 post-merge `Verify` **38415599816**; PR #50 final head `3769cdc9d79e4deb671bb512e9d9c02f4b05f7dd` with exact-head `Verify` **38419869177** and P8 real staging **38419858440** passed; merged `93ac404f3de1c59949eb856e41d5a8cb433afb8a`; post-merge `Verify` **38420860631** passed.
 
 ## 9. Next action
 
-Continue **Issue #43 only — Phase 8 Trusted Sources, Citation Details and R2 Images**.
+Continue **Issue #52 only — Phase 9 ConversationDO ordered messages and follow-ups**.
 
-Continue draft PR #50. Validate source/asset authorization against message-scoped server-verified R2 snapshots and canonical media manifests. No generated/model-provided arbitrary source URL may become authoritative. Add deterministic forged-source, missing-asset, library-filter and session/tenant regression tests before implementing the resolver, then run exact-head `Verify` and real staging acceptance on the same head.
+Before implementation read #8, #9, #52, and the completed #43. Review
+`workers/api/src/durable-objects/conversation.ts`, the Phase 7 quota/AI
+handler and Phase 8 server-verified source contracts. Implement in bounded
+increments: authenticated conversation state and ordering first; then
+idempotent turns, follow-up context and stream coordination. Never assume
+an unguessable conversation ID is authorization; bind tenant + external user
+to every read/write. No second quota implementation or model-sourced citations.
 
-For each meaningful change: implement → test → exact-head `Verify` → required staging gate → issue checklist/evidence → handoff and roadmap updates → merge → post-merge `Verify`. Do not work on ConversationDO, the full Lit widget or the full tenant portal before this phase is verified.
+For each meaningful change: implement -> test -> exact-head `Verify` ->
+required live staging -> issue checklist/evidence -> handoff/roadmap updates ->
+merge -> exact post-merge `Verify`. Do not build full widget/portal until this
+phase is verified.
 
 ## 10. Repository administration note
 

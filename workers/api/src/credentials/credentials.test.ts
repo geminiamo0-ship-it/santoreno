@@ -132,6 +132,8 @@ const verifyPortalToken: PortalTokenVerifier = async (_env, authorizationHeader)
   switch (authorizationHeader) {
     case "Bearer super":
       return { userId: "user_super", organizationId: null, tokenRole: null };
+    case "Bearer super-owner":
+      return { userId: "user_super", organizationId: "org_medpark", tokenRole: "owner" };
     case "Bearer medpark":
       return { userId: "user_medpark", organizationId: "org_medpark", tokenRole: "owner" };
     case "Bearer second":
@@ -167,6 +169,55 @@ async function createTenant(
 }
 
 describe("P3 customer server credentials", () => {
+  it("issues a credential to a super-admin who is also the explicitly scoped tenant owner", async () => {
+    const tenants = new InMemoryTenantRepository();
+    const credentials = new InMemoryCredentialRepository();
+    const app = createApp({
+      verifyPortalToken,
+      tenantRepositoryFactory: () => tenants,
+      credentialRepositoryFactory: () => credentials,
+    });
+
+    const owned = await createTenant(app, {
+      slug: "admin-owned",
+      name: "Admin-owned tenant",
+      workosOrgId: "org_medpark",
+      ownerWorkosUserId: "user_super",
+    });
+    const other = await createTenant(app, {
+      slug: "other-tenant",
+      name: "Other tenant",
+      workosOrgId: "org_second",
+      ownerWorkosUserId: "user_second",
+    });
+
+    const withoutOrg = await app.request(
+      `/v1/portal/tenants/${owned.id}/credentials`,
+      { method: "POST", headers: { authorization: "Bearer super" } },
+      env,
+    );
+    expect(withoutOrg.status).toBe(403);
+
+    const crossOrg = await app.request(
+      `/v1/portal/tenants/${other.id}/credentials`,
+      { method: "POST", headers: { authorization: "Bearer super-owner" } },
+      env,
+    );
+    expect(crossOrg.status).toBe(403);
+    expect(credentials.records.size).toBe(0);
+
+    const issue = await app.request(
+      `/v1/portal/tenants/${owned.id}/credentials`,
+      { method: "POST", headers: { authorization: "Bearer super-owner" } },
+      env,
+    );
+    expect(issue.status).toBe(201);
+    const issued = (await issue.json()) as CredentialIssueResponse;
+    expect(issued.credential.tenantId).toBe(owned.id);
+    expect(credentials.records.size).toBe(1);
+    expect(JSON.stringify([...credentials.records.values()])).not.toContain(issued.secret);
+  });
+
   it("issues once, authenticates tenant context, rotates, revokes, and isolates domains", async () => {
     const tenants = new InMemoryTenantRepository();
     const credentials = new InMemoryCredentialRepository();

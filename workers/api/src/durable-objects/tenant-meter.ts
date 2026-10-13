@@ -44,6 +44,9 @@ export class TenantMeterDO {
       if (request.method === "POST" && url.pathname === "/configure") {
         return json(this.core.configure(await request.json()));
       }
+      if (request.method === "POST" && url.pathname === "/user-entitlement") {
+        return json(this.core.configureUser(await request.json()));
+      }
       if (request.method === "POST" && url.pathname === "/state") {
         return json(this.core.read(await request.json()));
       }

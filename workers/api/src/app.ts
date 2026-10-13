@@ -7,6 +7,9 @@ import {
   InfrastructureSmokeResponseSchema,
   PortalContextResponseSchema,
   QueueSmokeStatusResponseSchema,
+  QuotaSnapshotSchema,
+  QuotaConfigureRequestSchema,
+  QuotaUserEntitlementSchema,
   ServerContextResponseSchema,
   ServerCredentialMetadataSchema,
   SessionContextResponseSchema,
@@ -33,6 +36,7 @@ import {
 } from "./credentials/service";
 import { runInfrastructureSmoke, wasQueueSmokeProcessed } from "./infrastructure/smoke";
 import type { SantoBindings } from "./runtime/bindings";
+import { DurableObjectQuotaService, QuotaServiceError } from "./quota/service";
 import { D1ExternalUserRepository, type ExternalUserRepository } from "./session/repository";
 import { SessionError, SessionExchangeService } from "./session/service";
 import { SantoSessionTokenService, SessionTokenError } from "./session/token";
@@ -398,6 +402,91 @@ export function createApp(dependencies: SantoAppDependencies = {}) {
     } catch (error) {
       if (error instanceof CredentialError) {
         return context.json(errorPayload(error.code), error.status);
+      }
+      throw error;
+    }
+  });
+
+  // Tenant-scoped pilot integration. The server credential decides tenant
+  // identity; browser cannot supply tenant or quota administration fields.
+  // Operational quota bootstrap, not a customer-facing portal capability.
+  // Only Santo's verified WorkOS Super Admin can set the tenant allowance.
+  app.post("/v1/admin/tenants/:tenantId/quota", async (context) => {
+    const admin = context.get("portalIdentity");
+    const ids = (context.env.SANTO_SUPER_ADMIN_USER_IDS ?? "")
+      .split(",")
+      .map((id) => id.trim())
+      .filter(Boolean);
+    if (!ids.includes(admin.userId)) return context.json(errorPayload("FORBIDDEN"), 403);
+    const raw: unknown = await context.req.json().catch(() => null);
+    if (!raw || typeof raw !== "object" || "tenantId" in raw) {
+      return context.json(errorPayload("INVALID_QUOTA_REQUEST"), 400);
+    }
+    const parsed = QuotaConfigureRequestSchema.safeParse({
+      ...raw,
+      tenantId: context.req.param("tenantId"),
+    });
+    if (!parsed.success) return context.json(errorPayload("INVALID_QUOTA_REQUEST"), 400);
+    if (!context.env.TENANT_METER) return context.json(errorPayload("QUOTA_UNAVAILABLE"), 503);
+    const tenant = await tenantRepositoryFactory(context.env).findTenantById(parsed.data.tenantId);
+    if (!tenant) return context.json(errorPayload("TENANT_NOT_FOUND"), 404);
+    try {
+      const snapshot = await new DurableObjectQuotaService(context.env.TENANT_METER).configure(
+        parsed.data,
+      );
+      return context.json(QuotaSnapshotSchema.parse(snapshot), 200, {
+        "Cache-Control": "no-store",
+      });
+    } catch (error) {
+      if (error instanceof QuotaServiceError) {
+        return Response.json(errorPayload(error.code), {
+          status: error.status,
+          headers: { "Cache-Control": "no-store" },
+        });
+      }
+      throw error;
+    }
+  });
+
+  app.post("/v1/server/quota/users", async (context) => {
+    const parsed = QuotaUserEntitlementSchema.safeParse(await context.req.json().catch(() => null));
+    if (!parsed.success) return context.json(errorPayload("INVALID_USER_ENTITLEMENT"), 400);
+    if (!context.env.TENANT_METER) return context.json(errorPayload("QUOTA_UNAVAILABLE"), 503);
+    try {
+      const result = await new DurableObjectQuotaService(context.env.TENANT_METER).configureUser({
+        tenantId: context.get("serverPrincipal").tenantId,
+        ...parsed.data,
+      });
+      return context.json(QuotaSnapshotSchema.parse(result), 200, { "Cache-Control": "no-store" });
+    } catch (error) {
+      if (error instanceof QuotaServiceError) {
+        return Response.json(errorPayload(error.code), {
+          status: error.status,
+          headers: { "Cache-Control": "no-store" },
+        });
+      }
+      throw error;
+    }
+  });
+
+  app.get("/v1/server/quota/users/:externalUserId", async (context) => {
+    if (!context.env.TENANT_METER) return context.json(errorPayload("QUOTA_UNAVAILABLE"), 503);
+    const externalUserId = context.req.param("externalUserId");
+    if (externalUserId.length < 1 || externalUserId.length > 255) {
+      return context.json(errorPayload("INVALID_USER_ENTITLEMENT"), 400);
+    }
+    try {
+      const result = await new DurableObjectQuotaService(context.env.TENANT_METER).read({
+        tenantId: context.get("serverPrincipal").tenantId,
+        externalUserId,
+      });
+      return context.json(QuotaSnapshotSchema.parse(result), 200, { "Cache-Control": "no-store" });
+    } catch (error) {
+      if (error instanceof QuotaServiceError) {
+        return Response.json(errorPayload(error.code), {
+          status: error.status,
+          headers: { "Cache-Control": "no-store" },
+        });
       }
       throw error;
     }

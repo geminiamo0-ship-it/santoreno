@@ -1,5 +1,6 @@
 import {
   QuotaConfigureRequestSchema,
+  QuotaInternalUserEntitlementSchema,
   QuotaFinalizeRequestSchema,
   QuotaOperationResponseSchema,
   QuotaReadRequestSchema,
@@ -416,6 +417,54 @@ export class TenantMeterCore {
       const tenant = requireTenant(sql);
       const user = requireUser(sql, request.user.externalUserId);
       return toSnapshot(tenant, user);
+    });
+  }
+
+  /**
+   * Customer backend manages only its own end-user allowance. The tenant's
+   * monthly allowance/cycle remains Santo-controlled and existing usage is
+   * never reset or reduced by changing a student's plan.
+   */
+  configureUser(input: unknown): QuotaSnapshot {
+    const request = QuotaInternalUserEntitlementSchema.parse(input);
+    return this.storage.transactionSync(() => {
+      const sql = this.storage.sql;
+      const tenant = rolloverIfNeeded(sql, requireTenant(sql), this.now());
+      assertTenantId(tenant, request.tenantId);
+      const now = this.now();
+      const expiry = request.expiresAt === null ? null : Date.parse(request.expiresAt);
+      const existing = first<UserQuotaRow>(
+        sql,
+        "SELECT * FROM user_quota WHERE external_user_id = ? LIMIT 1",
+        request.externalUserId,
+      );
+      if (existing) {
+        sql.exec(
+          `UPDATE user_quota
+             SET status = ?, base_quota = ?, bonus_quota = ?, expires_at_ms = ?, updated_at_ms = ?
+             WHERE external_user_id = ?`,
+          request.status,
+          request.baseQuota,
+          request.bonusQuota,
+          expiry,
+          now,
+          request.externalUserId,
+        );
+      } else {
+        sql.exec(
+          `INSERT INTO user_quota
+            (external_user_id, status, base_quota, bonus_quota, used_units, reserved_units, expires_at_ms, cycle_start_ms, updated_at_ms)
+            VALUES (?, ?, ?, ?, 0, 0, ?, ?, ?)`,
+          request.externalUserId,
+          request.status,
+          request.baseQuota,
+          request.bonusQuota,
+          expiry,
+          tenant.cycle_start_ms,
+          now,
+        );
+      }
+      return toSnapshot(requireTenant(sql), requireUser(sql, request.externalUserId));
     });
   }
 

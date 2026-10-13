@@ -1,6 +1,7 @@
 import {
   ApiErrorResponseSchema,
   QuotaOperationResponseSchema,
+  type QuotaUserEntitlement,
   QuotaSnapshotSchema,
   type QuotaConfigureRequest,
   type QuotaFinalizeRequest,
@@ -56,6 +57,12 @@ export class DurableObjectQuotaService implements QuotaService {
     }
 
     return parse(payload);
+  }
+
+  configureUser(input: QuotaUserEntitlement & { tenantId: string }): Promise<QuotaSnapshot> {
+    return this.call(input.tenantId, "/user-entitlement", input, (payload) =>
+      QuotaSnapshotSchema.parse(payload),
+    );
   }
 
   configure(request: QuotaConfigureRequest): Promise<QuotaSnapshot> {

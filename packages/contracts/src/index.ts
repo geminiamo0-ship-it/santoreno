@@ -206,6 +206,22 @@ export const QuotaConfigureRequestSchema = z
   });
 export type QuotaConfigureRequest = z.infer<typeof QuotaConfigureRequestSchema>;
 
+/** Customer server credentials may manage only their own users, never tenant caps. */
+export const QuotaUserEntitlementSchema = z
+  .object({
+    externalUserId: QuotaExternalUserIdSchema,
+    status: QuotaStatusSchema,
+    baseQuota: z.number().int().nonnegative().max(1_000_000),
+    bonusQuota: z.number().int().nonnegative().max(1_000_000),
+    expiresAt: z.string().datetime().nullable(),
+  })
+  .strict();
+export type QuotaUserEntitlement = z.infer<typeof QuotaUserEntitlementSchema>;
+
+export const QuotaInternalUserEntitlementSchema = QuotaUserEntitlementSchema.extend({
+  tenantId: z.string().uuid(),
+}).strict();
+
 export const QuotaReadRequestSchema = z
   .object({
     tenantId: z.string().uuid(),

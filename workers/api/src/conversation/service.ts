@@ -37,7 +37,15 @@ export class ConversationService {
 
   private async call<T>(
     conversationId: string,
-    operation: "create" | "read" | "append" | "delete" | "begin-turn" | "complete-turn" | "fail-turn" | "list-turns",
+    operation:
+      | "create"
+      | "read"
+      | "append"
+      | "delete"
+      | "begin-turn"
+      | "complete-turn"
+      | "fail-turn"
+      | "list-turns",
     payload: unknown,
     validate: (value: unknown) => T,
   ): Promise<T> {
@@ -95,30 +103,54 @@ export class ConversationService {
       ConversationDeleteResponseSchema.parse(body),
     );
   }
-  beginTurn(actor: ConversationActor, conversationId: string, input: ConversationAskRequest): Promise<ConversationBeginTurnResponse> {
+  beginTurn(
+    actor: ConversationActor,
+    conversationId: string,
+    input: ConversationAskRequest,
+  ): Promise<ConversationBeginTurnResponse> {
     return this.call(conversationId, "begin-turn", { actor, conversationId, ...input }, (value) =>
       ConversationBeginTurnResponseSchema.parse(value),
     );
   }
 
-  completeTurn(actor: ConversationActor, conversationId: string, idempotencyKey: string, attemptId: string, response: import("@santo/contracts/ai").GroundedAiQueryResponse): Promise<ConversationTurn> {
-    return this.call(conversationId, "complete-turn",
+  completeTurn(
+    actor: ConversationActor,
+    conversationId: string,
+    idempotencyKey: string,
+    attemptId: string,
+    response: import("@santo/contracts/ai").GroundedAiQueryResponse,
+  ): Promise<ConversationTurn> {
+    return this.call(
+      conversationId,
+      "complete-turn",
       { actor, conversationId, idempotencyKey, attemptId, response },
       (value) => ConversationTurnSchema.parse(value),
     );
   }
 
-  async failTurn(actor: ConversationActor, conversationId: string, idempotencyKey: string, attemptId: string): Promise<void> {
-    await this.call(conversationId, "fail-turn",
+  async failTurn(
+    actor: ConversationActor,
+    conversationId: string,
+    idempotencyKey: string,
+    attemptId: string,
+  ): Promise<void> {
+    await this.call(
+      conversationId,
+      "fail-turn",
       { actor, conversationId, idempotencyKey, attemptId },
-      (value) => { if ((value as { retryable?: unknown })?.retryable !== true) throw new ConversationServiceError(503, "CONVERSATION_UNAVAILABLE"); },
+      (value) => {
+        if ((value as { retryable?: unknown })?.retryable !== true)
+          throw new ConversationServiceError(503, "CONVERSATION_UNAVAILABLE");
+      },
     );
   }
 
   listTurns(actor: ConversationActor, conversationId: string): Promise<ConversationTurn[]> {
-    return this.call(conversationId, "list-turns", { actor, conversationId },
+    return this.call(
+      conversationId,
+      "list-turns",
+      { actor, conversationId },
       (value) => ConversationTurnListResponseSchema.parse(value).turns,
     );
   }
-
 }

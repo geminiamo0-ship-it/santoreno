@@ -26,6 +26,7 @@ class State implements DurableObjectStorageLike {
   meta: Row | null = null;
   messages: Row[] = [];
   turns: Row[] = [];
+  summary: Row | null = null;
   sql: SqlStorageLike = {
     exec: <T>(query: string, ...params: unknown[]) => {
       let rows: Row[] = [];
@@ -85,6 +86,12 @@ class State implements DurableObjectStorageLike {
             lease_until_ms: 0,
             quota_epoch: Number(row.quota_epoch) + Number(params[0]),
           });
+      } else if (query.includes("INSERT INTO conversation_context_summary")) {
+        this.summary = { last_completed_sequence: params[0], summary_text: params[1] };
+      } else if (query.startsWith("DELETE FROM conversation_context_summary")) {
+        this.summary = null;
+      } else if (query.includes("FROM conversation_context_summary")) {
+        rows = this.summary ? [this.summary] : [];
       } else if (query.startsWith("DELETE FROM conversation_turns")) {
         this.turns = [];
       } else if (query.startsWith("DELETE FROM conversation_messages")) {
@@ -98,7 +105,11 @@ class State implements DurableObjectStorageLike {
       } else if (query.includes("FROM conversation_turns WHERE idempotency_key")) {
         rows = this.turns.filter((t) => t.idempotency_key === params[0]);
       } else if (query.includes("FROM conversation_turns WHERE status = 'pending'")) {
-        rows = this.turns.filter((t) => t.status === "pending").slice(0, 1);
+        rows = this.turns.filter((t) =>
+          t.status === "pending" &&
+          Number(t.lease_until_ms) > Number(params[0]) &&
+          (!query.includes("idempotency_key != ?") || t.idempotency_key !== params[1]),
+        ).slice(0, 1);
       } else if (query.includes("FROM conversation_turns WHERE status = 'completed'")) {
         rows = this.turns
           .filter((t) => t.status === "completed")
@@ -242,7 +253,7 @@ describe("verified conversation turn state", () => {
       response: answer,
     });
     const b = turns.begin(ask("second", "What about renal effects?", 1));
-    expect(b.context).toContain("Verified assistant: Sodium ranges");
+    expect(b.context).toContain("Verified A: Sodium ranges");
     expect(b.context.length).toBeLessThanOrEqual(1600);
     expect(() => turns.begin(ask("another", "Concurrent question?", 2))).toThrowError(
       ConversationStateError,

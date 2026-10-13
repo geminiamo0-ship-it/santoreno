@@ -309,7 +309,9 @@ export function createApp(dependencies: SantoAppDependencies = {}) {
       return context.json(TenantSchema.parse(tenant), 200, { "Cache-Control": "no-store" });
     } catch (error) {
       if (error instanceof TenancyError) {
-        return context.json(errorPayload(error.code), error.status, { "Cache-Control": "no-store" });
+        return context.json(errorPayload(error.code), error.status, {
+          "Cache-Control": "no-store",
+        });
       }
       throw error;
     }

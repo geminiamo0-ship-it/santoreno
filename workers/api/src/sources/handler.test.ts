@@ -40,8 +40,8 @@ const png = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 0]);
 class FakeBucket implements R2BucketLike {
   readonly values = new Map<string, string | Uint8Array>();
 
-  put(key: string, value: string): Promise<unknown> {
-    this.values.set(key, value);
+  put(key: string, value: string | ArrayBuffer | Uint8Array): Promise<unknown> {
+    this.values.set(key, typeof value === "string" ? value : new Uint8Array(value));
     return Promise.resolve(undefined);
   }
 

@@ -105,7 +105,8 @@ export class SantoAiElement extends LitElement {
         ? "An earlier question may have completed. Retry it with the same key."
         : "Connected to Santo.";
     } catch (error) {
-      this.statusText = error instanceof SantoWidgetApiError ? error.code : "WIDGET_CONNECTION_FAILED";
+      this.statusText =
+        error instanceof SantoWidgetApiError ? error.code : "WIDGET_CONNECTION_FAILED";
     } finally {
       this.busy = false;
     }
@@ -222,7 +223,9 @@ export class SantoAiElement extends LitElement {
               class="citation"
               @click=${() => this.showSource(response.messageId, citation.sourceId)}
               aria-label="View source ${citation.title}"
-            >${citation.title}${citation.page ? ` · p. ${citation.page}` : ""}</button>
+            >
+              ${citation.title}${citation.page ? ` · p. ${citation.page}` : ""}
+            </button>
           `,
         )}
       </div>
@@ -235,28 +238,43 @@ export class SantoAiElement extends LitElement {
     );
     const showLatest = this.latestAnswer && !latestSaved;
     if (this.turns.length === 0 && !showLatest && !this.pending) {
-      return html`<div class="empty"><span class="empty-icon" aria-hidden="true">✦</span>
+      return html`<div class="empty">
+        <span class="empty-icon" aria-hidden="true">✦</span>
         <h2>Ask with confidence</h2>
-        <p>Answers include grounded citations from Santo medical libraries.</p></div>`;
+        <p>Answers include grounded citations from Santo medical libraries.</p>
+      </div>`;
     }
     return html`
       <div class="transcript" aria-live="polite">
         ${this.turns.map(
-          (turn) => html`<article class="turn">
-            <div class="question">${turn.question}</div>
-            ${turn.response
-              ? html`<div class="answer">${this.renderAnswer(turn.response)}</div>`
-              : html`<div class="pending-message">${turn.status === "retryable" ? "Retry available" : "Processing…"}</div>`}
-          </article>`,
+          (turn) =>
+            html`<article class="turn">
+              <div class="question">${turn.question}</div>
+              ${
+                turn.response
+                  ? html`<div class="answer">${this.renderAnswer(turn.response)}</div>`
+                  : html`<div class="pending-message">
+                      ${turn.status === "retryable" ? "Retry available" : "Processing…"}
+                    </div>`
+              }
+            </article>`,
         )}
-        ${showLatest ? html`<article class="turn">
-          <div class="question">${this.latestQuestion}</div>
-          <div class="answer">${this.renderAnswer(this.latestAnswer!)}</div>
-        </article>` : nothing}
-        ${this.pending && !this.turns.some((turn) => turn.question === this.pending)
-          ? html`<article class="turn"><div class="question">${this.pending}</div>
-              <div class="pending-message">Question saved locally for same-key retry.</div></article>`
-          : nothing}
+        ${
+          showLatest
+            ? html`<article class="turn">
+                <div class="question">${this.latestQuestion}</div>
+                <div class="answer">${this.renderAnswer(this.latestAnswer!)}</div>
+              </article>`
+            : nothing
+        }
+        ${
+          this.pending && !this.turns.some((turn) => turn.question === this.pending)
+            ? html`<article class="turn">
+                <div class="question">${this.pending}</div>
+                <div class="pending-message">Question saved locally for same-key retry.</div>
+              </article>`
+            : nothing
+        }
       </div>
     `;
   }
@@ -267,58 +285,107 @@ export class SantoAiElement extends LitElement {
     );
     const panel = this.ui.expanded
       ? html`
-          <section id="santo-panel" class="panel ${this.ui.fullscreen ? "fullscreen" : ""}"
-            role="dialog" aria-label="${this.assistantName} assistant"
-            aria-modal="${this.ui.fullscreen ? "true" : "false"}">
+          <section
+            id="santo-panel"
+            class="panel ${this.ui.fullscreen ? "fullscreen" : ""}"
+            role="dialog"
+            aria-label="${this.assistantName} assistant"
+            aria-modal="${this.ui.fullscreen ? "true" : "false"}"
+          >
             <header class="header">
               <div class="header-text">
                 <span class="name">${this.assistantName}</span>
                 <span class="caption">Grounded medical knowledge</span>
               </div>
               <div class="header-actions">
-                <button class="icon-button" type="button"
+                <button
+                  class="icon-button"
+                  type="button"
                   aria-label="${this.ui.fullscreen ? "Exit full screen" : "Enter full screen"}"
-                  @click=${() => this.transition({ type: "fullscreen" })}>
-                  <span aria-hidden="true">${this.ui.fullscreen ? "⊡" : "⛶"}</span></button>
-                <button class="icon-button" data-close type="button" aria-label="Close Santo"
-                  @click=${this.closePanel}><span aria-hidden="true">×</span></button>
+                  @click=${() => this.transition({ type: "fullscreen" })}
+                >
+                  <span aria-hidden="true">${this.ui.fullscreen ? "⊡" : "⛶"}</span>
+                </button>
+                <button
+                  class="icon-button"
+                  data-close
+                  type="button"
+                  aria-label="Close Santo"
+                  @click=${this.closePanel}
+                >
+                  <span aria-hidden="true">×</span>
+                </button>
               </div>
             </header>
             <div class="controls">
               <label for="santo-library">Library</label>
-              <select id="santo-library" aria-label="Medical knowledge library"
-                .value=${this.ui.libraryId ?? ""} @change=${this.onLibraryChange}>
+              <select
+                id="santo-library"
+                aria-label="Medical knowledge library"
+                .value=${this.ui.libraryId ?? ""}
+                @change=${this.onLibraryChange}
+              >
                 <option value="">All libraries</option>
                 ${options.map((option) => html`<option value="${option.id}">${option.label}</option>`)}
               </select>
             </div>
             <main class="messages">${this.renderTranscript()}</main>
-            ${this.source ? html`
-              <aside class="source-details" aria-label="Verified source details">
-                <button type="button" class="source-close" aria-label="Close source"
-                  @click=${() => this.cleanupImage()}>×</button>
-                <strong>${this.source.source.title}</strong>
-                <p>${this.source.source.section ?? "Verified source"}
-                  ${this.source.source.page ? ` · page ${this.source.source.page}` : ""}</p>
-                ${this.imageUrl ? html`<a href="${this.imageUrl}" target="_blank" rel="noopener noreferrer"
-                  aria-label="Open source image in new window">
-                  <img src="${this.imageUrl}" alt="${this.source.images[0]?.altText ?? "Source image"}" />
-                </a>` : nothing}
-              </aside>` : nothing}
+            ${
+              this.source
+                ? html` <aside class="source-details" aria-label="Verified source details">
+                    <button
+                      type="button"
+                      class="source-close"
+                      aria-label="Close source"
+                      @click=${() => this.cleanupImage()}
+                    >
+                      ×
+                    </button>
+                    <strong>${this.source.source.title}</strong>
+                    <p>
+                      ${this.source.source.section ?? "Verified source"}
+                      ${this.source.source.page ? ` · page ${this.source.source.page}` : ""}
+                    </p>
+                    ${
+                      this.imageUrl
+                        ? html`<a
+                            href="${this.imageUrl}"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            aria-label="Open source image in new window"
+                          >
+                            <img
+                              src="${this.imageUrl}"
+                              alt="${this.source.images[0]?.altText ?? "Source image"}"
+                            />
+                          </a>`
+                        : nothing
+                    }
+                  </aside>`
+                : nothing
+            }
             <div class="status" role="status" aria-live="polite">
               <span class="status-dot" aria-hidden="true"></span>
               ${this.statusText}
               ${this.remaining === null ? nothing : html` · ${this.remaining} remaining`}
             </div>
             <form class="composer" @submit=${this.onSubmit}>
-              <textarea aria-label="Your medical question" placeholder="Ask a medical question…"
-                maxlength="4000" .value=${this.pending || this.draft}
+              <textarea
+                aria-label="Your medical question"
+                placeholder="Ask a medical question…"
+                maxlength="4000"
+                .value=${this.pending || this.draft}
                 ?disabled=${!this.client || this.busy || Boolean(this.pending)}
                 @input=${(event: Event) => {
                   if (event.target instanceof HTMLTextAreaElement) this.draft = event.target.value;
                 }}
-                @keydown=${this.onComposeKey}></textarea>
-              <button type="submit" class="send" ?disabled=${!this.client || this.busy || (!this.pending && !this.draft.trim())}>
+                @keydown=${this.onComposeKey}
+              ></textarea>
+              <button
+                type="submit"
+                class="send"
+                ?disabled=${!this.client || this.busy || (!this.pending && !this.draft.trim())}
+              >
                 ${this.busy ? "Working…" : this.pending ? "Retry same question" : "Send"}
               </button>
               <div class="footer">Powered by Santo · Verified medical evidence</div>
@@ -327,13 +394,22 @@ export class SantoAiElement extends LitElement {
         `
       : nothing;
     return html`${panel}
-      ${this.ui.fullscreen ? nothing : html`<button data-launcher class="launcher" type="button"
-        aria-controls="santo-panel" aria-expanded="${this.ui.expanded}"
-        aria-label="${this.ui.expanded ? "Close Santo" : "Open Santo assistant"}"
-        @click=${this.toggle}>
-        <span class="launcher-mark" aria-hidden="true">S</span>
-        ${this.ui.expanded ? "Close" : "Ask Santo"}
-      </button>`}`;
+    ${
+      this.ui.fullscreen
+        ? nothing
+        : html`<button
+            data-launcher
+            class="launcher"
+            type="button"
+            aria-controls="santo-panel"
+            aria-expanded="${this.ui.expanded}"
+            aria-label="${this.ui.expanded ? "Close Santo" : "Open Santo assistant"}"
+            @click=${this.toggle}
+          >
+            <span class="launcher-mark" aria-hidden="true">S</span>
+            ${this.ui.expanded ? "Close" : "Ask Santo"}
+          </button>`
+    }`;
   }
 }
 

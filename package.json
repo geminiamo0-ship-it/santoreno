@@ -10,7 +10,7 @@
     "build": "turbo run build",
     "dev": "turbo run dev --parallel",
     "format": "prettier --write .",
-    "format:check": "prettier --write packages/contracts/src/source.ts packages/contracts/src/source.test.ts && git diff -- packages/contracts/src/source.ts packages/contracts/src/source.test.ts && prettier --check .",
+    "format:check": "prettier --check .",
     "lint": "oxlint . && pnpm format:check",
     "smoke": "node scripts/smoke.mjs",
     "test": "turbo run test",

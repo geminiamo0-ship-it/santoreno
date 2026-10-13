@@ -1,0 +1,31 @@
+name: Temporary Copilot Docs Formatting
+on:
+  push:
+    branches:
+      - docs/copilot-v1-system-prompt-routing
+    paths:
+      - .github/workflows/copilot-v1-format-once.yml
+permissions:
+  contents: write
+jobs:
+  format-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Format only Copilot v1 documents
+        shell: bash
+        run: |
+          set -euo pipefail
+          corepack enable
+          pnpm install --frozen-lockfile
+          pnpm exec prettier --write docs/prompts/SANTO_MEDICAL_EDUCATION_COPILOT_V1.md docs/COPILOT_ROUTING_V1.md docs/adr/0001-copilot-intent-routing.md
+          if ! git diff --quiet -- docs/prompts/SANTO_MEDICAL_EDUCATION_COPILOT_V1.md docs/COPILOT_ROUTING_V1.md docs/adr/0001-copilot-intent-routing.md; then
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add docs/prompts/SANTO_MEDICAL_EDUCATION_COPILOT_V1.md docs/COPILOT_ROUTING_V1.md docs/adr/0001-copilot-intent-routing.md
+            git commit -m 'style(copilot): format prompt and routing docs with repository Prettier'
+            git push origin HEAD:refs/heads/docs/copilot-v1-system-prompt-routing
+          fi

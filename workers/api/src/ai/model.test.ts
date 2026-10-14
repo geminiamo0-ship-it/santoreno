@@ -30,7 +30,7 @@ describe("Cloudflare Workers AI model adapter", () => {
       answer: "Sodium is 135–145 mmol/L.",
       citationIds: ["medical:chunk-1"],
     });
-    expect(GROUNDED_MODEL_POLICY.maxTokens).toBe(1500);
+    expect(GROUNDED_MODEL_POLICY.maxTokens).toBe(3200);
     expect(ai.run).toHaveBeenCalledWith(
       "@cf/test/grounded-model",
       expect.objectContaining({
@@ -127,7 +127,7 @@ describe("GPT-6 Luna isolated Santo staging preview", () => {
         reasoning: { effort: "none" },
         service_tier: "fast",
         store: false,
-        max_output_tokens: 1500,
+        max_output_tokens: 3200,
         text: expect.objectContaining({
           format: expect.objectContaining({ type: "json_schema", strict: true }),
         }),

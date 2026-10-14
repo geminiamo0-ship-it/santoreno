@@ -6,6 +6,15 @@
 >
 > **Rule:** GitHub code, issues, PRs, commits, and Actions are the source of truth. Update this file whenever meaningful work completes, a gate passes/fails, architecture changes, or the active issue changes.
 
+### Professor editorial teaching prompt v2 — 15 October 2026
+
+- User requested more ambitious medical teaching and editorial quality instead of default miniature summaries.
+- Staging professor prompt now explicitly interprets an isolated medical topic name as a request for a substantive, structured medical explanation and a narrow why/how follow-up as a focused causal deep dive. Content is adapted to the query; short factual questions may still be brief.
+- Grounded generation must use only retrieved evidence and independently verified source IDs. If retrieval covers only part of a topic, this prompt cannot safely fill missing clinical information or compensate for incomplete AMBOSS indexing. No new indexing, source schema, quota policy, tenant access, exam state or citation authorization changes.
+- Luna and the Llama fallback share updated editorial system instructions; grounded model output ceiling increased from 1,500 to 3,200 tokens. Longer model responses can cost more and take longer to complete; measure real latency.
+- [Staging editorial prompt rollout 38649763218](https://github.com/geminiamo0-ship-it/santoreno/actions/runs/38649763218): SUCCESS; targeted source format/lint, full TypeScript tests/build/smoke, protected route 401 and Worker deploy with secrets preserved. Royal Bank still uses this Cloudflare Staging endpoint.
+- **Outstanding**: authenticated student A/B of broad vs narrow explanations, exact retrieval coverage, section-specific citations, real medical correctness and time-to-first-visible-token. Do not claim a world-class medical answer quality benchmark based on prompt tests alone.
+
 ### Native Luna provisional SSE + Royal Bank host — 15 Oct 2026
 
 - Synthetic funded provider probe [38645951208](https://github.com/geminiamo0-ship-it/santoreno/actions/runs/38645951208) SUCCESS: Cloudflare GPT-6 Luna Responses API returned 32 progressive `response.output_text.delta` events and `response.completed` using stream=true. No customer/user data sent to probe.

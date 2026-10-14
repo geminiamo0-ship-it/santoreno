@@ -80,9 +80,9 @@ describe("library reader session and rollout authorization", () => {
     expect((await handler(path, { ...production, SANTO_LIBRARY_READER_V1: "false" })).status).toBe(
       404,
     );
-    expect((await handler(path, { ...production, SANTO_LIBRARY_READER_V1: undefined })).status).toBe(
-      404,
-    );
+    expect(
+      (await handler(path, { ...production, SANTO_LIBRARY_READER_V1: undefined })).status,
+    ).toBe(404);
     expect((await handler(path, { ...enabled, SANTO_ENV: "local" })).status).toBe(404);
   });
   it("enforces method, query and strict article IDs", async () => {

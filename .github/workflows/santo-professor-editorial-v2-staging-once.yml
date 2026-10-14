@@ -31,7 +31,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          pnpm lint
+          pnpm exec oxlint .
+          pnpm exec prettier --check workers/api/src/ai/prompt.ts workers/api/src/ai/prompt.test.ts workers/api/src/ai/model.ts workers/api/src/ai/model.test.ts
           pnpm typecheck
           pnpm test
           pnpm build

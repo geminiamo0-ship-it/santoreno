@@ -6,6 +6,14 @@
 >
 > **Rule:** GitHub code, issues, PRs, commits, and Actions are the source of truth. Update this file whenever meaningful work completes, a gate passes/fails, architecture changes, or the active issue changes.
 
+### Native Luna SSE citation rejection repair — 15 October 2026
+
+- Real Royal Bank screenshot demonstrated a rapid progressive unverified answer draft being withdrawn with safe same-key Retry. Aggregated last-12-hour Staging AI telemetry, queried WITHOUT identifiers or medical user questions: 15 successful AI queries and 4 `CITATION_INVALID` failures, [read-only run 38650542086](https://github.com/geminiamo0-ship-it/santoreno/actions/runs/38650542086).
+- Root limitation: the prior strict model response JSON schema constrained citation_ids only as arbitrary strings, not to the 1–5 retrieved source IDs. Staging fix now binds each grounded Luna **and** fallback Llama generation schema to the exact server-retrieved IDs. General medical knowledge has maxItems 0; no model-selected external source identifier is accepted. Original server membership validation and source snapshot/Quota/DO persistence stay in place.
+- Full lint/format/types/test/build/smoke and synthetic funded Luna strict JSON enum [run 38651193833](https://github.com/geminiamo0-ship-it/santoreno/actions/runs/38651193833) SUCCESS (145 API tests, provider HTTP 200, exact citation ID match).
+- [Staging-only production-grade Worker deployment run 38651303146](https://github.com/geminiamo0-ship-it/santoreno/actions/runs/38651303146) SUCCESS. Unauthenticated SSE `/ask` 401. Santo Cloudflare Production unchanged; Royal Bank continues pointing to Santo Staging.
+- **Unconfirmed:** exact failure subtype for the previous `CITATION_INVALID` cases (no model-output/raw user-question logs were retained), authenticated student answer + saved citation post-fix. The schema change addresses invalid or omitted model-selected IDs but cannot correct malformed source metadata, medical factual accuracy or indexing gaps. Ask the user to click **Retry same question** (same key) and confirm the verified final response/units and latency. Do not mark this fully E2E resolved until that acceptance.
+
 ### Professor editorial teaching prompt v2 — 15 October 2026
 
 - User requested more ambitious medical teaching and editorial quality instead of default miniature summaries.

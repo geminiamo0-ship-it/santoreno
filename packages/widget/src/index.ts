@@ -665,6 +665,22 @@ export class SantoAiElement extends LitElement {
                               `
                       }
                     </div>
+                    ${this.readerPopover
+                      ? html`<div class="reader-popover" role="dialog" aria-label="Medical definition">
+                          <button type="button" class="source-close" aria-label="Close definition"
+                            @click=${() => { this.readerPopover = null; }}>×</button>
+                          <strong>${this.readerPopover.title}</strong>
+                          <div class="article-original-html">${unsafeHTML(this.readerPopover.html)}</div>
+                        </div>`
+                      : nothing}
+                    ${this.readerLightbox
+                      ? html`<div class="reader-lightbox" role="dialog" aria-modal="true" aria-label="Medical image viewer">
+                          <button type="button" class="lightbox-close" aria-label="Close image viewer"
+                            @click=${() => { this.readerLightbox = null; }}>×</button>
+                          <img src=${this.readerLightbox.src} alt=${this.readerLightbox.alt} />
+                          <span>${this.readerLightbox.alt}</span>
+                        </div>`
+                      : nothing}
                   </aside>`
                 : nothing
             }

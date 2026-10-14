@@ -64,10 +64,15 @@ export class ConversationAskService {
         // Read-only quota snapshot: do not reserve/finalize or spend units.
         // Still block suspended/expired entitled users instead of granting a
         // free bypass around the authoritative TenantMeterDO state.
-        const quota = await new DurableObjectQuotaService(env.TENANT_METER).read({
-          tenantId: actor.tenantId,
-          externalUserId: actor.externalUserId,
-        });
+        let quota;
+        try {
+          quota = await new DurableObjectQuotaService(env.TENANT_METER).read({
+            tenantId: actor.tenantId,
+            externalUserId: actor.externalUserId,
+          });
+        } catch {
+          throw new ConversationServiceError(503, "QUOTA_UNAVAILABLE");
+        }
         if (quota.tenantStatus !== "active" || quota.userStatus !== "active") {
           throw new ConversationServiceError(403, "USER_SUSPENDED");
         }

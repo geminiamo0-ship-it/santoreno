@@ -55,6 +55,7 @@ workers_dev = true
 
 [env.staging.vars]
 SANTO_ENV = "staging"
+SANTO_NATIVE_STREAMING_V1 = "true"
 SANTO_SESSION_TTL_SECONDS = "900"
 SANTO_AI_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
 SANTO_LUNA_PREVIEW = "true"

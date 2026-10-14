@@ -58,6 +58,7 @@ SANTO_ENV = "staging"
 SANTO_SESSION_TTL_SECONDS = "900"
 SANTO_AI_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
 SANTO_COPILOT_ROUTING_V1 = "true"
+SANTO_AI_SEARCH_INSTANCE_IDS = "amboss,usmle,passmedicine,pastest,one-examination"
 SANTO_LIBRARY_READER_V1 = "true"
 
 [env.staging.secrets]
@@ -106,6 +107,7 @@ namespace = "default"
 name = "santo-api"
 
 [env.production.vars]
+SANTO_AI_SEARCH_INSTANCE_IDS = "amboss,usmle,passmedicine,pastest,one-examination"
 SANTO_ENV = "production"
 SANTO_SESSION_TTL_SECONDS = "900"
 SANTO_AI_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast"

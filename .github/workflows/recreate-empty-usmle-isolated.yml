@@ -1,0 +1,31 @@
+name: Santo USMLE — Guarded Empty Index Recreation
+on:
+  push:
+    branches: [fix/92-santo-isolated-source-repoint]
+    paths: [".github/workflows/recreate-empty-usmle-isolated.yml"]
+permissions: {contents: read}
+jobs:
+  usmle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Verify Python and existing staging Cloudflare credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m py_compile scripts/replace_empty_medical_ai_search.py
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+      - name: Recreate ONLY empty USMLE AI Search using the already SHA-verified 13499-file isolated bucket
+        run: |
+          python scripts/replace_empty_medical_ai_search.py --library usmle --verified-count 13499
+      - name: Record success
+        if: success()
+        run: |
+          echo "USMLE existing stable Santo index ID now points to private isolated R2. Indexing is asynchronous; verify stats/citations separately." >> "$GITHUB_STEP_SUMMARY"

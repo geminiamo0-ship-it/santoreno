@@ -1,10 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { WorkersAiLike } from "../runtime/bindings";
+import type { ModelPort } from "./types";
 import { GroundedAiError } from "./errors";
 import {
   CloudflareWorkersAiModel,
   CloudflareLunaModel,
+  FallbackGroundedModel,
   createGroundedModel,
   GROUNDED_MODEL_POLICY,
 } from "./model";
@@ -113,7 +115,7 @@ describe("GPT-6 Luna isolated Santo staging preview", () => {
       SANTO_ENV: "staging",
       SANTO_LUNA_PREVIEW: "true",
     });
-    expect(model).toBeInstanceOf(CloudflareLunaModel);
+    expect(model).toBeInstanceOf(FallbackGroundedModel);
     await expect(model.generate("Ground this answer")).resolves.toEqual({
       answer: "Evidence-backed diagnosis.",
       citationIds: ["medical:chunk-1"],
@@ -164,5 +166,60 @@ describe("GPT-6 Luna isolated Santo staging preview", () => {
       status: 502,
       code: "MODEL_FAILED",
     });
+  });
+});
+
+describe("Staging Luna -> Llama fallback without weakening answer validation", () => {
+  it("falls back to Workers AI after Luna provider error, within the same model invocation", async () => {
+    const ai: WorkersAiLike = {
+      run: vi.fn(async (model: string) => {
+        if (model === "openai/gpt-6-luna") throw new Error("gateway transient failure");
+        return { response: '{"answer":"Grounded and validated.","citation_ids":["s1"]}' };
+      }),
+    };
+    const model = createGroundedModel({
+      AI: ai,
+      SANTO_ENV: "staging",
+      SANTO_LUNA_PREVIEW: "true",
+      SANTO_AI_MODEL: "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+    });
+    await expect(model.generate("Use evidence s1")).resolves.toEqual({
+      answer: "Grounded and validated.",
+      citationIds: ["s1"],
+    });
+    expect(vi.mocked(ai.run).mock.calls.map(([name]) => name)).toEqual([
+      "openai/gpt-6-luna", "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+    ]);
+  });
+
+  it("falls back for malformed JSON but never returns invalid fallback output", async () => {
+    const ai: WorkersAiLike = {
+      run: vi.fn(async (model: string) => model === "openai/gpt-6-luna"
+        ? { output_text: '{"bad":"output"}' }
+        : { response: '{"answer":"bad","citation_ids":null}' }),
+    };
+    await expect(createGroundedModel({
+      AI: ai,
+      SANTO_ENV: "staging",
+      SANTO_LUNA_PREVIEW: "true",
+      SANTO_AI_MODEL: "@cf/test/fallback",
+    }).generate("Evidence")).rejects.toMatchObject({ code: "MODEL_RESPONSE_INVALID" });
+    expect(ai.run).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not retry non-provider failures or a source-insufficiency refusal", async () => {
+    const fallback: ModelPort = { generate: vi.fn(async () => ({ answer: "fallback", citationIds: [] })) };
+    const denied: ModelPort = { generate: vi.fn(async () => {
+      throw new GroundedAiError(504, "MODEL_TIMEOUT", "Timed out");
+    }) };
+    await expect(new FallbackGroundedModel(denied, fallback).generate("x")).rejects
+      .toMatchObject({ code: "MODEL_TIMEOUT" });
+    expect(fallback.generate).not.toHaveBeenCalled();
+    const refused: ModelPort = { generate: vi.fn(async () => ({
+      answer: "INSUFFICIENT_EVIDENCE", citationIds: [],
+    })) };
+    await expect(new FallbackGroundedModel(refused, fallback).generate("x")).resolves
+      .toMatchObject({ answer: "INSUFFICIENT_EVIDENCE" });
+    expect(fallback.generate).not.toHaveBeenCalled();
   });
 });

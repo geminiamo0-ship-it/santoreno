@@ -12,5 +12,6 @@ export function readableMedicalSourceTitle(title: string): string {
     pastest: "Pastest",
     "one-examination": "One Examination",
   };
-  return `${labels[match[1]]} · Article ${match[2]} · Section ${Number(match[3])}`;
+  const library = match[1] ?? "";
+  return `${labels[library] ?? library} · Article ${match[2]} · Section ${Number(match[3])}`;
 }

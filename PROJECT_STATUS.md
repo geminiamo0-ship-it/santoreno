@@ -6,6 +6,13 @@
 >
 > **Rule:** GitHub code, issues, PRs, commits, and Actions are the source of truth. Update this file whenever meaningful work completes, a gate passes/fails, architecture changes, or the active issue changes.
 
+### Source fidelity + inline medical images — Issue #96 (implementation started, 14 Oct 2026)
+
+- New user-approved direction: preserve presentation-safe original library HTML; AMBOSS uses MedPark Library article renderer behavior (collapsible cards, medical popovers, tips, tables, images and intra-article links) **without** MedPark study toolbar, notes, High-Yield toggle, annotation, Create Test or AI Summary.
+- Reader content images derive from original HTML img src, with only approved public R2 offline_media paths. Medical images also need to appear **inline in the Santo chat answer**, linked to verified evidence; this is a separate follow-up slice, not implemented here.
+- Branch `feat/96-rich-articles-foundation` adds an optional `contentHtml` field to v1 article schema, a strict export-time HTML/media allowlist, importer-side preservation alongside unchanged text section indexing, and deterministic regression tests. Awaiting exact-head Verify and licensed corpus size/media audit. No previously exported R2 objects are changed by a repository commit.
+- Next: complete reader integration with independent browser-side HTML sanitization and source-linked image rendering, then adaptive bilingual professor/model/streaming evaluation on staging. Keep current citations, quota, legacy reader fallback, and production behavior unchanged. Issue #58 and #75 remain open.
+
 ### Royal-style Santo chat parity — PR #94 + Royal Bank PR #113 (14 Oct 2026)
 
 - Santo reusable Lit widget PR #94 merged as `24d597186a3bbd4571e4b4e3d16593819f905743`, with post-merge repository-policy/code-quality checks SUCCESS. Royal-like gold question bubble and one compact assistant card with safe markdown headings, comparison tables, lists, callouts and server-backed source cards. Human-friendly labels for canonical R2 item keys do not invent medical article titles.

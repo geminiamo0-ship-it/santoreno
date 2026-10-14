@@ -1,0 +1,84 @@
+name: Santo R2 Reader Data Readiness Audit (Read Only)
+
+on:
+  push:
+    branches:
+      - feat/96-rich-reader-widget
+    paths:
+      - .github/workflows/rich-article-r2-audit-once.yml
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install pinned Wrangler
+        run: |
+          corepack enable
+          pnpm install --frozen-lockfile
+      - name: Inspect 15 licensed article object envelopes without revealing content
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${CLOUDFLARE_ACCOUNT_ID:-}" && test -n "${CLOUDFLARE_API_TOKEN:-}"
+          work="$RUNNER_TEMP/santo-readiness"
+          mkdir -p "$work"
+          cd workers/api
+          for lib in amboss usmle passmedicine pastest one-examination; do
+            pnpm exec wrangler r2 object get "santo-content-staging/medical-library-catalog/v1/$lib.json" --remote --file="$work/$lib-catalog.json" >/dev/null
+          done
+          python - "$work" <<'PY'
+          import json, pathlib, sys
+          folder=pathlib.Path(sys.argv[1])
+          article_keys=[]
+          for lib in ("amboss","usmle","passmedicine","pastest","one-examination"):
+              doc=json.loads((folder/f"{lib}-catalog.json").read_text(encoding="utf-8"))
+              items=doc.get("articles",[])
+              print(f"{lib} catalog count: {len(items)}")
+              if not items: raise SystemExit(f"No articles in {lib} catalog")
+              for index in sorted({0,len(items)//2,len(items)-1}):
+                  article_keys.append(f"medical-articles/v1/{lib}/{items[index]['id']}.json")
+          (folder/"keys.txt").write_text("\n".join(article_keys),encoding="utf-8")
+          PY
+          n=0
+          while IFS= read -r key || [ -n "$key" ]; do
+            n=$((n+1))
+            pnpm exec wrangler r2 object get "santo-content-staging/$key" --remote --file="$work/article-$n.json" >/dev/null
+          done < "$work/keys.txt"
+          python - "$work" <<'PY'
+          import json, pathlib, sys
+          folder=pathlib.Path(sys.argv[1])
+          stats={}
+          for path in sorted(folder.glob("article-*.json")):
+              doc=json.loads(path.read_text(encoding="utf-8"))
+              lib=doc["libraryId"]
+              vals=stats.setdefault(lib,{"sampled":0,"with_html":0,"with_section_images":0,"html_bytes_max":0})
+              vals["sampled"]+=1
+              html=doc.get("contentHtml")
+              if html:
+                  vals["with_html"]+=1
+                  vals["html_bytes_max"]=max(vals["html_bytes_max"],len(html.encode("utf-8")))
+              if any(part.get("images") for part in doc.get("sections",[])):
+                  vals["with_section_images"]+=1
+          print("SANITIZED_METADATA_ONLY:",json.dumps(stats,sort_keys=True))
+          with open(__import__("os").environ["GITHUB_STEP_SUMMARY"],"a") as result:
+              result.write("## Santo Private Staging R2 Sample Readiness\n")
+              result.write("| Library | Sampled | Original HTML | Has image refs | Max HTML bytes |\n|---|---:|---:|---:|---:|\n")
+              for lib,v in stats.items():
+                  result.write(f"| {lib} | {v['sampled']} | {v['with_html']} | {v['with_section_images']} | {v['html_bytes_max']} |\n")
+              result.write("\nRead-only, exact 15 samples; no medical content logged or uploaded.\n")
+          PY
+      - name: Erase private content from runner
+        if: always()
+        shell: bash
+        run: rm -rf "$RUNNER_TEMP/santo-readiness"

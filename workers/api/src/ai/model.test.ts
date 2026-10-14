@@ -231,9 +231,11 @@ describe("Staging Luna -> Llama fallback without weakening answer validation", (
         citationIds: [],
       })),
     };
-    await expect(new FallbackGroundedModel(refused, fallback).generate("x")).resolves.toMatchObject({
-      answer: "INSUFFICIENT_EVIDENCE",
-    });
+    await expect(new FallbackGroundedModel(refused, fallback).generate("x")).resolves.toMatchObject(
+      {
+        answer: "INSUFFICIENT_EVIDENCE",
+      },
+    );
     expect(fallback.generate).not.toHaveBeenCalled();
   });
 });

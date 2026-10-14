@@ -20,4 +20,4 @@ Tracking: Santo GitHub Issue #96, user-approved 14 October 2026.
 
 ## Status
 
-Code/test PR only; preview OFF; no Cloudflare deployment or external model invocation performed.
+**Live provider probe attempted 2026-10-14** with synthetic educational input, zero customer content, and the planned Responses/JSON/fast/nonreasoning settings. [GitHub Actions #38591699536](https://github.com/geminiamo0-ship-it/santoreno/actions/runs/38591699536) returned **HTTP 402: Insufficient balance; add money to your gateway or use BYOK**. This is a billing gate, not proof that requested API parameters are accepted. No response generation or billing-based acceptance occurred. The temporary probe workflow was removed after the test. The feature flag remains **OFF**; Staging and Production model selection have not been switched. After gateway balance/BYOK is configured, rerun the same parameter-compatibility check before controlled Staging activation.

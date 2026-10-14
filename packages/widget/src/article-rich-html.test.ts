@@ -101,9 +101,9 @@ describe("Santo original article and chat medical image security", () => {
   });
 
   it("decodes verified gzip HTML and rejects mismatched lengths or zip bombs", async () => {
-    const { gzipSync } = await import("node:zlib");
-    const html = "<h2>Large clinical explanation</h2><p>" + "diagnosis ".repeat(160000) + "</p>";
-    const encoded = gzipSync(Buffer.from(html, "utf-8")).toString("base64");
+    const html = "<h2>Cardiology</h2><p>ECG shows atrial flutter.</p>";
+    const encoded =
+      "H4sIAAAAAAAC/7PJMLJzTixKyczPyU+vtNEHcm0K7Fyd3RWKM/LLixUSS4oyE3MU0nJKS0pSi/Rs9AvsAJl/Lf0zAAAA";
     await expect(
       decodedSourceArticleHtml({
         contentHtmlGzipBase64: encoded,

@@ -15,6 +15,7 @@ import {
 } from "./conversation-client";
 import { widgetStyles } from "./styles";
 import { renderSantoMarkdown } from "./medical-markdown";
+import { readableMedicalSourceTitle } from "./source-title";
 import { SANTO_WIDGET_TAG } from "./tag-name";
 import {
   INITIAL_WIDGET_UI_STATE,
@@ -319,23 +320,25 @@ export class SantoAiElement extends LitElement {
     const general = "groundingMode" in response && response.groundingMode === "general";
     const quickReply = "kind" in response && response.kind === "quick_reply";
     return html`
-      ${
-        !quickReply
-          ? html`<div class="answer-mode ${general ? "mode-general" : "mode-grounded"}">
-              ${
-                general
-                  ? "General medical knowledge · No matching Santo source"
-                  : "Verified Santo medical sources"
-              }
-            </div>`
-          : ""
-      }
       <div class="answer-text medical-markdown" dir="auto">
         ${renderSantoMarkdown(response.answer)}
       </div>
       ${
+        !quickReply
+          ? html`<div class="answer-footer">
+              <span class="answer-mode ${general ? "mode-general" : "mode-grounded"}">
+                ${
+                  general
+                    ? "○ General medical knowledge · No matching Santo source"
+                    : "✓ Grounded in verified Santo medical libraries"
+                }
+              </span>
+            </div>`
+          : ""
+      }
+      ${
         response.citations.length
-          ? html` <details class="source-collection" open>
+          ? html`<details class="source-collection">
               <summary>Sources used · ${response.citations.length}</summary>
               <div class="source-cards">
                 ${response.citations.map(
@@ -346,10 +349,10 @@ export class SantoAiElement extends LitElement {
                       @click=${() => this.showSource(response.messageId, citation.sourceId)}
                       aria-label="Open verified source ${citation.title}"
                     >
-                      <span class="source-label">Verified medical reference</span>
-                      <strong>${citation.title}</strong>
+                      <span class="source-label">Verified medical source</span>
+                      <strong title=${citation.title}>${readableMedicalSourceTitle(citation.title)}</strong>
                       <span class="source-meta"
-                        >${citation.page ? `Page ${citation.page} · ` : ""}Open article ↗</span
+                        >${citation.page ? `Page ${citation.page} · ` : ""}Open article and cited section ↗</span
                       >
                     </button>
                   `,
@@ -361,7 +364,7 @@ export class SantoAiElement extends LitElement {
     `;
   }
 
-  private renderTranscript() {
+    private renderTranscript() {
     const latestSaved = this.turns.some(
       (turn) => turn.response?.messageId === this.latestAnswer?.messageId,
     );

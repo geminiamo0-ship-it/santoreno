@@ -1,0 +1,112 @@
+name: Santo — Import Google Drive Licensed Libraries to Public Asset Branch
+
+# Owner explicitly authorized publishing the licensed library archive in public Git history.
+# One-time migration, not a recurring sync.
+on:
+  push:
+    branches:
+      - feat/drive-corpus-public-asset-import
+    paths:
+      - .github/workflows/santo-drive-to-github-assets.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: santo-medical-library-public-asset-publish
+  cancel-in-progress: false
+
+jobs:
+  google-drive-to-github:
+    runs-on: ubuntu-latest
+    timeout-minutes: 65
+    env:
+      DRIVE_FILE_ID: "1TcNQCgfKkD5oXM12l4HYKA-kITTZaLcr"
+      EXPECTED_SHA256: "708398d7b8fcc8b2b6b82142a2e819a8d322d30596f8a892eda57672b7eaa700"
+      ASSET_BRANCH: "assets/santo-medical-libraries-2026-10-14"
+      BUNDLE_NAME: "santo_staging_medical_library_r2_bundle.zip"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+          fetch-depth: 1
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install public Google Drive file downloader
+        shell: bash
+        run: python -m pip install --disable-pip-version-check "gdown==5.2.0"
+
+      - name: Download exact public Drive file — do not publish before SHA-256 matches
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import gdown, os, pathlib, sys
+          dest = pathlib.Path(os.environ["RUNNER_TEMP"]) / os.environ["BUNDLE_NAME"]
+          result = gdown.download(
+              id=os.environ["DRIVE_FILE_ID"],
+              output=str(dest), quiet=False,
+          )
+          if not result or not dest.exists():
+              sys.exit("Public Google Drive download failed; source never copied to GitHub")
+          print("Downloaded bytes:", dest.stat().st_size)
+          PY
+          test "$(stat -c %s "$RUNNER_TEMP/$BUNDLE_NAME")" -eq 74078792
+          echo "$EXPECTED_SHA256  $RUNNER_TEMP/$BUNDLE_NAME" | sha256sum --check --status
+          python - "$RUNNER_TEMP/$BUNDLE_NAME" <<'PY'
+          import sys, zipfile
+          with zipfile.ZipFile(sys.argv[1]) as archive:
+              corrupted = archive.testzip()
+              if corrupted:
+                  raise SystemExit("Corrupt ZIP member; refusing to publish")
+          print("ZIP CRC verification passed")
+          PY
+
+      - name: Publish SHA-verified ZIP as <=9MB chunks to a dedicated PUBLIC asset branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git worktree add --detach "$RUNNER_TEMP/public-asset-tree" HEAD
+          cd "$RUNNER_TEMP/public-asset-tree"
+          if git ls-remote --exit-code --heads origin "$ASSET_BRANCH" >/dev/null; then
+            git fetch --depth=1 origin "refs/heads/$ASSET_BRANCH"
+            git switch --create "$ASSET_BRANCH" FETCH_HEAD
+            rm -rf medical-libraries
+          else
+            git switch --orphan "$ASSET_BRANCH"
+            git rm -rf --cached . >/dev/null 2>&1 || true
+          fi
+          mkdir -p medical-libraries
+          split -b 9000000 -d -a 3 \
+            "$RUNNER_TEMP/$BUNDLE_NAME" \
+            medical-libraries/santo_staging_medical_library_r2_bundle.zip.part-
+          cat > medical-libraries/manifest.txt <<EOF
+          source=google-drive
+          file_id=1TcNQCgfKkD5oXM12l4HYKA-kITTZaLcr
+          filename=santo_staging_medical_library_r2_bundle.zip
+          sha256=708398d7b8fcc8b2b6b82142a2e819a8d322d30596f8a892eda57672b7eaa700
+          bytes=74078792
+          archive_type=zip
+          visibility=public-with-owner-approval
+          EOF
+          cat medical-libraries/*.zip.part-* > "$RUNNER_TEMP/reassembled.zip"
+          echo "$EXPECTED_SHA256  $RUNNER_TEMP/reassembled.zip" | sha256sum --check --status
+          pieces="$(find medical-libraries -name '*.zip.part-*' | wc -l)"
+          test "$pieces" -eq 9
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add medical-libraries
+          if git diff --cached --quiet; then
+            echo "Existing public archive unchanged; no Git commit needed."
+          else
+            git commit -m "assets: publish owner-authorized Santo medical library ZIP shards"
+            git push origin "HEAD:refs/heads/$ASSET_BRANCH"
+          fi
+          echo "Public asset branch: $ASSET_BRANCH" >> "$GITHUB_STEP_SUMMARY"
+          echo "Verified SHA-256: $EXPECTED_SHA256" >> "$GITHUB_STEP_SUMMARY"
+          echo "Archive chunks: $pieces (each below 9 MiB)" >> "$GITHUB_STEP_SUMMARY"
+          echo "The original licensed medical ZIP is now publicly retrievable from Git history." >> "$GITHUB_STEP_SUMMARY"

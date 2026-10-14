@@ -1,0 +1,42 @@
+name: Medical Library Ingest Safety Tests
+
+on:
+  pull_request:
+    paths:
+      - "scripts/verify_medical_library_bundle.py"
+      - "scripts/upload_medical_libraries_r2.py"
+      - "scripts/configure_medical_ai_search.py"
+      - "scripts/test_medical_library_import.py"
+      - ".github/workflows/medical-library-private-r2-import.yml"
+      - ".github/workflows/medical-library-ingest-tests.yml"
+  push:
+    branches:
+      - main
+      - feat/85-github-actions-private-corpus-import
+    paths:
+      - "scripts/verify_medical_library_bundle.py"
+      - "scripts/upload_medical_libraries_r2.py"
+      - "scripts/configure_medical_ai_search.py"
+      - "scripts/test_medical_library_import.py"
+      - ".github/workflows/medical-library-private-r2-import.yml"
+      - ".github/workflows/medical-library-ingest-tests.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  importer-safety:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run archive, traversal and R2 metadata safety unit tests
+        run: python -m unittest discover -s scripts -p 'test_medical_library_import.py' -v
+      - name: Validate Python syntax
+        run: |
+          python -m py_compile scripts/verify_medical_library_bundle.py
+          python -m py_compile scripts/upload_medical_libraries_r2.py
+          python -m py_compile scripts/configure_medical_ai_search.py

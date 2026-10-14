@@ -1,0 +1,42 @@
+name: Santo One Examination After Prefix Sync — Read Only
+on:
+  push:
+    branches:
+      - diagnose/ai-search-r2-zero-files-20261014
+    paths:
+      - ".github/workflows/one-exam-postprefix-inspect.yml"
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - name: Read scoped R2 index status and final recent job logs
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json,os
+          from urllib.request import Request,urlopen
+          a=os.environ['CLOUDFLARE_ACCOUNT_ID'];t=os.environ['CLOUDFLARE_API_TOKEN']
+          root=f'https://api.cloudflare.com/client/v4/accounts/{a}/ai-search/namespaces/default/instances/one-examination'
+          def get(s):
+            with urlopen(Request(root+s,headers={'Authorization':'Bearer '+t}),timeout=30) as resp:
+              data=json.load(resp)
+              if data.get('success') is not True:raise RuntimeError('Cloudflare API failed')
+              return data.get('result')
+          inst=get('')
+          print('CONFIG',json.dumps(inst.get('source_params')))
+          stats=get('/stats')
+          print('STATS',json.dumps({k:stats.get(k) for k in ('completed','queued','running','error','skipped')}))
+          jobs=get('/jobs')
+          for job in jobs[:2]:
+            id=job['id']
+            print('JOB',id,'started',job.get('started_at'),'ended',job.get('ended_at'))
+            logs=get('/jobs/'+id+'/logs?per_page=150')
+            for ln in logs[-22:]:
+              print('JOBLOG',str(ln.get('message',''))[:450])
+          PY

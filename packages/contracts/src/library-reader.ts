@@ -34,6 +34,13 @@ export const LibraryArticleSchema = z
     title: z.string().min(1).max(500),
     category: z.string().max(300),
     source: z.string().max(120),
+    // Optional for new canonical exports; older text-only R2 article objects stay readable.
+    // Never render this HTML without client-side sanitization after authentication.
+    contentHtml: z.string().max(1_500_000).optional(),
+    // Jumbo medical articles are compressed for bounded authenticated R2 delivery.
+    // Decompress only after authorization, enforce decoded length, then DOM-sanitize.
+    contentHtmlGzipBase64: z.string().max(1_500_000).optional(),
+    contentHtmlDecodedLength: z.number().int().min(0).max(5_000_000).optional(),
     sections: z.array(LibraryArticleSectionSchema).min(1).max(300),
   })
   .strict()

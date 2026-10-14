@@ -109,6 +109,50 @@ describe("verified source explorer and private article browser", () => {
     expect((await service.list("passmedicine", "", 0)).nextCursor).toBeNull();
     await expect(service.list("passmedicine", "", 7000)).rejects.toMatchObject({ status: 400 });
   });
+  it("accepts optional backward-compatible rich-HTML article payload while keeping original sections", async () => {
+    const { service, bucket } = await setup();
+    const richer = {
+      ...article,
+      contentHtml: '<h2 id="cardiology">ACE inhibitors</h2><table><tr><td>ACE</td></tr></table>',
+    };
+    bucket.data.set(articleKey, JSON.stringify(richer));
+    expect((await service.article("passmedicine", "passmed-5683")).contentHtml).toContain(
+      "<table>",
+    );
+    expect((await service.article("passmedicine", "passmed-5683")).sections).toEqual(
+      article.sections,
+    );
+    bucket.data.set(articleKey, JSON.stringify({ ...article, contentHtml: "x".repeat(1_500_001) }));
+    await expect(service.article("passmedicine", "passmed-5683")).rejects.toMatchObject({
+      status: 502,
+    });
+  });
+  it("accepts safe compressed large HTML envelopes and rejects oversized blobs", async () => {
+    const { service, bucket } = await setup();
+    bucket.data.set(
+      articleKey,
+      JSON.stringify({
+        ...article,
+        contentHtmlGzipBase64: "H4sIAAAAAAAA",
+        contentHtmlDecodedLength: 1600000,
+      }),
+    );
+    expect((await service.article("passmedicine", "passmed-5683")).contentHtmlDecodedLength).toBe(
+      1600000,
+    );
+    bucket.data.set(
+      articleKey,
+      JSON.stringify({
+        ...article,
+        contentHtmlGzipBase64: "X".repeat(1500001),
+        contentHtmlDecodedLength: 1600000,
+      }),
+    );
+    await expect(service.article("passmedicine", "passmed-5683")).rejects.toMatchObject({
+      status: 502,
+    });
+  });
+
   it("rejects malformed, executable or oversized content, without falling back to HTML", async () => {
     const { service, bucket } = await setup();
     bucket.data.set(

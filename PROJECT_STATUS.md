@@ -6,6 +6,21 @@
 >
 > **Rule:** GitHub code, issues, PRs, commits, and Actions are the source of truth. Update this file whenever meaningful work completes, a gate passes/fails, architecture changes, or the active issue changes.
 
+### Full original medical SQLite export — 14 Oct 2026 (private local validation)
+
+- Owner supplied a new `all_libraries.zip`. ZIP CRC, SQLite `PRAGMA quick_check(1)` and original known SHA-256 matched. Source contains exactly **7,049 articles** in five libraries.
+- Private local re-export from the attached SQLite finished **7,049/7,049 without errors** and reproduced the **67,524 existing medical-search sections**. Preserved **7,038 plain rich-HTML articles** plus **11 jumbo AMBOSS articles** with bounded gzip+base64 rich HTML; no articles deleted/truncated. Output for private R2 (7,049 source articles + six library catalogs) is prepared locally, CRC verified, and **not uploaded or published**. Search docs already exist in staging; only an authenticated exact-corpus parity check can establish content hash equivalence.
+- **Staging UI and backend feature branches** remain separate; new compressed-reader changes are awaiting exact-head CI and live browser confirmation. Cloudflare Luna synthetic Responses probe [#38595414796](https://github.com/geminiamo0-ship-it/santoreno/actions/runs/38595414796) returned **HTTP 200 / structured JSON** after the owner funded the gateway; this proves billing/API compatibility only, not grounded clinical quality.
+- **Production blockers:** the existing Wrangler `[env.production]` intentionally has no Production D1 `CONTROL_DB` UUID, and the Vercel `royal-bank` project has no `SANTO_SERVER_API_KEY` Preview/Production variable. The user must also confirm they possess commercial redistribution/indexing rights for all third-party library sources before the corpus is served to production users. Staging and Production medical copyright/media availability QA remain outstanding.
+- **No licensed R2 corpus upload, Production deployment, true provider streaming, or new production model flag activation** was performed in this work.
+
+### Source fidelity + inline medical images — Issue #96 (implementation started, 14 Oct 2026)
+
+- New user-approved direction: preserve presentation-safe original library HTML; AMBOSS uses MedPark Library article renderer behavior (collapsible cards, medical popovers, tips, tables, images and intra-article links) **without** MedPark study toolbar, notes, High-Yield toggle, annotation, Create Test or AI Summary.
+- Reader content images derive from original HTML img src, with only approved public R2 offline_media paths. Medical images also need to appear **inline in the Santo chat answer**, linked to verified evidence; this is a separate follow-up slice, not implemented here.
+- Branch `feat/96-rich-articles-foundation` adds an optional `contentHtml` field to v1 article schema, a strict export-time HTML/media allowlist, importer-side preservation alongside unchanged text section indexing, and deterministic regression tests. Awaiting exact-head Verify and licensed corpus size/media audit. No previously exported R2 objects are changed by a repository commit.
+- Next: complete reader integration with independent browser-side HTML sanitization and source-linked image rendering, then adaptive bilingual professor/model/streaming evaluation on staging. Keep current citations, quota, legacy reader fallback, and production behavior unchanged. Issue #58 and #75 remain open.
+
 ### Royal-style Santo chat parity — PR #94 + Royal Bank PR #113 (14 Oct 2026)
 
 - Santo reusable Lit widget PR #94 merged as `24d597186a3bbd4571e4b4e3d16593819f905743`, with post-merge repository-policy/code-quality checks SUCCESS. Royal-like gold question bubble and one compact assistant card with safe markdown headings, comparison tables, lists, callouts and server-backed source cards. Human-friendly labels for canonical R2 item keys do not invent medical article titles.

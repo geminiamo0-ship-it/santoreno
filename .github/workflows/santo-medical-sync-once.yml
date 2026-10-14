@@ -1,0 +1,59 @@
+name: Santo Medical Libraries — First AI Search Sync (Scoped)
+on:
+  push:
+    branches:
+      - ops/ai-search-indexing-readonly-20261014
+    paths:
+      - .github/workflows/santo-medical-sync-once.yml
+permissions:
+  contents: read
+jobs:
+  sync-scoped-staging-library-indexes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - name: Create one sync job per verified R2-backed library, unless already active
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os,json
+          from urllib.request import Request,urlopen
+          from urllib.error import HTTPError
+          account=os.environ["CLOUDFLARE_ACCOUNT_ID"]
+          token=os.environ["CLOUDFLARE_API_TOKEN"]
+          root=f"https://api.cloudflare.com/client/v4/accounts/{account}/ai-search/namespaces/default/instances"
+          headers={"Authorization":"Bearer "+token,"Content-Type":"application/json","Accept":"application/json"}
+          libs=("amboss","usmle","passmedicine","pastest","one-examination")
+          def call(path,verb="GET"):
+              req=Request(root+path, method=verb, data=b"" if verb=="POST" else None, headers=headers)
+              try:
+                  with urlopen(req,timeout=60) as reply:
+                      status=reply.status
+                      payload=json.load(reply)
+              except HTTPError as exc:
+                  raise RuntimeError("Cloudflare AI Search HTTP "+str(exc.code)+" on "+verb) from exc
+              if not isinstance(payload,dict) or payload.get("success") is not True:
+                  raise RuntimeError("Cloudflare AI Search returned failed response")
+              return payload.get("result")
+          for lib in libs:
+              info=call("/"+lib)
+              if not isinstance(info,dict): raise RuntimeError("Missing instance metadata")
+              filters=(info.get("source_params") or {}).get("include_items") or []
+              if info.get("type")!="r2" or info.get("source")!="santo-content-staging" or filters!=[f"/medical-search/v1/{lib}/**"]:
+                  raise RuntimeError("Unapproved AI Search source scope for "+lib)
+              jobs=call("/"+lib+"/jobs")
+              if not isinstance(jobs,list): raise RuntimeError("Unexpected jobs response for "+lib)
+              active=[j for j in jobs if isinstance(j,dict) and not j.get("ended_at")]
+              if active:
+                  print("SYNC_ALREADY_ACTIVE",lib,"count",len(active))
+                  continue
+              created=call("/"+lib+"/jobs","POST")
+              if not isinstance(created,dict) or not created.get("id"):
+                  raise RuntimeError("No job ID for "+lib)
+              print("SYNC_STARTED",lib,"job_id",created["id"],"source",created.get("source"))
+          print("SAFE_SCOPE_CHECK=PASSED")
+          print("INDEXING_ASYNCHRONOUS=TRUE")
+          PY

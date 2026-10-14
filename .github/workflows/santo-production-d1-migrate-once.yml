@@ -39,7 +39,7 @@ jobs:
         run: |
           set -euo pipefail
           cd workers/api
-          pnpm exec wrangler d1 migrations apply santo-control-plane --remote --env production --yes
+          pnpm exec wrangler d1 migrations apply santo-control-plane --remote --env production
           pnpm exec wrangler d1 migrations list santo-control-plane --remote --env production | tee "$RUNNER_TEMP/prod-migration-status.txt"
           echo '## Production Santo D1 schema' >> "$GITHUB_STEP_SUMMARY"
           echo 'Reviewed four D1 migrations applied to exact production database; no Worker release or tenant key issuance.' >> "$GITHUB_STEP_SUMMARY"

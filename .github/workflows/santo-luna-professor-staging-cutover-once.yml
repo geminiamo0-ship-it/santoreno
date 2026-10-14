@@ -30,9 +30,6 @@ jobs:
       - name: Verify exact source before staging deployment
         run: |
           set -euo pipefail
-          echo 'EXPECTED_PRETTIER_DIFF_BEGIN'
-          pnpm exec prettier workers/api/src/ai/model.test.ts | diff -u workers/api/src/ai/model.test.ts - || true
-          echo 'EXPECTED_PRETTIER_DIFF_END'
           pnpm lint
           pnpm typecheck
           pnpm test

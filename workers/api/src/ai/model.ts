@@ -130,9 +130,8 @@ export function groundedSchemaForCitationIds(allowedCitationIds?: readonly strin
       ...groundedResponseSchema.properties,
       citation_ids: {
         type: "array" as const,
-        items: ids.length > 0
-          ? { type: "string" as const, enum: ids }
-          : { type: "string" as const },
+        items:
+          ids.length > 0 ? { type: "string" as const, enum: ids } : { type: "string" as const },
         minItems: ids.length > 0 ? 1 : 0,
         maxItems: ids.length > 0 ? 5 : 0,
       },

@@ -274,7 +274,8 @@ describe("strict server-bound citation schema regression", () => {
   it("supplies the same verified source enum to Luna's strict schema", async () => {
     const ai: WorkersAiLike = {
       run: vi.fn(async () => ({
-        output_text: '{"answer":"Evidence supports this mechanism.","citation_ids":["amboss:chunk-123"]}',
+        output_text:
+          '{"answer":"Evidence supports this mechanism.","citation_ids":["amboss:chunk-123"]}',
       })),
     };
     const model = new CloudflareLunaModel(ai);

@@ -670,7 +670,14 @@ export class SantoAiElement extends LitElement {
                                 ${this.readerArticle.category} · ${this.readerArticle.source}
                               </p>
                               <nav aria-label="Article sections">
-                                ${this.readerArticle.contentHtml
+                                ${this.readerArticle.sections.map(
+                                  (section) => html`<button
+                                    type="button"
+                                    @click=${() => void this.jumpToReferencedSection(section.id)}
+                                  >${section.heading}</button>`,
+                                )}
+                              </nav>
+                              ${this.readerArticle.contentHtml
                                 ? html`<div
                                     class="article-original-html ${this.readerArticle.libraryId === "amboss" ? "amboss-original" : "generic-original"}"
                                     @click=${this.onArticleClick}

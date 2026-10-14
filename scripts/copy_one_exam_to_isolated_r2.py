@@ -38,6 +38,9 @@ def request(url, path, token, body=None):
     if marker not in raw:
         raise OSError("HTTP transport did not include status")
     payload, code = raw.rsplit(marker, 1)
+    if code.strip() == b"404" and payload.strip() == b"error code: 1042":
+        # Edge deployment routing may briefly return 1042 even after readiness passed.
+        return 503, {"error":"WORKER_ROUTING_PROPAGATING_1042"}
     try:
         return int(code), json.loads(payload)
     except (ValueError, UnicodeError) as exc:

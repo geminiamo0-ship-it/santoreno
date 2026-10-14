@@ -159,7 +159,10 @@ export class CloudflareWorkersAiModel implements ModelPort {
 export class CloudflareLunaModel implements ModelPort {
   constructor(private readonly ai: WorkersAiLike | undefined) {}
 
-  async generate(prompt: string, onProvisionalAnswer?: (text: string) => void): Promise<GroundedModelDraft> {
+  async generate(
+    prompt: string,
+    onProvisionalAnswer?: (text: string) => void,
+  ): Promise<GroundedModelDraft> {
     if (!this.ai) {
       throw new GroundedAiError(503, "AI_NOT_CONFIGURED", "AI binding is required");
     }
@@ -210,7 +213,10 @@ export class FallbackGroundedModel implements ModelPort {
     private readonly fallback: ModelPort,
   ) {}
 
-  async generate(prompt: string, onProvisionalAnswer?: (text: string) => void): Promise<GroundedModelDraft> {
+  async generate(
+    prompt: string,
+    onProvisionalAnswer?: (text: string) => void,
+  ): Promise<GroundedModelDraft> {
     try {
       return await this.primary.generate(prompt, onProvisionalAnswer);
     } catch (error) {

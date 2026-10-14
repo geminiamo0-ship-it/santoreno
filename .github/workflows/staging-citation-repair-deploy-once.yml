@@ -1,0 +1,61 @@
+name: Santo Citation Integrity Repair — Staging Deploy
+
+on:
+  push:
+    branches: [feat/96-draft-disappears-diagnosis-20261015]
+    paths: [.github/workflows/staging-citation-repair-deploy-once.yml]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: santo-pilot-staging-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      WORKER_URL: https://santo-api-staging.geminiamo0.workers.dev
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - name: Verify security and grounded model on exact source
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm exec oxlint .
+          pnpm exec prettier --check workers/api/src/ai/model.ts workers/api/src/ai/model.test.ts workers/api/src/ai/service.ts workers/api/src/ai/types.ts
+          pnpm typecheck
+          pnpm test
+          pnpm build
+          pnpm smoke
+          test -n "$CLOUDFLARE_API_TOKEN" && test -n "$CLOUDFLARE_ACCOUNT_ID"
+      - name: Deploy Cloudflare Santo Staging, preserve secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd workers/api
+          pnpm exec wrangler deploy --env staging --keep-vars
+      - name: Confirm protected routes and health
+        shell: bash
+        run: |
+          set -euo pipefail
+          health=""
+          for try in $(seq 1 35); do
+            health="$(curl -sS "$WORKER_URL/health" || true)"
+            if jq -e '.service=="santo-api" and .status=="ok"' <<<"$health" >/dev/null 2>&1; then break; fi
+            sleep 2
+          done
+          jq -e '.service=="santo-api" and .status=="ok"' <<<"$health" >/dev/null
+          status="$(curl -sS -o /dev/null -w '%{http_code}' -X POST "$WORKER_URL/v1/conversations/11111111-1111-4111-8111-111111111111/ask" -H 'Accept: text/event-stream' -H 'Content-Type: application/json' -d '{"idempotencyKey":"unauthorized-smoke","expectedSequence":0,"text":"aortic stenosis"}')"
+          test "$status" = 401
+          echo "STAGING_CITATION_ENUM_DEPLOY_SHA=$GITHUB_SHA"
+          echo "Source ID enum now bound to verified evidence. No Santo Production Worker change." >> "$GITHUB_STEP_SUMMARY"

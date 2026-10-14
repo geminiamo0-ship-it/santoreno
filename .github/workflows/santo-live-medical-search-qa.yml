@@ -1,0 +1,78 @@
+name: Santo Medical Library Search Readiness and Source QA
+on:
+  push:
+    branches: [verify/93-santo-isolated-medical-source-search]
+    paths: [".github/workflows/santo-live-medical-search-qa.yml"]
+permissions: {contents: read}
+jobs:
+  read-only-medical-source-qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - name: Validate five Santo sources, exact indexed keys and live medical retrieval without writes
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os,json
+          from urllib.request import Request,urlopen
+          from urllib.error import HTTPError
+          aid=os.environ['CLOUDFLARE_ACCOUNT_ID']
+          token=os.environ['CLOUDFLARE_API_TOKEN']
+          root=f"https://api.cloudflare.com/client/v4/accounts/{aid}/ai-search/namespaces/default/instances"
+          headers={"Authorization":"Bearer "+token,"Accept":"application/json","Content-Type":"application/json"}
+          libs={
+            "amboss":33724,"usmle":13499,"passmedicine":8580,
+            "pastest":10704,"one-examination-isolated":1017
+          }
+          def api(url,method="GET",data=None):
+            payload=json.dumps(data).encode() if data is not None else None
+            req=Request(url,data=payload,method=method,headers=headers)
+            try:
+              with urlopen(req,timeout=80) as resp:
+                result=json.load(resp)
+            except HTTPError as e:
+              print("CLOUDFLARE_SEARCH_HTTP_ERROR",method,e.code,flush=True)
+              raise
+            if not result.get("success"):
+              raise RuntimeError("Cloudflare API refused request")
+            return result.get("result")
+          for lib,expected in libs.items():
+            base=root+"/"+lib
+            cfg=api(base)
+            if cfg.get("type")!="r2":raise RuntimeError("Unexpected source type")
+            expected_bucket=f"santo-{lib}-search-staging"
+            if cfg.get("source")!=expected_bucket:
+              raise RuntimeError("Unexpected source for "+lib+": "+str(cfg.get("source")))
+            stat=api(base+"/stats")
+            counts={name:stat.get(name) for name in ("queued","running","completed","error","skipped")}
+            print("LIBRARY",lib,"expected",expected,"stats",json.dumps(counts,sort_keys=True),flush=True)
+            if (counts.get("error") or 0)>0 or (counts.get("skipped") or 0)>0:
+              raise RuntimeError("Unexpected failed/skipped files in isolated library")
+            items=api(base+"/items?per_page=20&page=1")
+            if not isinstance(items,list):raise RuntimeError("Invalid indexed items response")
+            actual_lib="one-examination" if lib.endswith("-isolated") else lib
+            prefix=f"medical-search/v1/{actual_lib}/"
+            bad=[str(x.get("key"))[:160] for x in items if not isinstance(x.get("key"),str) or not x["key"].startswith(prefix)]
+            if bad:raise RuntimeError("Index leak across libraries: "+repr(bad[:3]))
+            print("SCOPED_ITEMS",lib,len(items),"matched_prefix",prefix,flush=True)
+          # Query one already partially indexed medical library without printing copyrighted text.
+          query={"messages":[{"role":"user","content":"medicine diagnosis clinical features differential diagnosis treatment management"}],
+                 "ai_search_options":{"retrieval":{"retrieval_type":"hybrid","match_threshold":0.0,"max_num_results":5},
+                                      "query_rewrite":{"enabled":False}}}
+          result=api(root+"/one-examination-isolated/search","POST",query)
+          chunks=result.get("chunks") if isinstance(result,dict) else None
+          if not isinstance(chunks,list):raise RuntimeError("Unexpected AI Search response")
+          print("PILOT_MEDICAL_QUERY_RESULTS",len(chunks),flush=True)
+          for chunk in chunks[:5]:
+            key=(chunk.get("item") or {}).get("key")
+            if not isinstance(key,str) or not key.startswith("medical-search/v1/one-examination/"):
+              raise RuntimeError("Medical query returned cross-library source")
+            if not chunk.get("text") or not chunk.get("id"):
+              raise RuntimeError("Medical query lacks evidence/citation identity")
+            print("SOURCE_VALIDATED",key,"chunk_id_present",True,flush=True)
+          if not chunks:print("PILOT_EMPTY_SEARCH_RETRY_AFTER_INDEXING",flush=True)
+          print("LIVE_SOURCE_READONLY_CHECK_COMPLETE",flush=True)
+          PY

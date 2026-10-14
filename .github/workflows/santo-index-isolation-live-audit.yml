@@ -46,7 +46,7 @@ jobs:
               bad_examples=[]
               all_items=0
               for page in (1,2,3):
-                  resp=call(f"/{lib}/items?per_page=100&page={page}")
+                  resp=call(f"/{lib}/items?per_page=20&page={page}")
                   entries=resp["result"]
                   if not isinstance(entries,list):raise RuntimeError("Unexpected items API shape")
                   if not entries:break

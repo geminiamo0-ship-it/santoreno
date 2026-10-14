@@ -41,6 +41,11 @@ def request(url, path, token, body=None):
     try:
         return int(code), json.loads(payload)
     except (ValueError, UnicodeError) as exc:
+        # Only metadata/first non-secret bytes; never print credentials.
+        print("BAD_HTTP_RESPONSE", "HTTP", code.decode("ascii", errors="replace"),
+              "content_bytes", len(payload),
+              "body_preview", payload[:160].decode("utf-8", errors="replace"),
+              flush=True)
         raise RuntimeError("Bad isolated R2 API status or JSON") from exc
 
 

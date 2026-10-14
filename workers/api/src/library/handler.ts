@@ -21,7 +21,7 @@ function error(code: string, status: number): Response {
 const HEADERS = { "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff" };
 export function createLibraryReaderHandler(deps: LibraryReaderDependencies = {}) {
   return async (request: Request, env: SantoBindings): Promise<Response> => {
-    if (env.SANTO_ENV !== "staging" || env.SANTO_LIBRARY_READER_V1 !== "true") {
+    if ((env.SANTO_ENV !== "staging" && env.SANTO_ENV !== "production") || env.SANTO_LIBRARY_READER_V1 !== "true") {
       return error("LIBRARY_NOT_FOUND", 404);
     }
     const url = new URL(request.url);

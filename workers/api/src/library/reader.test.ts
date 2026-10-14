@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { R2BucketLike, R2ObjectBodyLike } from "../runtime/bindings";
 import { R2VerifiedSourceStore } from "../sources/store";
-import { LibraryReaderService, LibraryReaderError } from "./reader";
+import { LibraryReaderService } from "./reader";
 
 const tenantId = "11111111-1111-4111-8111-111111111111";
 const externalUserId = "student";

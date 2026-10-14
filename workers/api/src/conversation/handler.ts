@@ -9,6 +9,7 @@ import {
 import type { SantoBindings } from "../runtime/bindings";
 import { GroundedAiError } from "../ai/errors";
 import { streamValidatedGroundedAnswer } from "../ai/stream";
+import { streamProvisionalConversationAnswer } from "./native-stream";
 import { ConversationAskService } from "./ask-service";
 import { D1ExternalUserRepository, type ExternalUserRepository } from "../session/repository";
 import { SessionError, SessionExchangeService } from "../session/service";
@@ -121,6 +122,28 @@ export function createConversationHandler(deps: ConversationHandlerDependencies 
           await request.json().catch(() => null),
         );
         if (!parsed.success) return errorResponse("INVALID_CONVERSATION_REQUEST", 400);
+        const acceptsSse = (request.headers.get("accept") ?? "")
+          .split(",")
+          .some((item) => item.trim().split(";")[0]?.trim() === "text/event-stream");
+        // Provider-native progressive text is a Staging-only opt-in. Drafts
+        // are never portrayed as verified, sourced or charged until completion.
+        if (
+          acceptsSse &&
+          env.SANTO_ENV === "staging" &&
+          env.SANTO_NATIVE_STREAMING_V1 === "true"
+        ) {
+          return streamProvisionalConversationAnswer((onDraft) =>
+            askService(client).ask(
+              actor,
+              selected.conversationId,
+              parsed.data,
+              request.headers.get("authorization") ?? "",
+              env,
+              request.signal,
+              onDraft,
+            ),
+          );
+        }
         const answer = await askService(client).ask(
           actor,
           selected.conversationId,
@@ -129,9 +152,6 @@ export function createConversationHandler(deps: ConversationHandlerDependencies 
           env,
           request.signal,
         );
-        const acceptsSse = (request.headers.get("accept") ?? "")
-          .split(",")
-          .some((item) => item.trim().split(";")[0]?.trim() === "text/event-stream");
         return acceptsSse
           ? streamValidatedGroundedAnswer(answer)
           : Response.json(answer, { headers: { "Cache-Control": "no-store" } });

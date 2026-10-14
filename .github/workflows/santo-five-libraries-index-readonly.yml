@@ -1,0 +1,63 @@
+name: Santo Five Libraries Index Readiness — Read Only
+on:
+  push:
+    branches:
+      - ops/ai-search-indexing-readonly-20261014
+    paths:
+      - .github/workflows/santo-five-libraries-index-readonly.yml
+permissions:
+  contents: read
+jobs:
+  ai-search-stats:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Verify five medical libraries, scoped R2 source, and current async indexing status — no changes
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os,json
+          from urllib.request import Request,urlopen
+          from urllib.error import HTTPError
+          libs=('amboss','usmle','passmedicine','pastest','one-examination')
+          token=os.environ['CLOUDFLARE_API_TOKEN']
+          account=os.environ['CLOUDFLARE_ACCOUNT_ID']
+          base=f'https://api.cloudflare.com/client/v4/accounts/{account}/ai-search/namespaces/default/instances'
+          headers={'Authorization':'Bearer '+token,'Accept':'application/json'}
+          def get(path):
+              try:
+                  with urlopen(Request(base+path,method='GET',headers=headers),timeout=30) as res:
+                      body=json.load(res)
+                      if not body.get('success',False): raise RuntimeError('Cloudflare API success=false')
+                      return body.get('result')
+              except HTTPError as exc:
+                  raise RuntimeError(f'Cloudflare AI Search API HTTP {exc.code} on read') from exc
+          print('INDEXING_READONLY_CHECK=begin')
+          total_complete=total_error=total_queued=total_running=0
+          for lib in libs:
+              meta=get('/'+lib)
+              if not isinstance(meta,dict):raise SystemExit('invalid instance metadata')
+              params=meta.get('source_params') or {}
+              filters=params.get('include_items') or []
+              actual_type=meta.get('type')
+              bucket=meta.get('source')
+              expected=f'/medical-search/v1/{lib}/**'
+              scoped=(actual_type=='r2' and bucket=='santo-content-staging' and filters==[expected])
+              stats=get('/'+lib+'/stats')
+              if not isinstance(stats,dict):raise SystemExit('invalid indexing stats')
+              counts={k:stats.get(k) for k in ['completed','queued','running','error','skipped']}
+              print('INSTANCE',lib,'scoped',scoped,'source',bucket,'filter',filters,'counts',json.dumps(counts,sort_keys=True))
+              if not scoped:raise SystemExit('unsafe incorrect source scoping')
+              for k in ('completed','error','queued','running'):
+                  value=stats.get(k)
+                  if isinstance(value,int):
+                      if k=='completed':total_complete+=value
+                      elif k=='error':total_error+=value
+                      elif k=='queued':total_queued+=value
+                      elif k=='running':total_running+=value
+          print('SUMMARY',json.dumps(dict(completed=total_complete,error=total_error,queued=total_queued,running=total_running,expected_search_sections=67524)))
+          print('READ_ONLY_NO_CLOUDFLARE_WRITES=YES')
+          PY

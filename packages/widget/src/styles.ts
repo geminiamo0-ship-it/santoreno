@@ -245,15 +245,22 @@ export const widgetStyles = css`
   }
   .question {
     align-self: flex-end;
-    max-width: 94%;
-    padding: 11px 13px;
-    border-radius: 14px 14px 4px 14px;
-    background: #ede8de;
+    max-width: 85%;
+    padding: 12px 16px;
+    border-radius: 16px 16px 5px 16px;
+    background: #b88a32;
+    color: white;
+    line-height: 1.7;
     white-space: pre-wrap;
+    unicode-bidi: plaintext;
   }
   .answer {
     align-self: stretch;
-    padding: 10px 0;
+    padding: 17px;
+    border: 1px solid #e9e1d5;
+    border-radius: 16px;
+    background: #fffdf8;
+    box-shadow: 0 8px 28px rgb(65 49 22 / 5%);
     line-height: 1.65;
   }
   .answer-text {
@@ -288,10 +295,11 @@ export const widgetStyles = css`
     margin-bottom: 0;
   }
   .medical-markdown .md-heading {
-    margin: 17px 0 8px;
-    color: #906a31;
-    font-weight: 750;
-    font-size: 14px;
+    margin: 19px 0 9px;
+    color: #30271e;
+    font-family: Georgia, "Times New Roman", serif;
+    font-weight: 700;
+    font-size: 16px;
     line-height: 1.45;
   }
   .medical-markdown .md-callout {
@@ -390,25 +398,30 @@ export const widgetStyles = css`
     padding: 5px 13px;
     border-bottom: 1px solid #e0d4c2;
   }
+  .answer-footer {
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px solid #ede5da;
+  }
   .answer-mode {
-    font-size: 10.5px;
-    font-weight: 700;
-    line-height: 1.4;
-    padding: 7px 10px;
-    margin-bottom: 10px;
-    border-radius: 9px;
+    font-size: 10px;
+    font-weight: 650;
+    line-height: 1.5;
+    color: #827566;
     display: inline-flex;
-    border: 1px solid #e4d4b8;
-    color: #80602f;
-    background: #fdf5e8;
+  }
+  .answer-mode.mode-grounded {
+    color: #94702d;
   }
   .answer-mode.mode-general {
-    background: #f3f5f8;
-    color: #506276;
-    border-color: #dce2eb;
+    color: #596b7a;
   }
   .source-collection {
-    margin: 16px 0 0;
+    margin: 12px 0 0;
+    padding: 12px;
+    border: 1px solid #e9dac4;
+    border-radius: 12px;
+    background: #faf6ef;
   }
   .source-collection summary {
     cursor: pointer;

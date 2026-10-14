@@ -3,7 +3,7 @@
   "cloudflare": {
     "worker": "santo-api",
     "controlDatabase": "santo-control-plane",
-    "controlDatabaseId": null,
+    "controlDatabaseId": "3c219fbd-b9a1-4891-9b5e-4b4396fcc41e",
     "contentBucket": "santo-content",
     "tenantMeterDo": "TenantMeterDO",
     "conversationDo": "ConversationDO",

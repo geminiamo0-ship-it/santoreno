@@ -1,0 +1,92 @@
+name: Provision Santo Production Dependencies (No Worker Deploy)
+on:
+  push:
+    branches: [feat/96-luna-professor-staging]
+    paths: [.github/workflows/santo-prod-provision-once.yml]
+permissions:
+  contents: write
+concurrency:
+  group: santo-production-infrastructure-provision
+  cancel-in-progress: false
+jobs:
+  provision:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/96-luna-professor-staging
+          persist-credentials: true
+      - name: Idempotently create ONLY named production D1, private R2 and event queue
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${CLOUDFLARE_ACCOUNT_ID:-}" && test -n "${CLOUDFLARE_API_TOKEN:-}"
+          base="https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID"
+          get() { curl --fail -sS --max-time 50 -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" "$base/$1"; }
+          post() { curl --fail-with-body -sS --max-time 50 -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" -H "Content-Type: application/json" --data "$2" "$base/$1"; }
+          d1="$(get d1/database)"
+          d1id="$(jq -r '(.result // [] | if type=="array" then . else (.databases//[]) end) | map(select(.name=="santo-control-plane")) | first | .uuid // empty' <<< "$d1")"
+          if [[ -z "$d1id" ]]; then
+            echo "Creating isolated production D1; no student tables or data yet."
+            created="$(post d1/database '{"name":"santo-control-plane"}')"
+            d1id="$(jq -r '.result.uuid // empty' <<< "$created")"
+          else
+            echo "Production control D1 already exists; preserving."
+          fi
+          [[ "$d1id" =~ ^[a-f0-9-]{36}$ ]] || { echo "Production D1 failed to provision/verify"; exit 1; }
+          r2="$(get r2/buckets)"
+          exists="$(jq -r '(.result.buckets // []) | any(.name=="santo-content")' <<< "$r2")"
+          if [[ "$exists" != true ]]; then
+            echo "Creating private production R2 bucket; no source bytes uploaded."
+            post r2/buckets '{"name":"santo-content"}' > "$RUNNER_TEMP/r2-response.json"
+          fi
+          r2="$(get r2/buckets)"
+          jq -e '.result.buckets | any(.name=="santo-content")' <<< "$r2" >/dev/null
+          queues="$(get queues)"
+          found="$(jq -r '(.result // [] | if type=="array" then . else (.queues//[]) end) | any((.queue_name//.name)=="santo-events")' <<< "$queues")"
+          if [[ "$found" != true ]]; then
+            echo "Creating production event queue; no worker consumer attached."
+            post queues '{"queue_name":"santo-events"}' > "$RUNNER_TEMP/queue-response.json"
+          fi
+          queues="$(get queues)"
+          jq -e '(.result // [] | if type=="array" then . else (.queues//[]) end) | any((.queue_name//.name)=="santo-events")' <<< "$queues" >/dev/null
+          echo "Provisioned resources: D1, R2, event queue; no Worker deployment or production data upload."
+          python - "$d1id" <<'PY'
+          import sys, pathlib, json, re
+          identifier=sys.argv[1]
+          path=pathlib.Path("workers/api/wrangler.toml")
+          text=path.read_text()
+          production=text.index("[env.production]")
+          pre,post=text[:production],text[production:]
+          marker="[env.production.ai]"
+          if "[[env.production.d1_databases]]" not in post:
+              item=f'[[env.production.d1_databases]]\nbinding = "CONTROL_DB"\ndatabase_name = "santo-control-plane"\ndatabase_id = "{identifier}"\nmigrations_dir = "migrations"\n\n'
+              assert marker in post
+              post=post.replace(marker,item+marker,1)
+          else:
+              post=re.sub(r'(\[\[env\.production\.d1_databases\]\][^\[]*database_id\s*=\s*")[^"]+(")',lambda m:m.group(1)+identifier+m.group(2),post)
+          updated=pre+post
+          path.write_text(updated)
+          config=pathlib.Path("config/environments/production.json")
+          values=json.loads(config.read_text())
+          values["cloudflare"]["controlDatabaseId"]=identifier
+          config.write_text(json.dumps(values,indent=2)+"\n")
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add workers/api/wrangler.toml config/environments/production.json
+          if ! git diff --cached --quiet; then
+            git commit -m "infra(prod): bind provisioned Santo isolated D1 database"
+            git push origin HEAD:feat/96-luna-professor-staging
+          fi
+          echo '## Production named infrastructure created / verified' >> "$GITHUB_STEP_SUMMARY"
+          echo '- Production D1 created and its UUID added to feature branch Wrangler config.' >> "$GITHUB_STEP_SUMMARY"
+          echo '- Private production R2 bucket and production Queue created / verified.' >> "$GITHUB_STEP_SUMMARY"
+          echo '- No Worker deploy, D1 migrations, tenant credentials, licensed uploads or Production traffic change.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Remove API response artifacts
+        if: always()
+        run: rm -f "$RUNNER_TEMP/r2-response.json" "$RUNNER_TEMP/queue-response.json"

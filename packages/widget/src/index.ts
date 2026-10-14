@@ -611,28 +611,29 @@ export class SantoAiElement extends LitElement {
                                 ${this.readerArticle.category} · ${this.readerArticle.source}
                               </p>
                               <nav aria-label="Article sections">
-                                ${this.readerArticle.sections.map(
-                                  (section) => html`
-                                    <button
-                                      type="button"
-                                      @click=${() => void this.jumpToReferencedSection(section.id)}
+                                ${this.readerArticle.contentHtml
+                                ? html`<div
+                                    class="article-original-html ${this.readerArticle.libraryId === "amboss" ? "amboss-original" : "generic-original"}"
+                                    @click=${this.onArticleClick}
+                                  >${unsafeHTML(formatArticleForReader(
+                                    this.readerArticle.contentHtml,
+                                    this.readerArticle.libraryId,
+                                  ))}</div>`
+                                : this.readerArticle.sections.map((section) =>
+                                    html`<section
+                                      data-santo-section=${section.id}
+                                      class=${section.id === this.readerHighlight ? "reader-highlight" : ""}
                                     >
-                                      ${section.heading}
-                                    </button>
-                                  `,
-                                )}
-                              </nav>
-                              ${this.readerArticle.sections.map(
-                                (section) =>
-                                  html` <section
-                                    data-santo-section=${section.id}
-                                    class=${section.id === this.readerHighlight ? "reader-highlight" : ""}
-                                  >
-                                    <h3>${section.heading}</h3>
-                                    <p>${section.text}</p>
-                                    ${section.images.map((img) => html`<img src=${img.src} alt=${img.alt || section.heading} loading="lazy" referrerpolicy="no-referrer" />`)}
-                                  </section>`,
-                              )}
+                                      <h3>${section.heading}</h3>
+                                      <p>${section.text}</p>
+                                      ${section.images.map((img) => {
+                                        const source = approvedMedicalImageUrl(img.src);
+                                        return source
+                                          ? html`<img src=${source} alt=${img.alt || section.heading} loading="lazy" referrerpolicy="no-referrer" @click=${() => { this.readerLightbox = { src: source, alt: img.alt || section.heading }; }} />`
+                                          : nothing;
+                                      })}
+                                    </section>`,
+                                  )}
                             `
                           : this.readerLibrary
                             ? html`

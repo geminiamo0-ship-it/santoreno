@@ -1,0 +1,31 @@
+name: Temporary Santo Copilot Format
+on:
+  push:
+    branches:
+      - feat/75-safe-conversation-routing-staging
+    paths:
+      - .github/workflows/copilot-quick-format-once.yml
+permissions:
+  contents: write
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply pinned Prettier to only Copilot files
+        shell: bash
+        run: |
+          set -euo pipefail
+          corepack enable
+          pnpm install --frozen-lockfile
+          pnpm exec prettier --write packages/contracts/src/conversation.ts workers/api/src/ai/stream.ts workers/api/src/conversation/ask-service.ts workers/api/src/conversation/service.ts workers/api/src/conversation/quick-reply.ts workers/api/src/conversation/quick-reply.test.ts workers/api/src/conversation/ask-service.test.ts workers/api/src/durable-objects/conversation-turn-core.ts workers/api/src/runtime/bindings.ts
+          if ! git diff --quiet; then
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add packages/contracts/src/conversation.ts workers/api/src/ai/stream.ts workers/api/src/conversation/ask-service.ts workers/api/src/conversation/service.ts workers/api/src/conversation/quick-reply.ts workers/api/src/conversation/quick-reply.test.ts workers/api/src/conversation/ask-service.test.ts workers/api/src/durable-objects/conversation-turn-core.ts workers/api/src/runtime/bindings.ts
+            git commit -m 'style(copilot): format staged quick-reply feature with pinned Prettier'
+            git push origin HEAD:refs/heads/feat/75-safe-conversation-routing-staging
+          fi

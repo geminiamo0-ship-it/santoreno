@@ -10,10 +10,9 @@ import json
 import os
 import random
 import re
+import subprocess
 import time
-from urllib.error import HTTPError, URLError
 from urllib.parse import quote
-from urllib.request import Request, urlopen
 
 PREFIX = "medical-search/v1/one-examination/"
 KEY = re.compile(r"medical-search/v1/one-examination/[a-z0-9-]{1,96}/s-[0-9]{4}\.md$")
@@ -21,19 +20,28 @@ EXPECTED = 1017
 
 
 def request(url, path, token, body=None):
+    """Use curl rather than urllib: Cloudflare rejects Python's default HTTP fingerprint."""
     data = json.dumps(body, separators=(",", ":")).encode() if body is not None else None
-    req = Request(url.rstrip("/") + path, method="POST" if data is not None else "GET",
-                  data=data, headers={"authorization": "Bearer " + token,
-                                      "content-type": "application/json"})
+    cmd = ["curl", "--silent", "--show-error", "--max-time", "90",
+           "--header", "authorization: Bearer " + token,
+           "--header", "content-type: application/json",
+           "--output", "-", "--write-out", "\\nHTTP_CODE:%{http_code}"]
+    if data is not None:
+        cmd += ["--request", "POST", "--data-binary", "@-"]
+    cmd.append(url.rstrip("/") + path)
+    completed = subprocess.run(cmd, input=data, capture_output=True, timeout=100,
+                               check=False)
+    if completed.returncode:
+        raise OSError(f"Network transport failed (curl {completed.returncode})")
+    raw = completed.stdout
+    marker = b"\\nHTTP_CODE:"
+    if marker not in raw:
+        raise OSError("HTTP transport did not include status")
+    payload, code = raw.rsplit(marker, 1)
     try:
-        with urlopen(req, timeout=90) as res:
-            return res.status, json.load(res)
-    except HTTPError as error:
-        try:
-            value = json.loads(error.read(4096))
-        except (UnicodeError, ValueError):
-            value = {}
-        return error.code, value
+        return int(code), json.loads(payload)
+    except (ValueError, UnicodeError) as exc:
+        raise RuntimeError("Bad isolated R2 API status or JSON") from exc
 
 
 def retry(url, path, token, body=None):
@@ -46,7 +54,7 @@ def retry(url, path, token, body=None):
                 raise RuntimeError(f"Permanent isolated R2 API HTTP {status}: {result.get('error')}")
             if status not in (429, 500, 502, 503, 504):
                 raise RuntimeError(f"Unexpected HTTP {status}: {result.get('error')}")
-        except (TimeoutError, URLError, OSError):
+        except (TimeoutError, OSError):
             pass
         if attempt < 6:
             time.sleep(min(15, 1.5 * (2 ** attempt)) + random.random())

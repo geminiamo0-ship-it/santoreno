@@ -523,6 +523,14 @@ For every meaningful step:
   real content (Issue #58). Issue #77 stays open until real expert review
   and a deliberate production rollout decision.
 
+### Copilot greeting pilot — Staging verification (14 Oct 2026)
+
+- Santo PR #80 merged at `980e1233fa72cab5097896a003a150e685602811`. Post-merge Verify 38490550979 passed.
+- Santo Staging deploy 38490550795 passed. Production Santo unchanged.
+- Bilingual greetings, thanks and simple study clarifications now use a small typed, durable zero-unit reply on Staging. Medical teaching retains verified sources and the existing model path.
+- Royal Bank PR #110 merged at `131e79ae1d53d9a40f4aa82e55a35f0f01147778`, Verify 38490476014 passed, and relevant Vercel deployment statuses report success. Royal pilot accepts these replies and unlocks permanently unsuccessful evidence attempts.
+- **Issue #75 remains open**: authenticated end-to-end student test, standalone widget chat compatibility, more advanced intents and exam context, and licensed medical source acceptance still require work.
+
 ## 9. Next action
 
 **Royal Bank Pilot staging checkpoint — 2026-10-14:**

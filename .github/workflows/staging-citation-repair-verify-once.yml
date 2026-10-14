@@ -1,4 +1,4 @@
-name: Santo Citation Integrity Repair — Staging Verify
+name: Santo Citation Integrity Repair — Exact-Head Verification
 
 on:
   push:

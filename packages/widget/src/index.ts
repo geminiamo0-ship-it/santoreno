@@ -1,4 +1,5 @@
 import { html, LitElement, nothing } from "lit";
+import { unsafeHTML } from "lit/directives/unsafe-html.js";
 import type { GroundedAiQueryResponse } from "@santo/contracts/ai";
 import type { ConversationAnswer, ConversationTurn } from "@santo/contracts/conversation";
 import type {
@@ -14,6 +15,7 @@ import {
   type SantoSessionProvider,
 } from "./conversation-client";
 import { widgetStyles } from "./styles";
+import { approvedMedicalImageUrl, decodeArticlePopover, formatArticleForReader, referencedHeadingText, sanitizeArticleForReader } from "./article-rich-html";
 import { renderSantoMarkdown } from "./medical-markdown";
 import { readableMedicalSourceTitle } from "./source-title";
 import { SANTO_WIDGET_TAG } from "./tag-name";
@@ -61,6 +63,8 @@ export class SantoAiElement extends LitElement {
     readerItems: { state: true },
     readerLibrary: { state: true },
     readerNext: { state: true },
+    readerPopover: { state: true },
+    readerLightbox: { state: true },
   };
 
   private ui: WidgetUiState = INITIAL_WIDGET_UI_STATE;
@@ -82,6 +86,8 @@ export class SantoAiElement extends LitElement {
   private readerItems: LibraryArticleListResponse["articles"] = [];
   private readerLibrary: string | null = null;
   private readerNext: number | null = null;
+  private readerPopover: { title: string; html: string } | null = null;
+  private readerLightbox: { src: string; alt: string } | null = null;
   private latestAnswer: GroundedAiQueryResponse | null = null;
   private latestQuestion = "";
 
@@ -111,6 +117,8 @@ export class SantoAiElement extends LitElement {
     this.readerItems = [];
     this.readerLibraries = [];
     this.readerNext = null;
+    this.readerPopover = null;
+    this.readerLightbox = null;
     this.statusText = "Session connected. You can ask a question.";
     void this.reconnect();
   }
@@ -118,6 +126,8 @@ export class SantoAiElement extends LitElement {
   override disconnectedCallback(): void {
     super.disconnectedCallback();
     this.cleanupImage();
+    this.readerPopover = null;
+    this.readerLightbox = null;
   }
 
   private cleanupImage(): void {
@@ -266,6 +276,8 @@ export class SantoAiElement extends LitElement {
     try {
       this.readerArticle = await this.client.libraryArticle(libraryId, articleId);
       this.readerOpen = true;
+      this.readerPopover = null;
+      this.readerLightbox = null;
       this.readerHighlight = null;
       this.readerLibrary = libraryId;
     } catch (error) {
@@ -291,6 +303,8 @@ export class SantoAiElement extends LitElement {
       try {
         const resolved = await this.client.sourceArticle(messageId, sourceId);
         this.readerArticle = resolved.article;
+        this.readerPopover = null;
+        this.readerLightbox = null;
         this.readerHighlight = resolved.highlightSectionId;
         this.readerLibrary = resolved.article.libraryId;
         this.readerOpen = true;
@@ -516,6 +530,8 @@ export class SantoAiElement extends LitElement {
                         class="source-close"
                         @click=${() => {
                           this.readerOpen = false;
+                          this.readerPopover = null;
+                          this.readerLightbox = null;
                         }}
                       >
                         ×

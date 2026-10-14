@@ -65,6 +65,7 @@ export class GroundedAiService {
     session: SessionContextResponse,
     input: GroundedAiQueryRequest,
     signal?: AbortSignal,
+    onProvisionalAnswer?: (text: string) => void,
   ): Promise<GroundedAiQueryResponse> {
     const startedAt = this.nowMs();
     const requestId = crypto.randomUUID();
@@ -132,6 +133,7 @@ export class GroundedAiService {
             groundingMode === "general"
               ? buildGeneralMedicalPrompt(input.query)
               : buildGroundedPrompt(input.query, evidence),
+            onProvisionalAnswer,
           ),
         signal,
         this.timeouts.modelMs,
@@ -146,8 +148,10 @@ export class GroundedAiService {
         this.generalFallbackEnabled
       ) {
         groundingMode = "general";
+        // Withdraw the previous grounded draft before changing its source policy.
+        onProvisionalAnswer?.("");
         draft = await withAiDeadline(
-          () => this.model.generate(buildGeneralMedicalPrompt(input.query)),
+          () => this.model.generate(buildGeneralMedicalPrompt(input.query), onProvisionalAnswer),
           signal,
           this.timeouts.modelMs,
           "MODEL_TIMEOUT",

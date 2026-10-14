@@ -1,0 +1,49 @@
+name: Stop Cross-Library Santo AI Search Job
+on:
+  push:
+    branches: [diagnose/ai-search-r2-zero-files-20261014]
+    paths: [".github/workflows/santo-cancel-cross-library-index-job.yml"]
+permissions: {contents: read}
+jobs:
+  cancel-isolation-violation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Cancel exact verified One Examination job scanning PassMedicine data
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json,os
+          from urllib.request import Request,urlopen
+          from urllib.error import HTTPError
+          job="4544a646-e488-4cb7-9a5e-af6359912672"
+          base=f"https://api.cloudflare.com/client/v4/accounts/{os.environ['CLOUDFLARE_ACCOUNT_ID']}/ai-search/namespaces/default/instances/one-examination"
+          h={"Authorization":"Bearer "+os.environ["CLOUDFLARE_API_TOKEN"],"Content-Type":"application/json"}
+          def call(path,method="GET",body=None):
+              req=Request(base+path,method=method,headers=h,data=json.dumps(body).encode() if body is not None else None)
+              try:
+                  with urlopen(req,timeout=35) as resp:
+                      obj=json.load(resp)
+                      if not obj.get("success"):raise RuntimeError("Cloudflare API success=false")
+                      return obj["result"]
+              except HTTPError as exc:
+                  print("HTTP_ERROR",method,exc.code)
+                  raise
+          inst=call("")
+          params=inst.get("source_params") or {}
+          if inst.get("type")!="r2" or inst.get("source")!="santo-content-staging" or params.get("prefix")!="medical-search/v1/one-examination/":
+              raise RuntimeError("unexpected instance; refuse cancellation")
+          record=call("/jobs/"+job)
+          print("CURRENT",record.get("id"),"ended",record.get("ended_at"))
+          if record.get("ended_at"):
+              print("ALREADY_ENDED")
+          else:
+              result=call("/jobs/"+job,"PATCH",{"action":"cancel"})
+              print("CANCELLATION_REQUESTED",result.get("id"),"end_reason",result.get("end_reason"))
+          latest=call("/jobs/"+job)
+          print("AFTER",latest.get("id"),"ended",latest.get("ended_at"),"end_reason",latest.get("end_reason"))
+          print("R2_FILES_UNCHANGED=TRUE")
+          PY

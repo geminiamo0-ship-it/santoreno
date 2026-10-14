@@ -27,7 +27,9 @@ export function streamProvisionalConversationAnswer(
         if (canceled) return;
         const verified = ConversationProgressEventSchema.parse(event);
         controller.enqueue(
-          encoder.encode("event: " + verified.type + "\ndata: " + JSON.stringify(verified) + "\n\n"),
+          encoder.encode(
+            "event: " + verified.type + "\ndata: " + JSON.stringify(verified) + "\n\n",
+          ),
         );
       };
       void (async () => {

@@ -128,20 +128,20 @@ export type ConversationAnswer = z.infer<typeof ConversationAnswerSchema>;
 export const ConversationProgressEventSchema = z.discriminatedUnion("type", [
   z
     .object({
-    type: z.literal("draft"),
-    text: z.string().max(12000),
+      type: z.literal("draft"),
+      text: z.string().max(12000),
     })
     .strict(),
   z
     .object({
-    type: z.literal("complete"),
-    response: ConversationAnswerSchema,
+      type: z.literal("complete"),
+      response: ConversationAnswerSchema,
     })
     .strict(),
   z
     .object({
-    type: z.literal("error"),
-    code: z.string().regex(/^[A-Z0-9_]{3,90}$/),
+      type: z.literal("error"),
+      code: z.string().regex(/^[A-Z0-9_]{3,90}$/),
     })
     .strict(),
 ]);

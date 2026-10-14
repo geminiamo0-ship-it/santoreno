@@ -1,0 +1,94 @@
+name: Santo — Verified GitHub Library Assets to Private R2 Staging
+
+# One-time migration, launched when this workflow is committed to feature branch.
+# No book payload is uploaded to a browser or to the public R2 media endpoint.
+on:
+  push:
+    branches:
+      - feat/drive-corpus-public-asset-import
+    paths:
+      - .github/workflows/santo-github-assets-to-private-r2.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: santo-medical-library-pinned-r2-import-20261014
+  cancel-in-progress: false
+
+env:
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+  NODE_OPTIONS: "--max-old-space-size=4096"
+
+jobs:
+  upload-catalog:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Verify existing Santo Cloudflare account credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+      - name: Reassemble SHA-pinned public Git archive and validate all 74,579 files
+        shell: bash
+        run: bash scripts/download_medical_corpus_from_github.sh "$RUNNER_TEMP/santo-export"
+      - name: Install repository-pinned Wrangler
+        run: |
+          corepack enable
+          pnpm install --frozen-lockfile
+      - name: Upload only six canonical private R2 library catalog manifests
+        shell: bash
+        run: |
+          python scripts/upload_medical_libraries_wrangler.py \
+            --dir "$RUNNER_TEMP/santo-export" --scope catalog \
+            --execute --workers 3 --checkpoint "$RUNNER_TEMP/catalog-completed.txt"
+          echo "Six canonical library manifests uploaded and sampled with SHA-256." >> "$GITHUB_STEP_SUMMARY"
+
+  upload-libraries:
+    needs: upload-catalog
+    runs-on: ubuntu-latest
+    timeout-minutes: 355
+    strategy:
+      fail-fast: false
+      max-parallel: 5
+      matrix:
+        library: [amboss, usmle, passmedicine, pastest, one-examination]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Reassemble and verify exact pinned source before writes
+        shell: bash
+        run: bash scripts/download_medical_corpus_from_github.sh "$RUNNER_TEMP/santo-export"
+      - name: Install repository-pinned Wrangler
+        run: |
+          corepack enable
+          pnpm install --frozen-lockfile
+      - name: Upload this library only, with exact per-library counts
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+          python scripts/upload_medical_libraries_wrangler.py \
+            --dir "$RUNNER_TEMP/santo-export" \
+            --scope "${{ matrix.library }}" \
+            --workers 8 --execute \
+            --checkpoint "$RUNNER_TEMP/santo-uploaded-${{ matrix.library }}.txt"
+          echo "${{ matrix.library }} private R2 source content and SHA readbacks passed." >> "$GITHUB_STEP_SUMMARY"
+          echo "AI Search index readiness / clinical citation QA not yet confirmed." >> "$GITHUB_STEP_SUMMARY"

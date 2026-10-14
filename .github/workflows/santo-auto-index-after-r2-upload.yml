@@ -1,0 +1,70 @@
+name: Santo — Start Medical AI Search after Successful R2 Upload
+on:
+  workflow_run:
+    workflows:
+      - "Santo — Verified GitHub Library Assets to Private R2 Staging"
+    types: [completed]
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: santo-medical-ai-search-indexing-20261014
+  cancel-in-progress: false
+
+jobs:
+  configure-medical-indexes:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.id == 38506829004 &&
+      github.event.workflow_run.head_sha == '4feffe31acf92eca65d22588aba4fc17e6217207'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Require exact successful 6-job source run
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN" && test -n "$CLOUDFLARE_ACCOUNT_ID"
+          run='38506829004'
+          jobs="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run/jobs?per_page=100")"
+          jq -e '
+            [.jobs[] | select(.name == "upload-catalog" and .conclusion == "success")] | length == 1
+          ' <<< "$jobs" > /dev/null
+          for library in amboss usmle passmedicine pastest one-examination; do
+            jq -e --arg name "upload-libraries ($library)" '
+              [.jobs[] | select(.name == $name and .conclusion == "success")] | length == 1
+            ' <<< "$jobs" > /dev/null
+          done
+          echo "All five private R2 medical libraries and six catalogs passed SHA-verified upload jobs."
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install repository-pinned Cloudflare Wrangler
+        run: |
+          corepack enable
+          pnpm install --frozen-lockfile
+      - name: Create or verify five tightly scoped R2-backed AI Search instances
+        run: python scripts/auto_index_medical_library_staging.py
+      - name: Record indexing handoff without false readiness claims
+        shell: bash
+        run: |
+          {
+            echo '## Santo Medical AI Search after private R2 upload'
+            echo '- Source run: [38506829004](https://github.com/geminiamo0-ship-it/santoreno/actions/runs/38506829004)'
+            echo '- All six upload jobs: **SUCCESS**'
+            echo '- Five R2-backed index sources with isolated prefixes: **configured and source-validated**'
+            echo '- Indexing is asynchronous; clinical Q&A, citation keys, source reader and image coverage still need authenticated acceptance.'
+            echo '- Production Santo unchanged.'
+          } >> "$GITHUB_STEP_SUMMARY"

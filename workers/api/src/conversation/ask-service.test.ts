@@ -183,7 +183,11 @@ describe("grounded turn billing/verification coordinator", () => {
     const ask = new ConversationAskService(t.client, model);
     const hello = { ...body, text: "hi" };
     const result = await ask.ask(actor, conversationId, hello, "Bearer signed", staging, signal);
-    expect(result).toMatchObject({ kind: "quick_reply", citations: [], usage: { unitsCharged: 0, remaining: 16 } });
+    expect(result).toMatchObject({
+      kind: "quick_reply",
+      citations: [],
+      usage: { unitsCharged: 0, remaining: 16 },
+    });
     expect(result.answer).toContain("Santo");
     expect(model).not.toHaveBeenCalled();
     expect(readQuota).toHaveBeenCalledTimes(1);
@@ -202,7 +206,16 @@ describe("grounded turn billing/verification coordinator", () => {
     for (const item of cases) {
       const model = vi.fn(async () => response);
       const ask = new ConversationAskService(harness().client, model);
-      expect(await ask.ask(actor, conversationId, { ...body, text: item.text }, "Bearer signed", item.env, signal)).toEqual(response);
+      expect(
+        await ask.ask(
+          actor,
+          conversationId,
+          { ...body, text: item.text },
+          "Bearer signed",
+          item.env,
+          signal,
+        ),
+      ).toEqual(response);
       expect(model).toHaveBeenCalledTimes(1);
     }
   });
@@ -211,21 +224,36 @@ describe("grounded turn billing/verification coordinator", () => {
     const t = harness();
     const model = vi.fn(async () => response);
     const env: SantoBindings = {
-      SANTO_ENV: "staging", SANTO_COPILOT_ROUTING_V1: "true",
+      SANTO_ENV: "staging",
+      SANTO_COPILOT_ROUTING_V1: "true",
       TENANT_METER: {
         idFromName: (x) => x,
-        get: () => ({ fetch: async () => Response.json({
-          tenantId: actor.tenantId, externalUserId: actor.externalUserId,
-          cycleStartAt: "2026-10-01T00:00:00.000Z", cycleEndAt: "2026-11-01T00:00:00.000Z",
-          expiresAt: null, tenantStatus: "suspended", userStatus: "active",
-          tenant: { limit: 1, used: 0, reserved: 0, remaining: 1 },
-          user: { limit: 1, used: 0, reserved: 0, remaining: 1 },
-        }) }),
+        get: () => ({
+          fetch: async () =>
+            Response.json({
+              tenantId: actor.tenantId,
+              externalUserId: actor.externalUserId,
+              cycleStartAt: "2026-10-01T00:00:00.000Z",
+              cycleEndAt: "2026-11-01T00:00:00.000Z",
+              expiresAt: null,
+              tenantStatus: "suspended",
+              userStatus: "active",
+              tenant: { limit: 1, used: 0, reserved: 0, remaining: 1 },
+              user: { limit: 1, used: 0, reserved: 0, remaining: 1 },
+            }),
+        }),
       },
     };
-    await expect(new ConversationAskService(t.client, model).ask(
-      actor, conversationId, { ...body, text: "hi" }, "Bearer signed", env, signal,
-    )).rejects.toMatchObject({ code: "USER_SUSPENDED" });
+    await expect(
+      new ConversationAskService(t.client, model).ask(
+        actor,
+        conversationId,
+        { ...body, text: "hi" },
+        "Bearer signed",
+        env,
+        signal,
+      ),
+    ).rejects.toMatchObject({ code: "USER_SUSPENDED" });
     expect(model).not.toHaveBeenCalled();
     expect(t.complete).not.toHaveBeenCalled();
   });

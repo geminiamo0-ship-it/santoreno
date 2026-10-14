@@ -5,9 +5,7 @@ import { collectLunaEventStream, previewStructuredAnswer } from "./luna-event-st
 
 function sse(events: unknown[], split = 24): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder();
-  const frames = events
-    .map((event) => "data: " + JSON.stringify(event) + "\n\n")
-    .join("");
+  const frames = events.map((event) => "data: " + JSON.stringify(event) + "\n\n").join("");
   const bytes = encoder.encode(frames);
   let offset = 0;
   return new ReadableStream({

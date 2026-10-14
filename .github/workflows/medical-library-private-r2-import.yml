@@ -41,7 +41,7 @@ jobs:
     if: github.ref == 'refs/heads/main'
     environment: santo-medical-ingest-staging
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 350
     env:
       GH_TOKEN: ${{ secrets.SANTO_LIBRARY_SOURCE_READ_TOKEN }}
       PRIVATE_LIBRARY_REPO: ${{ vars.SANTO_PRIVATE_LIBRARY_REPO }}
@@ -50,9 +50,6 @@ jobs:
       EXECUTE_UPLOAD: ${{ inputs.upload_to_private_r2 }}
       CREATE_AI_SEARCH: ${{ inputs.create_ai_search }}
       CONFIRMATION: ${{ inputs.confirmation }}
-      R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
-      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       AI_SEARCH_R2_SERVICE_TOKEN_ID: ${{ secrets.AI_SEARCH_R2_SERVICE_TOKEN_ID }}
@@ -84,8 +81,8 @@ jobs:
             [[ "$CONFIRMATION" == "UPLOAD_PRIVATE_SANTO_STAGING" ]] || {
               echo 'Explicit staging-only upload confirmation is required'; exit 1;
             }
-            test -n "$R2_ACCOUNT_ID" && test -n "$R2_ACCESS_KEY_ID" && test -n "$R2_SECRET_ACCESS_KEY" || {
-              echo 'Missing required PRIVATE R2 GitHub environment secrets'; exit 1;
+            test -n "$CLOUDFLARE_ACCOUNT_ID" && test -n "$CLOUDFLARE_API_TOKEN" || {
+              echo 'Missing existing Santo CLOUDFLARE_API_TOKEN/ACCOUNT_ID'; exit 1;
             }
             if [[ "$CREATE_AI_SEARCH" == "true" ]]; then
               test -n "$CLOUDFLARE_ACCOUNT_ID" && test -n "$CLOUDFLARE_API_TOKEN" && test -n "$AI_SEARCH_R2_SERVICE_TOKEN_ID" || {
@@ -122,26 +119,32 @@ jobs:
             "$RUNNER_TEMP/corpus-report.json" > /dev/null
           echo 'Private bundle SHA-256 / path and count validation PASSED'
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install pinned Wrangler using existing Cloudflare secret
+        shell: bash
+        run: |
+          set -euo pipefail
+          corepack enable
+          pnpm install --frozen-lockfile
+
       - name: Dry-run uploader without external writes
         shell: bash
         run: |
           set -euo pipefail
-          python scripts/upload_medical_libraries_r2.py \
+          python scripts/upload_medical_libraries_wrangler.py \
             --dir "$RUNNER_TEMP/private-corpus/extracted"
 
-      - name: Install R2 S3 client
-        if: inputs.upload_to_private_r2
-        shell: bash
-        run: python -m pip install --disable-pip-version-check 'boto3>=1.36,<2'
-
-      - name: Upload ONLY to private Santo Staging R2 and verify every prefix
+      - name: Upload ONLY to private Santo Staging R2 and verify source hashes
         if: inputs.upload_to_private_r2
         shell: bash
         run: |
           set -euo pipefail
-          python scripts/upload_medical_libraries_r2.py \
+          python scripts/upload_medical_libraries_wrangler.py \
             --dir "$RUNNER_TEMP/private-corpus/extracted" \
-            --execute --workers 20 \
+            --wrangler-dir workers/api --execute --workers 10 \
             --checkpoint "$RUNNER_TEMP/santo-uploaded-objects.jsonl"
 
       - name: Configure five restricted medical AI Search instances
@@ -160,7 +163,7 @@ jobs:
             echo '- Objects validated: **74,579** (7,049 articles, 67,524 search sections, 6 catalog JSON)'
             echo '- Private corpus was obtained from a **private release**, not a public repository.'
             if [[ "$EXECUTE_UPLOAD" == "true" ]]; then
-              echo '- Private `santo-content-staging` upload and R2 count/head checks: **passed**'
+              echo '- Private `santo-content-staging` Wrangler upload and source hash readback samples: **passed**'
             else
               echo '- Upload: **dry run only; no private R2 writes**'
             fi

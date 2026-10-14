@@ -7,6 +7,7 @@ import unittest
 
 from verify_medical_library_bundle import verify_and_extract
 from upload_medical_libraries_r2 import metadata_for
+from upload_medical_libraries_wrangler import collect
 
 
 class MedicalCorpusImportTests(unittest.TestCase):
@@ -22,6 +23,17 @@ class MedicalCorpusImportTests(unittest.TestCase):
             {"library_id": "amboss", "article_id": "unnamed-99", "section_id": "s-0002"},
         )
         self.assertEqual(metadata_for("medical-articles/v1/amboss/unnamed-99.json"), {})
+
+    def test_wrangler_uploader_selects_only_expected_private_prefixes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            file = root / "medical-search/v1/amboss/item/s-0001.md"
+            file.parent.mkdir(parents=True, exist_ok=True)
+            file.write_text("Licensed sample excerpt")
+            unauthorized = root / "licensed-original.sqlite"
+            unauthorized.write_bytes(b"private")
+            self.assertEqual([key for key, _ in collect(root)],
+                             ["medical-search/v1/amboss/item/s-0001.md"])
 
     def test_rejects_unverified_bundle_hash(self):
         with tempfile.TemporaryDirectory() as tmp:

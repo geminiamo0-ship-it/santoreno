@@ -12,8 +12,8 @@
 4. In public `santoreno` repository → Settings → Secrets and variables → Actions → Variables, configure `SANTO_PRIVATE_LIBRARY_REPO=geminiamo0-ship-it/santo-medical-library-assets`.
 5. Under Settings → Environments create `santo-medical-ingest-staging`. Require an owner reviewer, restrict deployment branches to `main`. In this environment, set:
    - `SANTO_LIBRARY_SOURCE_READ_TOKEN`: fine-grained GitHub PAT with **read-only Contents** on that single private asset repo (not a personal wide-scope token).
-   - `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`: R2 S3 access scoped **only** to the private bucket `santo-content-staging` with object read/write/list; do not use the public images bucket.
-   - `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN`: token with AI Search Edit and Run permissions. Existing repository secrets can also supply these values.
+   - **No separate R2 S3 keys needed:** the existing Santo repository `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` were tested successfully with `wrangler r2 object put/get/delete` on private `santo-content-staging` from GitHub Actions (test on 14 October 2026).
+   - `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN` are **already defined as Santo repository secrets**; no re-entry needed. AI Search creation additionally requires its own Edit/Run permission and an R2 data-source service token UUID.
    - `AI_SEARCH_R2_SERVICE_TOKEN_ID`: account's registered AI Search R2 data-source service token UUID (only needed to configure search instances).
 
 Never paste secrets in a chat, code commit or Actions input. GitHub Actions environment approval limits accidental or unauthorized live ingestion.
@@ -30,9 +30,9 @@ Then run with:
 - `confirmation = UPLOAD_PRIVATE_SANTO_STAGING`
 - `create_ai_search = true` only once AI Search service-token and cost approval are ready.
 
-The action downloads only the approved archive from the private repo, validates checksum and allowed paths, extracts into a temporary runner directory, uploads strictly to `santo-content-staging`, checks all three prefix counts and a representative HEAD/metadata sample, and optionally creates five isolated, prefix-restricted AI Search instances. It never alters Production, never deploys Santo itself and never enables public AI Search endpoints.
+The action downloads only the approved archive from the private repo, validates checksum and allowed paths, extracts into a temporary runner directory, uploads strictly to `santo-content-staging` via Wrangler using Santo's existing Cloudflare API token, checks 74,579 successful commands and verifies representative SHA-256 readbacks, and optionally creates five isolated, prefix-restricted AI Search instances. It never alters Production, never deploys Santo itself and never enables public AI Search endpoints.
 
-If upload is interrupted, rerunning from the same validated source overwrites the same immutable keys. The per-job checkpoint is ephemeral and is deliberately NOT exposed in a public Actions artifact. Budget for 74,579 R2 writes and indexing of 67,524 documents.
+If upload is interrupted, rerunning from the same validated source overwrites the same immutable keys. The per-job checkpoint is ephemeral and is deliberately NOT exposed in a public Actions artifact. Budget for 74,579 private R2 writes, 74,579 separate Wrangler commands (slower than bulk S3), and indexing of 67,524 documents. Allow several hours; failures stop indexing and reruns safely overwrite the same deterministic keys.
 
 ## AI Search contract and limitations
 
@@ -46,7 +46,7 @@ Cloudflare indexes R2 data asynchronously. **Successful object upload or instanc
 - `Refusing public source repository`: the archive must come from a private source, never public `santoreno`.
 - `SHA-256 mismatch`: wrong ZIP or ZIP was repacked; stop, confirm the original release asset.
 - `Incorrect bundle object counts`: wrong or incomplete export; no R2 upload should occur.
-- `Remote private R2 listing mismatch`: partial upload or stale extra files; inspect and reconcile before indexing.
+- `Wrangler put failed`: check the existing Cloudflare token and network reliability; a retry safely overwrites deterministic paths. Readback sample SHA-256 must match before indexing.
 - `Existing instance ... different`: never overwrite a different AI Search instance; resolve identity/migration deliberately.
 - `CLOUDFLARE_API_TOKEN` 403 or service token missing: add explicit AI Search Edit/Run permission and a valid R2 service API token.
 - `indexingStats` show queued/running: wait for background indexing and do not claim the libraries are live.

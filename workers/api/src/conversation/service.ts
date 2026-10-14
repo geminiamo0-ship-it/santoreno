@@ -8,6 +8,7 @@ import {
   ConversationDeleteResponseSchema,
   ConversationReadResponseSchema,
   type ConversationActor,
+  type ConversationAnswer,
   type ConversationAskRequest,
   type ConversationBeginTurnResponse,
   type ConversationTurn,
@@ -118,7 +119,7 @@ export class ConversationService {
     conversationId: string,
     idempotencyKey: string,
     attemptId: string,
-    response: import("@santo/contracts/ai").GroundedAiQueryResponse,
+    response: ConversationAnswer,
   ): Promise<ConversationTurn> {
     return this.call(
       conversationId,

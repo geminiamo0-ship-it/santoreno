@@ -1,4 +1,4 @@
-name: Santo Native Streaming Verify (No Deployment)
+name: Santo Native Streaming Strict Verify (No Deployment)
 on:
   push:
     branches: [feat/96-native-luna-sse-staging-20261015]

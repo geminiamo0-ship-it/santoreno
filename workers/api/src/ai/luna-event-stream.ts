@@ -42,10 +42,7 @@ export function previewStructuredAnswer(json: string): string {
 }
 
 /** Collects native Responses SSE from Cloudflare AI.run(stream:true). */
-export async function collectLunaEventStream(
-  raw: unknown,
-  onProgress: Progress,
-): Promise<string> {
+export async function collectLunaEventStream(raw: unknown, onProgress: Progress): Promise<string> {
   const body = streamBody(raw);
   if (!body) {
     throw new GroundedAiError(502, "MODEL_RESPONSE_INVALID", "Model did not return SSE");

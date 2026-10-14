@@ -4,6 +4,8 @@ No network access, public publishing, source code copies or private credentials.
 Usage: python scripts/export_medical_libraries.py --db all_libraries.sqlite --out ./export
 """
 import argparse
+import base64
+import gzip
 import html
 from html.parser import HTMLParser
 import json
@@ -112,7 +114,19 @@ def main(db_path,out_path,limit):
             if len(sections)>300:raise ValueError(f"Too many sections in {article_id}")
             article={"schemaVersion":1,"libraryId":library,"articleId":article_id,
                      "title":title,"category":category,"source":source,"sections":sections,
-                     "contentHtml":rich_html}
+                     }
+            # Keep every article, including the 19 jumbo AMBOSS HTML pages.
+            # A 1.5M-character plain field is preferred; GZIP+base64 is a
+            # backward-compatible alternative that preserves the whole markup.
+            if len(rich_html) <= 1_500_000:
+                article["contentHtml"] = rich_html
+            if "contentHtml" not in article or len(json.dumps(article, ensure_ascii=False).encode("utf-8")) > 2_000_000:
+                article.pop("contentHtml", None)
+                article["contentHtmlGzipBase64"] = base64.b64encode(
+                    gzip.compress(rich_html.encode("utf-8"), compresslevel=6)
+                ).decode("ascii")
+                article["contentHtmlDecodedLength"] = len(rich_html)
+
             target=out/f"medical-articles/v1/{library}/{article_id}.json"
             save(target,article)
             if target.stat().st_size>2_000_000:raise ValueError(f"Article too large: {article_id}")

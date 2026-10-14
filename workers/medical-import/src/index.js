@@ -5,14 +5,18 @@
 const LIBS = "(?:amboss|usmle|passmedicine|pastest|one-examination)";
 const ARTICLE = new RegExp("^medical-articles/v1/" + LIBS + "/[a-z0-9-]{1,90}\\.json$");
 const SEARCH = new RegExp("^medical-search/v1/" + LIBS + "/[a-z0-9-]{1,90}/s-[0-9]{4}\\.md$");
-const CATALOG = /^medical-library-catalog\/v1\/(?:catalog|amboss|usmle|passmedicine|pastest|one-examination)\.json$/;
+const CATALOG =
+  /^medical-library-catalog\/v1\/(?:catalog|amboss|usmle|passmedicine|pastest|one-examination)\.json$/;
 const MAX_BODY = 3_600_000;
 const MAX_FILE = 2_000_000;
 const MAX_ITEMS = 20;
 
 function allowedKey(key) {
-  return typeof key === "string" && key.length <= 200 &&
-    (ARTICLE.test(key) || SEARCH.test(key) || CATALOG.test(key));
+  return (
+    typeof key === "string" &&
+    key.length <= 200 &&
+    (ARTICLE.test(key) || SEARCH.test(key) || CATALOG.test(key))
+  );
 }
 function validToken(given, expected) {
   if (typeof expected !== "string" || !/^[a-f0-9]{64}$/.test(expected)) return false;
@@ -25,13 +29,21 @@ function validToken(given, expected) {
   return mismatch === 0;
 }
 function respond(payload, status) {
-  return Response.json(payload, { status, headers: {
-    "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff"
-  }});
+  return Response.json(payload, {
+    status,
+    headers: {
+      "Cache-Control": "private, no-store",
+      "X-Content-Type-Options": "nosniff",
+    },
+  });
 }
 async function decodeBase64(value) {
-  if (typeof value !== "string" || value.length > Math.ceil(MAX_FILE * 4 / 3) + 4 ||
-      !/^[a-zA-Z0-9+/]*={0,2}$/.test(value)) throw Error("INVALID_BODY");
+  if (
+    typeof value !== "string" ||
+    value.length > Math.ceil((MAX_FILE * 4) / 3) + 4 ||
+    !/^[a-zA-Z0-9+/]*={0,2}$/.test(value)
+  )
+    throw Error("INVALID_BODY");
   const bin = atob(value);
   if (bin.length > MAX_FILE) throw Error("INVALID_BODY");
   return Uint8Array.from(bin, (c) => c.charCodeAt(0));
@@ -68,27 +80,42 @@ export default {
       const buffer = await request.arrayBuffer();
       if (buffer.byteLength > MAX_BODY) throw Error("PAYLOAD_TOO_LARGE");
       const body = JSON.parse(new TextDecoder().decode(buffer));
-      if (!body || !Array.isArray(body.files) || !body.files.length ||
-          body.files.length > MAX_ITEMS) throw Error("INVALID_BODY");
-      if (new Set(body.files.map(x => x?.key)).size !== body.files.length) throw Error("INVALID_KEY");
-      entries = await Promise.all(body.files.map(async (file) => {
-        if (!allowedKey(file?.key)) throw Error("INVALID_KEY");
-        return {
-          key: file.key,
-          body: await decodeBase64(file.body)
-        };
-      }));
+      if (
+        !body ||
+        !Array.isArray(body.files) ||
+        !body.files.length ||
+        body.files.length > MAX_ITEMS
+      )
+        throw Error("INVALID_BODY");
+      if (new Set(body.files.map((x) => x?.key)).size !== body.files.length)
+        throw Error("INVALID_KEY");
+      entries = await Promise.all(
+        body.files.map(async (file) => {
+          if (!allowedKey(file?.key)) throw Error("INVALID_KEY");
+          return {
+            key: file.key,
+            body: await decodeBase64(file.body),
+          };
+        }),
+      );
     } catch {
       return respond({ error: "INVALID_BATCH" }, 400);
     }
-    const results = await Promise.allSettled(entries.map(async ({key,body}) => {
-      await env.CONTENT_BUCKET.put(key, body, {httpMetadata: {
-        contentType: key.endsWith(".md") ? "text/markdown; charset=utf-8" : "application/json; charset=utf-8",
-        cacheControl: "private, no-store"
-      }});
-      return key;
-    }));
-    const uploaded = [], failed = [];
+    const results = await Promise.allSettled(
+      entries.map(async ({ key, body }) => {
+        await env.CONTENT_BUCKET.put(key, body, {
+          httpMetadata: {
+            contentType: key.endsWith(".md")
+              ? "text/markdown; charset=utf-8"
+              : "application/json; charset=utf-8",
+            cacheControl: "private, no-store",
+          },
+        });
+        return key;
+      }),
+    );
+    const uploaded = [],
+      failed = [];
     for (let i = 0; i < results.length; i++) {
       if (results[i].status === "fulfilled") uploaded.push(entries[i].key);
       else failed.push(entries[i].key);

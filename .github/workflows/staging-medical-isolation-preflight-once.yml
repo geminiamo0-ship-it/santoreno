@@ -27,7 +27,7 @@ jobs:
         run: |
           set -euo pipefail
           test -n "$CLOUDFLARE_ACCOUNT_ID" && test -n "$CLOUDFLARE_API_TOKEN"
-          git merge-base --is-ancestor 1ffcd55471477f20fee9cbbb6216b884ad33b0a1 HEAD
+          grep -q 'SANTO_AI_SEARCH_INSTANCE_IDS = "amboss,usmle,passmedicine,pastest,one-examination"' workers/api/wrangler.toml
       - name: Install pinned dependencies
         run: |
           corepack enable

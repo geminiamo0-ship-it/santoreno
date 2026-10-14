@@ -25,7 +25,7 @@ export interface GroundedModelDraft {
 }
 
 export interface ModelPort {
-  generate(prompt: string): Promise<GroundedModelDraft>;
+  generate(prompt: string, onProvisionalAnswer?: (text: string) => void): Promise<GroundedModelDraft>;
 }
 
 export interface AiTelemetryEvent {

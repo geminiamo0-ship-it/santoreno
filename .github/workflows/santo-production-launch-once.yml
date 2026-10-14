@@ -1,0 +1,90 @@
+name: Santo Production Auth-Protected API Launch
+on:
+  push:
+    branches: [release/santo-medical-rich-prod-candidate-20261014]
+    paths: [.github/workflows/santo-production-launch-once.yml]
+permissions:
+  contents: read
+concurrency:
+  group: santo-production-api-deploy
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 38
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      SANTO_PROD_HEALTH_URL: https://santo-api.geminiamo0.workers.dev
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: 22}
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - name: Exact branch safety gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm lint
+          pnpm typecheck
+          pnpm test
+          pnpm build
+          pnpm smoke
+          python -m unittest discover -s scripts -p 'test_medical_library_import.py'
+      - name: Enforce explicit D1, private R2, prod instance and WorkOS scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          s=Path("workers/api/wrangler.toml").read_text().split("[env.production]",1)[1]
+          required=[
+              'SANTO_ENV = "production"',
+              'database_id = "3c219fbd-b9a1-4891-9b5e-4b4396fcc41e"',
+              'bucket_name = "santo-content"',
+              'queue = "santo-events"',
+              'SANTO_LIBRARY_READER_V1 = "true"',
+              'WORKOS_CLIENT_ID = "client_01M43DQT18PKE9N4FF3MFEAYXG"',
+              'SANTO_LUNA_PREVIEW = "false"',
+          ]
+          assert all(v in s for v in required)
+          print("Production bindings, isolated database, OAuth environment and Luna fallback verified")
+          PY
+      - name: Deploy fail-closed new Production API Worker
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_ACCOUNT_ID" && test -n "$CLOUDFLARE_API_TOKEN"
+          cd workers/api
+          pnpm exec wrangler deploy --env production --keep-vars
+      - name: Create unique production session signing key only if none exists
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd workers/api
+          pnpm exec wrangler secret list --env production > "$RUNNER_TEMP/prod-secret-names.json"
+          if jq -e '.[] | select(.name=="SANTO_SESSION_SIGNING_KEY")' "$RUNNER_TEMP/prod-secret-names.json" >/dev/null; then
+            echo 'Existing Production session signing key preserved.'
+          else
+            python -c 'import secrets; print(secrets.token_urlsafe(64))' |
+              pnpm exec wrangler secret put SANTO_SESSION_SIGNING_KEY --env production >/dev/null
+            echo 'New Production session signing key installed directly in Cloudflare (value never logged).'
+          fi
+      - name: Verify production health and DENY anonymous medical sources/AI/tenant routes
+        shell: bash
+        run: |
+          set -euo pipefail
+          health="$(curl --fail -sS --retry 12 --retry-delay 3 --retry-all-errors "$SANTO_PROD_HEALTH_URL/health")"
+          jq -e '.service=="santo-api" and .status=="ok"' <<< "$health" >/dev/null
+          for route in /v1/libraries /v1/libraries/amboss/articles /v1/libraries/amboss/articles/unnamed-1000; do
+            status="$(curl -sS -o /dev/null -w '%{http_code}' "$SANTO_PROD_HEALTH_URL$route")"
+            test "$status" = 401 || { echo "Fail-closed anonymous medical access $route HTTP $status"; exit 1; }
+          done
+          code="$(curl -sS -o /dev/null -w '%{http_code}' -X POST "$SANTO_PROD_HEALTH_URL/v1/sources/article" -H 'content-type: application/json' -d '{}')"
+          test "$code" = 401
+          echo 'Production Santo Worker healthy; uncredentialed content remains inaccessible.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'No tenant credential or user login was provisioned. Live clinical RAG and Royal frontend activation are still gated.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Cleanup any ephemeral metadata
+        if: always()
+        run: rm -f "$RUNNER_TEMP/prod-secret-names.json"

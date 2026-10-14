@@ -416,9 +416,35 @@ export class SantoAiElement extends LitElement {
   private renderAnswer(response: ConversationAnswer) {
     const general = "groundingMode" in response && response.groundingMode === "general";
     const quickReply = "kind" in response && response.kind === "quick_reply";
+    const blocks = renderSantoMarkdown(response.answer);
+    const sourceImages = this.inlineImages[response.messageId] ?? [];
+    const splitIndex = Math.min(blocks.length, 2);
     return html`
       <div class="answer-text medical-markdown" dir="auto">
-        ${renderSantoMarkdown(response.answer)}
+        ${sourceImages.length ? blocks.slice(0, splitIndex) : blocks}
+        ${sourceImages.length
+          ? html`<div class="answer-verified-images" aria-label="Medical illustrations from cited sources">
+              ${sourceImages.map((image) =>
+                html`<figure class="answer-medical-figure">
+                  <button type="button" class="figure-image"
+                    aria-label="Enlarge medical illustration"
+                    @click=${() => {
+                      this.readerLightbox = { src: image.src, alt: image.alt };
+                      this.readerOpen = true;
+                    }}>
+                    <img src=${image.src} alt=${image.alt} loading="lazy" referrerpolicy="no-referrer" />
+                  </button>
+                  <figcaption>
+                    <span>${image.alt}</span>
+                    <button type="button" class="figure-source"
+                      @click=${() => void this.showSource(image.messageId, image.sourceId)}>
+                      Open cited source ↗
+                    </button>
+                  </figcaption>
+                </figure>`)}
+            </div>`
+          : nothing}
+        ${sourceImages.length ? blocks.slice(splitIndex) : nothing}
       </div>
       ${
         !quickReply

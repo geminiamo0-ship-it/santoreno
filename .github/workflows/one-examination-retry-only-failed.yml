@@ -1,0 +1,60 @@
+name: Santo One Examination — Retry Only Two Verified Failed Items
+on:
+  push:
+    branches: [verify/93-santo-isolated-medical-source-search]
+    paths: [".github/workflows/one-examination-retry-only-failed.yml"]
+permissions: {contents: read}
+jobs:
+  targeted-retry:
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - name: Retry only two exact item IDs from isolated instance after verifying their error status and keys
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os,json
+          from urllib.request import Request,urlopen
+          from urllib.error import HTTPError
+          aid=os.environ["CLOUDFLARE_ACCOUNT_ID"]
+          token=os.environ["CLOUDFLARE_API_TOKEN"]
+          root=f"https://api.cloudflare.com/client/v4/accounts/{aid}/ai-search/namespaces/default/instances/one-examination-isolated"
+          headers={"Authorization":"Bearer "+token,"Content-Type":"application/json"}
+          failures={
+            "8c3a95d7a8d8453587655b46615db2d6":"medical-search/v1/one-examination/one-exam-library-7918/s-0002.md",
+            "b6f157de9f234b6ebc4b936e0621c256":"medical-search/v1/one-examination/one-exam-library-7779/s-0001.md"
+          }
+          def api(path,method="GET",data=None):
+            b=json.dumps(data).encode() if data is not None else None
+            req=Request(root+path,method=method,data=b,headers=headers)
+            try:
+              with urlopen(req,timeout=70) as response:
+                payload=json.load(response)
+                if not payload.get("success"):raise RuntimeError("Cloudflare API success=false")
+                return payload.get("result")
+            except HTTPError as e:
+              print("CLOUDFLARE_ITEM_HTTP_ERROR",method,e.code,flush=True)
+              raise
+          inst=api("")
+          if inst.get("source")!="santo-one-examination-search-staging" or inst.get("type")!="r2":
+            raise RuntimeError("Unexpected source or instance type")
+          for item_id,key in failures.items():
+            record=api("/items/"+item_id)
+            if record.get("key")!=key:
+              raise RuntimeError("Unexpected item identity")
+            print("ITEM_BEFORE",key,"status",record.get("status"),"error",record.get("error"),flush=True)
+            if record.get("status")=="completed":
+              print("ALREADY_INDEXED",key,flush=True)
+              continue
+            if record.get("status")!="error" or record.get("error")!="unknown_error":
+              raise RuntimeError("Only retry exact known unknown_error medical items")
+            result=api("/items/"+item_id,"PATCH",{"next_action":"INDEX"})
+            if result.get("key")!=key:
+              raise RuntimeError("Wrong retried key")
+            print("TARGETED_RETRY_ACCEPTED",key,"status",result.get("status"),flush=True)
+          s=api("/stats")
+          print("AFTER_RETRY_COUNTS",json.dumps({k:s.get(k) for k in ("completed","running","queued","error","skipped")}),flush=True)
+          PY

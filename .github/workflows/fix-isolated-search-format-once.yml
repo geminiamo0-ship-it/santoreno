@@ -36,7 +36,13 @@ jobs:
             workers/medical-isolate/src/index.js
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add .github/workflows/isolated-search-readiness.yml workers/medical-isolate-others/src/index.js workers/medical-isolate/src/four-libraries.js workers/medical-isolate/src/index.js
+          echo "FORMATTED_YAML_START"
+          base64 --wrap=0 .github/workflows/isolated-search-readiness.yml
+          echo
+          echo "FORMATTED_YAML_END"
+          # GitHub's default GITHUB_TOKEN cannot modify workflow files; those are
+          # applied separately with the authorized GitHub integration after this run.
+          git add workers/medical-isolate-others/src/index.js workers/medical-isolate/src/four-libraries.js workers/medical-isolate/src/index.js
           if ! git diff --cached --quiet; then
             git commit -m "style(index): satisfy pinned repository Prettier policy"
             git push origin HEAD:fix/90-medical-r2-isolated-search-pilot

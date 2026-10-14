@@ -1,0 +1,65 @@
+name: Santo Isolated AI Search Source-Only Update Diagnosis
+on:
+  push:
+    branches: [fix/92-santo-isolated-source-repoint]
+    paths: [".github/workflows/diagnose-search-source-only-update.yml"]
+permissions:
+  contents: read
+jobs:
+  diagnose-usmle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - name: Change only verified-empty USMLE AI Search source; show sanitized Cloudflare API errors
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os,json
+          from urllib.request import Request,urlopen
+          from urllib.error import HTTPError
+          a=os.environ['CLOUDFLARE_ACCOUNT_ID'];token=os.environ['CLOUDFLARE_API_TOKEN']
+          base=f"https://api.cloudflare.com/client/v4/accounts/{a}/ai-search/namespaces/default/instances/usmle"
+          hdr={'Authorization':'Bearer '+token,'Content-Type':'application/json'}
+          def api(url,method='GET',payload=None):
+              data=json.dumps(payload).encode() if payload is not None else None
+              try:
+                  with urlopen(Request(url,headers=hdr,method=method,data=data),timeout=40) as response:
+                      obj=json.load(response)
+                      return response.status,obj
+              except HTTPError as exc:
+                  data=exc.read(4096)
+                  try:
+                      obj=json.loads(data)
+                  except ValueError:
+                      obj={}
+                  return exc.code,obj
+          s,meta=api(base);s2,stats=api(base+'/stats');s3,jobs=api(base+'/jobs')
+          if any(x!=200 for x in (s,s2,s3)):raise RuntimeError('Cannot verify source/status')
+          origin=meta.get('result') or {}
+          metric=stats.get('result') or {}
+          existing=jobs.get('result') or []
+          if origin.get('source') not in ('santo-content-staging','santo-usmle-search-staging') or origin.get('type')!='r2' or not origin.get('token_id'):
+              raise RuntimeError('Unexpected source metadata')
+          if any(int(metric.get(key) or 0) for key in ('completed','queued','running','error')):
+              raise RuntimeError('Refusing to touch nonempty original index')
+          if any(not j.get('ended_at') for j in existing):
+              raise RuntimeError('Refusing active job')
+          print('SOURCE_BEFORE',origin.get('source'),'CURRENT_PARAMS',json.dumps(origin.get('source_params')),flush=True)
+          if origin.get('source')=='santo-usmle-search-staging':
+              print('SOURCE_ALREADY_RETARGETED')
+              raise SystemExit(0)
+          status,response=api(base,'PUT',{'source':'santo-usmle-search-staging'})
+          print('SOURCE_ONLY_PUT_HTTP',status,flush=True)
+          if status>=400:
+              print('ERRORS',json.dumps(response.get('errors',[]))[:1200],flush=True)
+              raise SystemExit(0)
+          s,after=api(base)
+          obj=after.get('result') or {}
+          print('SOURCE_AFTER',obj.get('source'),'PARAMS',json.dumps(obj.get('source_params')),flush=True)
+          if s!=200 or obj.get('source')!='santo-usmle-search-staging' or obj.get('token_id')!=origin.get('token_id'):
+              raise RuntimeError('Retarget response did not persist correctly')
+          print('SOURCE_RETARGET_SUCCEEDED_VERIFY_FILTERS_BEFORE_SYNC')
+          PY

@@ -114,6 +114,12 @@ SANTO_ENV = "production"
 SANTO_SESSION_TTL_SECONDS = "900"
 SANTO_AI_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
 
+[[env.production.d1_databases]]
+binding = "CONTROL_DB"
+database_name = "santo-control-plane"
+database_id = "3c219fbd-b9a1-4891-9b5e-4b4396fcc41e"
+migrations_dir = "migrations"
+
 [env.production.ai]
 binding = "AI"
 

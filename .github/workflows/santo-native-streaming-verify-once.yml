@@ -1,0 +1,26 @@
+name: Santo Native Streaming Verify (No Deployment)
+on:
+  push:
+    branches: [feat/96-native-luna-sse-staging-20261015]
+    paths: [.github/workflows/santo-native-streaming-verify-once.yml]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - name: Full model/provisional stream safety checks (no deploy)
+        run: |
+          set -euo pipefail
+          pnpm lint
+          pnpm typecheck
+          pnpm test
+          pnpm build
+          pnpm smoke

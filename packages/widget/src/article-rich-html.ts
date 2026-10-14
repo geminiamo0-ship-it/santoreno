@@ -17,7 +17,7 @@ export function approvedMedicalImageUrl(value: string): string | null {
   if (typeof value !== "string" || !value || value.length > 900) return null;
   try {
     const url = new URL(value);
-    if (url.origin !== MEDIA_ORIGIN || url.search || url.hash || !MEDIA_PATH.test(url.pathname)) {
+    if (url.origin !== MEDIA_ORIGIN || url.username || url.password || url.search || url.hash || !MEDIA_PATH.test(url.pathname)) {
       return null;
     }
     const name = decodeURIComponent(url.pathname.slice("/offline_media/".length));
@@ -51,6 +51,7 @@ function scrub(root: ParentNode): void {
       element.remove();
       continue;
     }
+    const wasOpen = tag === "details" && element.hasAttribute("open");
     for (const attr of Array.from(element.attributes)) {
       const name = attr.name.toLowerCase();
       const value = attr.value;
@@ -85,6 +86,7 @@ function scrub(root: ParentNode): void {
       element.setAttribute("loading", "lazy");
       element.setAttribute("referrerpolicy", "no-referrer");
     }
+    if (wasOpen) element.setAttribute("open", "");
     if (tag === "a" && (element.getAttribute("href") ?? "").startsWith("https://")) {
       element.setAttribute("target", "_blank");
       element.setAttribute("rel", "noopener noreferrer");

@@ -5,6 +5,8 @@ import {
   type GroundedAiStreamEvent,
 } from "@santo/contracts/ai";
 
+import { ConversationAnswerSchema, type ConversationAnswer } from "@santo/contracts/conversation";
+
 const MAX_DELTA_CODEPOINTS = 180;
 
 function frame(event: GroundedAiStreamEvent): Uint8Array {
@@ -19,7 +21,14 @@ function frame(event: GroundedAiStreamEvent): Uint8Array {
  * be validated, and the reservation finalized, before any event is produced.
  * This does not claim provider-token time-to-first-byte streaming.
  */
-export function streamValidatedGroundedAnswer(result: GroundedAiQueryResponse): Response {
+export function streamValidatedGroundedAnswer(result: GroundedAiQueryResponse | ConversationAnswer): Response {
+  // Zero-unit deterministic turns cannot be represented as cited grounded SSE.
+  // Respond with their separately validated JSON contract even if SSE was requested.
+  if ("kind" in result && result.kind === "quick_reply") {
+    return Response.json(ConversationAnswerSchema.parse(result), {
+      headers: { "Cache-Control": "no-store" },
+    });
+  }
   const response = GroundedAiQueryResponseSchema.parse(result);
   const codepoints = Array.from(response.answer);
   let offset = 0;

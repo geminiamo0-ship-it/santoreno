@@ -28,6 +28,7 @@ export interface ModelPort {
   generate(
     prompt: string,
     onProvisionalAnswer?: (text: string) => void,
+    allowedCitationIds?: readonly string[],
   ): Promise<GroundedModelDraft>;
 }
 

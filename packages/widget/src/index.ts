@@ -350,9 +350,12 @@ export class SantoAiElement extends LitElement {
                       aria-label="Open verified source ${citation.title}"
                     >
                       <span class="source-label">Verified medical source</span>
-                      <strong title=${citation.title}>${readableMedicalSourceTitle(citation.title)}</strong>
+                      <strong title=${citation.title}
+                        >${readableMedicalSourceTitle(citation.title)}</strong
+                      >
                       <span class="source-meta"
-                        >${citation.page ? `Page ${citation.page} · ` : ""}Open article and cited section ↗</span
+                        >${citation.page ? `Page ${citation.page} · ` : ""}Open article and cited
+                        section ↗</span
                       >
                     </button>
                   `,
@@ -364,7 +367,7 @@ export class SantoAiElement extends LitElement {
     `;
   }
 
-    private renderTranscript() {
+  private renderTranscript() {
     const latestSaved = this.turns.some(
       (turn) => turn.response?.messageId === this.latestAnswer?.messageId,
     );

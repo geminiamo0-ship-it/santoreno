@@ -1,0 +1,83 @@
+name: Santo One Examination Prefix-only Index Pilot
+on:
+  push:
+    branches: [diagnose/ai-search-r2-zero-files-20261014]
+    paths: [".github/workflows/one-exam-prefix-only-pilot.yml"]
+permissions: {contents: read}
+jobs:
+  pilot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - name: Remove overlapping include rule on One Examination only, keep verified R2 prefix
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os,json
+          from urllib.request import Request,urlopen
+          root=f"https://api.cloudflare.com/client/v4/accounts/{os.environ['CLOUDFLARE_ACCOUNT_ID']}/ai-search/namespaces/default/instances/one-examination"
+          headers={"Authorization":"Bearer "+os.environ["CLOUDFLARE_API_TOKEN"],"Content-Type":"application/json"}
+          def api(method="GET",suffix="",body=None):
+            req=Request(root+suffix,method=method,headers=headers,data=json.dumps(body).encode() if body is not None else None)
+            with urlopen(req,timeout=40) as res:
+              obj=json.load(res)
+              if obj.get("success") is not True:raise RuntimeError("Cloudflare API failure")
+              return obj.get("result")
+          before=api()
+          params=before.get("source_params") or {}
+          prefix="medical-search/v1/one-examination/"
+          if before.get("source")!="santo-content-staging" or before.get("type")!="r2" or not before.get("token_id") or params.get("prefix")!=prefix:
+            raise RuntimeError("Wrong source/prefix or missing service token")
+          if params.get("include_items") not in (["/medical-search/v1/one-examination/**"],[],None):
+            raise RuntimeError("Unexpected include filters; no mutation")
+          if params.get("include_items"):
+            next_params={**params}
+            next_params.pop("include_items",None)
+            updated=api("PUT",body={"source_params":next_params})
+            print("UPDATE_RETURNED",updated.get("id"))
+          final=api()
+          state=final.get("source_params") or {}
+          print("PILOT_PARAMS",json.dumps(state,sort_keys=True))
+          if state.get("prefix")!=prefix or state.get("include_items") or final.get("source")!="santo-content-staging" or final.get("token_id")!=before.get("token_id"):
+            raise RuntimeError("Prefix-only scoping not preserved")
+          print("ONE_EXAM_PREFIX_ONLY=VERIFIED")
+          PY
+      - name: Wait for Cloudflare sync cooldown and trigger bounded sync if no active job
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os,json,time
+          from urllib.request import Request,urlopen
+          from urllib.error import HTTPError
+          url=f"https://api.cloudflare.com/client/v4/accounts/{os.environ['CLOUDFLARE_ACCOUNT_ID']}/ai-search/namespaces/default/instances/one-examination"
+          headers={"Authorization":"Bearer "+os.environ["CLOUDFLARE_API_TOKEN"]}
+          def get(s):
+            with urlopen(Request(url+s,headers=headers),timeout=35) as r:
+              obj=json.load(r)
+              if not obj.get("success"):raise RuntimeError("API read failed")
+              return obj["result"]
+          print("COOLDOWN_WAIT_300_SEC",flush=True)
+          time.sleep(300)
+          stats=get("/stats")
+          print("PRE_SYNC_STATS",json.dumps({k:stats.get(k) for k in ("completed","queued","running","error","skipped")}),flush=True)
+          if int(stats.get("completed") or 0)>0:raise SystemExit(0)
+          jobs=get("/jobs")
+          if any(not j.get("ended_at") for j in jobs):
+            print("SYNC_ACTIVE_SKIP_DUPLICATE")
+            raise SystemExit(0)
+          for trial in range(1,4):
+            try:
+              with urlopen(Request(url+"/jobs",data=b"",headers=headers,method="POST"),timeout=45) as r:
+                data=json.load(r)
+                if not data.get("success"):raise RuntimeError("Job API error")
+                print("PREFIX_ONLY_SYNC_STARTED",data["result"].get("id"),flush=True)
+                raise SystemExit(0)
+            except HTTPError as e:
+              if e.code!=429:raise
+              print("SYNC_RATE_LIMIT_429",trial,flush=True)
+              if trial==3:raise SystemExit(0)
+              time.sleep(120)
+          PY

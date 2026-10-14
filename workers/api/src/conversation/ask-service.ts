@@ -1,5 +1,5 @@
 import { ApiErrorResponseSchema } from "@santo/contracts";
-import type { GroundedAiQueryResponse } from "@santo/contracts/ai";
+import { GroundedAiQueryResponseSchema, type GroundedAiQueryResponse } from "@santo/contracts/ai";
 import {
   ConversationAnswerSchema,
   type ConversationAnswer,

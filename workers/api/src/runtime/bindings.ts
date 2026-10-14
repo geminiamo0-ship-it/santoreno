@@ -68,6 +68,7 @@ export interface SantoBindings {
   SANTO_SESSION_SIGNING_KEY?: string;
   SANTO_SESSION_TTL_SECONDS?: string;
   SANTO_AI_MODEL?: string;
+  SANTO_AI_SEARCH_INSTANCE_IDS?: string;
   SANTO_COPILOT_ROUTING_V1?: string;
   SANTO_LIBRARY_READER_V1?: string;
   CONTROL_DB?: D1DatabaseLike;

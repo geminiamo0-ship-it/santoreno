@@ -60,7 +60,8 @@ export function createGroundedAiHandler(dependencies: GroundedAiHandlerDependenc
     dependencies.externalUserRepositoryFactory ?? defaultExternalUserRepository;
   const quotaServiceFactory = dependencies.quotaServiceFactory ?? defaultQuotaService;
   const retrievalFactory =
-    dependencies.retrievalFactory ?? ((env) => {
+    dependencies.retrievalFactory ??
+    ((env) => {
       // Deliberately fail closed when the list is unset: Santo must not
       // search any unrelated Royal Bank instances in the default namespace.
       const allowed = new Set(

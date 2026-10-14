@@ -10,6 +10,7 @@ import { SessionError, SessionExchangeService } from "../session/service";
 import { SantoSessionTokenService, SessionTokenError } from "../session/token";
 import { D1TenantRepository, type TenantRepository } from "../tenancy/repository";
 import { GroundedAiError } from "./errors";
+import { AiSearchNamespaceLibraryCatalog } from "./library-catalog";
 import { createGroundedModel } from "./model";
 import { CloudflareAiSearchRetrieval } from "./retrieval";
 import { GroundedAiService } from "./service";
@@ -59,7 +60,20 @@ export function createGroundedAiHandler(dependencies: GroundedAiHandlerDependenc
     dependencies.externalUserRepositoryFactory ?? defaultExternalUserRepository;
   const quotaServiceFactory = dependencies.quotaServiceFactory ?? defaultQuotaService;
   const retrievalFactory =
-    dependencies.retrievalFactory ?? ((env) => new CloudflareAiSearchRetrieval(env.AI_SEARCH));
+    dependencies.retrievalFactory ?? ((env) => {
+      // Deliberately fail closed when the list is unset: Santo must not
+      // search any unrelated Royal Bank instances in the default namespace.
+      const allowed = new Set(
+        (env.SANTO_AI_SEARCH_INSTANCE_IDS ?? "")
+          .split(",")
+          .map((id) => id.trim())
+          .filter((id) => /^[a-z0-9][a-z0-9-]{0,63}$/.test(id)),
+      );
+      return new CloudflareAiSearchRetrieval(
+        env.AI_SEARCH,
+        new AiSearchNamespaceLibraryCatalog(env.AI_SEARCH, allowed),
+      );
+    });
   const modelFactory = dependencies.modelFactory ?? createGroundedModel;
   const sourceStoreFactory =
     dependencies.sourceStoreFactory ??

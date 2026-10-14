@@ -1,0 +1,42 @@
+name: Format Santo Rich Widget Once
+on:
+  push:
+    branches:
+      - feat/96-rich-reader-widget
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    if: github.repository == 'geminiamo0-ship-it/santoreno'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/96-rich-reader-widget
+          fetch-depth: 0
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: |
+          pnpm exec prettier --write \
+            packages/widget/src/article-rich-html.ts \
+            packages/widget/src/article-rich-html.test.ts \
+            packages/widget/src/cited-chat-images.ts \
+            packages/widget/src/index.ts \
+            packages/widget/src/styles.ts
+      - name: Commit formatted source if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add packages/widget/src/article-rich-html.ts packages/widget/src/article-rich-html.test.ts packages/widget/src/cited-chat-images.ts packages/widget/src/index.ts packages/widget/src/styles.ts
+          if ! git diff --cached --quiet; then
+            git commit -m "style(widget): format Santo rich articles"
+            git push origin HEAD:feat/96-rich-reader-widget
+          fi

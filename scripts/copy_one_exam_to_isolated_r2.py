@@ -34,7 +34,7 @@ def request(url, path, token, body=None):
     if completed.returncode:
         raise OSError(f"Network transport failed (curl {completed.returncode})")
     raw = completed.stdout
-    marker = b"\\nHTTP_CODE:"
+    marker = b"\nHTTP_CODE:"
     if marker not in raw:
         raise OSError("HTTP transport did not include status")
     payload, code = raw.rsplit(marker, 1)

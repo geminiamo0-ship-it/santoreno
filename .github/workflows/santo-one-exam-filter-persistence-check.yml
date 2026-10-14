@@ -1,0 +1,29 @@
+name: Santo One Examination Filter Persistence Check
+on:
+  push:
+    branches: [diagnose/ai-search-r2-zero-files-20261014]
+    paths: [".github/workflows/santo-one-exam-filter-persistence-check.yml"]
+permissions: {contents: read}
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Inspect accepted path filter configuration with no changes
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json,os
+          from urllib.request import Request,urlopen
+          url=f"https://api.cloudflare.com/client/v4/accounts/{os.environ['CLOUDFLARE_ACCOUNT_ID']}/ai-search/namespaces/default/instances/one-examination"
+          h={"Authorization":"Bearer "+os.environ["CLOUDFLARE_API_TOKEN"]}
+          with urlopen(Request(url,headers=h),timeout=25) as r:
+            d=json.load(r)
+            if not d.get("success"):raise RuntimeError("No response")
+            x=d["result"]
+          print("FILTERS",json.dumps(x.get("source_params") or {},sort_keys=True))
+          print("SOURCE",x.get("source"),"TYPE",x.get("type"))
+          PY

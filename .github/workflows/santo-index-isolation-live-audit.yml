@@ -1,0 +1,63 @@
+name: Santo Index Isolation Live Audit — Read Only
+on:
+  push:
+    branches: [diagnose/ai-search-r2-zero-files-20261014]
+    paths: [".github/workflows/santo-index-isolation-live-audit.yml"]
+permissions: {contents: read}
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Inspect five AI Search instances, jobs and indexed/queued item keys without writes
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json,os,urllib.parse
+          from collections import Counter
+          from urllib.request import Request,urlopen
+          from urllib.error import HTTPError
+          aid=os.environ["CLOUDFLARE_ACCOUNT_ID"];token=os.environ["CLOUDFLARE_API_TOKEN"]
+          base=f"https://api.cloudflare.com/client/v4/accounts/{aid}/ai-search/namespaces/default/instances"
+          headers={"Authorization":"Bearer "+token,"Accept":"application/json"}
+          libs=("one-examination","amboss","usmle","passmedicine","pastest")
+          def call(path):
+              try:
+                  with urlopen(Request(base+path,headers=headers),timeout=45) as response:
+                      body=json.load(response)
+                      if not body.get("success"):raise RuntimeError("Cloudflare API reported unsuccessful")
+                      return body
+              except HTTPError as ex:
+                  raise RuntimeError(f"Cloudflare API HTTP {ex.code}: "+path.split("?")[0].split("/")[-1]) from ex
+          for lib in libs:
+              cfg=call("/"+lib)["result"]
+              params=cfg.get("source_params") or {}
+              print("INSTANCE",lib,"source",cfg.get("source"),"prefix",params.get("prefix"),"include",json.dumps(params.get("include_items")),"exclude",json.dumps(params.get("exclude_items")),flush=True)
+              stats=call("/"+lib+"/stats")["result"]
+              print("STATS",lib,json.dumps({k:stats.get(k) for k in ("completed","queued","running","error","skipped")}),flush=True)
+              jobs=call("/"+lib+"/jobs")["result"]
+              if not isinstance(jobs,list):raise RuntimeError("Unexpected jobs API shape")
+              for job in jobs[:3]:
+                  print("JOB",lib,"id",job.get("id"),"ended",job.get("ended_at"),"end_reason",job.get("end_reason"),flush=True)
+              counts=Counter()
+              bad_examples=[]
+              all_items=0
+              for page in (1,2,3):
+                  resp=call(f"/{lib}/items?per_page=100&page={page}")
+                  entries=resp["result"]
+                  if not isinstance(entries,list):raise RuntimeError("Unexpected items API shape")
+                  if not entries:break
+                  for it in entries:
+                      key=it.get("key","")
+                      parts=key.split("/")
+                      found=parts[2] if len(parts)>=4 and parts[0]=="medical-search" else "(non-search)"
+                      counts[(found,str(it.get("status")))] +=1
+                      all_items+=1
+                      if found!=lib and len(bad_examples)<5:
+                          bad_examples.append({"key":key[:140],"status":it.get("status")})
+              print("ITEM_SAMPLE",lib,"sample_size",all_items,"counts",json.dumps({f"{k[0]}:{k[1]}":v for k,v in counts.items()},sort_keys=True),"out_of_scope_samples",json.dumps(bad_examples),flush=True)
+          print("READ_ONLY_AUDIT_COMPLETE")
+          PY

@@ -47,6 +47,12 @@ class MedicalCorpusImportTests(unittest.TestCase):
         self.assertIsNone(media_url("https://evil.example/offline_media/file.png"))
         self.assertIsNone(media_url("../offline_media/../secret.jpg"))
 
+    def test_large_source_html_not_silently_truncated(self):
+        from medical_article_html import sanitize_medical_html
+        source = '<p>' + 'A' * 1600000 + '</p>'
+        result = sanitize_medical_html(source)
+        self.assertEqual(result, source)
+
     def test_correct_search_metadata(self):
         self.assertEqual(
             metadata_for("medical-search/v1/amboss/unnamed-99/s-0002.md"),

@@ -6,6 +6,13 @@
 >
 > **Rule:** GitHub code, issues, PRs, commits, and Actions are the source of truth. Update this file whenever meaningful work completes, a gate passes/fails, architecture changes, or the active issue changes.
 
+### Royal-style Santo chat parity — PR #94 + Royal Bank PR #113 (14 Oct 2026)
+
+- Santo reusable Lit widget PR #94 merged as `24d597186a3bbd4571e4b4e3d16593819f905743`, with post-merge repository-policy/code-quality checks SUCCESS. Royal-like gold question bubble and one compact assistant card with safe markdown headings, comparison tables, lists, callouts and server-backed source cards. Human-friendly labels for canonical R2 item keys do not invent medical article titles.
+- Royal Bank host PR #113 merged as `ceaac30c8ad11dd308ae4b9051583f7829840921`, with exact-head and post-merge Verify success. Its Santo Pilot uses Royal AI's compact `DeepDiveMarkdown` rather than card-per-heading animations. Verified persisted `/ask` responses render without post-response sequential GET requests, retaining idempotent save/retry and reload restoration.
+- Santo AI core and quota unchanged. The visible ~20s `ask` server wait from browser timings is NOT fixed by UI changes. No claim of immediate model-native token streaming; buffered server-validated generation still applies.
+- Updated widget browser bundle publishing, browser QA on a real site, multi-library live RAG validation and final pilot acceptance remain outstanding. Issue #58 stays open.
+
 ### Royal-style Medical Copilot responses — PR #93 (14 Oct 2026)
 
 - Compared actual Royal Bank `DeepDiveMarkdown`, `RoyalAIButton`, source cards, and OpenRouter RAG/general fallback design to Santo's central Worker/Widget/Conversation architecture.

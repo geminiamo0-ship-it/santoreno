@@ -15,7 +15,7 @@
    - `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`: R2 S3 access scoped **only** to the private bucket `santo-content-staging` with object read/write/list; do not use the public images bucket.
    - `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN`: token with AI Search Edit and Run permissions. Existing repository secrets can also supply these values.
    - `AI_SEARCH_R2_SERVICE_TOKEN_ID`: account's registered AI Search R2 data-source service token UUID (only needed to configure search instances).
-   
+
 Never paste secrets in a chat, code commit or Actions input. GitHub Actions environment approval limits accidental or unauthorized live ingestion.
 
 ## Run from GitHub, not your local computer
@@ -25,6 +25,7 @@ Open `santoreno → Actions → Santo Medical Libraries — Private R2 Import �
 Run **once with the upload checkbox off** to test private release access, SHA-256, path traversal prevention, exact 74,579-file manifest, JSON library counts, and local uploader dry-run. No R2 object writes occur.
 
 Then run with:
+
 - `upload_to_private_r2 = true`
 - `confirmation = UPLOAD_PRIVATE_SANTO_STAGING`
 - `create_ai_search = true` only once AI Search service-token and cost approval are ready.

@@ -1,0 +1,50 @@
+name: Santo Production Auth and Migration Readiness
+on:
+  push:
+    branches: [feat/96-luna-professor-staging]
+    paths: [.github/workflows/santo-prod-auth-audit-once.yml]
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - name: List Worker secret NAMES only, compare required bindings and D1 migration status
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID"
+          code="$(curl -sS --max-time 40 -o "$RUNNER_TEMP/worker-secrets.json" -w '%{http_code}' -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" "$base/workers/scripts/santo-api/secrets")"
+          echo "PRODUCTION_SECRET_METADATA_STATUS=$code"
+          python - <<'PY'
+          import json,os,pathlib
+          f=pathlib.Path(os.environ["RUNNER_TEMP"])/"worker-secrets.json"
+          try: body=json.loads(f.read_text())
+          except Exception:body={}
+          result=body.get("result") or []
+          if not isinstance(result,list):result=[]
+          present={item.get("name") for item in result if isinstance(item,dict)}
+          for name in ["SANTO_SESSION_SIGNING_KEY","WORKOS_CLIENT_ID","WORKOS_ISSUER","WORKOS_JWKS_URL","INFRA_SMOKE_TOKEN"]:
+              print("PRODUCTION_SECRET_EXISTS",name, str(name in present).lower())
+          PY
+          cd workers/api
+          pnpm exec wrangler d1 migrations list santo-control-plane --env production --remote > "$RUNNER_TEMP/prod-migrations.txt" 2>&1 || {
+            echo "Unable to list migrations remotely; Cloudflare credentials/production binding need attention"
+            tail -30 "$RUNNER_TEMP/prod-migrations.txt"
+            exit 1
+          }
+          echo 'PRODUCTION_MIGRATIONS_LIST_RESULT (schema filenames only):'
+          grep -E '000[1-9]_.*sql|No migrations|All migrations|Migration' "$RUNNER_TEMP/prod-migrations.txt" | head -24 || true
+      - name: Clean metadata
+        if: always()
+        run: rm -f "$RUNNER_TEMP/worker-secrets.json" "$RUNNER_TEMP/prod-migrations.txt"

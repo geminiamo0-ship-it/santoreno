@@ -70,7 +70,7 @@ def submit(worker_url, token, endpoint, payload=None):
     """
     data = json.dumps(payload, separators=(",", ":")).encode("utf-8") if payload is not None else None
     command = ["curl", "--silent", "--show-error", "--max-time", "90",
-               "--write-out", "\\n%{http_code}",
+               "--write-out", "\n%{http_code}",
                "-H", "Authorization: Bearer " + token,
                "-H", "Content-Type: application/json"]
     if data is not None:
@@ -80,7 +80,7 @@ def submit(worker_url, token, endpoint, payload=None):
     if proc.returncode != 0:
         raise OSError(f"curl transport failure (exit={proc.returncode})")
     try:
-        body, code = proc.stdout.rsplit(b"\\n", 1)
+        body, code = proc.stdout.rsplit(b"\n", 1)
         status = int(code)
     except (ValueError, IndexError):
         raise OSError("curl returned no HTTP status")

@@ -795,4 +795,54 @@ export const widgetStyles = css`
     .reader-body { padding: 14px 15px 60px; }
     .reader-popover { left: 7px; right: 7px; bottom: 7px; max-height: 60%; }
   }
+
+  .answer-verified-images {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+    gap: 12px;
+    margin: 15px 0;
+  }
+  .answer-medical-figure {
+    min-width: 0;
+    border-radius: 10px;
+    border: 1px solid #e0d6c7;
+    margin: 0;
+    overflow: hidden;
+    background: #fff;
+  }
+  .figure-image {
+    display: grid;
+    place-items: center;
+    width: 100%;
+    min-height: 100px;
+    padding: 9px;
+    border: 0;
+    background: #f5f7f8;
+    cursor: zoom-in;
+  }
+  .figure-image img {
+    max-width: 100%;
+    max-height: 270px;
+    height: auto;
+    object-fit: contain;
+    border-radius: 5px;
+  }
+  .answer-medical-figure figcaption {
+    padding: 9px 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 5px;
+    color: #546271;
+    font-size: 11px;
+    line-height: 1.5;
+  }
+  .figure-source {
+    color: #75521c;
+    background: none;
+    border: 0;
+    text-decoration: underline;
+    padding: 0;
+    font-size: 11px;
+  }
 `;

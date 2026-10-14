@@ -33,16 +33,16 @@ jobs:
           if original.get("source")!="santo-content-staging" or original.get("type")!="r2" or not original.get("token_id") or params.get("prefix")!=expected_prefix:
             raise RuntimeError("Unsafe source mismatch")
           patterns=["**/one-examination/**"]
-          exclusions=["**/amboss/**","**/passmedicine/**","**/pastest/**","**/usmle/**","**/medical-articles/**","**/medical-library-catalog/**"]
-          desired={**params,"include_items":patterns,"exclude_items":exclusions}
+          desired={**params,"include_items":patterns}
           updated=call("PUT",{"source_params":desired})
           refreshed=call()
           cfg=refreshed.get("source_params") or {}
-          if cfg.get("prefix")!=expected_prefix or cfg.get("include_items")!=patterns or cfg.get("exclude_items")!=exclusions or refreshed.get("source")!="santo-content-staging":
+          print("PERSISTED_PARAMS",json.dumps(cfg,sort_keys=True),flush=True)
+          if cfg.get("prefix")!=expected_prefix or cfg.get("include_items")!=patterns or refreshed.get("source")!="santo-content-staging":
             raise RuntimeError("Scoped filters were not preserved")
           if refreshed.get("token_id")!=original.get("token_id"):
             raise RuntimeError("Service token changed")
           print("ONE_EXAM_STRICT_INCLUDE_RESTORED")
-          print("INCLUDE",json.dumps(patterns),"EXCLUDE",json.dumps(exclusions))
+          print("INCLUDE",json.dumps(patterns))
           print("NO_SYNCS_TRIGGERED=TRUE")
           PY

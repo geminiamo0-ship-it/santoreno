@@ -1,0 +1,30 @@
+name: Santo Pastest — Guarded Empty Index Recreation
+on:
+  push:
+    branches: [fix/92-santo-isolated-source-repoint]
+    paths: [".github/workflows/recreate-empty-pastest.yml"]
+permissions: {contents: read}
+jobs:
+  pastest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Guard exact-source and Cloudflare credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m py_compile scripts/replace_empty_medical_ai_search.py
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+          test -n "$CLOUDFLARE_API_TOKEN"
+      - name: Replace only empty Pastest AI Search by same-ID isolated verified 10704-file R2 source
+        run: |
+          python scripts/replace_empty_medical_ai_search.py --library pastest --verified-count 10704
+      - name: Report guarded success
+        if: success()
+        run: echo "Pastest has retained its stable AI Search instance ID, with private physically isolated R2; indexing async." >> "$GITHUB_STEP_SUMMARY"

@@ -7,6 +7,8 @@ on:
       - "scripts/upload_medical_libraries_r2.py"
       - "scripts/upload_medical_libraries_wrangler.py"
       - "scripts/configure_medical_ai_search.py"
+      - "scripts/auto_index_medical_library_staging.py"
+      - ".github/workflows/santo-auto-index-after-r2-upload.yml"
       - "scripts/test_medical_library_import.py"
       - ".github/workflows/medical-library-private-r2-import.yml"
       - ".github/workflows/medical-library-ingest-tests.yml"
@@ -19,6 +21,8 @@ on:
       - "scripts/upload_medical_libraries_r2.py"
       - "scripts/upload_medical_libraries_wrangler.py"
       - "scripts/configure_medical_ai_search.py"
+      - "scripts/auto_index_medical_library_staging.py"
+      - ".github/workflows/santo-auto-index-after-r2-upload.yml"
       - "scripts/test_medical_library_import.py"
       - ".github/workflows/medical-library-private-r2-import.yml"
       - ".github/workflows/medical-library-ingest-tests.yml"
@@ -43,3 +47,4 @@ jobs:
           python -m py_compile scripts/upload_medical_libraries_r2.py
           python -m py_compile scripts/upload_medical_libraries_wrangler.py
           python -m py_compile scripts/configure_medical_ai_search.py
+          python -m py_compile scripts/auto_index_medical_library_staging.py

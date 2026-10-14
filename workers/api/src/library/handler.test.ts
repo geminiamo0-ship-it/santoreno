@@ -97,6 +97,6 @@ describe("library reader session and rollout authorization", () => {
       );
     expect((await request("/v1/libraries", "DELETE")).status).toBe(405);
     expect((await request("/v1/libraries/passmedicine/articles?cursor=10000")).status).toBe(400);
-    expect((await request("/v1/libraries/passmedicine/articles/..%2fsecret")).status).toBe(404);
+    expect((await request("/v1/libraries/passmedicine/articles/..%2fsecret")).status).toBe(400);
   });
 });

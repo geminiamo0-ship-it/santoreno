@@ -26,6 +26,7 @@ export class ConversationAskService {
       env: SantoBindings,
       input: { query: string; idempotency_key: string; library_id?: string },
       signal: AbortSignal,
+      onProvisionalAnswer?: (text: string) => void,
     ) => Promise<GroundedAiQueryResponse> = invokeGroundedAnswer,
   ) {}
 
@@ -36,6 +37,7 @@ export class ConversationAskService {
     bearer: string,
     env: SantoBindings,
     signal: AbortSignal,
+    onProvisionalAnswer?: (text: string) => void,
   ): Promise<ConversationAnswer> {
     if (signal.aborted) throw new GroundedAiError(499, "REQUEST_CANCELLED", "Cancelled");
 
@@ -137,6 +139,7 @@ export class ConversationAskService {
           ...(body.libraryId ? { library_id: body.libraryId } : {}),
         },
         signal,
+        onProvisionalAnswer,
       );
       verified = true;
       await this.conversations.completeTurn(
@@ -169,6 +172,7 @@ async function invokeGroundedAnswer(
   env: SantoBindings,
   input: { query: string; idempotency_key: string; library_id?: string },
   signal: AbortSignal,
+  onProvisionalAnswer?: (text: string) => void,
 ): Promise<GroundedAiQueryResponse> {
   const response = await handleGroundedAiQuery(
     new Request("https://santo.internal/v1/ai/query", {
@@ -178,6 +182,7 @@ async function invokeGroundedAnswer(
       signal,
     }),
     env,
+    onProvisionalAnswer,
   );
   const payload: unknown = await response.json().catch(() => null);
   if (!response.ok) {

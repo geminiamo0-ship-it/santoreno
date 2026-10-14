@@ -1,0 +1,48 @@
+name: Santo One Examination Strict Include Scope (No Sync)
+on:
+  push:
+    branches: [diagnose/ai-search-r2-zero-files-20261014]
+    paths: [".github/workflows/santo-one-exam-strict-source-filter.yml"]
+permissions: {contents: read}
+jobs:
+  harden-r2-source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Restore strict one-examination include/exclude rules without starting sync
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os,json
+          from urllib.request import Request,urlopen
+          aid=os.environ["CLOUDFLARE_ACCOUNT_ID"];tok=os.environ["CLOUDFLARE_API_TOKEN"]
+          base=f"https://api.cloudflare.com/client/v4/accounts/{aid}/ai-search/namespaces/default/instances/one-examination"
+          h={"Authorization":"Bearer "+tok,"Content-Type":"application/json"}
+          def call(method="GET", body=None):
+            req=Request(base,method=method,headers=h,data=json.dumps(body).encode() if body is not None else None)
+            with urlopen(req,timeout=40) as r:
+              d=json.load(r)
+              if d.get("success") is not True:raise RuntimeError("Cloudflare API rejected source config")
+              return d.get("result")
+          original=call()
+          params=original.get("source_params") or {}
+          expected_prefix="medical-search/v1/one-examination/"
+          if original.get("source")!="santo-content-staging" or original.get("type")!="r2" or not original.get("token_id") or params.get("prefix")!=expected_prefix:
+            raise RuntimeError("Unsafe source mismatch")
+          patterns=["**/one-examination/**"]
+          exclusions=["**/amboss/**","**/passmedicine/**","**/pastest/**","**/usmle/**","**/medical-articles/**","**/medical-library-catalog/**"]
+          desired={**params,"include_items":patterns,"exclude_items":exclusions}
+          updated=call("PUT",{"source_params":desired})
+          refreshed=call()
+          cfg=refreshed.get("source_params") or {}
+          if cfg.get("prefix")!=expected_prefix or cfg.get("include_items")!=patterns or cfg.get("exclude_items")!=exclusions or refreshed.get("source")!="santo-content-staging":
+            raise RuntimeError("Scoped filters were not preserved")
+          if refreshed.get("token_id")!=original.get("token_id"):
+            raise RuntimeError("Service token changed")
+          print("ONE_EXAM_STRICT_INCLUDE_RESTORED")
+          print("INCLUDE",json.dumps(patterns),"EXCLUDE",json.dumps(exclusions))
+          print("NO_SYNCS_TRIGGERED=TRUE")
+          PY

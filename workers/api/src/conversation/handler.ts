@@ -127,11 +127,7 @@ export function createConversationHandler(deps: ConversationHandlerDependencies 
           .some((item) => item.trim().split(";")[0]?.trim() === "text/event-stream");
         // Provider-native progressive text is a Staging-only opt-in. Drafts
         // are never portrayed as verified, sourced or charged until completion.
-        if (
-          acceptsSse &&
-          env.SANTO_ENV === "staging" &&
-          env.SANTO_NATIVE_STREAMING_V1 === "true"
-        ) {
+        if (acceptsSse && env.SANTO_ENV === "staging" && env.SANTO_NATIVE_STREAMING_V1 === "true") {
           return streamProvisionalConversationAnswer((onDraft) =>
             askService(client).ask(
               actor,

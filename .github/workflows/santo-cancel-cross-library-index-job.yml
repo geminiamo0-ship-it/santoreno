@@ -25,7 +25,7 @@ jobs:
           def call(path,method="GET",body=None):
               req=Request(base+path,method=method,headers=h,data=json.dumps(body).encode() if body is not None else None)
               try:
-                  with urlopen(req,timeout=35) as resp:
+                  with urlopen(req,timeout=130) as resp:
                       obj=json.load(resp)
                       if not obj.get("success"):raise RuntimeError("Cloudflare API success=false")
                       return obj["result"]
@@ -36,14 +36,21 @@ jobs:
           params=inst.get("source_params") or {}
           if inst.get("type")!="r2" or inst.get("source")!="santo-content-staging" or params.get("prefix")!="medical-search/v1/one-examination/":
               raise RuntimeError("unexpected instance; refuse cancellation")
+          import socket,time
           record=call("/jobs/"+job)
           print("CURRENT",record.get("id"),"ended",record.get("ended_at"))
           if record.get("ended_at"):
               print("ALREADY_ENDED")
           else:
-              result=call("/jobs/"+job,"PATCH",{"action":"cancel"})
-              print("CANCELLATION_REQUESTED",result.get("id"),"end_reason",result.get("end_reason"))
+              try:
+                  result=call("/jobs/"+job,"PATCH",{"action":"cancel"})
+                  print("CANCELLATION_REQUESTED",result.get("id"),"end_reason",result.get("end_reason"),flush=True)
+              except (TimeoutError,socket.timeout) as exc:
+                  print("CANCEL_TIMEOUT_RECHECK_JOB",type(exc).__name__,flush=True)
+                  time.sleep(3)
           latest=call("/jobs/"+job)
-          print("AFTER",latest.get("id"),"ended",latest.get("ended_at"),"end_reason",latest.get("end_reason"))
+          print("AFTER",latest.get("id"),"ended",latest.get("ended_at"),"end_reason",latest.get("end_reason"),flush=True)
+          if not latest.get("ended_at"):
+              raise RuntimeError("CANCELLATION_NOT_YET_CONFIRMED")
           print("R2_FILES_UNCHANGED=TRUE")
           PY

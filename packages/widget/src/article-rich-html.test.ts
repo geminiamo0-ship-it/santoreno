@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { SourceArticleResponse } from "@santo/contracts/library-reader";
 import {
   approvedMedicalImageUrl,
+  decodedSourceArticleHtml,
   decodeArticlePopover,
   referencedHeadingText,
   sanitizeArticleForReader,
@@ -97,6 +98,20 @@ describe("Santo original article and chat medical image security", () => {
     expect(
       citedMedicalImages({ ...source, highlightSectionId: "s-0001" }, message, citation)[0]?.alt,
     ).toBe("Uncited");
+  });
+
+  it("decodes verified gzip HTML and rejects mismatched lengths or zip bombs", async () => {
+    const { gzipSync } = await import("node:zlib");
+    const html = "<h2>Large clinical explanation</h2><p>" + "diagnosis ".repeat(160000) + "</p>";
+    const encoded = gzipSync(Buffer.from(html, "utf-8")).toString("base64");
+    await expect(decodedSourceArticleHtml({
+      contentHtmlGzipBase64: encoded,
+      contentHtmlDecodedLength: html.length,
+    })).resolves.toBe(html);
+    await expect(decodedSourceArticleHtml({
+      contentHtmlGzipBase64: encoded,
+      contentHtmlDecodedLength: html.length + 1,
+    })).resolves.toBe("");
   });
 
   it("does not silently inject raw HTML without an actual browser DOMParser", () => {

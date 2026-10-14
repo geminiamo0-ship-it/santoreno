@@ -43,7 +43,7 @@ jobs:
             base=root+"/"+lib
             cfg=api(base)
             if cfg.get("type")!="r2":raise RuntimeError("Unexpected source type")
-            expected_bucket=f"santo-{lib}-search-staging"
+            expected_bucket=("santo-one-examination-search-staging" if lib=="one-examination-isolated" else f"santo-{lib}-search-staging")
             if cfg.get("source")!=expected_bucket:
               raise RuntimeError("Unexpected source for "+lib+": "+str(cfg.get("source")))
             stat=api(base+"/stats")

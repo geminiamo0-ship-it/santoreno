@@ -25,8 +25,11 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git fetch origin feat/96-rich-articles-foundation feat/96-luna-professor-staging
-          git merge --no-ff -m "merge(release): latest verified original medical HTML and bounded import" origin/feat/96-rich-articles-foundation
-          git merge --no-ff -m "merge(release): bounded Luna preview and production D1 configuration" origin/feat/96-luna-professor-staging
+          git merge --no-ff -X ours -m "merge(release): latest verified original medical HTML and bounded import" origin/feat/96-rich-articles-foundation
+          git merge --no-ff -X ours -m "merge(release): bounded Luna preview and production D1 configuration" origin/feat/96-luna-professor-staging
+          grep -q "contentHtmlGzipBase64" packages/contracts/src/library-reader.ts
+          grep -q "class CloudflareLunaModel" workers/api/src/ai/model.ts
+          grep -q "database_name = \"santo-control-plane\"" workers/api/wrangler.toml
       - name: Full release candidate verification before pushing the branch
         shell: bash
         run: |

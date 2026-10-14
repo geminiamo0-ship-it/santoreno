@@ -37,8 +37,7 @@ describe("Cloudflare Workers AI model adapter", () => {
       }),
     );
     const request = vi.mocked(ai.run).mock.calls[0]?.[1] as
-      | { messages?: { role: string; content: string }[] }
-      | undefined;
+      { messages?: { role: string; content: string }[] } | undefined;
     expect(request?.messages?.[0]?.content).toContain("source-grounded medical tutor");
     expect(request?.messages?.[0]?.content).toContain(
       "never introduce claims not supported by the provided evidence",

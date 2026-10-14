@@ -159,6 +159,76 @@ describe("grounded turn billing/verification coordinator", () => {
     expect(keys[0]).toEqual(keys[1]);
   });
 
+  it("returns a durable zero-unit greeting on staging without calling the model", async () => {
+    const t = harness();
+    const model = vi.fn(async () => response);
+    const readQuota = vi.fn(async () =>
+      Response.json({
+        tenantId: actor.tenantId,
+        externalUserId: actor.externalUserId,
+        cycleStartAt: "2026-10-01T00:00:00.000Z",
+        cycleEndAt: "2026-11-01T00:00:00.000Z",
+        expiresAt: null,
+        tenantStatus: "active",
+        userStatus: "active",
+        tenant: { limit: 100, used: 4, reserved: 0, remaining: 96 },
+        user: { limit: 20, used: 4, reserved: 0, remaining: 16 },
+      }),
+    );
+    const staging: SantoBindings = {
+      SANTO_ENV: "staging",
+      SANTO_COPILOT_ROUTING_V1: "true",
+      TENANT_METER: { idFromName: (x) => x, get: () => ({ fetch: readQuota }) },
+    };
+    const ask = new ConversationAskService(t.client, model);
+    const hello = { ...body, text: "hi" };
+    const result = await ask.ask(actor, conversationId, hello, "Bearer signed", staging, signal);
+    expect(result).toMatchObject({ kind: "quick_reply", citations: [], usage: { unitsCharged: 0, remaining: 16 } });
+    expect(result.answer).toContain("Santo");
+    expect(model).not.toHaveBeenCalled();
+    expect(readQuota).toHaveBeenCalledTimes(1);
+    expect(t.complete).toHaveBeenCalledTimes(1);
+    const replay = await ask.ask(actor, conversationId, hello, "Bearer signed", staging, signal);
+    expect(replay).toEqual(result);
+    expect(readQuota).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not divert medical or mixed messages or non-staging requests from RAG", async () => {
+    const cases: { env: SantoBindings; text: string }[] = [
+      { env: { SANTO_ENV: "staging", SANTO_COPILOT_ROUTING_V1: "true" }, text: "hi explain STEMI" },
+      { env: { SANTO_ENV: "production", SANTO_COPILOT_ROUTING_V1: "true" }, text: "hi" },
+      { env: { SANTO_ENV: "staging", SANTO_COPILOT_ROUTING_V1: "false" }, text: "hi" },
+    ];
+    for (const item of cases) {
+      const model = vi.fn(async () => response);
+      const ask = new ConversationAskService(harness().client, model);
+      expect(await ask.ask(actor, conversationId, { ...body, text: item.text }, "Bearer signed", item.env, signal)).toEqual(response);
+      expect(model).toHaveBeenCalledTimes(1);
+    }
+  });
+
+  it("does not bypass suspended tenant quota using a free greeting", async () => {
+    const t = harness();
+    const model = vi.fn(async () => response);
+    const env: SantoBindings = {
+      SANTO_ENV: "staging", SANTO_COPILOT_ROUTING_V1: "true",
+      TENANT_METER: {
+        idFromName: (x) => x,
+        get: () => ({ fetch: async () => Response.json({
+          tenantId: actor.tenantId, externalUserId: actor.externalUserId,
+          cycleStartAt: "2026-10-01T00:00:00.000Z", cycleEndAt: "2026-11-01T00:00:00.000Z",
+          expiresAt: null, tenantStatus: "suspended", userStatus: "active",
+          tenant: { limit: 1, used: 0, reserved: 0, remaining: 1 },
+          user: { limit: 1, used: 0, reserved: 0, remaining: 1 },
+        }) }),
+      },
+    };
+    await expect(new ConversationAskService(t.client, model).ask(
+      actor, conversationId, { ...body, text: "hi" }, "Bearer signed", env, signal,
+    )).rejects.toMatchObject({ code: "USER_SUSPENDED" });
+    expect(model).not.toHaveBeenCalled();
+    expect(t.complete).not.toHaveBeenCalled();
+  });
   it("blocks cancellation before reserving a conversation turn or quota", async () => {
     const t = harness();
     const controller = new AbortController();

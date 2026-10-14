@@ -1,0 +1,11 @@
+name = "santo-medical-import-staging"
+main = "src/index.js"
+compatibility_date = "2026-09-14"
+workers_dev = true
+
+[vars]
+SANTO_IMPORT_ENV = "staging"
+
+[[r2_buckets]]
+binding = "CONTENT_BUCKET"
+bucket_name = "santo-content-staging"

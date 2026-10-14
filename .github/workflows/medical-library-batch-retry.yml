@@ -1,0 +1,147 @@
+name: Santo Medical Libraries — Authenticated Batch R2 Recovery
+on:
+  push:
+    branches:
+      - fix/88-batched-cloudflare-r2-import
+    paths:
+      - .github/workflows/medical-library-batch-retry.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# This explicitly replaces and cancels the unstable process-per-object workflow.
+concurrency:
+  group: santo-medical-library-pinned-r2-import-20261014
+  cancel-in-progress: true
+
+jobs:
+  upload-verified-licensed-corpus:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      WORKER_NAME: santo-medical-import-staging
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Require existing account-wide Santo Cloudflare secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+
+      - name: Reassemble publicly owner-authorized Git asset and verify exact SHA-256
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/download_medical_corpus_from_github.sh "$RUNNER_TEMP/santo-export"
+
+      - name: Install pinned Wrangler dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          corepack enable
+          pnpm install --frozen-lockfile
+
+      - name: Deploy a dedicated staging-only R2 batch Worker
+        id: worker
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd workers/api
+          output="$(pnpm exec wrangler deploy --config ../medical-import/wrangler.toml --keep-vars 2>&1)"
+          echo "$output"
+          url="$(grep -Eo 'https://[A-Za-z0-9.-]+\.workers\.dev' <<<"$output" | tail -n 1)"
+          test -n "$url" || { echo "Worker deployment URL missing"; exit 1; }
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+      - name: Set per-run random upload secret without exposing it in the repository
+        id: auth
+        shell: bash
+        run: |
+          set -euo pipefail
+          secret="$(openssl rand -hex 32)"
+          echo "::add-mask::$secret"
+          echo "SANTO_IMPORT_TOKEN=$secret" >> "$GITHUB_ENV"
+          cd workers/api
+          printf '%s' "$secret" | pnpm exec wrangler secret put SANTO_IMPORT_TOKEN \
+            --config ../medical-import/wrangler.toml
+
+      - name: Verify gateway is fail-closed and existing catalog is retrievable
+        env:
+          WORKER_URL: ${{ steps.worker.outputs.url }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          unauth="none"
+          auth="none"
+          for attempt in $(seq 1 35); do
+            unauth="$(curl -sS --max-time 12 --output /dev/null --write-out '%{http_code}' "$WORKER_URL/verify?key=medical-library-catalog/v1/catalog.json" || true)"
+            auth="$(curl -sS --max-time 12 --output /dev/null --write-out '%{http_code}' \
+              -H "authorization: Bearer $SANTO_IMPORT_TOKEN" \
+              "$WORKER_URL/verify?key=medical-library-catalog/v1/catalog.json" || true)"
+            if [[ "$unauth" == 401 && "$auth" == 200 ]]; then
+              echo "Temporary Worker auth and R2 catalog check passed on attempt $attempt"
+              exit 0
+            fi
+            echo "Waiting for Worker/secret propagation: anonymous=$unauth authenticated=$auth attempt=$attempt"
+            sleep 2
+          done
+          echo "Worker never passed 401/200 gate: anonymous=$unauth authenticated=$auth"
+          exit 1
+
+      - name: Probe authenticated curl POST on exactly one existing catalog object
+        env:
+          WORKER_URL: ${{ steps.worker.outputs.url }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/upload_medical_libraries_batched.py \
+            --dir "$RUNNER_TEMP/santo-export" \
+            --url "$WORKER_URL" --execute --probe --workers 1 \
+            --checkpoint "$RUNNER_TEMP/santo-probe-checkpoint.txt"
+
+      - name: Upload up to 20 R2 objects per request with backoff and independent SHA-256 readbacks
+        env:
+          WORKER_URL: ${{ steps.worker.outputs.url }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/upload_medical_libraries_batched.py \
+            --dir "$RUNNER_TEMP/santo-export" \
+            --url "$WORKER_URL" --scope all --workers 6 \
+            --checkpoint "$RUNNER_TEMP/santo-batch-checkpoint.txt" \
+            --execute
+
+      - name: Record correct verified outcome
+        shell: bash
+        run: |
+          {
+            echo '## Santo Medical Libraries — batched R2 upload'
+            echo '- SHA-pinned 71 MiB public owner-authorized Git archive validated'
+            echo '- 74,579 objects uploaded or overwritten within PRIVATE santo-content-staging'
+            echo '- Authenticated temporary upload Worker and exact R2 SHA-256 readbacks passed'
+            echo '- AI Search indexing / real student citation tests are still pending'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Delete temporary R2 upload Worker and local licensed contents
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          cd workers/api
+          pnpm exec wrangler delete --config ../medical-import/wrangler.toml --force
+          cd "$GITHUB_WORKSPACE"
+          rm -rf "$RUNNER_TEMP/santo-export" "$RUNNER_TEMP/santo-assets" \
+            "$RUNNER_TEMP/santo_staging_medical_library_r2_bundle.zip" \
+            "$RUNNER_TEMP/santo-batch-checkpoint.txt" \
+            "$RUNNER_TEMP/santo-corpus-verification.json"

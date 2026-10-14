@@ -1,0 +1,20 @@
+name: Cancel Broken Per-file Wrangler Medical Import
+on:
+  push:
+    branches:
+      - fix/88-batched-cloudflare-r2-import
+    paths:
+      - .github/workflows/cancel-broken-r2-upload-once.yml
+permissions:
+  contents: read
+concurrency:
+  group: santo-medical-library-pinned-r2-import-20261014
+  cancel-in-progress: true
+jobs:
+  cancel-obsolete:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Replace resource-heavy upload run
+        run: |
+          echo 'Superseded old 74,579 separate-Wrangler-process upload.'
+          echo 'Its partial R2 objects remain and are safe to overwrite with verified batches.'

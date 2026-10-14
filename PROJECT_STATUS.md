@@ -6,6 +6,14 @@
 >
 > **Rule:** GitHub code, issues, PRs, commits, and Actions are the source of truth. Update this file whenever meaningful work completes, a gate passes/fails, architecture changes, or the active issue changes.
 
+### Royal-style Medical Copilot responses — PR #93 (14 Oct 2026)
+
+- Compared actual Royal Bank `DeepDiveMarkdown`, `RoyalAIButton`, source cards, and OpenRouter RAG/general fallback design to Santo's central Worker/Widget/Conversation architecture.
+- PR #93 changes the **shared Santo Lit widget** to render safe Markdown headings, comparison tables, lists, code and high-yield callout cards, bilingual/RTL-safe text and actionable verified-source cards. No raw HTML from model.
+- Santo Workers AI can now **optionally** answer with transparent `groundingMode: general` when real RAG evidence is absent or inadequate, without fake Santo citations. Existing auth, tenant/user quota, atomic reserve/finalize, conversation replay and validated streaming remain authoritative. Retrieval outages still fail closed.
+- Feature flag `SANTO_GENERAL_MEDICAL_FALLBACK` is enabled only for **Staging**, with Production left disabled pending real staging/browser acceptance. Staging retrieval now targets the isolated One Examination index while preserving `library_id=one-examination`.
+- CI, PR merge, deployed staging browser acceptance and live medical answers **must be verified before claiming complete**. Source Explorer and Phase 10 issues stay open until those gates pass.
+
 ## 1. Current state
 
 Santo is a standalone B2B2C medical AI SaaS platform. Customer sites integrate with Santo by API/widget while Santo centrally owns AI infrastructure, global medical knowledge, AI Search, quota enforcement, citations, assets, usage, security, and tenant administration. Customer production databases remain untouched.

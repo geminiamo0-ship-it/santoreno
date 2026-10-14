@@ -30,13 +30,33 @@ export const GroundedAiUsageSchema = z.object({
 });
 export type GroundedAiUsage = z.infer<typeof GroundedAiUsageSchema>;
 
-export const GroundedAiQueryResponseSchema = z.object({
-  requestId: z.string().uuid(),
-  messageId: z.string().uuid(),
-  answer: z.string().min(1),
-  citations: z.array(GroundedAiCitationSchema).min(1).max(5),
-  usage: GroundedAiUsageSchema,
-});
+export const GroundedAiQueryResponseSchema = z
+  .object({
+    requestId: z.string().uuid(),
+    messageId: z.string().uuid(),
+    answer: z.string().min(1),
+    /** Legacy responses without this property are always source-grounded. */
+    groundingMode: z.enum(["santo", "general"]).optional(),
+    citations: z.array(GroundedAiCitationSchema).max(5),
+    usage: GroundedAiUsageSchema,
+  })
+  .superRefine((response, ctx) => {
+    const general = response.groundingMode === "general";
+    if (general && response.citations.length !== 0) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["citations"],
+        message: "General answers cannot have Santo citations",
+      });
+    }
+    if (!general && response.citations.length === 0) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["citations"],
+        message: "Grounded answers must cite a verified Santo source",
+      });
+    }
+  });
 export type GroundedAiQueryResponse = z.infer<typeof GroundedAiQueryResponseSchema>;
 
 /**

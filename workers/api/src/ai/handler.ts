@@ -115,6 +115,7 @@ export function createGroundedAiHandler(dependencies: GroundedAiHandlerDependenc
         undefined,
         dependencies.stageTimeouts,
         sourceStoreFactory(env),
+        env.SANTO_GENERAL_MEDICAL_FALLBACK === "true",
       ).query(session, parsed.data, request.signal);
 
       const validated = GroundedAiQueryResponseSchema.parse(response);

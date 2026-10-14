@@ -62,7 +62,11 @@ export class AiSearchNamespaceLibraryCatalog implements LibraryCatalogPort {
       }
 
       const metadata = asRecord(entry?.metadata);
-      const libraryId = stringField(metadata, "library_id") ?? instanceId;
+      // One Examination was rebuilt in a clean R2 index after legacy queue contamination.
+      // Keep its public library filter stable while targeting the verified isolated index.
+      const libraryId =
+        stringField(metadata, "library_id") ??
+        (instanceId === "one-examination-isolated" ? "one-examination" : instanceId);
       if (seenLibraryIds.has(libraryId)) {
         throw new GroundedAiError(
           503,

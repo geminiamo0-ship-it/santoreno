@@ -8,7 +8,7 @@ import type { SourceSnapshotWriter } from "../sources/store";
 import { validateGroundedCitations } from "./citations";
 import { AI_STAGE_TIMEOUTS, withAiDeadline } from "./deadline";
 import { GroundedAiError } from "./errors";
-import { buildGroundedPrompt } from "./prompt";
+import { buildGeneralMedicalPrompt, buildGroundedPrompt } from "./prompt";
 import type { AiTelemetryPort, ModelPort, RetrievalPort } from "./types";
 
 function quotaDenial(reason: string | null): GroundedAiError {
@@ -58,6 +58,7 @@ export class GroundedAiService {
     private readonly nowMs: () => number = () => Date.now(),
     private readonly timeouts: { retrievalMs: number; modelMs: number } = AI_STAGE_TIMEOUTS,
     private readonly sourceStore?: SourceSnapshotWriter | null,
+    private readonly generalFallbackEnabled = false,
   ) {}
 
   async query(
@@ -106,6 +107,7 @@ export class GroundedAiService {
 
     let answer: string;
     let citations: GroundedAiQueryResponse["citations"];
+    let responseMode: "santo" | "general" = "santo";
     try {
       const evidence = await withAiDeadline(
         () => this.retrieval.retrieve({ query: input.query, libraryId }),
@@ -113,31 +115,68 @@ export class GroundedAiService {
         this.timeouts.retrievalMs,
         "SEARCH_TIMEOUT",
       );
-      if (evidence.length === 0) {
+      // A genuinely empty result is different from SEARCH_FAILED / SEARCH_TIMEOUT:
+      // infrastructure outages still fail closed, never silently become "general".
+      let groundingMode: "santo" | "general" = "santo";
+      if (evidence.length === 0 && !this.generalFallbackEnabled) {
         throw new GroundedAiError(
           422,
           "INSUFFICIENT_EVIDENCE",
           "No sufficient Santo evidence was retrieved",
         );
       }
-
-      const draft = await withAiDeadline(
-        () => this.model.generate(buildGroundedPrompt(input.query, evidence)),
+      if (evidence.length === 0) groundingMode = "general";
+      let draft = await withAiDeadline(
+        () =>
+          this.model.generate(
+            groundingMode === "general"
+              ? buildGeneralMedicalPrompt(input.query)
+              : buildGroundedPrompt(input.query, evidence),
+          ),
         signal,
         this.timeouts.modelMs,
         "MODEL_TIMEOUT",
       );
+
+      // If evidence existed but even the grounded model declined to rely on it,
+      // retry once as explicitly uncited medical education, under the SAME quota.
+      if (
+        draft.answer === "INSUFFICIENT_EVIDENCE" &&
+        groundingMode === "santo" &&
+        this.generalFallbackEnabled
+      ) {
+        groundingMode = "general";
+        draft = await withAiDeadline(
+          () => this.model.generate(buildGeneralMedicalPrompt(input.query)),
+          signal,
+          this.timeouts.modelMs,
+          "MODEL_TIMEOUT",
+        );
+      }
       if (draft.answer === "INSUFFICIENT_EVIDENCE") {
         throw new GroundedAiError(
           422,
           "INSUFFICIENT_EVIDENCE",
-          "Retrieved evidence was insufficient for a grounded answer",
+          "No responsible medical answer available",
         );
       }
 
       answer = draft.answer;
-      citations = validateGroundedCitations(draft, evidence);
-      if (this.sourceStore) {
+      responseMode = groundingMode;
+      if (groundingMode === "general") {
+        // A provider-supplied citation in general mode is never trusted.
+        if (draft.citationIds.length !== 0) {
+          throw new GroundedAiError(
+            502,
+            "CITATION_INVALID",
+            "General medical answer cannot cite Santo",
+          );
+        }
+        citations = [];
+      } else {
+        citations = validateGroundedCitations(draft, evidence);
+      }
+      if (this.sourceStore && groundingMode === "santo") {
         const sources = citations.map((citation) => {
           const matching = evidence.filter((item) => item.sourceId === citation.sourceId);
           if (matching.length !== 1) {
@@ -226,6 +265,7 @@ export class GroundedAiService {
       messageId,
       answer,
       citations,
+      ...(responseMode === "general" ? { groundingMode: "general" as const } : {}),
       usage: {
         unitsCharged: 1,
         remaining,

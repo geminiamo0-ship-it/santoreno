@@ -3,7 +3,7 @@ on:
   push:
     branches: [fix/92-santo-isolated-source-repoint]
     paths: [".github/workflows/recreate-empty-amboss-passmedicine.yml"]
-permissions: {contents: read}
+permissions: { contents: read }
 jobs:
   replace-empty-index:
     runs-on: ubuntu-latest
@@ -23,7 +23,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
-        with: {python-version: '3.12'}
+        with: { python-version: "3.12" }
       - name: Validate credentials and exact library config
         shell: bash
         run: |

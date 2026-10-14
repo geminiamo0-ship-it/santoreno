@@ -1,0 +1,51 @@
+name: Santo Native Luna SSE Provider Probe
+
+on:
+  push:
+    branches: [feat/96-native-luna-sse-staging-20261015]
+    paths: [.github/workflows/santo-native-luna-sse-provider-probe-once.yml]
+permissions:
+  contents: read
+jobs:
+  stream-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Ask Luna for true provider stream using synthetic fact and strict JSON
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_ACCOUNT_ID" && test -n "$CLOUDFLARE_API_TOKEN"
+          cat > "$RUNNER_TEMP/request.json" <<'JSON'
+          {"model":"openai/gpt-6-luna","input":"Synthetic test: explain in three short sentences what the heart does. No sources.","instructions":"Provide only the required JSON. No real patient information.","max_output_tokens":512,"reasoning":{"effort":"none"},"service_tier":"fast","store":false,"stream":true,"text":{"format":{"type":"json_schema","name":"santo_grounded","strict":true,"schema":{"type":"object","properties":{"answer":{"type":"string"},"citation_ids":{"type":"array","items":{"type":"string"},"maxItems":5}},"required":["answer","citation_ids"],"additionalProperties":false}}}}
+          JSON
+          curl --silent --show-error --max-time 90 --no-buffer \
+            --output "$RUNNER_TEMP/stream-events.txt" --write-out 'STREAM_PROVIDER_HTTP=%{http_code}\n' \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" -H "Content-Type: application/json" \
+            --data-binary @"$RUNNER_TEMP/request.json" \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/ai/v1/responses"
+          python - <<'PY'
+          import json,os,pathlib
+          data=(pathlib.Path(os.environ['RUNNER_TEMP'])/'stream-events.txt').read_text()
+          types=[]
+          text_chunks=0
+          for line in data.splitlines():
+              if not line.startswith('data: '): continue
+              try: event=json.loads(line[6:])
+              except Exception: continue
+              if not isinstance(event,dict):continue
+              typ=str(event.get('type',''))
+              if typ:types.append(typ)
+              if typ=='response.output_text.delta' and isinstance(event.get('delta'),str):text_chunks+=1
+          print('LUNA_SSE_EVENT_TYPES',json.dumps(sorted(set(types))))
+          print('LUNA_SSE_DELTA_COUNT',text_chunks)
+          if not text_chunks: raise SystemExit('No native SSE text deltas emitted; do not deploy streaming')
+          if 'response.completed' not in types:raise SystemExit('No completed event')
+          PY
+      - name: Delete synthetic event content
+        if: always()
+        run: rm -f "$RUNNER_TEMP/request.json" "$RUNNER_TEMP/stream-events.txt"

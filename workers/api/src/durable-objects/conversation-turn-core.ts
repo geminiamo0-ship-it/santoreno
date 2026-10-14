@@ -1,4 +1,5 @@
 import {
+  ConversationAnswerSchema,
   ConversationBeginTurnResponseSchema,
   ConversationBeginTurnSchema,
   ConversationFinishTurnSchema,
@@ -9,7 +10,6 @@ import {
   type ConversationBeginTurnResponse,
   type ConversationTurn,
 } from "@santo/contracts/conversation";
-import { GroundedAiQueryResponseSchema } from "@santo/contracts/ai";
 
 import type { DurableObjectStorageLike, SqlStorageLike } from "./tenant-meter-core";
 import { ConversationStateError } from "./conversation-core";
@@ -85,7 +85,7 @@ function toTurn(row: TurnRow): ConversationTurn {
   const response =
     row.response_json === null
       ? null
-      : GroundedAiQueryResponseSchema.parse(JSON.parse(row.response_json));
+      : ConversationAnswerSchema.parse(JSON.parse(row.response_json));
   return ConversationTurnSchema.parse({
     messageId: row.message_id,
     sequence: row.sequence,
@@ -248,7 +248,7 @@ export class ConversationTurnCore {
 
   complete(input: unknown): ConversationTurn {
     const request = ConversationFinishTurnSchema.parse(input);
-    const response = GroundedAiQueryResponseSchema.parse(request.response);
+    const response = ConversationAnswerSchema.parse(request.response);
     return this.storage.transactionSync(() => {
       const sql = this.storage.sql;
       owner(sql, request.actor, request.conversationId);

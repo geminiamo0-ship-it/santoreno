@@ -17,7 +17,7 @@ Authenticated user clicks a server-verified citation → Santo loads the origina
 
 ## Offline export, review and upload
 
-Run on a trusted operator workstation with the user-provided *licensed* `all_libraries.sqlite`:
+Run on a trusted operator workstation with the user-provided _licensed_ `all_libraries.sqlite`:
 
 ```bash
 python scripts/export_medical_libraries.py --db all_libraries.sqlite --out ./santo-r2-export

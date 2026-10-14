@@ -1,0 +1,69 @@
+name: Source Explorer Staging Deploy
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/source-explorer-staging-deploy.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+  checks: read
+concurrency:
+  group: santo-pilot-staging-deploy
+  cancel-in-progress: false
+jobs:
+  deploy-staging:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      GH_TOKEN: ${{ github.token }}
+      WORKER_URL: https://santo-api-staging.geminiamo0.workers.dev
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require full Verify for this commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 90); do
+            checks="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/check-runs")"
+            policy="$(jq -r '[.check_runs[] | select(.name == "repository-policy") | .conclusion] | map(select(. != null)) | .[0] // ""' <<<"$checks")"
+            quality="$(jq -r '[.check_runs[] | select(.name == "code-quality") | .conclusion] | map(select(. != null)) | .[0] // ""' <<<"$checks")"
+            if [[ "$policy" == success && "$quality" == success ]]; then exit 0; fi
+            for state in "$policy" "$quality"; do
+              case "$state" in
+                failure|cancelled|timed_out|action_required|startup_failure|stale) echo "Verify failed: $state"; exit 1;;
+              esac
+            done
+            sleep 10
+          done
+          echo 'Verify timed out'; exit 1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install pinned dependencies
+        run: |
+          corepack enable
+          pnpm install --frozen-lockfile
+      - name: Deploy Santo Staging only
+        run: |
+          test -n "${CLOUDFLARE_ACCOUNT_ID:-}"
+          test -n "${CLOUDFLARE_API_TOKEN:-}"
+          cd workers/api
+          pnpm exec wrangler deploy --env staging --keep-vars
+      - name: Verify health and deny all anonymous library browsing
+        shell: bash
+        run: |
+          set -euo pipefail
+          health="$(curl --retry 10 --retry-delay 2 --retry-all-errors --fail --silent --show-error "$WORKER_URL/health")"
+          jq -e '.service == "santo-api" and .status == "ok"' <<<"$health" > /dev/null
+          for uri in /v1/libraries /v1/libraries/passmedicine/articles; do
+            status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' "$WORKER_URL$uri")"
+            test "$status" = 401 || { echo "Anonymous access was $status for $uri"; exit 1; }
+          done
+          status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' -X POST "$WORKER_URL/v1/sources/article" -H 'content-type: application/json' --data '{}')"
+          test "$status" = 401
+          echo "Santo Source Explorer Staging healthy/auth protected on ${GITHUB_SHA}" >> "$GITHUB_STEP_SUMMARY"
+          echo 'No actual medical source/indexing QA was performed.' >> "$GITHUB_STEP_SUMMARY"

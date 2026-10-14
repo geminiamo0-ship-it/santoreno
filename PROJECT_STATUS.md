@@ -523,6 +523,36 @@ For every meaningful step:
   real content (Issue #58). Issue #77 stays open until real expert review
   and a deliberate production rollout decision.
 
+### Phase 10 Source Explorer + 7,049 article corpus — PR #83 in review (14 Oct 2026)
+
+- **Issue #82** / Santo **PR #83** adds staging-only authenticated
+  `/v1/libraries` catalog, article listing/reading and
+  `POST /v1/sources/article` verified-citation resolution to original
+  private R2 article and exact **section**. Bounded JSON and strict
+  browser media allowlist; no third-party raw HTML rendering.
+- Santo Lit widget now includes a responsive reader, article navigation
+  and citation-section jump. Royal Bank **PR #111** adds the student-facing
+  Source Explorer, browse action and authenticated proxy allowlisting.
+- User licensed SQLite corpus inspected: 7,049 records across five libraries
+  (AMBOSS 1,481, USMLE 948, One Examination 384, PassMedicine 3,109,
+  Pastest 1,127). Offline sanitized structured export produced
+  7,049 article JSON + 67,524 Markdown index sections + six catalog
+  JSON files (74,579 uploadable private R2 objects); local compressed
+  bundle around 29 MiB. **No medical source content committed to GitHub**.
+- `scripts/export_medical_libraries.py` and
+  `scripts/upload_medical_libraries_r2.py` implement reproducible export
+  and resumable operator-local upload; private target
+  `santo-content-staging` only; never the public images bucket.
+- **Not yet uploaded/indexed:** no Cloudflare R2 credentials are available
+  to this chat runtime; public `r2.dev` host was verified only for images.
+  Configure five AI Search instances with canonical per-section
+  `itemKey`, wait for indexing, and verify authentic medical citations.
+- Runtime feature flag `SANTO_LIBRARY_READER_V1=true` is Staging-only.
+  Production remains disabled. Real student end-to-end and source-fidelity
+  tests cannot pass before the private corpus is uploaded/indexed.
+- CI, PR merge and Staging publish **pending** at this checkpoint;
+  don't describe this phase as fully complete until evidence exists.
+
 ## 9. Next action
 
 **Royal Bank Pilot staging checkpoint — 2026-10-14:**

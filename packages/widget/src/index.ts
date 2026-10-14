@@ -1,6 +1,11 @@
 import { html, LitElement, nothing } from "lit";
 import type { GroundedAiQueryResponse } from "@santo/contracts/ai";
 import type { ConversationAnswer, ConversationTurn } from "@santo/contracts/conversation";
+import type {
+  LibraryArticle,
+  LibraryCatalog,
+  LibraryArticleListResponse,
+} from "@santo/contracts/library-reader";
 import type { TrustedSourceDetailResponse } from "@santo/contracts/source";
 
 import {
@@ -47,6 +52,13 @@ export class SantoAiElement extends LitElement {
     remaining: { state: true },
     source: { state: true },
     imageUrl: { state: true },
+    readerOpen: { state: true },
+    readerArticle: { state: true },
+    readerHighlight: { state: true },
+    readerLibraries: { state: true },
+    readerItems: { state: true },
+    readerLibrary: { state: true },
+    readerNext: { state: true },
   };
 
   private ui: WidgetUiState = INITIAL_WIDGET_UI_STATE;
@@ -61,6 +73,13 @@ export class SantoAiElement extends LitElement {
   private remaining: number | null = null;
   private source: TrustedSourceDetailResponse | null = null;
   private imageUrl: string | null = null;
+  private readerOpen = false;
+  private readerArticle: LibraryArticle | null = null;
+  private readerHighlight: string | null = null;
+  private readerLibraries: LibraryCatalog["libraries"] = [];
+  private readerItems: LibraryArticleListResponse["articles"] = [];
+  private readerLibrary: string | null = null;
+  private readerNext: number | null = null;
   private latestAnswer: GroundedAiQueryResponse | null = null;
   private latestQuestion = "";
 
@@ -84,6 +103,12 @@ export class SantoAiElement extends LitElement {
     this.latestAnswer = null;
     this.pending = "";
     this.remaining = null;
+    this.readerOpen = false;
+    this.readerArticle = null;
+    this.readerLibrary = null;
+    this.readerItems = [];
+    this.readerLibraries = [];
+    this.readerNext = null;
     this.statusText = "Session connected. You can ask a question.";
     void this.reconnect();
   }
@@ -199,6 +224,61 @@ export class SantoAiElement extends LitElement {
     }
   }
 
+  private async browseLibraries(): Promise<void> {
+    if (!this.client || this.busy) return;
+    this.busy = true;
+    this.readerOpen = true;
+    this.readerArticle = null;
+    this.readerHighlight = null;
+    this.readerLibrary = null;
+    try {
+      const data = await this.client.libraryCatalog();
+      this.readerLibraries = data.libraries;
+      this.statusText = "Browse Santo medical libraries.";
+    } catch (error) {
+      this.statusText = error instanceof SantoWidgetApiError ? error.code : "LIBRARY_UNAVAILABLE";
+    } finally {
+      this.busy = false;
+    }
+  }
+  private async browseArticles(libraryId: string, cursor = 0): Promise<void> {
+    if (!this.client || this.busy) return;
+    this.busy = true;
+    this.readerOpen = true;
+    try {
+      const result = await this.client.libraryArticles(libraryId, cursor);
+      this.readerItems = cursor ? [...this.readerItems, ...result.articles] : result.articles;
+      this.readerNext = result.nextCursor;
+      this.readerArticle = null;
+      this.readerHighlight = null;
+      this.readerLibrary = libraryId;
+    } catch (error) {
+      this.statusText = error instanceof SantoWidgetApiError ? error.code : "LIBRARY_UNAVAILABLE";
+    } finally {
+      this.busy = false;
+    }
+  }
+  private async openArticle(libraryId: string, articleId: string): Promise<void> {
+    if (!this.client || this.busy) return;
+    this.busy = true;
+    try {
+      this.readerArticle = await this.client.libraryArticle(libraryId, articleId);
+      this.readerOpen = true;
+      this.readerHighlight = null;
+      this.readerLibrary = libraryId;
+    } catch (error) {
+      this.statusText = error instanceof SantoWidgetApiError ? error.code : "LIBRARY_UNAVAILABLE";
+    } finally {
+      this.busy = false;
+    }
+  }
+  private async jumpToReferencedSection(sectionId: string): Promise<void> {
+    await this.updateComplete;
+    const row = Array.from(
+      this.renderRoot.querySelectorAll<HTMLElement>("[data-santo-section]"),
+    ).find((element) => element.dataset.santoSection === sectionId);
+    row?.scrollIntoView({ block: "start", behavior: "smooth" });
+  }
   private async showSource(messageId: string, sourceId: string): Promise<void> {
     if (!this.client || this.busy) return;
     this.busy = true;
@@ -206,6 +286,22 @@ export class SantoAiElement extends LitElement {
     try {
       const detail = await this.client.sourceDetails(messageId, sourceId);
       this.source = detail;
+      try {
+        const resolved = await this.client.sourceArticle(messageId, sourceId);
+        this.readerArticle = resolved.article;
+        this.readerHighlight = resolved.highlightSectionId;
+        this.readerLibrary = resolved.article.libraryId;
+        this.readerOpen = true;
+        if (resolved.highlightSectionId)
+          void this.jumpToReferencedSection(resolved.highlightSectionId);
+      } catch (cause) {
+        this.statusText =
+          cause instanceof SantoWidgetApiError && cause.code === "LIBRARY_ARTICLE_NOT_AVAILABLE"
+            ? "Original article is not indexed yet; verified citation details are available."
+            : cause instanceof SantoWidgetApiError
+              ? cause.code
+              : "LIBRARY_UNAVAILABLE";
+      }
       const first = detail.images[0];
       if (first) {
         const image = await this.client.sourceImage(messageId, sourceId, first.assetId);
@@ -334,6 +430,9 @@ export class SantoAiElement extends LitElement {
                 <option value="">All libraries</option>
                 ${options.map((option) => html`<option value="${option.id}">${option.label}</option>`)}
               </select>
+              <button type="button" class="citation" @click=${() => void this.browseLibraries()}>
+                Browse library
+              </button>
             </div>
             <main class="messages">${this.renderTranscript()}</main>
             ${
@@ -367,6 +466,102 @@ export class SantoAiElement extends LitElement {
                           </a>`
                         : nothing
                     }
+                  </aside>`
+                : nothing
+            }
+            ${
+              this.readerOpen
+                ? html` <aside class="reader-panel" aria-label="Santo Source Explorer">
+                    <div class="reader-head">
+                      <strong>Source Explorer</strong>
+                      <button
+                        type="button"
+                        aria-label="Close article reader"
+                        class="source-close"
+                        @click=${() => {
+                          this.readerOpen = false;
+                        }}
+                      >
+                        ×
+                      </button>
+                    </div>
+                    <div class="reader-nav">
+                      <button type="button" @click=${() => void this.browseLibraries()}>
+                        All libraries
+                      </button>
+                      ${
+                        this.readerArticle && this.readerLibrary
+                          ? html`<button
+                              type="button"
+                              @click=${() => void this.browseArticles(this.readerLibrary!)}
+                            >
+                              Articles
+                            </button>`
+                          : nothing
+                      }
+                    </div>
+                    <div class="reader-body">
+                      ${
+                        this.readerArticle
+                          ? html`
+                              <h2>${this.readerArticle.title}</h2>
+                              <p class="reader-meta">
+                                ${this.readerArticle.category} · ${this.readerArticle.source}
+                              </p>
+                              <nav aria-label="Article sections">
+                                ${this.readerArticle.sections.map(
+                                  (section) => html`
+                                    <button
+                                      type="button"
+                                      @click=${() => void this.jumpToReferencedSection(section.id)}
+                                    >
+                                      ${section.heading}
+                                    </button>
+                                  `,
+                                )}
+                              </nav>
+                              ${this.readerArticle.sections.map(
+                                (section) =>
+                                  html` <section
+                                    data-santo-section=${section.id}
+                                    class=${section.id === this.readerHighlight ? "reader-highlight" : ""}
+                                  >
+                                    <h3>${section.heading}</h3>
+                                    <p>${section.text}</p>
+                                    ${section.images.map((img) => html`<img src=${img.src} alt=${img.alt || section.heading} loading="lazy" referrerpolicy="no-referrer" />`)}
+                                  </section>`,
+                              )}
+                            `
+                          : this.readerLibrary
+                            ? html`
+                                <h2>${this.readerLibrary} articles</h2>
+                                ${this.readerItems.map(
+                                  (item) =>
+                                    html`<button
+                                      class="reader-item"
+                                      type="button"
+                                      @click=${() => void this.openArticle(this.readerLibrary!, item.id)}
+                                    >
+                                      <strong>${item.title}</strong><small>${item.category}</small>
+                                    </button>`,
+                                )}
+                                ${this.readerNext !== null ? html`<button type="button" @click=${() => void this.browseArticles(this.readerLibrary!, this.readerNext!)}>Load more</button>` : nothing}
+                              `
+                            : html`
+                                ${this.readerLibraries.map(
+                                  (library) =>
+                                    html`<button
+                                      type="button"
+                                      class="reader-item"
+                                      @click=${() => void this.browseArticles(library.id)}
+                                    >
+                                      <strong>${library.title}</strong
+                                      ><small>${library.count} articles</small>
+                                    </button>`,
+                                )}
+                              `
+                      }
+                    </div>
                   </aside>`
                 : nothing
             }

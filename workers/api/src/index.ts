@@ -8,6 +8,7 @@ import { handleInfrastructureQueue } from "./infrastructure/queue";
 import { handleP8SourceAcceptance } from "./infrastructure/p8-source-acceptance";
 import type { SantoBindings } from "./runtime/bindings";
 import { handleTrustedSourceRequest } from "./sources/handler";
+import { handleLibraryReader } from "./library/handler";
 
 export { ConversationDO } from "./durable-objects/conversation";
 export { TenantMeterDO } from "./durable-objects/tenant-meter";
@@ -22,6 +23,13 @@ const fetch: typeof app.fetch = async (request, env, executionContext) => {
   }
   if (url.pathname.startsWith("/__infra/p33-global-search-acceptance")) {
     return handleP33GlobalSearchAcceptance(request, env as SantoBindings);
+  }
+  if (
+    url.pathname === "/v1/libraries" ||
+    url.pathname.startsWith("/v1/libraries/") ||
+    url.pathname === "/v1/sources/article"
+  ) {
+    return handleLibraryReader(request, env as SantoBindings);
   }
   if (url.pathname.startsWith("/v1/sources/")) {
     return handleTrustedSourceRequest(request, env as SantoBindings);

@@ -12,12 +12,22 @@ const answer: ConversationAnswer = {
   usage: { unitsCharged: 1, remaining: 3 },
 };
 
-function events(raw: string): Array<{ type: string; text?: string; response?: unknown; code?: string }> {
-  return raw.trim().split("\n\n").map((block) => {
-    const data = block.split("\n").find((line) => line.startsWith("data: "));
-    if (!data) throw new Error("missing SSE payload");
-    return JSON.parse(data.slice(6)) as { type: string; text?: string; response?: unknown; code?: string };
-  });
+function events(
+  raw: string,
+): Array<{ type: string; text?: string; response?: unknown; code?: string }> {
+  return raw
+    .trim()
+    .split("\n\n")
+    .map((block) => {
+      const data = block.split("\n").find((line) => line.startsWith("data: "));
+      if (!data) throw new Error("missing SSE payload");
+      return JSON.parse(data.slice(6)) as {
+        type: string;
+        text?: string;
+        response?: unknown;
+        code?: string;
+      };
+    });
 }
 
 describe("native provisional conversation SSE (staging only)", () => {
@@ -66,7 +76,9 @@ describe("native provisional conversation SSE (staging only)", () => {
       return answer;
     });
     expect(events(await stream.text()).map((event) => event.type)).toEqual([
-      "draft", "draft", "complete",
+      "draft",
+      "draft",
+      "complete",
     ]);
   });
 });

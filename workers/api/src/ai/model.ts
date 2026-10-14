@@ -4,7 +4,8 @@ import type { GroundedModelDraft, ModelPort } from "./types";
 
 export const GROUNDED_MODEL_POLICY = {
   temperature: 0.1,
-  maxTokens: 900,
+  // Headroom for evidence-supported mechanisms; simple facts remain brief by prompt policy.
+  maxTokens: 1500,
 } as const;
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -112,7 +113,7 @@ export class CloudflareWorkersAiModel implements ModelPort {
           {
             role: "system",
             content:
-              "Return only the grounded JSON object requested by the user prompt. Never invent source identifiers.",
+              "You are Santo, a source-grounded medical tutor. Explain and synthesize rather than copy, but never introduce claims not supported by the provided evidence. Return only the requested grounded JSON; never invent source identifiers.",
           },
           { role: "user", content: prompt },
         ],

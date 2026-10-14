@@ -499,6 +499,21 @@ For every meaningful step:
   authoritative exam-context integration, real host/browser acceptance and
   separate rollout confirmation. No Santo/Royal production changes here.
 
+### Professor-grade grounded teaching — Issue #77, implementation in review (14 Oct 2026)
+
+- User-approved explanation style: adaptive professor-grade medical teaching,
+  mechanism-to-clinical-reasoning synthesis grounded strictly in retrieved evidence.
+- Branch `feat/77-professor-grade-grounded-teaching` changes only server-side
+  grounded prompt/system model instructions, 900 -> 1500 maximum generation
+  tokens (ceiling only), versioned candidate teaching persona, docs and tests.
+- Preserve existing authenticated RAG, exact source-ID citation validation,
+  five-passage retrieval cap, strict JSON/SSE, TenantMeterDO quota and replay.
+- This **does not enable Copilot intent routing or greeting handling** (#75).
+  Medical claim correctness and evidence quality require real indexed licensed
+  corpus and expert evaluation separately from CI (#58/#77).
+- PR/CI/post-merge and staging acceptance **not yet proven** at this checkpoint;
+  do not assume production or Royal Bank live rollout.
+
 ## 9. Next action
 
 **Royal Bank Pilot staging checkpoint — 2026-10-14:**

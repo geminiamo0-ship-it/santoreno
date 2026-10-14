@@ -23,6 +23,7 @@ describe("Cloudflare Workers AI model adapter", () => {
       answer: "Sodium is 135–145 mmol/L.",
       citationIds: ["medical:chunk-1"],
     });
+    expect(GROUNDED_MODEL_POLICY.maxTokens).toBe(1500);
     expect(ai.run).toHaveBeenCalledWith(
       "@cf/test/grounded-model",
       expect.objectContaining({
@@ -34,6 +35,12 @@ describe("Cloudflare Workers AI model adapter", () => {
           { role: "user", content: "Use only supplied evidence" },
         ],
       }),
+    );
+    const request = vi.mocked(ai.run).mock.calls[0]?.[1] as
+      { messages?: { role: string; content: string }[] } | undefined;
+    expect(request?.messages?.[0]?.content).toContain("source-grounded medical tutor");
+    expect(request?.messages?.[0]?.content).toContain(
+      "never introduce claims not supported by the provided evidence",
     );
   });
 

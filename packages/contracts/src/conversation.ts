@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { GroundedAiQueryResponseSchema } from "./ai";
 
 export const ConversationIdSchema = z.string().uuid();
 export const ConversationIdempotencyKeySchema = z.string().trim().min(1).max(128);
@@ -101,6 +102,28 @@ export const ConversationAskRequestSchema = z
   .strict();
 export type ConversationAskRequest = z.infer<typeof ConversationAskRequestSchema>;
 
+/** Deterministic, authorized non-clinical conversation; never a fabricated sourced answer. */
+export const ConversationQuickReplySchema = z
+  .object({
+    requestId: z.string().uuid(),
+    messageId: z.string().uuid(),
+    answer: z.string().min(1).max(1000),
+    citations: z.tuple([]),
+    usage: z.object({
+      unitsCharged: z.literal(0),
+      remaining: z.number().int().nonnegative(),
+    }),
+    kind: z.literal("quick_reply"),
+  })
+  .strict();
+export type ConversationQuickReply = z.infer<typeof ConversationQuickReplySchema>;
+
+export const ConversationAnswerSchema = z.union([
+  GroundedAiQueryResponseSchema,
+  ConversationQuickReplySchema,
+]);
+export type ConversationAnswer = z.infer<typeof ConversationAnswerSchema>;
+
 export const ConversationTurnStatusSchema = z.enum(["pending", "completed", "retryable"]);
 export const ConversationTurnSchema = z
   .object({
@@ -109,24 +132,7 @@ export const ConversationTurnSchema = z
     question: ConversationTextSchema,
     libraryId: z.string().nullable(),
     status: ConversationTurnStatusSchema,
-    response: z
-      .object({
-        requestId: z.string().uuid(),
-        messageId: z.string().uuid(),
-        answer: z.string().min(1),
-        citations: z
-          .array(
-            z.object({
-              sourceId: z.string().min(1),
-              title: z.string().min(1),
-              page: z.number().int().positive().nullable(),
-            }),
-          )
-          .min(1)
-          .max(5),
-        usage: z.object({ unitsCharged: z.literal(1), remaining: z.number().int().nonnegative() }),
-      })
-      .nullable(),
+    response: ConversationAnswerSchema      .nullable(),
   })
   .strict();
 export type ConversationTurn = z.infer<typeof ConversationTurnSchema>;

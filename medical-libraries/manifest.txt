@@ -1,0 +1,7 @@
+source=google-drive
+file_id=1TcNQCgfKkD5oXM12l4HYKA-kITTZaLcr
+filename=santo_staging_medical_library_r2_bundle.zip
+sha256=708398d7b8fcc8b2b6b82142a2e819a8d322d30596f8a892eda57672b7eaa700
+bytes=74078792
+archive_type=zip
+visibility=public-with-owner-approval

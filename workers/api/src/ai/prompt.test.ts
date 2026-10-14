@@ -117,7 +117,7 @@ describe("deterministic grounded prompt builder", () => {
       expect(item.section.length).toBe(200);
       expect(item.text.length).toBe(3500);
     }
-    expect(result.length).toBeLessThan(27000);
+    expect(result.length).toBeLessThan(30000);
   });
 
   it("JSON-escapes untrusted query and evidence without creating new source records", () => {

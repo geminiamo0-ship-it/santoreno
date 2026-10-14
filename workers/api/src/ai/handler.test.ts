@@ -342,6 +342,65 @@ describe("grounded AI handler", () => {
     expect(model.generate).not.toHaveBeenCalled();
   });
 
+  it("uses transparent medical knowledge when RAG has no relevant evidence and feature is on", async () => {
+    env.SANTO_GENERAL_MEDICAL_FALLBACK = "true";
+    retrieval.retrieve = vi.fn(async () => []);
+    model.generate = vi.fn(async () => ({
+      answer: "## Key takeaway\\nHyponatraemia is low serum sodium.",
+      citationIds: [],
+    }));
+    const save = vi.fn(async () => undefined);
+    const response = await handler({ save })(request(token), env);
+    expect(response.status).toBe(200);
+    const payload = await response.json();
+    expect(payload).toMatchObject({
+      groundingMode: "general",
+      answer: "## Key takeaway\\nHyponatraemia is low serum sodium.",
+      citations: [],
+      usage: { unitsCharged: 1, remaining: 9 },
+    });
+    expect(vi.mocked(model.generate).mock.calls[0]?.[0]).toContain("GENERAL_MEDICAL_KNOWLEDGE");
+    expect(save).not.toHaveBeenCalled();
+    expect(quota.finalizeCalls).toBe(1);
+    expect(quota.releaseCalls).toBe(0);
+  });
+
+  it("tries general mode only when the grounded model explicitly reports insufficient evidence", async () => {
+    env.SANTO_GENERAL_MEDICAL_FALLBACK = "true";
+    model.generate = vi.fn()
+      .mockResolvedValueOnce({ answer: "INSUFFICIENT_EVIDENCE", citationIds: [] })
+      .mockResolvedValueOnce({ answer: "General medical explanation", citationIds: [] });
+    const response = await handler()(request(token), env);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      groundingMode: "general", citations: [], answer: "General medical explanation",
+    });
+    expect(model.generate).toHaveBeenCalledTimes(2);
+    expect(quota.finalizeCalls).toBe(1);
+  });
+
+  it("never turns retrieval outages into uncited medical assertions", async () => {
+    env.SANTO_GENERAL_MEDICAL_FALLBACK = "true";
+    retrieval.retrieve = vi.fn(async () => { throw new Error("Search offline"); });
+    const response = await handler()(request(token), env);
+    expect(response.status).toBe(502);
+    expect(model.generate).not.toHaveBeenCalled();
+    expect(quota.releaseCalls).toBe(1);
+  });
+
+  it("rejects invented citations even in general fallback mode", async () => {
+    env.SANTO_GENERAL_MEDICAL_FALLBACK = "true";
+    retrieval.retrieve = vi.fn(async () => []);
+    model.generate = vi.fn(async () => ({
+      answer: "Unverified general text",
+      citationIds: ["medical:imaginary"],
+    }));
+    const response = await handler()(request(token), env);
+    expect(response.status).toBe(502);
+    expect(await response.json()).toEqual({ error: "CITATION_INVALID" });
+    expect(quota.used).toBe(0);
+  });
+
   it("rejects invented citations and releases the reservation", async () => {
     model.generate = vi.fn(async () => ({
       answer: "Unsupported answer",

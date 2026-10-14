@@ -17,6 +17,7 @@ import {
 import { widgetStyles } from "./styles";
 import {
   approvedMedicalImageUrl,
+  decodedSourceArticleHtml,
   decodeArticlePopover,
   formatArticleForReader,
   referencedHeadingText,
@@ -89,6 +90,7 @@ export class SantoAiElement extends LitElement {
   private imageUrl: string | null = null;
   private readerOpen = false;
   private readerArticle: LibraryArticle | null = null;
+  private readerDecodedHtml = "";
   private readerHighlight: string | null = null;
   private readerLibraries: LibraryCatalog["libraries"] = [];
   private readerItems: LibraryArticleListResponse["articles"] = [];
@@ -257,6 +259,7 @@ export class SantoAiElement extends LitElement {
     this.busy = true;
     this.readerOpen = true;
     this.readerArticle = null;
+    this.readerDecodedHtml = "";
     this.readerHighlight = null;
     this.readerLibrary = null;
     try {
@@ -291,6 +294,7 @@ export class SantoAiElement extends LitElement {
     this.busy = true;
     try {
       this.readerArticle = await this.client.libraryArticle(libraryId, articleId);
+      this.readerDecodedHtml = await decodedSourceArticleHtml(this.readerArticle);
       this.readerOpen = true;
       this.readerPopover = null;
       this.readerLightbox = null;
@@ -378,6 +382,7 @@ export class SantoAiElement extends LitElement {
       try {
         const resolved = await this.client.sourceArticle(messageId, sourceId);
         this.readerArticle = resolved.article;
+        this.readerDecodedHtml = await decodedSourceArticleHtml(this.readerArticle);
         this.readerPopover = null;
         this.readerLightbox = null;
         this.readerHighlight = resolved.highlightSectionId;
@@ -714,14 +719,14 @@ export class SantoAiElement extends LitElement {
                                 )}
                               </nav>
                               ${
-                                this.readerArticle.contentHtml
+                                this.readerDecodedHtml
                                   ? html`<div
                                       class="article-original-html ${this.readerArticle.libraryId === "amboss" ? "amboss-original" : "generic-original"}"
                                       @click=${this.onArticleClick}
                                     >
                                       ${unsafeHTML(
                                         formatArticleForReader(
-                                          this.readerArticle.contentHtml,
+                                          this.readerDecodedHtml,
                                           this.readerArticle.libraryId,
                                         ),
                                       )}

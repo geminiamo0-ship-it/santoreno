@@ -3,7 +3,7 @@
 // isolated AI Search source bucket. No public reads, no deletes, no writes to source.
 const PREFIX = "medical-search/v1/one-examination/";
 const KEY = /^medical-search\/v1\/one-examination\/[a-z0-9-]{1,96}\/s-[0-9]{4}\.md$/;
-const MAX = 30;
+const MAX = 10;
 
 function authorized(request, token) {
   const given = request.headers.get("authorization") || "";
@@ -35,6 +35,17 @@ export default {
         if (listing.objects.some(x => !KEY.test(x.key))) return json({error:"UNEXPECTED_KEY"},400);
         return json({keys:listing.objects.map(x=>x.key),cursor:listing.truncated?listing.cursor:null});
       } catch(e){return json({error:"LIST_FAILED"},503);}
+    }
+    if (req.method === "GET" && uri.pathname === "/verify") {
+      const key = uri.searchParams.get("key");
+      if (!KEY.test(key || "")) return json({error:"BAD_KEY"},400);
+      const [src,dst]=await Promise.all([env.SOURCE_BUCKET.get(key),env.DEST_BUCKET.get(key)]);
+      if (!src||!dst) return json({error:"MISSING"},404);
+      const [a,b]=await Promise.all([src.arrayBuffer(),dst.arrayBuffer()]);
+      const bytes=await Promise.all([crypto.subtle.digest("SHA-256",a),crypto.subtle.digest("SHA-256",b)]);
+      const toHex=(v)=>[...new Uint8Array(v)].map(n=>n.toString(16).padStart(2,"0")).join("");
+      const same=toHex(bytes[0])===toHex(bytes[1]);
+      return json({key,identical:same,sha256:toHex(bytes[0]),size:a.byteLength},same?200:409);
     }
     if (req.method !== "POST" || uri.pathname !== "/copy") return json({error:"NOT_FOUND"},404);
     let body;

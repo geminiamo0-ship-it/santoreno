@@ -129,18 +129,28 @@ describe("verified source explorer and private article browser", () => {
   });
   it("accepts safe compressed large HTML envelopes and rejects oversized blobs", async () => {
     const { service, bucket } = await setup();
-    bucket.data.set(articleKey, JSON.stringify({
-      ...article,
-      contentHtmlGzipBase64: "H4sIAAAAAAAA",
-      contentHtmlDecodedLength: 1600000,
-    }));
-    expect((await service.article("passmedicine", "passmed-5683")).contentHtmlDecodedLength).toBe(1600000);
-    bucket.data.set(articleKey, JSON.stringify({
-      ...article,
-      contentHtmlGzipBase64: "X".repeat(1500001),
-      contentHtmlDecodedLength: 1600000,
-    }));
-    await expect(service.article("passmedicine", "passmed-5683")).rejects.toMatchObject({ status: 502 });
+    bucket.data.set(
+      articleKey,
+      JSON.stringify({
+        ...article,
+        contentHtmlGzipBase64: "H4sIAAAAAAAA",
+        contentHtmlDecodedLength: 1600000,
+      }),
+    );
+    expect((await service.article("passmedicine", "passmed-5683")).contentHtmlDecodedLength).toBe(
+      1600000,
+    );
+    bucket.data.set(
+      articleKey,
+      JSON.stringify({
+        ...article,
+        contentHtmlGzipBase64: "X".repeat(1500001),
+        contentHtmlDecodedLength: 1600000,
+      }),
+    );
+    await expect(service.article("passmedicine", "passmed-5683")).rejects.toMatchObject({
+      status: 502,
+    });
   });
 
   it("rejects malformed, executable or oversized content, without falling back to HTML", async () => {

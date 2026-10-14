@@ -1,0 +1,78 @@
+name: Copilot Quick Replies Staging Deploy
+
+# One-time staging-only deploy on first merge. Other main changes do not deploy.
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/copilot-quick-replies-staging-deploy.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  checks: read
+
+concurrency:
+  group: santo-pilot-staging-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy-staging:
+    name: deploy-staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      GH_TOKEN: ${{ github.token }}
+      WORKER_URL: https://santo-api-staging.geminiamo0.workers.dev
+    steps:
+      - uses: actions/checkout@v4
+      - name: Wait for exact-main-commit Verify
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 90); do
+            checks="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/check-runs")"
+            policy="$(jq -r '[.check_runs[] | select(.name == "repository-policy") | .conclusion] | map(select(. != null)) | .[0] // ""' <<<"$checks")"
+            quality="$(jq -r '[.check_runs[] | select(.name == "code-quality") | .conclusion] | map(select(. != null)) | .[0] // ""' <<<"$checks")"
+            if [[ "$policy" == success && "$quality" == success ]]; then
+              echo 'Verify passed'; exit 0
+            fi
+            for state in "$policy" "$quality"; do
+              case "$state" in
+                failure|cancelled|timed_out|action_required|startup_failure|stale)
+                  echo 'Verify failed'; exit 1;;
+              esac
+            done
+            sleep 10
+          done
+          echo 'Verify timed out'; exit 1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: |
+          corepack enable
+          pnpm install --frozen-lockfile
+      - name: Deploy only Santo Staging Worker
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${CLOUDFLARE_ACCOUNT_ID:-}"
+          test -n "${CLOUDFLARE_API_TOKEN:-}"
+          cd workers/api
+          pnpm exec wrangler deploy --env staging --keep-vars
+      - name: Safe pilot health smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          health="$(curl --retry 10 --retry-delay 3 --retry-all-errors --fail --silent --show-error "$WORKER_URL/health")"
+          jq -e '.service == "santo-api" and .status == "ok"' <<<"$health" >/dev/null
+          html="$(curl --retry 10 --retry-delay 3 --retry-all-errors --fail --silent --show-error "$WORKER_URL/pilot/credentials")"
+          grep -q 'Generate API Key' <<<"$html"
+          code="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' -X POST "$WORKER_URL/v1/conversations/11111111-1111-4111-8111-111111111111/ask" -H 'content-type: application/json' --data '{"idempotencyKey":"smoke-no-auth","expectedSequence":0,"text":"hi"}')"
+          test "$code" = 401
+          echo 'Staging healthy; unauthorized conversational request denied; production untouched.'
+          echo "Staging commit: \`${GITHUB_SHA}\`" >> "$GITHUB_STEP_SUMMARY"

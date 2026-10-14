@@ -1,6 +1,6 @@
 import { html, LitElement, nothing } from "lit";
 import type { GroundedAiQueryResponse } from "@santo/contracts/ai";
-import type { ConversationTurn } from "@santo/contracts/conversation";
+import type { ConversationAnswer, ConversationTurn } from "@santo/contracts/conversation";
 import type { TrustedSourceDetailResponse } from "@santo/contracts/source";
 
 import {
@@ -218,7 +218,7 @@ export class SantoAiElement extends LitElement {
     }
   }
 
-  private renderAnswer(response: GroundedAiQueryResponse) {
+  private renderAnswer(response: ConversationAnswer) {
     return html`
       <div class="answer-text">${response.answer}</div>
       <div class="citation-list">

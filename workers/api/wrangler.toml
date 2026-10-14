@@ -57,6 +57,7 @@ workers_dev = true
 SANTO_ENV = "staging"
 SANTO_SESSION_TTL_SECONDS = "900"
 SANTO_AI_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
+SANTO_COPILOT_ROUTING_V1 = "true"
 
 [env.staging.secrets]
 required = ["INFRA_SMOKE_TOKEN", "SANTO_SESSION_SIGNING_KEY"]

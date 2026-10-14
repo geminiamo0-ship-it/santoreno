@@ -132,7 +132,7 @@ export const ConversationTurnSchema = z
     question: ConversationTextSchema,
     libraryId: z.string().nullable(),
     status: ConversationTurnStatusSchema,
-    response: ConversationAnswerSchema      .nullable(),
+    response: ConversationAnswerSchema.nullable(),
   })
   .strict();
 export type ConversationTurn = z.infer<typeof ConversationTurnSchema>;

@@ -1,0 +1,45 @@
+name: Santo Production D1 Migration Gate
+on:
+  push:
+    branches: [feat/96-luna-professor-staging]
+    paths: [.github/workflows/santo-production-d1-migrate-once.yml]
+permissions:
+  contents: read
+concurrency:
+  group: santo-production-d1-migration
+  cancel-in-progress: false
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - name: Assert newly provisioned exact production D1 binding
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_ACCOUNT_ID" && test -n "$CLOUDFLARE_API_TOKEN"
+          python - <<'PY'
+          from pathlib import Path
+          data=Path("workers/api/wrangler.toml").read_text().split("[env.production]",1)[1]
+          assert 'database_name = "santo-control-plane"' in data
+          assert 'database_id = "3c219fbd-b9a1-4891-9b5e-4b4396fcc41e"' in data
+          assert data.count('[[env.production.d1_databases]]')==1
+          PY
+      - name: Apply four reviewed D1 migrations to isolated Production control database only
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd workers/api
+          pnpm exec wrangler d1 migrations apply santo-control-plane --remote --env production --yes
+          pnpm exec wrangler d1 migrations list santo-control-plane --remote --env production | tee "$RUNNER_TEMP/prod-migration-status.txt"
+          echo '## Production Santo D1 schema' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Reviewed four D1 migrations applied to exact production database; no Worker release or tenant key issuance.' >> "$GITHUB_STEP_SUMMARY"

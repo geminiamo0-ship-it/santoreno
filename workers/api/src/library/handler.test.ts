@@ -73,12 +73,17 @@ describe("library reader session and rollout authorization", () => {
       expect(response.status).toBe(401);
     }
   });
-  it("never activates for production, even if the staging flag is present", async () => {
-    const result = await handler(new Request("https://santo.test/v1/libraries"), {
-      ...enabled,
-      SANTO_ENV: "production",
-    });
-    expect(result.status).toBe(404);
+  it("production activation still requires explicit flag and a signed user session", async () => {
+    const path = new Request("https://santo.test/v1/libraries");
+    const production = { ...enabled, SANTO_ENV: "production" as const };
+    expect((await handler(path, production)).status).toBe(401);
+    expect((await handler(path, { ...production, SANTO_LIBRARY_READER_V1: "false" })).status).toBe(
+      404,
+    );
+    expect((await handler(path, { ...production, SANTO_LIBRARY_READER_V1: undefined })).status).toBe(
+      404,
+    );
+    expect((await handler(path, { ...enabled, SANTO_ENV: "local" })).status).toBe(404);
   });
   it("enforces method, query and strict article IDs", async () => {
     const token = (

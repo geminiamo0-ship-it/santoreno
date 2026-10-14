@@ -18,6 +18,7 @@ import { widgetStyles } from "./styles";
 import { approvedMedicalImageUrl, decodeArticlePopover, formatArticleForReader, referencedHeadingText, sanitizeArticleForReader } from "./article-rich-html";
 import { renderSantoMarkdown } from "./medical-markdown";
 import { readableMedicalSourceTitle } from "./source-title";
+import { citedMedicalImages, type VerifiedChatImage } from "./cited-chat-images";
 import { SANTO_WIDGET_TAG } from "./tag-name";
 import {
   INITIAL_WIDGET_UI_STATE,
@@ -65,6 +66,7 @@ export class SantoAiElement extends LitElement {
     readerNext: { state: true },
     readerPopover: { state: true },
     readerLightbox: { state: true },
+    inlineImages: { state: true },
   };
 
   private ui: WidgetUiState = INITIAL_WIDGET_UI_STATE;
@@ -88,6 +90,8 @@ export class SantoAiElement extends LitElement {
   private readerNext: number | null = null;
   private readerPopover: { title: string; html: string } | null = null;
   private readerLightbox: { src: string; alt: string } | null = null;
+  private inlineImages: Record<string, VerifiedChatImage[]> = {};
+  private triedImageMessages = new Set<string>();
   private latestAnswer: GroundedAiQueryResponse | null = null;
   private latestQuestion = "";
 
@@ -119,6 +123,8 @@ export class SantoAiElement extends LitElement {
     this.readerNext = null;
     this.readerPopover = null;
     this.readerLightbox = null;
+    this.inlineImages = {};
+    this.triedImageMessages.clear();
     this.statusText = "Session connected. You can ask a question.";
     void this.reconnect();
   }
@@ -141,6 +147,9 @@ export class SantoAiElement extends LitElement {
     this.busy = true;
     try {
       this.turns = await this.client.connect();
+      this.turns.slice(-5).forEach((turn) => {
+        if (turn.response) void this.loadInlineImages(turn.response);
+      });
       const last = this.turns.filter((turn) => turn.response !== null).at(-1);
       this.remaining = last?.response?.usage.remaining ?? this.remaining;
       this.pending = this.client.pending?.text ?? "";
@@ -216,6 +225,7 @@ export class SantoAiElement extends LitElement {
       this.turns = [...this.client.completedTurns];
       this.remaining = answer.usage.remaining;
       this.statusText = "Answer verified and saved.";
+      void this.loadInlineImages(answer);
     } catch (error) {
       this.pending = this.client.pending?.text ?? question;
       this.statusText = error instanceof SantoWidgetApiError ? error.code : "WIDGET_REQUEST_FAILED";
@@ -377,6 +387,29 @@ export class SantoAiElement extends LitElement {
       this.statusText = error instanceof SantoWidgetApiError ? error.code : "SOURCE_UNAVAILABLE";
     } finally {
       this.busy = false;
+    }
+  }
+
+  private async loadInlineImages(response: ConversationAnswer): Promise<void> {
+    const client = this.client;
+    if (!client || !response.citations.length || this.triedImageMessages.has(response.messageId)) {
+      return;
+    }
+    this.triedImageMessages.add(response.messageId);
+    const found: VerifiedChatImage[] = [];
+    // Post-response, non-blocking source fetch: never delay the answer text.
+    for (const citation of response.citations.slice(0, 2)) {
+      try {
+        const resolved = await client.sourceArticle(response.messageId, citation.sourceId);
+        if (client !== this.client) return;
+        found.push(...citedMedicalImages(resolved, response.messageId, citation.sourceId));
+        if (found.length >= 2) break;
+      } catch {
+        // An older citation without imported article media must not block chat.
+      }
+    }
+    if (found.length && client === this.client) {
+      this.inlineImages = { ...this.inlineImages, [response.messageId]: found.slice(0, 2) };
     }
   }
 

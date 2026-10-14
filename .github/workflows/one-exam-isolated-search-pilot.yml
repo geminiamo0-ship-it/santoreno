@@ -103,6 +103,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          echo "Diagnosing isolated source enumeration through authenticated curl"
           python scripts/copy_one_exam_to_isolated_r2.py --url "$WORKER_URL" --execute
 
       - name: Create isolated AI Search instance and run clean first sync without changing old indexes

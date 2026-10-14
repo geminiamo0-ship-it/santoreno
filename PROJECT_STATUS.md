@@ -550,8 +550,19 @@ For every meaningful step:
 - Runtime feature flag `SANTO_LIBRARY_READER_V1=true` is Staging-only.
   Production remains disabled. Real student end-to-end and source-fidelity
   tests cannot pass before the private corpus is uploaded/indexed.
-- CI, PR merge and Staging publish **pending** at this checkpoint;
-  don't describe this phase as fully complete until evidence exists.
+- **Merged/verified:** Santo PR #83 at
+  `730a443ec1f327cf14fa6918d5332aa45d093585` passed post-merge
+  Verify `38500681584` and Staging Worker deployment `38500681521`
+  (healthy worker; anonymous library reads and citation article requests
+  denied with HTTP 401). No production Santo deployment.
+- Royal Bank PR #111 merged at
+  `0226e8ed5e1c381c4ca640b5d37ee1cc26f433b7`; Verify
+  `38500696262` SUCCESS and Vercel statuses for `royal-bank-fmg3`
+  and `royal-bank-effi` report successful deployments.
+- **Not accepted yet:** true authenticated citation-to-article read and
+  cross-library search cannot pass before uploading 74,579 objects to
+  private Staging R2, registering five AI Search instances and checking
+  indexing. Issue #82 and Pilot #58 stay OPEN. No false 'library live' claim.
 
 ## 9. Next action
 

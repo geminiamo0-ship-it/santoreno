@@ -24,7 +24,10 @@ function stringField(record: Record<string, unknown> | null, key: string): strin
 }
 
 export class AiSearchNamespaceLibraryCatalog implements LibraryCatalogPort {
-  constructor(private readonly namespace: AiSearchNamespaceLike | undefined) {}
+  constructor(
+    private readonly namespace: AiSearchNamespaceLike | undefined,
+    private readonly allowedInstanceIds?: ReadonlySet<string>,
+  ) {}
 
   async list(): Promise<readonly LibraryCatalogEntry[]> {
     if (!this.namespace) {
@@ -54,7 +57,7 @@ export class AiSearchNamespaceLibraryCatalog implements LibraryCatalogPort {
     for (const rawEntry of result) {
       const entry = asRecord(rawEntry);
       const instanceId = stringField(entry, "id");
-      if (!instanceId) {
+      if (!instanceId || (this.allowedInstanceIds && !this.allowedInstanceIds.has(instanceId))) {
         continue;
       }
 

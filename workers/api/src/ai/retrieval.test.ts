@@ -85,6 +85,36 @@ describe("CloudflareAiSearchRetrieval", () => {
     ]);
   });
 
+  it("allows only explicitly approved Santo instances and excludes other project data", async () => {
+    const aiSearch = namespace();
+    const { AiSearchNamespaceLibraryCatalog } = await import("./library-catalog");
+    const retrieval = new CloudflareAiSearchRetrieval(
+      aiSearch,
+      new AiSearchNamespaceLibraryCatalog(aiSearch, new Set(["instance-usmle"])),
+    );
+    const evidence = await retrieval.retrieve({ query: "normal sodium", libraryId: null });
+    expect(aiSearch.searchInputs).toHaveLength(1);
+    expect(aiSearch.searchInputs[0]).toMatchObject({
+      ai_search_options: { instance_ids: ["instance-usmle"] },
+    });
+    expect(evidence).toEqual([]);
+    await expect(retrieval.retrieve({ query: "sodium", libraryId: "mrcp" })).rejects.toMatchObject({
+      code: "INVALID_LIBRARY_FILTER",
+      status: 400,
+    });
+  });
+
+  it("fails closed when the Santo allowlist is empty", async () => {
+    const aiSearch = namespace();
+    const { AiSearchNamespaceLibraryCatalog } = await import("./library-catalog");
+    const retrieval = new CloudflareAiSearchRetrieval(
+      aiSearch,
+      new AiSearchNamespaceLibraryCatalog(aiSearch, new Set()),
+    );
+    expect(await retrieval.retrieve({ query: "sodium", libraryId: null })).toEqual([]);
+    expect(aiSearch.searchInputs).toHaveLength(0);
+  });
+
   it("narrows AI Search to the selected library", async () => {
     const aiSearch = namespace();
     const retrieval = new CloudflareAiSearchRetrieval(aiSearch);

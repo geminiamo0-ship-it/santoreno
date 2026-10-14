@@ -1,0 +1,47 @@
+name: Santo One Examination — Diagnose Two Failed Indexed Items
+on:
+  push:
+    branches: [verify/93-santo-isolated-medical-source-search]
+    paths: [".github/workflows/one-examination-item-errors.yml"]
+permissions: {contents: read}
+jobs:
+  errors:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - name: Read failed One Examination items and error reasons without reindexing
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os,json
+          from urllib.request import Request,urlopen
+          account=os.environ["CLOUDFLARE_ACCOUNT_ID"];token=os.environ["CLOUDFLARE_API_TOKEN"]
+          base=f"https://api.cloudflare.com/client/v4/accounts/{account}/ai-search/namespaces/default/instances/one-examination-isolated"
+          h={"Authorization":"Bearer "+token}
+          def get(path):
+            with urlopen(Request(base+path,headers=h),timeout=40) as response:
+              result=json.load(response)
+              if not result.get("success"):raise RuntimeError("Cloudflare response error")
+              return result.get("result")
+          config=get("")
+          if config.get("source")!="santo-one-examination-search-staging":raise RuntimeError("Incorrect isolated source")
+          print("COUNTS",json.dumps({k:get("/stats").get(k) for k in ("completed","queued","running","error","skipped")}),flush=True)
+          errors=get("/items?status=error&per_page=50")
+          print("FAILED_ITEMS",len(errors),flush=True)
+          for item in errors:
+            key=item.get("key");id=item.get("id")
+            if not isinstance(key,str) or not key.startswith("medical-search/v1/one-examination/"):
+              raise RuntimeError("Out-of-library item found in error list")
+            print("FAIL",key,"item_id",id,"reason",str(item.get("error",""))[:450],flush=True)
+            if not id:continue
+            try:
+              logs=get("/items/"+id+"/logs?per_page=20")
+              if isinstance(logs,list):
+                for entry in logs[-4:]:
+                  print("ITEM_ERROR_LOG",key,str(entry.get("message",""))[:220],flush=True)
+            except Exception as ex:
+              print("ITEM_LOG_UNAVAILABLE",type(ex).__name__,flush=True)
+          PY

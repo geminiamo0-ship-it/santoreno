@@ -1,0 +1,62 @@
+name: Santo One Examination Delayed AI Search Sync Retry
+on:
+  push:
+    branches: [diagnose/ai-search-r2-zero-files-20261014]
+    paths: [".github/workflows/one-exam-delayed-sync-retry.yml"]
+permissions: {contents: read}
+jobs:
+  retry:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - name: Respect sync rate limit before retrying ONE isolated library
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os,json,time
+          from urllib.request import Request,urlopen
+          from urllib.error import HTTPError
+          aid=os.environ["CLOUDFLARE_ACCOUNT_ID"];tok=os.environ["CLOUDFLARE_API_TOKEN"]
+          root=f"https://api.cloudflare.com/client/v4/accounts/{aid}/ai-search/namespaces/default/instances/one-examination"
+          hdr={"Authorization":"Bearer "+tok,"Accept":"application/json"}
+          def get(suffix):
+              with urlopen(Request(root+suffix,headers=hdr),timeout=35) as res:
+                  body=json.load(res)
+                  if not body.get("success"):raise RuntimeError("Cloudflare GET failed")
+                  return body.get("result")
+          inst=get("")
+          params=inst.get("source_params") or {}
+          if inst.get("source")!="santo-content-staging" or params.get("prefix")!="medical-search/v1/one-examination/" or params.get("include_items")!=["/medical-search/v1/one-examination/**"]:
+              raise RuntimeError("Unsafe or missing One Examination R2 source config")
+          stats=get("/stats")
+          print("BEFORE_STATS",json.dumps({k:stats.get(k) for k in ("completed","queued","running","error","skipped")}),flush=True)
+          if (stats.get("completed") or 0)>0:
+              print("ALREADY_INDEXING_SUCCESSFULLY; no sync started")
+              raise SystemExit(0)
+          print("Waiting 230 seconds for 429 limiter after previous sync",flush=True)
+          time.sleep(230)
+          active=get("/jobs")
+          if not isinstance(active,list):raise RuntimeError("Unexpected job list")
+          if any(not j.get("ended_at") for j in active):
+              print("INDEXING_JOB_ALREADY_ACTIVE; no duplicate sync")
+              raise SystemExit(0)
+          for attempt in range(1,4):
+              req=Request(root+"/jobs",method="POST",data=b"",headers=hdr)
+              try:
+                  with urlopen(req,timeout=45) as res:
+                      response=json.load(res)
+                      if not response.get("success"):raise RuntimeError("Index job response unsuccessful")
+                      result=response.get("result")
+                      print("ONE_EXAM_SYNC_STARTED",result.get("id") if isinstance(result,dict) else "unknown",flush=True)
+                      raise SystemExit(0)
+              except HTTPError as ex:
+                  if ex.code!=429:raise
+                  print("RATE_LIMIT_429",attempt,"retry-after",ex.headers.get("Retry-After","not provided"),flush=True)
+                  if attempt==3:
+                      print("RATE_LIMIT_STILL_ACTIVE; waiting for next scheduled sync")
+                      raise SystemExit(0)
+                  time.sleep(125)
+          PY

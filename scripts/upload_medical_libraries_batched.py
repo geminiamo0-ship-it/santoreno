@@ -13,6 +13,7 @@ import json
 import os
 from pathlib import Path
 import random
+import subprocess
 import threading
 import time
 from urllib.error import HTTPError, URLError
@@ -63,20 +64,31 @@ def groups(files):
 
 
 def submit(worker_url, token, endpoint, payload=None):
+    """Use curl (not Python urllib) for Cloudflare's edge: urllib POSTs returned 403.
+
+    Keep full HTTP status, hide auth in all logs, and never display article bytes.
+    """
     data = json.dumps(payload, separators=(",", ":")).encode("utf-8") if payload is not None else None
-    req = Request(worker_url.rstrip("/") + endpoint, data=data,
-                  method="POST" if data is not None else "GET",
-                  headers={"authorization": "Bearer " + token,
-                           "content-type": "application/json"})
+    command = ["curl", "--silent", "--show-error", "--max-time", "90",
+               "--write-out", "\\n%{http_code}",
+               "-H", "Authorization: Bearer " + token,
+               "-H", "Content-Type: application/json"]
+    if data is not None:
+        command += ["-X", "POST", "--data-binary", "@-"]
+    command.append(worker_url.rstrip("/") + endpoint)
+    proc = subprocess.run(command, input=data, capture_output=True, timeout=105, check=False)
+    if proc.returncode != 0:
+        raise OSError(f"curl transport failure (exit={proc.returncode})")
     try:
-        with urlopen(req, timeout=90) as response:
-            return response.status, json.loads(response.read(1_000_000))
-    except HTTPError as exc:
-        try:
-            info = json.loads(exc.read(2048))
-        except (ValueError, UnicodeError):
-            info = {}
-        return exc.code, info
+        body, code = proc.stdout.rsplit(b"\\n", 1)
+        status = int(code)
+    except (ValueError, IndexError):
+        raise OSError("curl returned no HTTP status")
+    try:
+        result = json.loads(body)
+    except (ValueError, UnicodeError):
+        result = {"error": "NON_JSON_EDGE_RESPONSE"}
+    return status, result
 
 
 def transfer_group(worker_url, token, files):
@@ -120,6 +132,7 @@ def main():
     ap.add_argument("--workers", type=int, default=6)
     ap.add_argument("--checkpoint", required=True)
     ap.add_argument("--execute", action="store_true")
+    ap.add_argument("--probe", action="store_true", help="Write and verify only the existing safe catalog manifest")
     args = ap.parse_args()
     token = os.environ.get("SANTO_IMPORT_TOKEN", "")
     if args.execute and (len(token) != 64 or not args.url.startswith("https://")):
@@ -137,6 +150,17 @@ def main():
         print("Dry-run: no R2 writes.")
         return
 
+    if args.probe:
+        pair = next((key, path) for key, path in full
+                    if key == "medical-library-catalog/v1/catalog.json")
+        sent = transfer_group(args.url, token, [pair])
+        if sent != [pair[0]]:
+            raise RuntimeError("Batch POST probe mismatch")
+        status, evidence = submit(args.url, token, "/verify?key=" + quote(pair[0], safe=""))
+        if status != 200 or evidence.get("sha256") != hashlib.sha256(pair[1].read_bytes()).hexdigest():
+            raise RuntimeError(f"Authenticated R2 POST probe readback mismatch HTTP={status}")
+        print("SUCCESS: curl POST persisted existing R2 catalog manifest and exact SHA-256 GET matched.", flush=True)
+        return
     checkpoint = Path(args.checkpoint).resolve()
     if checkpoint.is_relative_to(root):
         raise ValueError("Checkpoint cannot be inside licensed export")

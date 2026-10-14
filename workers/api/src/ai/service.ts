@@ -134,6 +134,7 @@ export class GroundedAiService {
               ? buildGeneralMedicalPrompt(input.query)
               : buildGroundedPrompt(input.query, evidence),
             onProvisionalAnswer,
+            groundingMode === "general" ? [] : evidence.map((item) => item.sourceId),
           ),
         signal,
         this.timeouts.modelMs,
@@ -151,7 +152,8 @@ export class GroundedAiService {
         // Withdraw the previous grounded draft before changing its source policy.
         onProvisionalAnswer?.("");
         draft = await withAiDeadline(
-          () => this.model.generate(buildGeneralMedicalPrompt(input.query), onProvisionalAnswer),
+          () =>
+            this.model.generate(buildGeneralMedicalPrompt(input.query), onProvisionalAnswer, []),
           signal,
           this.timeouts.modelMs,
           "MODEL_TIMEOUT",

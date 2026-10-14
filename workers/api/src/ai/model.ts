@@ -112,13 +112,44 @@ const groundedResponseSchema = {
   additionalProperties: false,
 } as const;
 
+/**
+ * Source IDs are selected by Santo, never the model. Bind each run's strict
+ * output schema to the exact IDs retrieved for THIS question. A model cannot
+ * produce a reference to an unknown chunk in a compliant response.
+ * An empty list is valid only in general medical knowledge mode.
+ */
+export function groundedSchemaForCitationIds(allowedCitationIds?: readonly string[]) {
+  if (allowedCitationIds === undefined) return groundedResponseSchema;
+  const ids = [...new Set(allowedCitationIds)];
+  if (ids.length > 5 || ids.some((id) => !id || id.length > 512)) {
+    throw new GroundedAiError(502, "SEARCH_FAILED", "Invalid verified source references");
+  }
+  return {
+    ...groundedResponseSchema,
+    properties: {
+      ...groundedResponseSchema.properties,
+      citation_ids: {
+        type: "array" as const,
+        items:
+          ids.length > 0 ? { type: "string" as const, enum: ids } : { type: "string" as const },
+        minItems: ids.length > 0 ? 1 : 0,
+        maxItems: ids.length > 0 ? 5 : 0,
+      },
+    },
+  };
+}
+
 export class CloudflareWorkersAiModel implements ModelPort {
   constructor(
     private readonly ai: WorkersAiLike | undefined,
     private readonly model: string | undefined,
   ) {}
 
-  async generate(prompt: string): Promise<GroundedModelDraft> {
+  async generate(
+    prompt: string,
+    _onProvisionalAnswer?: (text: string) => void,
+    allowedCitationIds?: readonly string[],
+  ): Promise<GroundedModelDraft> {
     const model = this.model?.trim();
     if (!this.ai || !model) {
       throw new GroundedAiError(503, "AI_NOT_CONFIGURED", "Workers AI model binding is required");
@@ -136,7 +167,7 @@ export class CloudflareWorkersAiModel implements ModelPort {
         ],
         response_format: {
           type: "json_schema",
-          json_schema: groundedResponseSchema,
+          json_schema: groundedSchemaForCitationIds(allowedCitationIds),
         },
         temperature: GROUNDED_MODEL_POLICY.temperature,
         max_tokens: GROUNDED_MODEL_POLICY.maxTokens,
@@ -162,6 +193,7 @@ export class CloudflareLunaModel implements ModelPort {
   async generate(
     prompt: string,
     onProvisionalAnswer?: (text: string) => void,
+    allowedCitationIds?: readonly string[],
   ): Promise<GroundedModelDraft> {
     if (!this.ai) {
       throw new GroundedAiError(503, "AI_NOT_CONFIGURED", "AI binding is required");
@@ -183,7 +215,7 @@ export class CloudflareLunaModel implements ModelPort {
             type: "json_schema",
             name: "santo_grounded",
             strict: true,
-            schema: groundedResponseSchema,
+            schema: groundedSchemaForCitationIds(allowedCitationIds),
           },
         },
       });
@@ -216,9 +248,10 @@ export class FallbackGroundedModel implements ModelPort {
   async generate(
     prompt: string,
     onProvisionalAnswer?: (text: string) => void,
+    allowedCitationIds?: readonly string[],
   ): Promise<GroundedModelDraft> {
     try {
-      return await this.primary.generate(prompt, onProvisionalAnswer);
+      return await this.primary.generate(prompt, onProvisionalAnswer, allowedCitationIds);
     } catch (error) {
       if (
         !(error instanceof GroundedAiError) ||
@@ -229,7 +262,7 @@ export class FallbackGroundedModel implements ModelPort {
       // A failed first provider can have emitted provisional, unverified text.
       // Withdraw it BEFORE switching to the fallback; never label it verified.
       onProvisionalAnswer?.("");
-      return this.fallback.generate(prompt);
+      return this.fallback.generate(prompt, undefined, allowedCitationIds);
     }
   }
 }

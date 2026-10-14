@@ -9,6 +9,7 @@ import {
   FallbackGroundedModel,
   createGroundedModel,
   GROUNDED_MODEL_POLICY,
+  groundedSchemaForCitationIds,
 } from "./model";
 
 describe("Cloudflare Workers AI model adapter", () => {
@@ -237,5 +238,92 @@ describe("Staging Luna -> Llama fallback without weakening answer validation", (
       },
     );
     expect(fallback.generate).not.toHaveBeenCalled();
+  });
+});
+
+describe("strict server-bound citation schema regression", () => {
+  const trusted = ["amboss:chunk-123", "usmle:chunk-456"] as const;
+
+  it("restricts sourced answers to exact current retrieval IDs", () => {
+    expect(groundedSchemaForCitationIds(trusted)).toMatchObject({
+      properties: {
+        citation_ids: {
+          type: "array",
+          items: { type: "string", enum: [...trusted] },
+          minItems: 1,
+          maxItems: 5,
+        },
+      },
+    });
+  });
+
+  it("forbids sourced citations in explicit general-knowledge mode", () => {
+    expect(groundedSchemaForCitationIds([])).toMatchObject({
+      properties: {
+        citation_ids: {
+          maxItems: 0,
+          minItems: 0,
+        },
+      },
+    });
+    expect(() => groundedSchemaForCitationIds(["a", "b", "c", "d", "e", "f"])).toThrowError(
+      "Invalid verified source references",
+    );
+  });
+
+  it("supplies the same verified source enum to Luna's strict schema", async () => {
+    const ai: WorkersAiLike = {
+      run: vi.fn(async () => ({
+        output_text:
+          '{"answer":"Evidence supports this mechanism.","citation_ids":["amboss:chunk-123"]}',
+      })),
+    };
+    const model = new CloudflareLunaModel(ai);
+    await model.generate("Grounded medical context", undefined, trusted);
+    expect(ai.run).toHaveBeenCalledWith(
+      "openai/gpt-6-luna",
+      expect.objectContaining({
+        text: expect.objectContaining({
+          format: expect.objectContaining({
+            schema: expect.objectContaining({
+              properties: expect.objectContaining({
+                citation_ids: expect.objectContaining({
+                  items: { type: "string", enum: [...trusted] },
+                  minItems: 1,
+                }),
+              }),
+            }),
+          }),
+        }),
+      }),
+    );
+  });
+
+  it("keeps verified citations constrained even after switching to Llama", async () => {
+    const ai: WorkersAiLike = {
+      run: vi.fn(async (name: string) => {
+        if (name === "openai/gpt-6-luna") throw Error("Provider unavailable");
+        return { response: '{"answer":"Mechanism.","citation_ids":["amboss:chunk-123"]}' };
+      }),
+    };
+    const model = createGroundedModel({
+      AI: ai,
+      SANTO_ENV: "staging",
+      SANTO_LUNA_PREVIEW: "true",
+      SANTO_AI_MODEL: "@cf/test/llama",
+    });
+    await model.generate("Medical evidence", undefined, trusted);
+    const calls = vi.mocked(ai.run).mock.calls;
+    expect(calls).toHaveLength(2);
+    for (const [, request] of calls) {
+      const typed = request as {
+        text?: { format?: { schema?: { properties?: { citation_ids?: { items?: unknown } } } } };
+        response_format?: { json_schema?: { properties?: { citation_ids?: { items?: unknown } } } };
+      };
+      expect(
+        typed.text?.format?.schema?.properties?.citation_ids?.items ??
+          typed.response_format?.json_schema?.properties?.citation_ids?.items,
+      ).toEqual({ type: "string", enum: [...trusted] });
+    }
   });
 });

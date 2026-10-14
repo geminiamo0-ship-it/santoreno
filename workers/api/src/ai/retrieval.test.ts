@@ -104,6 +104,33 @@ describe("CloudflareAiSearchRetrieval", () => {
     });
   });
 
+  it("keeps the One Examination library ID stable on an isolated AI Search source", async () => {
+    const aiSearch = new FakeAiSearchNamespace(
+      { result: [{ id: "one-examination-isolated" }, { id: "one-examination" }] },
+      { chunks: [{
+        id: "chunk-x",
+        score: 0.93,
+        instance_id: "one-examination-isolated",
+        text: "One Examination source text",
+        item: { key: "medical-search/v1/one-examination/topic/s-0001.md" },
+      }] },
+    );
+    const { AiSearchNamespaceLibraryCatalog } = await import("./library-catalog");
+    const catalog = new AiSearchNamespaceLibraryCatalog(
+      aiSearch, new Set(["one-examination-isolated"]),
+    );
+    const retrieval = new CloudflareAiSearchRetrieval(aiSearch, catalog);
+    const evidence = await retrieval.retrieve({
+      query: "Sample question", libraryId: "one-examination",
+    });
+    expect(evidence[0]).toMatchObject({
+      libraryId: "one-examination", instanceId: "one-examination-isolated",
+    });
+    expect(aiSearch.searchInputs[0]).toMatchObject({
+      ai_search_options: { instance_ids: ["one-examination-isolated"] },
+    });
+  });
+
   it("fails closed when the Santo allowlist is empty", async () => {
     const aiSearch = namespace();
     const { AiSearchNamespaceLibraryCatalog } = await import("./library-catalog");

@@ -3,7 +3,7 @@ on:
   push:
     branches: [fix/90-medical-r2-isolated-search-pilot]
     paths: [".github/workflows/isolated-search-readiness.yml"]
-permissions: {contents: read}
+permissions: { contents: read }
 jobs:
   inspect:
     runs-on: ubuntu-latest

@@ -274,6 +274,148 @@ export const widgetStyles = css`
     font-size: 12px;
     padding: 6px 10px;
   }
+  /* Santo shares Royal's medical-reading language while keeping its own branding. */
+  .medical-markdown {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    font-size: 13px;
+    line-height: 1.75;
+  }
+  .medical-markdown .md-paragraph { margin: 0 0 12px; }
+  .medical-markdown .md-paragraph:last-child { margin-bottom: 0; }
+  .medical-markdown .md-heading {
+    margin: 17px 0 8px;
+    color: #906a31;
+    font-weight: 750;
+    font-size: 14px;
+    line-height: 1.45;
+  }
+  .medical-markdown .md-callout {
+    margin: 14px 0;
+    padding: 13px 15px;
+    border-left: 3px solid #b58b4b;
+    background: #faf3e7;
+    border-radius: 11px;
+    color: #41352a;
+  }
+  .medical-markdown .md-callout strong {
+    display: block;
+    margin-bottom: 4px;
+    color: #795a31;
+  }
+  .medical-markdown .md-callout p { margin: 0; }
+  .medical-markdown .md-table-scroll {
+    max-width: 100%;
+    overflow-x: auto;
+    margin: 13px 0 17px;
+    border: 1px solid #e5d9c8;
+    background: #fff;
+    border-radius: 12px;
+  }
+  .medical-markdown table {
+    min-width: 390px;
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    text-align: start;
+  }
+  .medical-markdown th {
+    padding: 10px 12px;
+    background: #f4ede2;
+    border-bottom: 1px solid #dccdb7;
+    color: #4b3b26;
+    text-align: start;
+    font-weight: 700;
+  }
+  .medical-markdown td {
+    padding: 10px 12px;
+    border-bottom: 1px solid #eee6dd;
+    vertical-align: top;
+  }
+  .medical-markdown tr:last-child td { border-bottom: none; }
+  .medical-markdown tbody tr:nth-child(even) { background: #fcfaf6; }
+  .medical-markdown .md-list { margin: 7px 0 12px; padding-inline-start: 23px; }
+  .medical-markdown .md-list li { padding-inline-start: 3px; margin-bottom: 5px; }
+  .medical-markdown .md-quote {
+    border-inline-start: 3px solid #a4855c;
+    margin: 12px 0;
+    padding: 8px 13px;
+    background: #f8f4ed;
+  }
+  .medical-markdown .md-rule { border: 0; border-top: 1px solid #e6dbc8; margin: 16px 0; }
+  .medical-markdown code {
+    background: #f3ede2;
+    border-radius: 4px;
+    padding: 1px 4px;
+    font: 0.92em ui-monospace, monospace;
+  }
+  .medical-markdown .md-code-block {
+    margin: 13px 0;
+    border: 1px solid #e0d4c2;
+    border-radius: 10px;
+    overflow-x: auto;
+    background: #f7f2e8;
+  }
+  .medical-markdown .md-code-block pre {
+    margin: 0;
+    padding: 13px;
+    white-space: pre;
+    overflow-x: auto;
+  }
+  .medical-markdown .md-code-lang {
+    display: block;
+    font-size: 10px;
+    padding: 5px 13px;
+    border-bottom: 1px solid #e0d4c2;
+  }
+  .answer-mode {
+    font-size: 10.5px;
+    font-weight: 700;
+    line-height: 1.4;
+    padding: 7px 10px;
+    margin-bottom: 10px;
+    border-radius: 9px;
+    display: inline-flex;
+    border: 1px solid #e4d4b8;
+    color: #80602f;
+    background: #fdf5e8;
+  }
+  .answer-mode.mode-general {
+    background: #f3f5f8;
+    color: #506276;
+    border-color: #dce2eb;
+  }
+  .source-collection { margin: 16px 0 0; }
+  .source-collection summary {
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 700;
+    color: #906a31;
+    padding: 7px 0;
+  }
+  .source-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 160px), 1fr));
+    gap: 9px;
+    margin-top: 8px;
+  }
+  .source-card {
+    appearance: none;
+    border: 1px solid #e5d7c5;
+    border-radius: 12px;
+    background: #fffcf7;
+    padding: 12px;
+    text-align: start;
+    color: #282e36;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+  }
+  .source-card:hover { border-color: #af8954; background: #fff8ed; }
+  .source-card strong { font-size: 12px; overflow-wrap: anywhere; }
+  .source-label { text-transform: uppercase; color: #966d32; font-size: 9px; letter-spacing: .05em; }
+  .source-meta { font-size: 10px; color: #746858; }
   .pending-message {
     font-size: 12px;
     color: #796b5a;

@@ -1,0 +1,63 @@
+name: Santo AI Search One Examination Prefix Pilot
+on:
+  push:
+    branches: [diagnose/ai-search-r2-zero-files-20261014]
+    paths: [".github/workflows/ai-search-one-exam-prefix-pilot.yml"]
+permissions: {contents: read}
+jobs:
+  pilot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - name: Add exact R2 key prefix only to One Examination, then start one sync
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os,json
+          from urllib.request import Request,urlopen
+          from urllib.error import HTTPError
+          aid=os.environ["CLOUDFLARE_ACCOUNT_ID"];token=os.environ["CLOUDFLARE_API_TOKEN"]
+          root=f"https://api.cloudflare.com/client/v4/accounts/{aid}/ai-search/namespaces/default/instances/one-examination"
+          hdr={"Authorization":"Bearer "+token,"Content-Type":"application/json"}
+          def call(method,path="",body=None):
+              req=Request(root+path,data=json.dumps(body).encode() if body is not None else (b"" if method=="POST" else None),headers=hdr,method=method)
+              try:
+                  with urlopen(req,timeout=45) as r:
+                      result=json.load(r)
+                      if not result.get("success",False):raise ValueError("Cloudflare response not successful")
+                      return result["result"]
+              except HTTPError as e:
+                  print("CLOUDFLARE_HTTP",method,e.code,"path",path)
+                  raise
+          before=call("GET")
+          if before.get("source")!="santo-content-staging" or before.get("type")!="r2" or not before.get("token_id"):
+              raise RuntimeError("Wrong source or missing auth token")
+          params=before.get("source_params") or {}
+          expected_filter="/medical-search/v1/one-examination/**"
+          expected_prefix="medical-search/v1/one-examination/"
+          if params.get("include_items")!=[expected_filter]:
+              raise RuntimeError("Unexpected include rules; refusing to mutate")
+          if params.get("prefix") not in (None,"",expected_prefix):
+              raise RuntimeError("Another prefix already configured; refusing to mutate")
+          if params.get("prefix")!=expected_prefix:
+              updated_params={**params,"prefix":expected_prefix}
+              result=call("PUT",body={"source_params":updated_params})
+              print("PREFIX_UPDATED",result.get("id"),"source",result.get("source"),"prefix",(result.get("source_params") or {}).get("prefix"))
+          after=call("GET")
+          if after.get("source")!="santo-content-staging" or after.get("type")!="r2" or after.get("token_id")!=before.get("token_id"):
+              raise RuntimeError("Instance source or service token changed; stop")
+          if (after.get("source_params") or {}).get("prefix")!=expected_prefix or (after.get("source_params") or {}).get("include_items")!=[expected_filter]:
+              raise RuntimeError("R2 prefix or filter not persisted")
+          jobs=call("GET","/jobs")
+          if not isinstance(jobs,list):raise RuntimeError("Unexpected jobs")
+          if any(isinstance(j,dict) and not j.get("ended_at") for j in jobs):
+              print("SYNC_ALREADY_ACTIVE; no duplicate started")
+          else:
+              job=call("POST","/jobs")
+              if not isinstance(job,dict) or not job.get("id"):raise RuntimeError("No sync job ID")
+              print("PILOT_SYNC_STARTED",job["id"])
+          print("OTHER_LIBRARIES_UNCHANGED=TRUE")
+          PY

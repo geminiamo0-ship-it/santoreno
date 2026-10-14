@@ -654,10 +654,20 @@ export const widgetStyles = css`
     padding-inline-start: 26px;
     margin: 10px 0 15px;
   }
-  .article-original-html ul { list-style: disc outside; }
-  .article-original-html ol { list-style: decimal outside; }
-  .article-original-html li { display: list-item; margin: 4px 0; }
-  .article-original-html p { margin: 9px 0; white-space: normal; }
+  .article-original-html ul {
+    list-style: disc outside;
+  }
+  .article-original-html ol {
+    list-style: decimal outside;
+  }
+  .article-original-html li {
+    display: list-item;
+    margin: 4px 0;
+  }
+  .article-original-html p {
+    margin: 9px 0;
+    white-space: normal;
+  }
   .article-original-html a,
   .article-original-html :is(.api, .dictionary, .linksuggest, .lamp-trigger) {
     color: #2364a3;
@@ -675,7 +685,7 @@ export const widgetStyles = css`
     margin: 14px 0;
     overflow-wrap: anywhere;
   }
-  .article-original-html :is(th,td) {
+  .article-original-html :is(th, td) {
     border: 1px solid #d9e0e5;
     padding: 9px 11px;
     vertical-align: top;
@@ -685,7 +695,9 @@ export const widgetStyles = css`
     background: #eaf1f7;
     font-weight: 700;
   }
-  .article-original-html tr:nth-child(even) td { background: #f8fafc; }
+  .article-original-html tr:nth-child(even) td {
+    background: #f8fafc;
+  }
   .article-original-html img {
     display: inline-block;
     margin: 8px auto;
@@ -696,8 +708,12 @@ export const widgetStyles = css`
     border-radius: 7px;
     cursor: zoom-in;
   }
-  .article-original-html :is(td, th) img { max-width: min(100%, 300px); }
-  .article-original-html figure { margin: 15px 0; }
+  .article-original-html :is(td, th) img {
+    max-width: min(100%, 300px);
+  }
+  .article-original-html figure {
+    margin: 15px 0;
+  }
   .article-original-html figcaption {
     color: #5e7280;
     font-size: 11px;
@@ -709,7 +725,9 @@ export const widgetStyles = css`
     margin: 15px 0;
     padding: 10px 14px;
   }
-  .article-original-html .lamp-content { display: none; }
+  .article-original-html .lamp-content {
+    display: none;
+  }
   .article-original-html .santo-amboss-card {
     display: block;
     background: #fff;
@@ -730,15 +748,23 @@ export const widgetStyles = css`
     font-weight: 700;
     list-style: none;
   }
-  .santo-amboss-card > summary::-webkit-details-marker { display: none; }
-  .santo-amboss-card > summary:after { content: "⌄"; }
-  .santo-amboss-card:not([open]) > summary:after { content: "›"; }
+  .santo-amboss-card > summary::-webkit-details-marker {
+    display: none;
+  }
+  .santo-amboss-card > summary:after {
+    content: "⌄";
+  }
+  .santo-amboss-card:not([open]) > summary:after {
+    content: "›";
+  }
   .santo-amboss-card > summary h2 {
     font: inherit;
     color: inherit;
     margin: 0;
   }
-  .santo-amboss-card-body { padding: 13px 16px; }
+  .santo-amboss-card-body {
+    padding: 13px 16px;
+  }
   .article-original-html .reader-highlight {
     outline: 3px solid #c49032;
     background-color: #fff2cc;
@@ -759,7 +785,11 @@ export const widgetStyles = css`
     box-shadow: 0 11px 44px rgb(0 0 0 / 25%);
     padding: 18px;
   }
-  .reader-popover > strong { display: block; padding-inline-end: 32px; margin-bottom: 9px; }
+  .reader-popover > strong {
+    display: block;
+    padding-inline-end: 32px;
+    margin-bottom: 9px;
+  }
   .reader-lightbox {
     position: absolute;
     z-index: 4;
@@ -778,7 +808,11 @@ export const widgetStyles = css`
     max-height: 85%;
     object-fit: contain;
   }
-  .reader-lightbox span { max-width: 90%; font-size: 12px; text-align: center; }
+  .reader-lightbox span {
+    max-width: 90%;
+    font-size: 12px;
+    text-align: center;
+  }
   .lightbox-close {
     position: absolute;
     top: 10px;
@@ -792,8 +826,15 @@ export const widgetStyles = css`
     border-radius: 10px;
   }
   @media (max-width: 540px) {
-    .reader-body { padding: 14px 15px 60px; }
-    .reader-popover { left: 7px; right: 7px; bottom: 7px; max-height: 60%; }
+    .reader-body {
+      padding: 14px 15px 60px;
+    }
+    .reader-popover {
+      left: 7px;
+      right: 7px;
+      bottom: 7px;
+      max-height: 60%;
+    }
   }
 
   .answer-verified-images {

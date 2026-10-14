@@ -18,8 +18,12 @@ export function citedMedicalImages(
   messageId: string,
   sourceId: string,
 ): VerifiedChatImage[] {
-  if (source.source.sourceId !== sourceId || !source.highlightSectionId ||
-      source.source.libraryId !== source.article.libraryId) return [];
+  if (
+    source.source.sourceId !== sourceId ||
+    !source.highlightSectionId ||
+    source.source.libraryId !== source.article.libraryId
+  )
+    return [];
   const section = source.article.sections.find((item) => item.id === source.highlightSectionId);
   if (!section) return [];
   const seen = new Set<string>();

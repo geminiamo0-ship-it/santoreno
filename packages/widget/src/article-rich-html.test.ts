@@ -33,12 +33,22 @@ function sourceResponse(): SourceArticleResponse {
       source: "amboss",
       contentHtml: '<h2>ECG</h2><img src="' + image + '">',
       sections: [
-        { id: "s-0001", heading: "Introduction", text: "Other section", images: [{ src: ORIGIN + "/offline_media/other.jpg", alt: "Uncited" }] },
-        { id: "s-0002", heading: "ECG", text: "Sawtooth", images: [
-          { src: image, alt: "Typical flutter ECG" },
-          { src: image, alt: "Duplicate" },
-          { src: "https://evil.example/other.png", alt: "Unsafe" },
-        ] },
+        {
+          id: "s-0001",
+          heading: "Introduction",
+          text: "Other section",
+          images: [{ src: ORIGIN + "/offline_media/other.jpg", alt: "Uncited" }],
+        },
+        {
+          id: "s-0002",
+          heading: "ECG",
+          text: "Sawtooth",
+          images: [
+            { src: image, alt: "Typical flutter ECG" },
+            { src: image, alt: "Duplicate" },
+            { src: "https://evil.example/other.png", alt: "Unsafe" },
+          ],
+        },
       ],
     },
     highlightSectionId: "s-0002",
@@ -64,17 +74,29 @@ describe("Santo original article and chat medical image security", () => {
 
   it("only displays media from exact source-verified cited section", () => {
     const source = sourceResponse();
-    expect(citedMedicalImages(source, message, citation)).toEqual([{
-      src: image,
-      alt: "Typical flutter ECG",
-      messageId: message,
-      sourceId: citation,
-      sectionTitle: "ECG",
-    }]);
-    expect(citedMedicalImages({ ...source, highlightSectionId: null }, message, citation)).toEqual([]);
+    expect(citedMedicalImages(source, message, citation)).toEqual([
+      {
+        src: image,
+        alt: "Typical flutter ECG",
+        messageId: message,
+        sourceId: citation,
+        sectionTitle: "ECG",
+      },
+    ]);
+    expect(citedMedicalImages({ ...source, highlightSectionId: null }, message, citation)).toEqual(
+      [],
+    );
     expect(citedMedicalImages(source, message, "forged:chunk")).toEqual([]);
-    expect(citedMedicalImages({ ...source, source: { ...source.source, libraryId: "pastest" } }, message, citation)).toEqual([]);
-    expect(citedMedicalImages({ ...source, highlightSectionId: "s-0001" }, message, citation)[0]?.alt).toBe("Uncited");
+    expect(
+      citedMedicalImages(
+        { ...source, source: { ...source.source, libraryId: "pastest" } },
+        message,
+        citation,
+      ),
+    ).toEqual([]);
+    expect(
+      citedMedicalImages({ ...source, highlightSectionId: "s-0001" }, message, citation)[0]?.alt,
+    ).toBe("Uncited");
   });
 
   it("does not silently inject raw HTML without an actual browser DOMParser", () => {

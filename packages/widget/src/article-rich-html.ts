@@ -2,26 +2,55 @@
 const MEDIA_ORIGIN = "https://pub-2a81f2cb19cc4473a3d076e657af6121.r2.dev";
 const MEDIA_PATH = /^\/offline_media\/[A-Za-z0-9_%+.-]+\.(?:jpg|jpeg|png|webp|gif)$/i;
 const TAGS = new Set(
-  "p div span section article h1 h2 h3 h4 h5 h6 b strong i em u s small sub sup br hr ul ol li dl dt dd blockquote pre code table thead tbody tfoot tr th td a img figure figcaption caption details summary mark abbr time".split(" "),
+  "p div span section article h1 h2 h3 h4 h5 h6 b strong i em u s small sub sup br hr ul ol li dl dt dd blockquote pre code table thead tbody tfoot tr th td a img figure figcaption caption details summary mark abbr time".split(
+    " ",
+  ),
 );
 const ATTR = new Set(["class", "id", "title", "alt", "aria-label", "colspan", "rowspan"]);
 const DATA = new Set([
-  "data-content", "data-offline-popover", "data-title", "data-learningcard-id",
-  "data-lxid", "data-anker", "data-type", "data-image-id", "data-description",
+  "data-content",
+  "data-offline-popover",
+  "data-title",
+  "data-learningcard-id",
+  "data-lxid",
+  "data-anker",
+  "data-type",
+  "data-image-id",
+  "data-description",
 ]);
-const STYLES = new Set(["color", "background-color", "text-align", "font-weight", "font-style", "text-decoration"]);
-const STYLE_VALUE = /^(?:#[0-9a-f]{3,8}|[a-z]{2,30}|rgba?\([0-9., %]+\)|left|right|center|justify|bold|normal|italic|underline|none)$/i;
+const STYLES = new Set([
+  "color",
+  "background-color",
+  "text-align",
+  "font-weight",
+  "font-style",
+  "text-decoration",
+]);
+const STYLE_VALUE =
+  /^(?:#[0-9a-f]{3,8}|[a-z]{2,30}|rgba?\([0-9., %]+\)|left|right|center|justify|bold|normal|italic|underline|none)$/i;
 
 /** Media must come from the previously approved public R2 path, never a model URL. */
 export function approvedMedicalImageUrl(value: string): string | null {
   if (typeof value !== "string" || !value || value.length > 900) return null;
   try {
     const url = new URL(value);
-    if (url.origin !== MEDIA_ORIGIN || url.username || url.password || url.search || url.hash || !MEDIA_PATH.test(url.pathname)) {
+    if (
+      url.origin !== MEDIA_ORIGIN ||
+      url.username ||
+      url.password ||
+      url.search ||
+      url.hash ||
+      !MEDIA_PATH.test(url.pathname)
+    ) {
       return null;
     }
     const name = decodeURIComponent(url.pathname.slice("/offline_media/".length));
-    if (name.includes("..") || name.includes("/") || name.includes("\\") || /[\x00-\x1f]/.test(name)) {
+    if (
+      name.includes("..") ||
+      name.includes("/") ||
+      name.includes("\\") ||
+      /[\x00-\x1f]/.test(name)
+    ) {
       return null;
     }
     return url.href;
@@ -37,7 +66,9 @@ function safeLink(value: string): string | null {
     if (url.protocol === "https:" && !url.username && !url.password && value.length < 1000) {
       return url.href;
     }
-  } catch { /* relative/invalid */ }
+  } catch {
+    /* relative/invalid */
+  }
   return null;
 }
 
@@ -57,32 +88,50 @@ function scrub(root: ParentNode): void {
       const value = attr.value;
       let ok = false;
       if (ATTR.has(name)) {
-        ok = name === "class" || name === "id"
-          ? /^[\w :.\-]{1,512}$/.test(value)
-          : value.length <= 500;
+        ok =
+          name === "class" || name === "id"
+            ? /^[\w :.\-]{1,512}$/.test(value)
+            : value.length <= 500;
         if (["rowspan", "colspan"].includes(name)) ok = /^\d{1,3}$/.test(value);
       } else if (DATA.has(name)) {
         ok = value.length <= 10000;
       } else if (name === "href" && tag === "a") {
         const link = safeLink(value);
-        if (link) { element.setAttribute("href", link); ok = true; }
+        if (link) {
+          element.setAttribute("href", link);
+          ok = true;
+        }
       } else if (name === "src" && tag === "img") {
         const url = approvedMedicalImageUrl(value);
-        if (url) { element.setAttribute("src", url); ok = true; }
+        if (url) {
+          element.setAttribute("src", url);
+          ok = true;
+        }
       } else if (name === "style") {
-        const declarations = value.split(";").map((entry) => {
-          const index = entry.indexOf(":");
-          if (index <= 0) return "";
-          const property = entry.slice(0, index).trim().toLowerCase();
-          const content = entry.slice(index + 1).trim();
-          return STYLES.has(property) && STYLE_VALUE.test(content) ? property + ":" + content : "";
-        }).filter(Boolean);
-        if (declarations.length) { element.setAttribute("style", declarations.join(";")); ok = true; }
+        const declarations = value
+          .split(";")
+          .map((entry) => {
+            const index = entry.indexOf(":");
+            if (index <= 0) return "";
+            const property = entry.slice(0, index).trim().toLowerCase();
+            const content = entry.slice(index + 1).trim();
+            return STYLES.has(property) && STYLE_VALUE.test(content)
+              ? property + ":" + content
+              : "";
+          })
+          .filter(Boolean);
+        if (declarations.length) {
+          element.setAttribute("style", declarations.join(";"));
+          ok = true;
+        }
       }
       if (!ok) element.removeAttribute(attr.name);
     }
     if (tag === "img") {
-      if (!element.hasAttribute("src")) { element.remove(); continue; }
+      if (!element.hasAttribute("src")) {
+        element.remove();
+        continue;
+      }
       element.setAttribute("loading", "lazy");
       element.setAttribute("referrerpolicy", "no-referrer");
     }
@@ -142,7 +191,11 @@ export function formatArticleForReader(value: string, libraryId: string): string
 
 /** Old articles had synthetic s-0001 style section ids, not DOM anchors. */
 export function referencedHeadingText(heading: string): string {
-  return heading.replace(/\s+\(part\s+\d+\)$/i, "").trim().replace(/\s+/g, " ").toLowerCase();
+  return heading
+    .replace(/\s+\(part\s+\d+\)$/i, "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLowerCase();
 }
 
 export function decodeArticlePopover(value: string): string {

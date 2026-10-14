@@ -15,7 +15,13 @@ import {
   type SantoSessionProvider,
 } from "./conversation-client";
 import { widgetStyles } from "./styles";
-import { approvedMedicalImageUrl, decodeArticlePopover, formatArticleForReader, referencedHeadingText, sanitizeArticleForReader } from "./article-rich-html";
+import {
+  approvedMedicalImageUrl,
+  decodeArticlePopover,
+  formatArticleForReader,
+  referencedHeadingText,
+  sanitizeArticleForReader,
+} from "./article-rich-html";
 import { renderSantoMarkdown } from "./medical-markdown";
 import { readableMedicalSourceTitle } from "./source-title";
 import { citedMedicalImages, type VerifiedChatImage } from "./cited-chat-images";
@@ -300,17 +306,24 @@ export class SantoAiElement extends LitElement {
     await this.updateComplete;
     const reader = this.renderRoot.querySelector<HTMLElement>(".reader-body");
     if (!reader) return;
-    reader.querySelectorAll(".reader-highlight").forEach((element) => element.classList.remove("reader-highlight"));
+    reader
+      .querySelectorAll(".reader-highlight")
+      .forEach((element) => element.classList.remove("reader-highlight"));
     const section = this.readerArticle?.sections.find((value) => value.id === sectionId);
-    let row = Array.from(reader.querySelectorAll<HTMLElement>("[data-santo-section]"))
-      .find((element) => element.dataset.santoSection === sectionId);
+    let row = Array.from(reader.querySelectorAll<HTMLElement>("[data-santo-section]")).find(
+      (element) => element.dataset.santoSection === sectionId,
+    );
     if (!row && section) {
       const heading = referencedHeadingText(section.heading);
-      const previous = this.readerArticle!.sections.slice(0, this.readerArticle!.sections.indexOf(section))
-        .filter((candidate) => referencedHeadingText(candidate.heading) === heading).length;
-      row = Array.from(reader.querySelectorAll<HTMLElement>(
-        ".article-original-html h1, .article-original-html h2, .article-original-html h3, .article-original-html h4",
-      )).filter((element) => referencedHeadingText(element.textContent ?? "") === heading)[previous];
+      const previous = this.readerArticle!.sections.slice(
+        0,
+        this.readerArticle!.sections.indexOf(section),
+      ).filter((candidate) => referencedHeadingText(candidate.heading) === heading).length;
+      row = Array.from(
+        reader.querySelectorAll<HTMLElement>(
+          ".article-original-html h1, .article-original-html h2, .article-original-html h3, .article-original-html h4",
+        ),
+      ).filter((element) => referencedHeadingText(element.textContent ?? "") === heading)[previous];
     }
     if (!row) return;
     row.closest<HTMLDetailsElement>("details.santo-amboss-card")?.setAttribute("open", "");
@@ -325,8 +338,9 @@ export class SantoAiElement extends LitElement {
     if (link) {
       event.preventDefault();
       const id = link.getAttribute("href")?.slice(1) ?? "";
-      const element = Array.from(this.renderRoot.querySelectorAll<HTMLElement>(".article-original-html [id]"))
-        .find((node) => node.id === id);
+      const element = Array.from(
+        this.renderRoot.querySelectorAll<HTMLElement>(".article-original-html [id]"),
+      ).find((node) => node.id === id);
       if (element) {
         element.closest<HTMLDetailsElement>("details.santo-amboss-card")?.setAttribute("open", "");
         element.scrollIntoView({ block: "center", behavior: "smooth" });
@@ -349,7 +363,8 @@ export class SantoAiElement extends LitElement {
     const cleaned = sanitizeArticleForReader(resolved);
     if (!cleaned) return;
     this.readerPopover = {
-      title: trigger.dataset.title || trigger.textContent?.trim().slice(0, 120) || "Medical definition",
+      title:
+        trigger.dataset.title || trigger.textContent?.trim().slice(0, 120) || "Medical definition",
       html: cleaned,
     };
   }
@@ -422,28 +437,46 @@ export class SantoAiElement extends LitElement {
     return html`
       <div class="answer-text medical-markdown" dir="auto">
         ${sourceImages.length ? blocks.slice(0, splitIndex) : blocks}
-        ${sourceImages.length
-          ? html`<div class="answer-verified-images" aria-label="Medical illustrations from cited sources">
-              ${sourceImages.map((image) =>
-                html`<figure class="answer-medical-figure">
-                  <button type="button" class="figure-image"
-                    aria-label="Enlarge medical illustration"
-                    @click=${() => {
-                      this.readerLightbox = { src: image.src, alt: image.alt };
-                      this.readerOpen = true;
-                    }}>
-                    <img src=${image.src} alt=${image.alt} loading="lazy" referrerpolicy="no-referrer" />
-                  </button>
-                  <figcaption>
-                    <span>${image.alt}</span>
-                    <button type="button" class="figure-source"
-                      @click=${() => void this.showSource(image.messageId, image.sourceId)}>
-                      Open cited source ↗
-                    </button>
-                  </figcaption>
-                </figure>`)}
-            </div>`
-          : nothing}
+        ${
+          sourceImages.length
+            ? html`<div
+                class="answer-verified-images"
+                aria-label="Medical illustrations from cited sources"
+              >
+                ${sourceImages.map(
+                  (image) =>
+                    html`<figure class="answer-medical-figure">
+                      <button
+                        type="button"
+                        class="figure-image"
+                        aria-label="Enlarge medical illustration"
+                        @click=${() => {
+                          this.readerLightbox = { src: image.src, alt: image.alt };
+                          this.readerOpen = true;
+                        }}
+                      >
+                        <img
+                          src=${image.src}
+                          alt=${image.alt}
+                          loading="lazy"
+                          referrerpolicy="no-referrer"
+                        />
+                      </button>
+                      <figcaption>
+                        <span>${image.alt}</span>
+                        <button
+                          type="button"
+                          class="figure-source"
+                          @click=${() => void this.showSource(image.messageId, image.sourceId)}
+                        >
+                          Open cited source ↗
+                        </button>
+                      </figcaption>
+                    </figure>`,
+                )}
+              </div>`
+            : nothing
+        }
         ${sourceImages.length ? blocks.slice(splitIndex) : nothing}
       </div>
       ${
@@ -671,35 +704,56 @@ export class SantoAiElement extends LitElement {
                               </p>
                               <nav aria-label="Article sections">
                                 ${this.readerArticle.sections.map(
-                                  (section) => html`<button
-                                    type="button"
-                                    @click=${() => void this.jumpToReferencedSection(section.id)}
-                                  >${section.heading}</button>`,
+                                  (section) =>
+                                    html`<button
+                                      type="button"
+                                      @click=${() => void this.jumpToReferencedSection(section.id)}
+                                    >
+                                      ${section.heading}
+                                    </button>`,
                                 )}
                               </nav>
-                              ${this.readerArticle.contentHtml
-                                ? html`<div
-                                    class="article-original-html ${this.readerArticle.libraryId === "amboss" ? "amboss-original" : "generic-original"}"
-                                    @click=${this.onArticleClick}
-                                  >${unsafeHTML(formatArticleForReader(
-                                    this.readerArticle.contentHtml,
-                                    this.readerArticle.libraryId,
-                                  ))}</div>`
-                                : this.readerArticle.sections.map((section) =>
-                                    html`<section
-                                      data-santo-section=${section.id}
-                                      class=${section.id === this.readerHighlight ? "reader-highlight" : ""}
+                              ${
+                                this.readerArticle.contentHtml
+                                  ? html`<div
+                                      class="article-original-html ${this.readerArticle.libraryId === "amboss" ? "amboss-original" : "generic-original"}"
+                                      @click=${this.onArticleClick}
                                     >
-                                      <h3>${section.heading}</h3>
-                                      <p>${section.text}</p>
-                                      ${section.images.map((img) => {
-                                        const source = approvedMedicalImageUrl(img.src);
-                                        return source
-                                          ? html`<img src=${source} alt=${img.alt || section.heading} loading="lazy" referrerpolicy="no-referrer" @click=${() => { this.readerLightbox = { src: source, alt: img.alt || section.heading }; }} />`
-                                          : nothing;
-                                      })}
-                                    </section>`,
-                                  )}
+                                      ${unsafeHTML(
+                                        formatArticleForReader(
+                                          this.readerArticle.contentHtml,
+                                          this.readerArticle.libraryId,
+                                        ),
+                                      )}
+                                    </div>`
+                                  : this.readerArticle.sections.map(
+                                      (section) =>
+                                        html`<section
+                                          data-santo-section=${section.id}
+                                          class=${section.id === this.readerHighlight ? "reader-highlight" : ""}
+                                        >
+                                          <h3>${section.heading}</h3>
+                                          <p>${section.text}</p>
+                                          ${section.images.map((img) => {
+                                            const source = approvedMedicalImageUrl(img.src);
+                                            return source
+                                              ? html`<img
+                                                  src=${source}
+                                                  alt=${img.alt || section.heading}
+                                                  loading="lazy"
+                                                  referrerpolicy="no-referrer"
+                                                  @click=${() => {
+                                                    this.readerLightbox = {
+                                                      src: source,
+                                                      alt: img.alt || section.heading,
+                                                    };
+                                                  }}
+                                                />`
+                                              : nothing;
+                                          })}
+                                        </section>`,
+                                    )
+                              }
                             `
                           : this.readerLibrary
                             ? html`
@@ -731,22 +785,53 @@ export class SantoAiElement extends LitElement {
                               `
                       }
                     </div>
-                    ${this.readerPopover
-                      ? html`<div class="reader-popover" role="dialog" aria-label="Medical definition">
-                          <button type="button" class="source-close" aria-label="Close definition"
-                            @click=${() => { this.readerPopover = null; }}>×</button>
-                          <strong>${this.readerPopover.title}</strong>
-                          <div class="article-original-html">${unsafeHTML(this.readerPopover.html)}</div>
-                        </div>`
-                      : nothing}
-                    ${this.readerLightbox
-                      ? html`<div class="reader-lightbox" role="dialog" aria-modal="true" aria-label="Medical image viewer">
-                          <button type="button" class="lightbox-close" aria-label="Close image viewer"
-                            @click=${() => { this.readerLightbox = null; }}>×</button>
-                          <img src=${this.readerLightbox.src} alt=${this.readerLightbox.alt} />
-                          <span>${this.readerLightbox.alt}</span>
-                        </div>`
-                      : nothing}
+                    ${
+                      this.readerPopover
+                        ? html`<div
+                            class="reader-popover"
+                            role="dialog"
+                            aria-label="Medical definition"
+                          >
+                            <button
+                              type="button"
+                              class="source-close"
+                              aria-label="Close definition"
+                              @click=${() => {
+                                this.readerPopover = null;
+                              }}
+                            >
+                              ×
+                            </button>
+                            <strong>${this.readerPopover.title}</strong>
+                            <div class="article-original-html">
+                              ${unsafeHTML(this.readerPopover.html)}
+                            </div>
+                          </div>`
+                        : nothing
+                    }
+                    ${
+                      this.readerLightbox
+                        ? html`<div
+                            class="reader-lightbox"
+                            role="dialog"
+                            aria-modal="true"
+                            aria-label="Medical image viewer"
+                          >
+                            <button
+                              type="button"
+                              class="lightbox-close"
+                              aria-label="Close image viewer"
+                              @click=${() => {
+                                this.readerLightbox = null;
+                              }}
+                            >
+                              ×
+                            </button>
+                            <img src=${this.readerLightbox.src} alt=${this.readerLightbox.alt} />
+                            <span>${this.readerLightbox.alt}</span>
+                          </div>`
+                        : nothing
+                    }
                   </aside>`
                 : nothing
             }

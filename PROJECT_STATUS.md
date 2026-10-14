@@ -499,20 +499,29 @@ For every meaningful step:
   authoritative exam-context integration, real host/browser acceptance and
   separate rollout confirmation. No Santo/Royal production changes here.
 
-### Professor-grade grounded teaching — Issue #77, implementation in review (14 Oct 2026)
+### Professor-grade grounded teaching — deployed to Staging only (14 Oct 2026)
 
-- User-approved explanation style: adaptive professor-grade medical teaching,
-  mechanism-to-clinical-reasoning synthesis grounded strictly in retrieved evidence.
-- Branch `feat/77-professor-grade-grounded-teaching` changes only server-side
-  grounded prompt/system model instructions, 900 -> 1500 maximum generation
-  tokens (ceiling only), versioned candidate teaching persona, docs and tests.
-- Preserve existing authenticated RAG, exact source-ID citation validation,
-  five-passage retrieval cap, strict JSON/SSE, TenantMeterDO quota and replay.
-- This **does not enable Copilot intent routing or greeting handling** (#75).
-  Medical claim correctness and evidence quality require real indexed licensed
-  corpus and expert evaluation separately from CI (#58/#77).
-- PR/CI/post-merge and staging acceptance **not yet proven** at this checkpoint;
-  do not assume production or Royal Bank live rollout.
+- **Issue #77** / **PR #78** merged to main at
+  `6cfd6f78933544a085d422947aecaa6e9ac3f72a`.
+- Exact PR head `fb8151c6d599e0a2b75b0f4c86993fd8458cef33`
+  passed repository-policy and code-quality. **Post-merge Verify**
+  `38488562398` SUCCESS (format, lint, typecheck, unit tests, build, smoke).
+- **Staging deployment** `38488562400` SUCCESS: deployed Santo Staging
+  Worker with `wrangler deploy --env staging --keep-vars`, preserving
+  existing user-managed vars and secrets. Live health, pilot console
+  and unauthorized AI request (401) smoke passed. Production untouched.
+- Grounded path now prompts for professor-grade, mechanism-led, concise-when
+  appropriate synthesis of **only retrieved evidence** and optional
+  directly supported high-yield pearls. Max output cap 900 -> 1500 tokens.
+- `docs/PROFESSOR_GRADE_TEACHING.md` defines behavior and quality-evaluation
+  matrix. Existing auth, model provider (Llama 3.3 70B), evidence bounds,
+  structured citations, source R2 snapshots, quota, idempotency and SSE
+  remain unchanged. **Copilot social chat / Intent Router (Issue #75) is NOT
+  implemented**; no unsupported medical-answer fallback.
+- **Not yet proven:** actual sourced medical explanation quality, reference
+  fidelity, bilingual outcomes, p95 latency and provider cost on licensed
+  real content (Issue #58). Issue #77 stays open until real expert review
+  and a deliberate production rollout decision.
 
 ## 9. Next action
 

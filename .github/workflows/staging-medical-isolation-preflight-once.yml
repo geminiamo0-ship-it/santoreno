@@ -1,0 +1,71 @@
+name: Santo Staging Isolation + AI Search Service-token Readiness
+
+on:
+  push:
+    branches:
+      - ops/staging-isolation-and-token-preflight
+    paths:
+      - .github/workflows/staging-medical-isolation-preflight-once.yml
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Require account-scoped secrets and main code
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_ACCOUNT_ID" && test -n "$CLOUDFLARE_API_TOKEN"
+          git merge-base --is-ancestor 1ffcd55471477f20fee9cbbb6216b884ad33b0a1 HEAD
+      - name: Install pinned dependencies
+        run: |
+          corepack enable
+          pnpm install --frozen-lockfile
+      - name: Deploy Santo staging only with five-instance search isolation
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd workers/api
+          pnpm exec wrangler deploy --env staging --keep-vars
+      - name: Check staging access controls
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="https://santo-api-staging.geminiamo0.workers.dev"
+          curl -sS -f "$url/health" | jq -e '.status == "ok" and .service == "santo-api"'
+          for target in /v1/libraries /v1/libraries/passmedicine/articles; do
+            code="$(curl -sS --output /dev/null --write-out '%{http_code}' "$url$target")"
+            [[ "$code" == 401 ]] || { echo "Unexpected anonymous HTTP $code"; exit 1; }
+          done
+      - name: Read existing registered AI Search service token inventory without disclosing token IDs
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import os,json
+          from urllib.request import Request,urlopen
+          from urllib.error import HTTPError
+          base=f"https://api.cloudflare.com/client/v4/accounts/{os.environ['CLOUDFLARE_ACCOUNT_ID']}/ai-search/tokens"
+          req=Request(base,method="GET",headers={"Authorization":"Bearer "+os.environ['CLOUDFLARE_API_TOKEN'],"Accept":"application/json"})
+          try:
+              with urlopen(req,timeout=40) as res: data=json.load(res)
+          except HTTPError as err:
+              print(f"AI_SEARCH_TOKENS_HTTP={err.code}; no index creation attempted")
+          else:
+              tokens=data.get("result") or []
+              if not isinstance(tokens,list):raise SystemExit("Invalid AI Search service token response")
+              active=sum(1 for t in tokens if isinstance(t,dict) and t.get("enabled") is True)
+              print(f"REGISTERED_AI_SEARCH_SERVICE_TOKENS={len(tokens)} ACTIVE={active}")
+          PY
+          echo "Staging isolation deployed; AI Search instance creation and indexing NOT started." >> "$GITHUB_STEP_SUMMARY"

@@ -3,7 +3,7 @@ on:
   push:
     branches: [fix/92-santo-isolated-source-repoint]
     paths: [".github/workflows/recreate-empty-usmle-isolated.yml"]
-permissions: {contents: read}
+permissions: { contents: read }
 jobs:
   usmle:
     runs-on: ubuntu-latest
@@ -14,7 +14,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
-        with: {python-version: '3.12'}
+        with: { python-version: "3.12" }
       - name: Verify Python and existing staging Cloudflare credentials
         shell: bash
         run: |

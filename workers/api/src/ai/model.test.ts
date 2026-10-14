@@ -2,7 +2,12 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { WorkersAiLike } from "../runtime/bindings";
 import { GroundedAiError } from "./errors";
-import { CloudflareWorkersAiModel, CloudflareLunaModel, createGroundedModel, GROUNDED_MODEL_POLICY } from "./model";
+import {
+  CloudflareWorkersAiModel,
+  CloudflareLunaModel,
+  createGroundedModel,
+  GROUNDED_MODEL_POLICY,
+} from "./model";
 
 describe("Cloudflare Workers AI model adapter", () => {
   it("selects the configured model and owns its generation policy", async () => {
@@ -81,7 +86,6 @@ describe("Cloudflare Workers AI model adapter", () => {
   });
 });
 
-
 describe("GPT-6 Luna isolated Santo staging preview", () => {
   it("uses native Responses API and explicit nonreasoning fast tier only under staging flag", async () => {
     const ai: WorkersAiLike = {
@@ -90,10 +94,15 @@ describe("GPT-6 Luna isolated Santo staging preview", () => {
           { type: "reasoning", content: [] },
           {
             type: "message",
-            content: [{
-              type: "output_text",
-              text: JSON.stringify({ answer: "Evidence-backed diagnosis.", citation_ids: ["medical:chunk-1"] }),
-            }],
+            content: [
+              {
+                type: "output_text",
+                text: JSON.stringify({
+                  answer: "Evidence-backed diagnosis.",
+                  citation_ids: ["medical:chunk-1"],
+                }),
+              },
+            ],
           },
         ],
       })),
@@ -130,22 +139,30 @@ describe("GPT-6 Luna isolated Santo staging preview", () => {
       { SANTO_ENV: "production" as const, SANTO_LUNA_PREVIEW: "true" },
       { SANTO_ENV: "staging" as const, SANTO_LUNA_PREVIEW: "false" },
     ]) {
-      expect(createGroundedModel({ ...config, AI: ai, SANTO_AI_MODEL: "@cf/test/model" }))
-        .toBeInstanceOf(CloudflareWorkersAiModel);
+      expect(
+        createGroundedModel({ ...config, AI: ai, SANTO_AI_MODEL: "@cf/test/model" }),
+      ).toBeInstanceOf(CloudflareWorkersAiModel);
     }
   });
 
   it("rejects provider claims without a valid structured evidence-bound JSON draft", async () => {
     const bad = new CloudflareLunaModel({
-      run: vi.fn(async () => ({ output_text: '{"answer":"No cited evidence","citation_ids":null}' })),
+      run: vi.fn(async () => ({
+        output_text: '{"answer":"No cited evidence","citation_ids":null}',
+      })),
     });
     await expect(bad.generate("test")).rejects.toMatchObject({
       status: 502,
       code: "MODEL_RESPONSE_INVALID",
     });
     const thrown = new CloudflareLunaModel({
-      run: vi.fn(async () => { throw new Error("provider token"); }),
+      run: vi.fn(async () => {
+        throw new Error("provider token");
+      }),
     });
-    await expect(thrown.generate("test")).rejects.toMatchObject({ status: 502, code: "MODEL_FAILED" });
+    await expect(thrown.generate("test")).rejects.toMatchObject({
+      status: 502,
+      code: "MODEL_FAILED",
+    });
   });
 });

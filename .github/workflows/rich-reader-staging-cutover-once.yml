@@ -1,0 +1,51 @@
+name: Santo Rich Medical Reader Staging Cutover
+on:
+  push:
+    branches: [feat/96-rich-reader-widget]
+    paths: [.github/workflows/rich-reader-staging-cutover-once.yml]
+permissions:
+  contents: read
+concurrency:
+  group: santo-pilot-staging-deploy
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      WORKER_URL: https://santo-api-staging.geminiamo0.workers.dev
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - name: Validate exact staging branch before altering Worker
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm smoke
+          python -m unittest discover -s scripts -p 'test_medical_library_import.py'
+      - name: Deploy reviewed Source Explorer to ONLY staging Worker
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN" && test -n "$CLOUDFLARE_ACCOUNT_ID"
+          cd workers/api
+          pnpm exec wrangler deploy --env staging --keep-vars
+      - name: Verify staging health and secure source authorizations after rollout
+        shell: bash
+        run: |
+          set -euo pipefail
+          response="$(curl --fail -sS --retry 10 --retry-delay 3 --retry-all-errors "$WORKER_URL/health")"
+          jq -e '.service=="santo-api" and .status=="ok"' <<< "$response" >/dev/null
+          for endpoint in /v1/libraries /v1/libraries/amboss/articles /v1/libraries/amboss/articles/unnamed-1000; do
+            code="$(curl -sS -o /dev/null -w '%{http_code}' "$WORKER_URL$endpoint")"
+            test "$code" = 401 || { echo "Anonymous library access unexpectedly returned $code"; exit 1; }
+          done
+          code="$(curl -sS -o /dev/null -w '%{http_code}' "$WORKER_URL/v1/sources/article" -X POST -H 'content-type: application/json' -d '{}')"
+          test "$code" = 401
+          echo 'Rich Reader staging code validated and deployed. Authenticated clinical/browser QA remains outstanding.' >> "$GITHUB_STEP_SUMMARY"

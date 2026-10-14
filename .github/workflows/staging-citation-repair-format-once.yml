@@ -1,0 +1,39 @@
+name: Santo Citation Repair Code Formatting
+
+on:
+  push:
+    branches: [feat/96-draft-disappears-diagnosis-20261015]
+    paths: [.github/workflows/staging-citation-repair-format-once.yml]
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/96-draft-disappears-diagnosis-20261015
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - name: Format only intended citation repair source files
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm exec prettier --write workers/api/src/ai/types.ts workers/api/src/ai/model.ts workers/api/src/ai/service.ts workers/api/src/ai/model.test.ts
+          git diff --stat
+          git add workers/api/src/ai/types.ts workers/api/src/ai/model.ts workers/api/src/ai/service.ts workers/api/src/ai/model.test.ts
+          if git diff --cached --quiet; then
+            echo "No format differences."
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit -m "style(ai): exact Prettier formatting for citation source-ID schema"
+            git push origin HEAD:feat/96-draft-disappears-diagnosis-20261015
+          fi

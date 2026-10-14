@@ -86,6 +86,7 @@ export function createGroundedAiHandler(dependencies: GroundedAiHandlerDependenc
   return async function handleGroundedAiQuery(
     request: Request,
     env: SantoBindings,
+    onProvisionalAnswer?: (text: string) => void,
   ): Promise<Response> {
     if (request.method !== "POST") {
       return errorResponse("METHOD_NOT_ALLOWED", 405);
@@ -116,7 +117,7 @@ export function createGroundedAiHandler(dependencies: GroundedAiHandlerDependenc
         dependencies.stageTimeouts,
         sourceStoreFactory(env),
         env.SANTO_GENERAL_MEDICAL_FALLBACK === "true",
-      ).query(session, parsed.data, request.signal);
+      ).query(session, parsed.data, request.signal, onProvisionalAnswer);
 
       const validated = GroundedAiQueryResponseSchema.parse(response);
       const accept = request.headers.get("accept") ?? "";

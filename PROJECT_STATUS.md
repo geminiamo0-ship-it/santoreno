@@ -6,6 +6,14 @@
 >
 > **Rule:** GitHub code, issues, PRs, commits, and Actions are the source of truth. Update this file whenever meaningful work completes, a gate passes/fails, architecture changes, or the active issue changes.
 
+### Native Luna provisional SSE + Royal Bank host — 15 Oct 2026
+
+- Synthetic funded provider probe [38645951208](https://github.com/geminiamo0-ship-it/santoreno/actions/runs/38645951208) SUCCESS: Cloudflare GPT-6 Luna Responses API returned 32 progressive `response.output_text.delta` events and `response.completed` using stream=true. No customer/user data sent to probe.
+- Staging-only feature `SANTO_NATIVE_STREAMING_V1=true` implements an authenticated `/v1/conversations/:id/ask` SSE branch. Progressive draft text is *explicitly unverified*, bounded and contains no trusted citations; only final server-verified, source-snapshotted, quota-finalized and ConversationDO-persisted answer triggers `complete`. Errors retract the draft, and JSON and existing safe buffered SSE remain backwards compatible.
+- Exact source full safety gates and staged Worker deployment [38647317750](https://github.com/geminiamo0-ship-it/santoreno/actions/runs/38647317750) SUCCESS. Anonymous SSE `/ask` and source routes returned 401. Legacy Royal Bank JSON requests untouched.
+- Royal Bank SSR same-origin SSE parser/proxy was verified at exact head [38646690955](https://github.com/geminiamo0-ship-it/ROYAL-BANK/actions/runs/38646690955), merged in [PR #116](https://github.com/geminiamo0-ship-it/ROYAL-BANK/pull/116) as `f30d7296791fab956c51ff82479d874e51407de0`. New client shows plain text draft with explicit **UNVERIFIED** warning until final saved response, preserving same request idempotency and original sources/images/HTML. Vercel deployment must be separately verified READY.
+- **Outstanding acceptance:** genuine authenticated Royal student SSE medical answer → final citation/image/HTML → persisted reload, concurrent retry and fallback, plus mobile visual and latency QA. Do not conflate synthetic provider streaming and route unit tests with an authenticated student end-to-end browser success. Santo Cloudflare Production remains unchanged.
+
 ### Luna professor Staging cutover — 15 Oct 2026
 
 - User confirmed original HTML and inline source images function on Royal Bank. Royal Bank **Vercel Production** intentionally targets **Santo Cloudflare Staging**, with its existing Staging tenant credential. This is the agreed test architecture, not a Santo Production launch.

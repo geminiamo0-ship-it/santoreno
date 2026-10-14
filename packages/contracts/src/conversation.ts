@@ -124,6 +124,29 @@ export const ConversationAnswerSchema = z.union([
 ]);
 export type ConversationAnswer = z.infer<typeof ConversationAnswerSchema>;
 
+/** Native model token-time-to-first-byte remains PROVISIONAL until complete. */
+export const ConversationProgressEventSchema = z.discriminatedUnion("type", [
+  z
+    .object({
+      type: z.literal("draft"),
+      text: z.string().max(12000),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("complete"),
+      response: ConversationAnswerSchema,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("error"),
+      code: z.string().regex(/^[A-Z0-9_]{3,90}$/),
+    })
+    .strict(),
+]);
+export type ConversationProgressEvent = z.infer<typeof ConversationProgressEventSchema>;
+
 export const ConversationTurnStatusSchema = z.enum(["pending", "completed", "retryable"]);
 export const ConversationTurnSchema = z
   .object({

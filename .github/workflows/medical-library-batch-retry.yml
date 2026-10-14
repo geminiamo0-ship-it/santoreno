@@ -82,12 +82,22 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          unauth="$(curl -sS --output /dev/null --write-out '%{http_code}' "$WORKER_URL/verify?key=medical-library-catalog/v1/catalog.json")"
-          test "$unauth" = 401
-          auth="$(curl -sS --output /dev/null --write-out '%{http_code}' \
-            -H "authorization: Bearer $SANTO_IMPORT_TOKEN" \
-            "$WORKER_URL/verify?key=medical-library-catalog/v1/catalog.json")"
-          test "$auth" = 200 || { echo "Existing R2 catalog not readable, HTTP $auth"; exit 1; }
+          unauth="none"
+          auth="none"
+          for attempt in $(seq 1 35); do
+            unauth="$(curl -sS --max-time 12 --output /dev/null --write-out '%{http_code}' "$WORKER_URL/verify?key=medical-library-catalog/v1/catalog.json" || true)"
+            auth="$(curl -sS --max-time 12 --output /dev/null --write-out '%{http_code}' \
+              -H "authorization: Bearer $SANTO_IMPORT_TOKEN" \
+              "$WORKER_URL/verify?key=medical-library-catalog/v1/catalog.json" || true)"
+            if [[ "$unauth" == 401 && "$auth" == 200 ]]; then
+              echo "Temporary Worker auth and R2 catalog check passed on attempt $attempt"
+              exit 0
+            fi
+            echo "Waiting for Worker/secret propagation: anonymous=$unauth authenticated=$auth attempt=$attempt"
+            sleep 2
+          done
+          echo "Worker never passed 401/200 gate: anonymous=$unauth authenticated=$auth"
+          exit 1
 
       - name: Upload up to 20 R2 objects per request with backoff and independent SHA-256 readbacks
         env:

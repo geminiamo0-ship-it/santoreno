@@ -17,6 +17,14 @@ EXPECTED = {"medical-articles": 7049, "medical-search": 67524,
             "medical-library-catalog": 6}
 ROOTS = ("medical-articles/v1/", "medical-search/v1/",
          "medical-library-catalog/v1/")
+BY_LIBRARY = {
+    "amboss": {"medical-articles": 1481, "medical-search": 33724},
+    "usmle": {"medical-articles": 948, "medical-search": 13499},
+    "passmedicine": {"medical-articles": 3109, "medical-search": 8580},
+    "pastest": {"medical-articles": 1127, "medical-search": 10704},
+    "one-examination": {"medical-articles": 384, "medical-search": 1017},
+    "catalog": {"medical-library-catalog": 6},
+}
 
 
 def collect(root):
@@ -56,6 +64,7 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument("--dir", required=True)
     p.add_argument("--execute", action="store_true")
+    p.add_argument("--scope", default="all", choices=["all", *BY_LIBRARY])
     p.add_argument("--workers", type=int, default=10)
     p.add_argument("--wrangler-dir", default="workers/api")
     p.add_argument("--checkpoint", default="santo-private-r2-wrangler-checkpoint.txt")
@@ -67,8 +76,17 @@ def main():
     if not wrangler_root.is_dir():
         raise ValueError("Wrangler directory not found")
     files = collect(root)
+    if args.scope != "all":
+        if args.scope == "catalog":
+            files = [(key, p) for key, p in files
+                     if key.startswith("medical-library-catalog/v1/")]
+        else:
+            files = [(key, p) for key, p in files
+                     if key.startswith(f"medical-articles/v1/{args.scope}/")
+                     or key.startswith(f"medical-search/v1/{args.scope}/")]
     counts = dict(Counter(key.split("/")[0] for key, _ in files))
-    if counts != EXPECTED:
+    expected = EXPECTED if args.scope == "all" else BY_LIBRARY[args.scope]
+    if counts != expected:
         raise ValueError(f"Refusing unexpected/incomplete medical corpus: {counts}")
     total = sum(path.stat().st_size for _, path in files)
     print(f"Validated {len(files)} allowed files ({total / 1048576:.1f} MiB) "
@@ -107,10 +125,12 @@ def main():
     # Verify canonical reader/search catalogs and 5 independent search sections.
     sample = [files[0], files[-1], files[len(files) // 2]]
     for library in ("amboss", "usmle", "passmedicine", "pastest", "one-examination"):
-        sample.append(next((key, path) for key, path in files
-                           if key.startswith(f"medical-search/v1/{library}/")))
-    sample.append(("medical-library-catalog/v1/catalog.json",
-                   root / "medical-library-catalog/v1/catalog.json"))
+        if args.scope in ("all", library):
+            sample.append(next((key, path) for key, path in files
+                               if key.startswith(f"medical-search/v1/{library}/")))
+    if args.scope in ("all", "catalog"):
+        sample.append(("medical-library-catalog/v1/catalog.json",
+                       root / "medical-library-catalog/v1/catalog.json"))
     for i, (key, path) in enumerate(sample):
         downloaded = checkpoint.parent / f".santo-r2-readback-{i}"
         try:

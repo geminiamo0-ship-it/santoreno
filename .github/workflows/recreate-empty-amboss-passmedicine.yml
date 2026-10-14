@@ -1,0 +1,44 @@
+name: Santo AMBOSS and PassMedicine — Guarded Same-ID Recreation
+on:
+  push:
+    branches: [fix/92-santo-isolated-source-repoint]
+    paths: [".github/workflows/recreate-empty-amboss-passmedicine.yml"]
+permissions: {contents: read}
+jobs:
+  replace-empty-index:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        include:
+          - library: amboss
+            expected: 33724
+          - library: passmedicine
+            expected: 8580
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Validate credentials and exact library config
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+          python -m py_compile scripts/replace_empty_medical_ai_search.py
+      - name: Replace only proven empty medical index (same ID, isolated verified R2 source)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/replace_empty_medical_ai_search.py \
+            --library "${{ matrix.library }}" \
+            --verified-count "${{ matrix.expected }}"
+      - name: Report verified target
+        if: success()
+        run: |
+          echo "Stable Santo library ID ${{ matrix.library }} recreated on physically isolated, SHA-verified private R2; indexing asynchronous." >> "$GITHUB_STEP_SUMMARY"

@@ -49,7 +49,7 @@ def verify_instance(result, library):
         raise RuntimeError(
             f"Refusing instance ID collision or broad R2 indexing for {library}"
         )
-    if result.get("public_endpoint", {}).get("enabled") is True:
+    if (result.get("public_endpoint") or {}).get("enabled") is True:
         raise RuntimeError(f"AI Search instance has unexpected public endpoint: {library}")
 
 

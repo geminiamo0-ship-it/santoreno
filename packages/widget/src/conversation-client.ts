@@ -7,6 +7,16 @@ import {
   type ConversationTurn,
 } from "@santo/contracts/conversation";
 import {
+  LibraryCatalogSchema,
+  LibraryArticleListResponseSchema,
+  LibraryArticleSchema,
+  SourceArticleResponseSchema,
+  type LibraryArticle,
+  type LibraryArticleListResponse,
+  type LibraryCatalog,
+  type SourceArticleResponse,
+} from "@santo/contracts/library-reader";
+import {
   TrustedSourceDetailResponseSchema,
   type TrustedSourceDetailResponse,
 } from "@santo/contracts/source";
@@ -286,6 +296,30 @@ export class SantoConversationClient {
     return this.connect();
   }
 
+  async sourceArticle(messageId: string, sourceId: string): Promise<SourceArticleResponse> {
+    return this.json(
+      "/v1/sources/article",
+      (input) => SourceArticleResponseSchema.parse(input),
+      { messageId, sourceId },
+    );
+  }
+  async libraryCatalog(): Promise<LibraryCatalog> {
+    return this.json("/v1/libraries", (input) => LibraryCatalogSchema.parse(input));
+  }
+  async libraryArticles(libraryId: string, cursor = 0): Promise<LibraryArticleListResponse> {
+    if (!LIBRARY.test(libraryId) || !Number.isSafeInteger(cursor) || cursor < 0 || cursor > 6000) {
+      throw new SantoWidgetApiError(400, "INVALID_LIBRARY_REQUEST");
+    }
+    return this.json(`/v1/libraries/${libraryId}/articles?cursor=${cursor}`,
+      (input) => LibraryArticleListResponseSchema.parse(input));
+  }
+  async libraryArticle(libraryId: string, articleId: string): Promise<LibraryArticle> {
+    if (!LIBRARY.test(libraryId) || !/^[a-z0-9][a-z0-9-]{0,90}$/.test(articleId)) {
+      throw new SantoWidgetApiError(400, "INVALID_LIBRARY_REQUEST");
+    }
+    return this.json(`/v1/libraries/${libraryId}/articles/${articleId}`,
+      (input) => LibraryArticleSchema.parse(input));
+  }
   async sourceDetails(messageId: string, sourceId: string): Promise<TrustedSourceDetailResponse> {
     return this.json(
       "/v1/sources/detail",

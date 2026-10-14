@@ -1,0 +1,43 @@
+name: Santo One Examination First Indexed File Check
+on:
+  push:
+    branches:
+      - diagnose/ai-search-r2-zero-files-20261014
+    paths:
+      - .github/workflows/santo-one-exam-first-index-check.yml
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Read current index stats and latest job status only
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os,json
+          from urllib.request import Request,urlopen
+          base=f"https://api.cloudflare.com/client/v4/accounts/{os.environ['CLOUDFLARE_ACCOUNT_ID']}/ai-search/namespaces/default/instances/one-examination"
+          token=os.environ["CLOUDFLARE_API_TOKEN"]
+          def get(path):
+            with urlopen(Request(base+path,headers={"Authorization":"Bearer "+token}),timeout=35) as r:
+              d=json.load(r)
+              if not d.get('success'):raise RuntimeError('API success false')
+              return d.get('result')
+          obj=get('')
+          print('SCOPE',json.dumps(obj.get('source_params',{}),sort_keys=True),flush=True)
+          stat=get('/stats')
+          print('STATS',json.dumps({k:stat.get(k) for k in ('completed','queued','running','error','skipped')},sort_keys=True),flush=True)
+          jobs=get('/jobs')
+          if not isinstance(jobs,list):raise RuntimeError('bad job response')
+          for item in jobs[:2]:
+            print('JOB',item.get('id'),'start',item.get('started_at'),'end',item.get('ended_at'),flush=True)
+            logs=get('/jobs/'+item['id']+'/logs?per_page=100')
+            if isinstance(logs,list):
+              for line in logs[-12:]:
+                print('JOBLOG',str(line.get('message',''))[:320],flush=True)
+          PY

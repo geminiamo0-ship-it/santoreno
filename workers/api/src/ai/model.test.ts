@@ -188,38 +188,52 @@ describe("Staging Luna -> Llama fallback without weakening answer validation", (
       citationIds: ["s1"],
     });
     expect(vi.mocked(ai.run).mock.calls.map(([name]) => name)).toEqual([
-      "openai/gpt-6-luna", "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+      "openai/gpt-6-luna",
+      "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
     ]);
   });
 
   it("falls back for malformed JSON but never returns invalid fallback output", async () => {
     const ai: WorkersAiLike = {
-      run: vi.fn(async (model: string) => model === "openai/gpt-6-luna"
-        ? { output_text: '{"bad":"output"}' }
-        : { response: '{"answer":"bad","citation_ids":null}' }),
+      run: vi.fn(async (model: string) =>
+        model === "openai/gpt-6-luna"
+          ? { output_text: '{"bad":"output"}' }
+          : { response: '{"answer":"bad","citation_ids":null}' },
+      ),
     };
-    await expect(createGroundedModel({
-      AI: ai,
-      SANTO_ENV: "staging",
-      SANTO_LUNA_PREVIEW: "true",
-      SANTO_AI_MODEL: "@cf/test/fallback",
-    }).generate("Evidence")).rejects.toMatchObject({ code: "MODEL_RESPONSE_INVALID" });
+    await expect(
+      createGroundedModel({
+        AI: ai,
+        SANTO_ENV: "staging",
+        SANTO_LUNA_PREVIEW: "true",
+        SANTO_AI_MODEL: "@cf/test/fallback",
+      }).generate("Evidence"),
+    ).rejects.toMatchObject({ code: "MODEL_RESPONSE_INVALID" });
     expect(ai.run).toHaveBeenCalledTimes(2);
   });
 
   it("does not retry non-provider failures or a source-insufficiency refusal", async () => {
-    const fallback: ModelPort = { generate: vi.fn(async () => ({ answer: "fallback", citationIds: [] })) };
-    const denied: ModelPort = { generate: vi.fn(async () => {
-      throw new GroundedAiError(504, "MODEL_TIMEOUT", "Timed out");
-    }) };
-    await expect(new FallbackGroundedModel(denied, fallback).generate("x")).rejects
-      .toMatchObject({ code: "MODEL_TIMEOUT" });
+    const fallback: ModelPort = {
+      generate: vi.fn(async () => ({ answer: "fallback", citationIds: [] })),
+    };
+    const denied: ModelPort = {
+      generate: vi.fn(async () => {
+        throw new GroundedAiError(504, "MODEL_TIMEOUT", "Timed out");
+      }),
+    };
+    await expect(new FallbackGroundedModel(denied, fallback).generate("x")).rejects.toMatchObject({
+      code: "MODEL_TIMEOUT",
+    });
     expect(fallback.generate).not.toHaveBeenCalled();
-    const refused: ModelPort = { generate: vi.fn(async () => ({
-      answer: "INSUFFICIENT_EVIDENCE", citationIds: [],
-    })) };
-    await expect(new FallbackGroundedModel(refused, fallback).generate("x")).resolves
-      .toMatchObject({ answer: "INSUFFICIENT_EVIDENCE" });
+    const refused: ModelPort = {
+      generate: vi.fn(async () => ({
+        answer: "INSUFFICIENT_EVIDENCE",
+        citationIds: [],
+      })),
+    };
+    await expect(new FallbackGroundedModel(refused, fallback).generate("x")).resolves.toMatchObject({
+      answer: "INSUFFICIENT_EVIDENCE",
+    });
     expect(fallback.generate).not.toHaveBeenCalled();
   });
 });

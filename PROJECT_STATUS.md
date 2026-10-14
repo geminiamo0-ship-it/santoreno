@@ -6,6 +6,15 @@
 >
 > **Rule:** GitHub code, issues, PRs, commits, and Actions are the source of truth. Update this file whenever meaningful work completes, a gate passes/fails, architecture changes, or the active issue changes.
 
+### Luna professor Staging cutover — 15 Oct 2026
+
+- User confirmed original HTML and inline source images function on Royal Bank. Royal Bank **Vercel Production** intentionally targets **Santo Cloudflare Staging**, with its existing Staging tenant credential. This is the agreed test architecture, not a Santo Production launch.
+- Luna fast/nonreasoning strict-JSON model is now enabled **only** via `SANTO_LUNA_PREVIEW=true` on Staging. `FallbackGroundedModel` retries only provider failure/malformed JSON through the existing Llama adapter on the **same** retrieval/validation/quota/idempotency path. Citation verification and source snapshots remain server-owned. Neither fallback nor a strict JSON output is sufficient to prove full medical-answer quality.
+- Updated adaptive English/Egyptian Arabic professor prompts without changing the evidence-only authority or general-knowledge disclosure.
+- Exact-source Staging workflow [38645396962](https://github.com/geminiamo0-ship-it/santoreno/actions/runs/38645396962) **SUCCESS**: formatting, typecheck, all tests, build, smoke, synthetic live Luna HTTP 200 strict JSON, Worker deployment and anonymous protected-route checks. Staging deployed source SHA `f66b3f0c2e8b84c86f61d1287f863906ba074c8d`.
+- Existing Royal Bank Staging tenant readiness check [38643287122](https://github.com/geminiamo0-ship-it/santoreno/actions/runs/38643287122) **SUCCESS**, reporting one active owner, one active credential and one external user without exposing secrets.
+- **Outstanding:** an authenticated live medical conversation with real citation/image fidelity and retry/latency QA, mobile/browser visual acceptance, native provider token-time-to-first-byte streaming. Phase 7 buffered validated SSE remains the only proven streaming mode. Keep Santo Production model flag off and do not label this a completed native streaming release.
+
 ### Full original medical SQLite export — 14 Oct 2026 (private local validation)
 
 - Owner supplied a new `all_libraries.zip`. ZIP CRC, SQLite `PRAGMA quick_check(1)` and original known SHA-256 matched. Source contains exactly **7,049 articles** in five libraries.

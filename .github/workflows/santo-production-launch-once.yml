@@ -1,5 +1,5 @@
 name: Santo Production Auth-Protected API Launch
-# Repeat after enabling the authenticated source reader under explicit Production feature flag.
+# Re-deploy the authenticated source reader following its explicit Production flag fix and formatting gate.
 on:
   push:
     branches: [release/santo-medical-rich-prod-candidate-20261014]

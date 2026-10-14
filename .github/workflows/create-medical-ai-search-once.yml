@@ -1,0 +1,67 @@
+name: Santo Staging — Create 5 Scoped Medical AI Search Indexes
+
+on:
+  push:
+    branches:
+      - ops/staging-medical-ai-search-five-instances
+    paths:
+      - .github/workflows/create-medical-ai-search-once.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: santo-medical-ai-search-staging-provision
+  cancel-in-progress: false
+
+jobs:
+  create:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve sole enabled existing AI Search R2 service token
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+          test -n "$CLOUDFLARE_API_TOKEN"
+          python - <<'PY'
+          import json,os,re
+          from urllib.request import Request,urlopen
+
+          req=Request(
+            f"https://api.cloudflare.com/client/v4/accounts/{os.environ['CLOUDFLARE_ACCOUNT_ID']}/ai-search/tokens",
+            method="GET",headers={"Authorization":"Bearer "+os.environ["CLOUDFLARE_API_TOKEN"],"Accept":"application/json"})
+          with urlopen(req,timeout=40) as r: result=json.load(r)
+          if not result.get("success"):raise SystemExit("Could not load registered AI Search service tokens")
+          tokens=result.get("result") or []
+          enabled=[x for x in tokens if isinstance(x,dict) and x.get("enabled") is True]
+          if len(enabled)!=1:raise SystemExit(f"Expected one existing enabled service token; found {len(enabled)}")
+          token_id=enabled[0].get("id","")
+          if not re.fullmatch(r"[0-9a-fA-F-]{36}",token_id):
+              raise SystemExit("Registered R2 service token ID is malformed")
+          with open(os.environ["GITHUB_ENV"],"a",encoding="utf-8") as env:
+              env.write("AI_SEARCH_R2_SERVICE_TOKEN_ID="+token_id+"\n")
+          print("Reusing existing registered AI Search service token; no token generated or exposed")
+          PY
+
+      - name: Provision only 5 new medical R2 instances under default namespace
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/configure_medical_ai_search.py --execute
+
+      - name: Explain asynchronous indexing status and next QA gate
+        shell: bash
+        run: |
+          {
+            echo '## Santo medical AI Search Staging setup'
+            echo '- Scoped sources: private R2 bucket santo-content-staging'
+            echo '- Instance IDs: amboss, usmle, passmedicine, pastest, one-examination'
+            echo '- Legacy Royal Bank instances must remain unchanged'
+            echo '- Indexing is asynchronous; availability and citation correctness still require live validation'
+          } >> "$GITHUB_STEP_SUMMARY"

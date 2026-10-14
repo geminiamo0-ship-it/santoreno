@@ -104,14 +104,18 @@ describe("Santo original article and chat medical image security", () => {
     const { gzipSync } = await import("node:zlib");
     const html = "<h2>Large clinical explanation</h2><p>" + "diagnosis ".repeat(160000) + "</p>";
     const encoded = gzipSync(Buffer.from(html, "utf-8")).toString("base64");
-    await expect(decodedSourceArticleHtml({
-      contentHtmlGzipBase64: encoded,
-      contentHtmlDecodedLength: html.length,
-    })).resolves.toBe(html);
-    await expect(decodedSourceArticleHtml({
-      contentHtmlGzipBase64: encoded,
-      contentHtmlDecodedLength: html.length + 1,
-    })).resolves.toBe("");
+    await expect(
+      decodedSourceArticleHtml({
+        contentHtmlGzipBase64: encoded,
+        contentHtmlDecodedLength: html.length,
+      }),
+    ).resolves.toBe(html);
+    await expect(
+      decodedSourceArticleHtml({
+        contentHtmlGzipBase64: encoded,
+        contentHtmlDecodedLength: html.length + 1,
+      }),
+    ).resolves.toBe("");
   });
 
   it("does not silently inject raw HTML without an actual browser DOMParser", () => {

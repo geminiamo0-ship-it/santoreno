@@ -108,7 +108,8 @@ jobs:
               -H "authorization: Bearer $SANTO_ISOLATION_TOKEN" \
               "$WORKER_URL/count?bucket=source" || true)"
             if [[ "$status" == 200 ]] && python3 -c 'import json,sys; x=json.load(open(sys.argv[1])); assert isinstance(x.get("keys"),list) and len(x["keys"])>0' "$RUNNER_TEMP/santo-source-probe.json"; then
-              echo "Authenticated R2 source Worker ready after attempt $attempt"
+              echo "Authenticated R2 source Worker ready after attempt $attempt; waiting for edge-route stabilization"
+              sleep 12
               exit 0
             fi
             echo "Waiting for Cloudflare workers.dev routing: HTTP $status (attempt $attempt)"

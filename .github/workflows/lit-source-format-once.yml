@@ -1,0 +1,31 @@
+name: Temporary Lit Reader Format
+on:
+  push:
+    branches:
+      - feat/82-source-explorer-library-reader
+    paths:
+      - .github/workflows/lit-source-format-once.yml
+permissions:
+  contents: write
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Format widget
+        shell: bash
+        run: |
+          set -euo pipefail
+          corepack enable
+          pnpm install --frozen-lockfile
+          pnpm exec prettier --write packages/widget/src/conversation-client.ts packages/widget/src/index.ts packages/widget/src/styles.ts
+          if ! git diff --quiet -- packages/widget/src/conversation-client.ts packages/widget/src/index.ts packages/widget/src/styles.ts; then
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add packages/widget/src/conversation-client.ts packages/widget/src/index.ts packages/widget/src/styles.ts
+            git commit -m 'style(widget): format source reader'
+            git push origin HEAD:refs/heads/feat/82-source-explorer-library-reader
+          fi

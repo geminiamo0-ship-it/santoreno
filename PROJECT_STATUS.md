@@ -564,6 +564,37 @@ For every meaningful step:
   private Staging R2, registering five AI Search instances and checking
   indexing. Issue #82 and Pilot #58 stay OPEN. No false 'library live' claim.
 
+### Private GitHub Actions medical corpus import — PR #85 (14 October 2026)
+
+- **User decision:** orchestrate the medical corpus deployment from GitHub Actions,
+  not from their Windows workstation. Existing `santoreno` repository is
+  **PUBLIC**; committing the 71 MiB licensed ZIP or using a public Release
+  would reveal third-party article content. Do not do that.
+- PR #85 adds manual, reviewer-gated `medical-library-private-r2-import.yml`
+  to download only a SHA-256 pinned bundle from a **separate PRIVATE GitHub
+  repository Release**, validate 74,579 objects and 5 expected library counts,
+  then optionally upload to `santo-content-staging` with scoped R2 S3 keys,
+  verify remote object counts/head metadata, and configure five restricted
+  R2-backed AI Search instances.
+- Separate negative safety tests reject tampered checksums, directory
+  traversal, unexpected .sqlite/text entries and incomplete archives.
+  Requires manual approval and explicit staging-only confirmation for R2
+  uploads; dry-run is default. Production never targeted.
+- Exact known 71 MiB ZIP SHA-256:
+  `708398d7b8fcc8b2b6b82142a2e819a8d322d30596f8a892eda57672b7eaa700`.
+  Private source archive currently resides in this conversation, **not**
+  in a private GitHub Release; no private R2 upload or AI Search index
+  creation performed. GitHub connector cannot upload the 71 MiB
+  conversation file to a private release or create that private source repo.
+- **Owner prerequisite:** create private source repo + private release
+  asset; configure `SANTO_PRIVATE_LIBRARY_REPO` variable and protected
+  environment secrets (private repo read token, bucket-scoped R2 S3
+  credentials, AI Search service token). See
+  `docs/GITHUB_MEDICAL_LIBRARY_IMPORT.md`.
+- PR, merge, protected staging workflow run and live corpus indexing
+  **not yet verified** at this checkpoint. Issue #82 / Phase 10 #58
+  remain OPEN until actual end-to-end sourced-reader acceptance.
+
 ## 9. Next action
 
 **Royal Bank Pilot staging checkpoint — 2026-10-14:**

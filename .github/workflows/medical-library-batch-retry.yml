@@ -99,6 +99,17 @@ jobs:
           echo "Worker never passed 401/200 gate: anonymous=$unauth authenticated=$auth"
           exit 1
 
+      - name: Probe authenticated curl POST on exactly one existing catalog object
+        env:
+          WORKER_URL: ${{ steps.worker.outputs.url }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/upload_medical_libraries_batched.py \
+            --dir "$RUNNER_TEMP/santo-export" \
+            --url "$WORKER_URL" --execute --probe --workers 1 \
+            --checkpoint "$RUNNER_TEMP/santo-probe-checkpoint.txt"
+
       - name: Upload up to 20 R2 objects per request with backoff and independent SHA-256 readbacks
         env:
           WORKER_URL: ${{ steps.worker.outputs.url }}

@@ -79,7 +79,14 @@ jobs:
           health="$(curl --fail -sS --retry 12 --retry-delay 3 --retry-all-errors "$SANTO_PROD_HEALTH_URL/health")"
           jq -e '.service=="santo-api" and .status=="ok"' <<< "$health" >/dev/null
           for route in /v1/libraries /v1/libraries/amboss/articles /v1/libraries/amboss/articles/unnamed-1000; do
-            status="$(curl -sS -o /dev/null -w '%{http_code}' "$SANTO_PROD_HEALTH_URL$route")"
+            # Cloudflare secret-put publishes an additional Worker version.
+            # Wait for globally propagated Worker routes, not just health.
+            status=""
+            for attempt in $(seq 1 15); do
+              status="$(curl -sS -o /dev/null -w '%{http_code}' "$SANTO_PROD_HEALTH_URL$route")"
+              if [[ "$status" == 401 ]]; then break; fi
+              sleep 2
+            done
             test "$status" = 401 || { echo "Fail-closed anonymous medical access $route HTTP $status"; exit 1; }
           done
           code="$(curl -sS -o /dev/null -w '%{http_code}' -X POST "$SANTO_PROD_HEALTH_URL/v1/sources/article" -H 'content-type: application/json' -d '{}')"

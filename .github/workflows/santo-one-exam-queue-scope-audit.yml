@@ -1,0 +1,47 @@
+name: Santo One Examination Queue Scope Audit
+on:
+  push:
+    branches: [diagnose/ai-search-r2-zero-files-20261014]
+    paths: [".github/workflows/santo-one-exam-queue-scope-audit.yml"]
+permissions: {contents: read}
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Audit queue depth, first source item keys and active index job read only
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json,os
+          from urllib.request import Request,urlopen
+          aid=os.environ["CLOUDFLARE_ACCOUNT_ID"];tok=os.environ["CLOUDFLARE_API_TOKEN"]
+          base=f"https://api.cloudflare.com/client/v4/accounts/{aid}/ai-search/namespaces/default/instances/one-examination"
+          h={"Authorization":"Bearer "+tok}
+          def get(path):
+            with urlopen(Request(base+path,headers=h),timeout=40) as r:
+              obj=json.load(r)
+              if not obj.get('success'):raise RuntimeError("API failure")
+              return obj
+          inst=get("")["result"];params=inst.get("source_params") or {}
+          print("PREFIX",params.get("prefix"),"INCLUDE",params.get("include_items"))
+          stat=get("/stats")["result"]
+          print("STATS",json.dumps({k:stat.get(k) for k in ('completed','queued','running','error','skipped')},sort_keys=True))
+          jobs=get("/jobs")["result"]
+          if not isinstance(jobs,list):raise RuntimeError("Unexpected job list")
+          for job in jobs[:2]:
+            print("JOB",job.get("id"),"started",job.get("started_at"),"ended",job.get("ended_at"))
+            logs=get("/jobs/"+job["id"]+"/logs?per_page=100")["result"]
+            if isinstance(logs,list):
+              for x in logs[-8:]:print("LOG",str(x.get("message",""))[:200])
+          items=get("/items?per_page=20")
+          result=items.get("result")
+          print("ITEMS_SCHEMA",type(result).__name__,"COUNT",len(result) if isinstance(result,list) else "unknown")
+          if isinstance(result,list):
+            for x in result[:20]:
+              print("ITEM_KEY",str(x.get("key",""))[:240],"STATUS",str(x.get("status",""))[:60],"CHUNKS",x.get("chunks_count"))
+          print("RESULT_INFO",json.dumps(items.get("result_info",{}))[:500])
+          PY

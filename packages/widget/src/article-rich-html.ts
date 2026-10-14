@@ -149,7 +149,7 @@ function scrub(root: ParentNode): void {
  * Returns no HTML without DOMParser rather than opening an unsafe fallback.
  */
 export function sanitizeArticleForReader(value: string): string {
-  if (typeof DOMParser === "undefined" || typeof value !== "string" || value.length > 1_500_000) {
+  if (typeof DOMParser === "undefined" || typeof value !== "string" || value.length > 5_000_000) {
     return "";
   }
   const doc = new DOMParser().parseFromString(value, "text/html");
@@ -190,6 +190,42 @@ export function formatArticleForReader(value: string, libraryId: string): string
 }
 
 /** Old articles had synthetic s-0001 style section ids, not DOM anchors. */
+/** Decode only validated source bytes; caller MUST sanitize the result before DOM insertion. */
+export async function decodedSourceArticleHtml(article: {
+  contentHtml?: string;
+  contentHtmlGzipBase64?: string;
+  contentHtmlDecodedLength?: number;
+}): Promise<string> {
+  if (article.contentHtml) return article.contentHtml;
+  const encoded = article.contentHtmlGzipBase64;
+  const count = article.contentHtmlDecodedLength;
+  if (!encoded || encoded.length > 1_500_000 || typeof count !== "number" ||
+      !Number.isSafeInteger(count) || count < 0 || count > 5_000_000 ||
+      typeof atob !== "function" || typeof DecompressionStream === "undefined") return "";
+  try {
+    const data = Uint8Array.from(atob(encoded), (character) => character.charCodeAt(0));
+    const reader = new Blob([data.buffer as ArrayBuffer]).stream()
+      .pipeThrough(new DecompressionStream("gzip")).getReader();
+    const decoder = new TextDecoder("utf-8", { fatal: true });
+    let result = "";
+    let byteCount = 0;
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        byteCount += value.byteLength;
+        if (byteCount > 10_000_000) { await reader.cancel(); return ""; }
+        result += decoder.decode(value, { stream: true });
+        if (result.length > 5_000_000) { await reader.cancel(); return ""; }
+      }
+    } finally {
+      reader.releaseLock();
+    }
+    result += decoder.decode();
+    return result.length === count ? result : "";
+  } catch { return ""; }
+}
+
 export function referencedHeadingText(heading: string): string {
   return heading
     .replace(/\s+\(part\s+\d+\)$/i, "")

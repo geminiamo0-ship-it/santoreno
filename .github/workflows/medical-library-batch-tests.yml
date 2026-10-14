@@ -1,0 +1,34 @@
+name: Medical Library Batch R2 Security Tests
+on:
+  pull_request:
+    paths:
+      - "workers/medical-import/**"
+      - "scripts/upload_medical_libraries_batched.py"
+      - "scripts/test_medical_library_batch.mjs"
+      - ".github/workflows/medical-library-batch-tests.yml"
+  push:
+    branches:
+      - main
+      - fix/88-batched-cloudflare-r2-import
+    paths:
+      - "workers/medical-import/**"
+      - "scripts/upload_medical_libraries_batched.py"
+      - "scripts/test_medical_library_batch.mjs"
+      - ".github/workflows/medical-library-batch-tests.yml"
+permissions:
+  contents: read
+jobs:
+  security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: node --check workers/medical-import/src/index.js
+      - run: node --test scripts/test_medical_library_batch.mjs
+      - run: python -m py_compile scripts/upload_medical_libraries_batched.py

@@ -52,6 +52,8 @@ jobs:
             if record.get("status")!="error" or record.get("error")!="unknown_error":
               raise RuntimeError("Only retry exact known unknown_error medical items")
             result=api("/items/"+item_id,"PATCH",{"next_action":"INDEX"})
+            # Successful PATCH can return success=true with result=null.
+            result=result if isinstance(result,dict) else api("/items/"+item_id)
             if result.get("key")!=key:
               raise RuntimeError("Wrong retried key")
             print("TARGETED_RETRY_ACCEPTED",key,"status",result.get("status"),flush=True)

@@ -288,10 +288,60 @@ export class SantoAiElement extends LitElement {
   }
   private async jumpToReferencedSection(sectionId: string): Promise<void> {
     await this.updateComplete;
-    const row = Array.from(
-      this.renderRoot.querySelectorAll<HTMLElement>("[data-santo-section]"),
-    ).find((element) => element.dataset.santoSection === sectionId);
-    row?.scrollIntoView({ block: "start", behavior: "smooth" });
+    const reader = this.renderRoot.querySelector<HTMLElement>(".reader-body");
+    if (!reader) return;
+    reader.querySelectorAll(".reader-highlight").forEach((element) => element.classList.remove("reader-highlight"));
+    const section = this.readerArticle?.sections.find((value) => value.id === sectionId);
+    let row = Array.from(reader.querySelectorAll<HTMLElement>("[data-santo-section]"))
+      .find((element) => element.dataset.santoSection === sectionId);
+    if (!row && section) {
+      const heading = referencedHeadingText(section.heading);
+      const previous = this.readerArticle!.sections.slice(0, this.readerArticle!.sections.indexOf(section))
+        .filter((candidate) => referencedHeadingText(candidate.heading) === heading).length;
+      row = Array.from(reader.querySelectorAll<HTMLElement>(
+        ".article-original-html h1, .article-original-html h2, .article-original-html h3, .article-original-html h4",
+      )).filter((element) => referencedHeadingText(element.textContent ?? "") === heading)[previous];
+    }
+    if (!row) return;
+    row.closest<HTMLDetailsElement>("details.santo-amboss-card")?.setAttribute("open", "");
+    row.classList.add("reader-highlight");
+    row.scrollIntoView({ block: "center", behavior: "smooth" });
+  }
+
+  private onArticleClick(event: MouseEvent): void {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    const link = target.closest<HTMLAnchorElement>(".article-original-html a[href^='#']");
+    if (link) {
+      event.preventDefault();
+      const id = link.getAttribute("href")?.slice(1) ?? "";
+      const element = Array.from(this.renderRoot.querySelectorAll<HTMLElement>(".article-original-html [id]"))
+        .find((node) => node.id === id);
+      if (element) {
+        element.closest<HTMLDetailsElement>("details.santo-amboss-card")?.setAttribute("open", "");
+        element.scrollIntoView({ block: "center", behavior: "smooth" });
+      }
+      return;
+    }
+    const image = target.closest<HTMLImageElement>(".article-original-html img");
+    if (image) {
+      const src = approvedMedicalImageUrl(image.src);
+      if (src) this.readerLightbox = { src, alt: image.alt || "Medical illustration" };
+      return;
+    }
+    const trigger = target.closest<HTMLElement>(
+      ".article-original-html .api, .article-original-html .dictionary, .article-original-html .linksuggest, .article-original-html .lamp-trigger, .article-original-html .extraExplanation",
+    );
+    if (!trigger) return;
+    const tip = trigger.closest(".lamp-container")?.querySelector(".lamp-content");
+    const raw = tip?.innerHTML || trigger.dataset.offlinePopover || trigger.dataset.content || "";
+    const resolved = tip ? raw : decodeArticlePopover(raw);
+    const cleaned = sanitizeArticleForReader(resolved);
+    if (!cleaned) return;
+    this.readerPopover = {
+      title: trigger.dataset.title || trigger.textContent?.trim().slice(0, 120) || "Medical definition",
+      html: cleaned,
+    };
   }
   private async showSource(messageId: string, sourceId: string): Promise<void> {
     if (!this.client || this.busy) return;

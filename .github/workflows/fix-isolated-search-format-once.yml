@@ -1,0 +1,49 @@
+name: Santo Isolated Search — Formatting Repair
+on:
+  push:
+    branches:
+      - fix/90-medical-r2-isolated-search-pilot
+    paths:
+      - ".github/workflows/fix-isolated-search-format-once.yml"
+permissions:
+  contents: write
+jobs:
+  prettier:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Format only isolated-source files reported by Verify
+        shell: bash
+        run: |
+          set -euo pipefail
+          corepack enable
+          pnpm install --frozen-lockfile
+          pnpm exec prettier --write \
+            .github/workflows/isolated-search-readiness.yml \
+            workers/medical-isolate-others/src/index.js \
+            workers/medical-isolate/src/four-libraries.js \
+            workers/medical-isolate/src/index.js
+          pnpm exec prettier --check \
+            .github/workflows/isolated-search-readiness.yml \
+            workers/medical-isolate-others/src/index.js \
+            workers/medical-isolate/src/four-libraries.js \
+            workers/medical-isolate/src/index.js
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          echo "FORMATTED_YAML_START"
+          base64 --wrap=0 .github/workflows/isolated-search-readiness.yml
+          echo
+          echo "FORMATTED_YAML_END"
+          # GitHub's default GITHUB_TOKEN cannot modify workflow files; those are
+          # applied separately with the authorized GitHub integration after this run.
+          git add workers/medical-isolate-others/src/index.js workers/medical-isolate/src/four-libraries.js workers/medical-isolate/src/index.js
+          if ! git diff --cached --quiet; then
+            git commit -m "style(index): satisfy pinned repository Prettier policy"
+            git push origin HEAD:fix/90-medical-r2-isolated-search-pilot
+          fi

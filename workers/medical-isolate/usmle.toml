@@ -1,0 +1,15 @@
+name = "santo-isolate-usmle-staging"
+main = "src/four-libraries.js"
+compatibility_date = "2026-09-14"
+workers_dev = true
+
+[vars]
+LIBRARY = "usmle"
+
+[[r2_buckets]]
+binding = "SOURCE_BUCKET"
+bucket_name = "santo-content-staging"
+
+[[r2_buckets]]
+binding = "DEST_BUCKET"
+bucket_name = "santo-usmle-search-staging"

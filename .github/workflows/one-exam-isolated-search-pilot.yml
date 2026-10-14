@@ -1,0 +1,154 @@
+name: Santo One Examination — Fast Isolated AI Search Pilot
+on:
+  push:
+    branches:
+      - fix/90-medical-r2-isolated-search-pilot
+    paths:
+      - ".github/workflows/one-exam-isolated-search-pilot.yml"
+permissions:
+  contents: read
+concurrency:
+  group: santo-one-exam-fast-isolated-staging-20261014
+  cancel-in-progress: false
+
+jobs:
+  create-and-index-isolated-pilot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 48
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      TARGET_BUCKET: santo-one-examination-search-staging
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Fail closed without existing Cloudflare credentials
+        run: |
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+
+      - name: Static syntax checks
+        run: |
+          node --check workers/medical-isolate/src/index.js
+          python -m py_compile scripts/copy_one_exam_to_isolated_r2.py
+          python -m py_compile scripts/provision_isolated_one_exam_ai_search.py
+
+      - name: Install pinned Wrangler
+        shell: bash
+        run: |
+          set -euo pipefail
+          corepack enable
+          pnpm install --frozen-lockfile
+
+      - name: Create brand-new isolated private R2 bucket (never delete or modify canonical bucket)
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd workers/api
+          if pnpm exec wrangler r2 bucket create "$TARGET_BUCKET"; then
+            echo "Created fresh private pilot bucket"
+          else
+            echo "Checking previously created pilot bucket after interrupted run"
+            pnpm exec wrangler r2 bucket list | grep -F -- "$TARGET_BUCKET"
+          fi
+
+      - name: Deploy temporary isolated R2-to-R2 migration Worker
+        id: worker
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd workers/api
+          output="$(pnpm exec wrangler deploy --config ../medical-isolate/wrangler.toml 2>&1)"
+          echo "$output"
+          url="$(grep -Eo 'https://[A-Za-z0-9.-]+\.workers\.dev' <<< "$output" | tail -n 1)"
+          test -n "$url" || { echo "No Worker URL"; exit 1; }
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+      - name: Issue a masked random per-run migration token
+        shell: bash
+        run: |
+          set -euo pipefail
+          secret="$(openssl rand -hex 32)"
+          echo "::add-mask::$secret"
+          echo "SANTO_ISOLATION_TOKEN=$secret" >> "$GITHUB_ENV"
+          cd workers/api
+          printf '%s' "$secret" | pnpm exec wrangler secret put SANTO_ISOLATION_TOKEN --config ../medical-isolate/wrangler.toml
+
+      - name: Verify public endpoint cannot list or copy without token
+        env:
+          WORKER_URL: ${{ steps.worker.outputs.url }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for n in $(seq 1 30); do
+            status="$(curl -sS --max-time 12 -o /dev/null -w '%{http_code}' "$WORKER_URL/count?bucket=source" || true)"
+            if [ "$status" = 401 ]; then
+              echo "Private R2 isolated copy gateway denies anonymous requests"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo 'Worker did not pass fail-closed auth check'
+          exit 1
+
+      - name: Wait for authenticated Worker route and R2 bindings to propagate
+        env:
+          WORKER_URL: ${{ steps.worker.outputs.url }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 45); do
+            status="$(curl -sS --max-time 18 --output "$RUNNER_TEMP/santo-source-probe.json" --write-out '%{http_code}' \
+              -H "authorization: Bearer $SANTO_ISOLATION_TOKEN" \
+              "$WORKER_URL/count?bucket=source" || true)"
+            if [[ "$status" == 200 ]] && python3 -c 'import json,sys; x=json.load(open(sys.argv[1])); assert isinstance(x.get("keys"),list) and len(x["keys"])>0' "$RUNNER_TEMP/santo-source-probe.json"; then
+              echo "Authenticated R2 source Worker ready after attempt $attempt; waiting for edge-route stabilization"
+              sleep 12
+              exit 0
+            fi
+            echo "Waiting for Cloudflare workers.dev routing: HTTP $status (attempt $attempt)"
+            sleep 3
+          done
+          echo "Worker failed to accept authenticated R2 list after deployment"
+          exit 1
+
+      - name: Copy exactly 1,017 One Examination Markdown documents and compare SHA-256 samples
+        env:
+          WORKER_URL: ${{ steps.worker.outputs.url }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Diagnosing isolated source enumeration through authenticated curl"
+          python scripts/copy_one_exam_to_isolated_r2.py --url "$WORKER_URL" --execute
+
+      - name: Create isolated AI Search instance and run clean first sync without changing old indexes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/provision_isolated_one_exam_ai_search.py
+
+      - name: Record verified scope
+        shell: bash
+        run: |
+          {
+            echo '## Isolated Santo One Examination AI Search pilot'
+            echo '- Canonical Santo source R2 left intact'
+            echo '- Exact source 1,017 Markdown documents copied to dedicated private R2 bucket'
+            echo '- Exact destination-only key-set and 3 source/destination SHA-256 comparisons passed'
+            echo '- Fresh pilot instance one-examination-isolated created without altering original 5 instances'
+            echo '- Indexing progress and errors are printed in step logs (do not claim readiness if completed=0)'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Delete temporary migration Worker and per-run secret (never delete any buckets)
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          cd workers/api
+          pnpm exec wrangler delete --config ../medical-isolate/wrangler.toml --force

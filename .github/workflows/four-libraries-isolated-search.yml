@@ -1,0 +1,134 @@
+name: Santo Four Libraries — Fast Physically Isolated R2 Search
+on:
+  push:
+    branches:
+      - fix/90-medical-r2-isolated-search-pilot
+    paths:
+      - ".github/workflows/four-libraries-isolated-search.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: santo-four-isolated-medical-libraries-20261014
+  cancel-in-progress: false
+
+jobs:
+  isolate-and-index:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        library: [amboss, usmle, passmedicine, pastest]
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Validate existing Santo Cloudflare account credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+      - name: Syntax-check source copier and index guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check workers/medical-isolate/src/four-libraries.js
+          python -m py_compile scripts/copy_four_medical_to_isolated_r2.py scripts/retarget_four_medical_search_sources.py
+      - name: Install pinned Wrangler for independent staging R2 write
+        shell: bash
+        run: |
+          set -euo pipefail
+          corepack enable
+          pnpm install --frozen-lockfile
+      - name: Create a dedicated empty R2 bucket without changing canonical source
+        shell: bash
+        run: |
+          set -euo pipefail
+          bucket="santo-${{ matrix.library }}-search-staging"
+          cd workers/api
+          if pnpm exec wrangler r2 bucket create "$bucket"; then
+            echo "New private isolated destination bucket created"
+          else
+            pnpm exec wrangler r2 bucket list | grep -F -- "$bucket"
+            echo "Previously created destination bucket exists; all destination keys will be checked"
+          fi
+      - name: Deploy temporary authenticated migration Worker
+        shell: bash
+        id: worker
+        run: |
+          set -euo pipefail
+          cd workers/api
+          logs="$(pnpm exec wrangler deploy --config "../medical-isolate/${{ matrix.library }}.toml" 2>&1)"
+          echo "$logs"
+          url="$(grep -Eo 'https://[A-Za-z0-9.-]+\.workers\.dev' <<<"$logs" | tail -n1)"
+          test -n "$url"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+      - name: Set masked random per-Run secret
+        shell: bash
+        run: |
+          set -euo pipefail
+          secret="$(openssl rand -hex 32)"
+          echo "::add-mask::$secret"
+          echo "SANTO_ISOLATION_TOKEN=$secret" >> "$GITHUB_ENV"
+          cd workers/api
+          printf '%s' "$secret" | pnpm exec wrangler secret put SANTO_ISOLATION_TOKEN --config "../medical-isolate/${{ matrix.library }}.toml"
+      - name: Prove deny-by-default and authenticated correct source before copy
+        shell: bash
+        env:
+          WORKER_URL: ${{ steps.worker.outputs.url }}
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 45); do
+            anonymous="$(curl -sS --max-time 15 -o /dev/null -w '%{http_code}' "$WORKER_URL/list?bucket=source" || true)"
+            logged="$(curl -sS --max-time 15 -o /dev/null -w '%{http_code}' -H "authorization: Bearer $SANTO_ISOLATION_TOKEN" "$WORKER_URL/list?bucket=source" || true)"
+            if [[ "$anonymous" = 401 && "$logged" = 200 ]]; then
+              echo "Authenticated isolated library Reader is ready; anonymous requests rejected"
+              sleep 8
+              exit 0
+            fi
+            echo "Cloudflare propagation pending, attempt $attempt, unauth=$anonymous auth=$logged"
+            sleep 3
+          done
+          exit 1
+      - name: Copy this library only; prove exact count, key-set and SHA-256
+        shell: bash
+        env:
+          WORKER_URL: ${{ steps.worker.outputs.url }}
+        run: |
+          set -euo pipefail
+          python scripts/copy_four_medical_to_isolated_r2.py \
+            --url "$WORKER_URL" --library "${{ matrix.library }}" --execute
+      - name: Keep stable Santo AI Search instance ID and repoint empty index to isolated bucket
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/retarget_four_medical_search_sources.py \
+            --library "${{ matrix.library }}" --verify-copied
+      - name: Write library audit summary
+        shell: bash
+        run: |
+          {
+            echo "### Santo isolated ${{ matrix.library }} AI Search"
+            echo "- Exact source keyset SHA-verified, canonical R2 untouched"
+            echo "- Only the matching empty staging index repointed to its own bucket"
+            echo "- Stable index/library ID kept for Santo retrieval; AI Search asynchronous indexing monitored"
+            echo "- Never claim full library readiness before completed equals source count, error=0 and validated retrieval"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Always delete temporary Worker and per-run secret; preserve both R2 buckets
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          cd workers/api
+          pnpm exec wrangler delete --config "../medical-isolate/${{ matrix.library }}.toml" --force

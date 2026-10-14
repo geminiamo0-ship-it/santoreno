@@ -41,7 +41,7 @@ _CLASS_ID = re.compile(r"[\w :.\-]{1,512}$")
 _COLOR = re.compile(r"(?:#[0-9a-fA-F]{3,8}|[a-zA-Z]{2,30}|rgba?\([0-9., %]+\))$")
 _ALLOWED_CSS = {"color", "background-color", "text-align", "font-weight", "font-style", "text-decoration"}
 _CSS_VALUES = {"left", "center", "right", "justify", "bold", "normal", "italic", "underline", "none"}
-_MAX_SOURCE_CHARS = 1_500_000
+_MAX_SOURCE_CHARS = 5_000_000
 
 def _safe_style(raw):
     declarations = []

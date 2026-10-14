@@ -51,7 +51,12 @@ jobs:
         run: |
           set -euo pipefail
           cd workers/api
-          pnpm exec wrangler r2 bucket create "$TARGET_BUCKET"
+          if pnpm exec wrangler r2 bucket create "$TARGET_BUCKET"; then
+            echo "Created fresh private pilot bucket"
+          else
+            echo "Checking previously created pilot bucket after interrupted run"
+            pnpm exec wrangler r2 bucket list | grep -F -- "$TARGET_BUCKET"
+          fi
 
       - name: Deploy temporary isolated R2-to-R2 migration Worker
         id: worker

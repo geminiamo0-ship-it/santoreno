@@ -1,0 +1,176 @@
+name: Santo Medical Libraries — Private R2 Import
+
+# Explicit owner-run only. This public source repository never holds book archives.
+on:
+  workflow_dispatch:
+    inputs:
+      source_release_tag:
+        description: "Tag of a PRIVATE repository Release containing the licensed corpus ZIP"
+        required: true
+        type: string
+      archive_sha256:
+        description: "SHA-256 of santo_staging_medical_library_r2_bundle.zip"
+        required: true
+        type: string
+      upload_to_private_r2:
+        description: "Actually upload 74,579 validated objects to santo-content-staging"
+        required: true
+        default: false
+        type: boolean
+      create_ai_search:
+        description: "Create five isolated R2-backed AI Search instances after upload"
+        required: true
+        default: false
+        type: boolean
+      confirmation:
+        description: "For upload, type UPLOAD_PRIVATE_SANTO_STAGING"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: santo-licensed-medical-library-staging-import
+  cancel-in-progress: false
+
+jobs:
+  upload-private-licensed-library:
+    if: github.ref == 'refs/heads/main'
+    environment: santo-medical-ingest-staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      GH_TOKEN: ${{ secrets.SANTO_LIBRARY_SOURCE_READ_TOKEN }}
+      PRIVATE_LIBRARY_REPO: ${{ vars.SANTO_PRIVATE_LIBRARY_REPO }}
+      RELEASE_TAG: ${{ inputs.source_release_tag }}
+      EXPECTED_SHA256: ${{ inputs.archive_sha256 }}
+      EXECUTE_UPLOAD: ${{ inputs.upload_to_private_r2 }}
+      CREATE_AI_SEARCH: ${{ inputs.create_ai_search }}
+      CONFIRMATION: ${{ inputs.confirmation }}
+      R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      AI_SEARCH_R2_SERVICE_TOKEN_ID: ${{ secrets.AI_SEARCH_R2_SERVICE_TOKEN_ID }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Validate staging-only authorization and private source
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REF" == "refs/heads/main" ]]
+          [[ "$PRIVATE_LIBRARY_REPO" =~ ^geminiamo0-ship-it/[A-Za-z0-9._-]+$ ]]
+          [[ "$PRIVATE_LIBRARY_REPO" != "$GITHUB_REPOSITORY" ]]
+          [[ "$RELEASE_TAG" =~ ^[A-Za-z0-9._-]{1,80}$ ]]
+          [[ "$EXPECTED_SHA256" =~ ^[a-f0-9]{64}$ ]]
+          test -n "$GH_TOKEN" || { echo 'Missing private source read token'; exit 1; }
+          private="$(gh api "repos/$PRIVATE_LIBRARY_REPO" --jq '.private')"
+          [[ "$private" == "true" ]] || {
+            echo 'Refusing public source repository for licensed medical corpus'
+            exit 1
+          }
+          if [[ "$CREATE_AI_SEARCH" == "true" && "$EXECUTE_UPLOAD" != "true" ]]; then
+            echo 'AI Search indexing requires verified successful private R2 upload'
+            exit 1
+          fi
+          if [[ "$EXECUTE_UPLOAD" == "true" ]]; then
+            [[ "$CONFIRMATION" == "UPLOAD_PRIVATE_SANTO_STAGING" ]] || {
+              echo 'Explicit staging-only upload confirmation is required'; exit 1;
+            }
+            test -n "$R2_ACCOUNT_ID" && test -n "$R2_ACCESS_KEY_ID" && test -n "$R2_SECRET_ACCESS_KEY" || {
+              echo 'Missing required PRIVATE R2 GitHub environment secrets'; exit 1;
+            }
+            if [[ "$CREATE_AI_SEARCH" == "true" ]]; then
+              test -n "$CLOUDFLARE_ACCOUNT_ID" && test -n "$CLOUDFLARE_API_TOKEN" && test -n "$AI_SEARCH_R2_SERVICE_TOKEN_ID" || {
+                echo 'Missing AI Search edit/instance service-token permissions'; exit 1;
+              }
+            fi
+          fi
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Download licensed ZIP only from private GitHub release
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/private-corpus"
+          gh release download "$RELEASE_TAG" \
+            --repo "$PRIVATE_LIBRARY_REPO" \
+            --pattern "santo_staging_medical_library_r2_bundle.zip" \
+            --dir "$RUNNER_TEMP/private-corpus"
+          test -f "$RUNNER_TEMP/private-corpus/santo_staging_medical_library_r2_bundle.zip"
+
+      - name: Verify exact SHA-256, safe archive paths and article/section counts
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/verify_medical_library_bundle.py \
+            --zip "$RUNNER_TEMP/private-corpus/santo_staging_medical_library_r2_bundle.zip" \
+            --sha256 "$EXPECTED_SHA256" \
+            --out "$RUNNER_TEMP/private-corpus/extracted" \
+            > "$RUNNER_TEMP/corpus-report.json"
+          jq -e '.objectCount == 74579 and .byRoot["medical-articles"] == 7049 and .byRoot["medical-search"] == 67524' \
+            "$RUNNER_TEMP/corpus-report.json" > /dev/null
+          echo 'Private bundle SHA-256 / path and count validation PASSED'
+
+      - name: Dry-run uploader without external writes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/upload_medical_libraries_r2.py \
+            --dir "$RUNNER_TEMP/private-corpus/extracted"
+
+      - name: Install R2 S3 client
+        if: inputs.upload_to_private_r2
+        shell: bash
+        run: python -m pip install --disable-pip-version-check 'boto3>=1.36,<2'
+
+      - name: Upload ONLY to private Santo Staging R2 and verify every prefix
+        if: inputs.upload_to_private_r2
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/upload_medical_libraries_r2.py \
+            --dir "$RUNNER_TEMP/private-corpus/extracted" \
+            --execute --workers 20 \
+            --checkpoint "$RUNNER_TEMP/santo-uploaded-objects.jsonl"
+
+      - name: Configure five restricted medical AI Search instances
+        if: inputs.upload_to_private_r2 && inputs.create_ai_search
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/configure_medical_ai_search.py --execute
+
+      - name: Record accurate GitHub Actions handoff
+        shell: bash
+        run: |
+          {
+            echo '## Santo licensed libraries: private Staging import'
+            echo "- SHA-256 verified: \`$EXPECTED_SHA256\`"
+            echo '- Objects validated: **74,579** (7,049 articles, 67,524 search sections, 6 catalog JSON)'
+            echo '- Private corpus was obtained from a **private release**, not a public repository.'
+            if [[ "$EXECUTE_UPLOAD" == "true" ]]; then
+              echo '- Private `santo-content-staging` upload and R2 count/head checks: **passed**'
+            else
+              echo '- Upload: **dry run only; no private R2 writes**'
+            fi
+            if [[ "$CREATE_AI_SEARCH" == "true" ]]; then
+              echo '- Five AI Search instances: **configured**; asynchronous indexing and citation fidelity still require live QA'
+            else
+              echo '- AI Search instance creation: **not requested**'
+            fi
+            echo '- Production unaffected. Medical source quality and browser acceptance are NOT proven by this workflow.'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Remove extracted licensed files from runner
+        if: always()
+        shell: bash
+        run: rm -rf "$RUNNER_TEMP/private-corpus" "$RUNNER_TEMP/santo-uploaded-objects.jsonl" "$RUNNER_TEMP/corpus-report.json"

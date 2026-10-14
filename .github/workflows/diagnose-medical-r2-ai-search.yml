@@ -1,0 +1,76 @@
+name: Diagnose Santo R2 AI Search Zero File Sync
+on:
+  push:
+    branches:
+      - diagnose/ai-search-r2-zero-files-20261014
+    paths:
+      - ".github/workflows/diagnose-medical-r2-ai-search.yml"
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Inspect configured R2 source and latest AI Search job logs
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,json
+          from urllib.request import Request,urlopen
+          from urllib.error import HTTPError
+          aid=os.environ["CLOUDFLARE_ACCOUNT_ID"]; tok=os.environ["CLOUDFLARE_API_TOKEN"]
+          root=f"https://api.cloudflare.com/client/v4/accounts/{aid}/ai-search/namespaces/default/instances"
+          libs=["amboss","usmle","passmedicine","pastest","one-examination"]
+          def get(path):
+              req=Request(root+path,headers={"Authorization":"Bearer "+tok,"Accept":"application/json"})
+              try:
+                  with urlopen(req,timeout=25) as r:
+                      obj=json.load(r)
+              except HTTPError as ex:
+                  return {"http_error":ex.code}
+              if not isinstance(obj,dict) or not obj.get("success"):
+                  return {"api_error":obj.get("errors",[]) if isinstance(obj,dict) else "invalid"}
+              return obj.get("result")
+          for lib in libs:
+              inst=get("/"+lib);stats=get("/"+lib+"/stats");jobs=get("/"+lib+"/jobs")
+              print("INSTANCE",lib,"type",inst.get("type"),"bucket",inst.get("source"),"params",json.dumps(inst.get("source_params",{})),flush=True)
+              print("STATS",lib,json.dumps({k:stats.get(k) for k in ("completed","queued","running","error","skipped")}),flush=True)
+              if isinstance(jobs,list):
+                  for job in jobs[:2]:
+                      jid=job.get("id"); print("JOB",lib,jid,"start",job.get("started_at"),"end",job.get("ended_at"),flush=True)
+                      if jid:
+                          logs=get("/"+lib+"/jobs/"+str(jid)+"/logs?per_page=60")
+                          if isinstance(logs,list):
+                              for line in logs[-16:]:
+                                  print("JOBLOG",lib,str(line.get("message_type"))[:40],str(line.get("message",""))[:300],flush=True)
+                          else: print("LOG_RESPONSE",lib,json.dumps(logs)[:240],flush=True)
+              else: print("JOBS_RESPONSE",lib,json.dumps(jobs)[:240])
+          PY
+      - name: Verify exact real R2 article and markdown keys exist and are readable
+        shell: bash
+        run: |
+          set -euo pipefail
+          corepack enable
+          pnpm install --frozen-lockfile
+          cd workers/api
+          for key in \
+            medical-library-catalog/v1/catalog.json \
+            medical-search/v1/amboss/unnamed-1/s-0001.md \
+            medical-articles/v1/amboss/unnamed-1.json; do
+            tmp="$(mktemp)"
+            if pnpm exec wrangler r2 object get "santo-content-staging/$key" --remote --file="$tmp" >/dev/null 2>&1; then
+              echo "R2_READ_PASS $key size=$(wc -c < "$tmp")"
+            else
+              echo "R2_READ_MISSING_OR_ERROR $key"
+            fi
+            rm -f "$tmp"
+          done

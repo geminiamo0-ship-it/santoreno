@@ -36,7 +36,7 @@ jobs:
           pnpm build
           pnpm smoke
           python -m unittest discover -s scripts -p 'test_medical_library_import.py'
-          echo 'MODEL_FALLBACK_AND_PROMPT_BOUNDARY_TESTS_PASSED=true'
+          echo 'MODEL_FALLBACK_PROMPT_AND_CITATIONS_TESTS_PASSED=true'
       - name: Funded Luna strict JSON live compatibility gate (no customer data)
         shell: bash
         run: |

@@ -1,0 +1,43 @@
+name: Santo One Examination Active Index Job Diagnostics
+on:
+  push:
+    branches: [diagnose/ai-search-r2-zero-files-20261014]
+    paths: [".github/workflows/santo-active-index-job-diagnostics.yml"]
+permissions: {contents: read}
+jobs:
+  read-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Read active One Examination job last events, status, 1017 queue, and R2 source config
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os,json
+          from urllib.request import urlopen,Request
+          from urllib.parse import urlencode
+          root=f"https://api.cloudflare.com/client/v4/accounts/{os.environ['CLOUDFLARE_ACCOUNT_ID']}/ai-search/namespaces/default/instances/one-examination"
+          headers={"Authorization":"Bearer "+os.environ["CLOUDFLARE_API_TOKEN"]}
+          def call(path):
+            with urlopen(Request(root+path,headers=headers),timeout=50) as res:
+              o=json.load(res)
+              if not o.get("success"):raise RuntimeError("Cloudflare API returned unsuccessful")
+              return o
+          cfg=call("")["result"]
+          print("CFG",json.dumps(cfg.get("source_params")),flush=True)
+          jobs=call("/jobs")["result"]
+          for j in jobs[:2]:
+            id=j["id"]
+            print("JOB_FULL",json.dumps(j,sort_keys=True)[:1800],flush=True)
+            resp=call("/jobs/"+id+"/logs?per_page=100")
+            logs=resp["result"]
+            print("LOG_PAGINATION",json.dumps(resp.get("result_info",{})),flush=True)
+            if isinstance(logs,list):
+              for line in logs[-32:]:
+                print("JOB_LOG",str(line.get("created_at",line.get("timestamp",""))),str(line.get("message",""))[:250],flush=True)
+          stats=call("/stats")["result"]
+          print("STAT",json.dumps({k:stats.get(k) for k in ('completed','queued','running','error','skipped')},sort_keys=True),flush=True)
+          PY

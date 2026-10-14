@@ -1,0 +1,45 @@
+name: Santo AI Search Cleanup Liveness Audit
+on:
+  push:
+    branches: [diagnose/ai-search-r2-zero-files-20261014]
+    paths: [".github/workflows/santo-index-cleanup-liveness.yml"]
+permissions: {contents: read}
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Determine newest actual Cloudflare index log event and cleanup rate
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json,os,datetime
+          from urllib.request import Request,urlopen
+          aid=os.environ["CLOUDFLARE_ACCOUNT_ID"]
+          token=os.environ["CLOUDFLARE_API_TOKEN"]
+          base=f"https://api.cloudflare.com/client/v4/accounts/{aid}/ai-search/namespaces/default/instances/one-examination"
+          def get(path):
+              with urlopen(Request(base+path,headers={"Authorization":"Bearer "+token}),timeout=45) as response:
+                  payload=json.load(response)
+                  if payload.get("success") is not True:raise RuntimeError("Cloudflare API error")
+                  return payload["result"]
+          active=get("/jobs")
+          for job in active[:1]:
+              print("JOB",json.dumps({k:job.get(k) for k in ("id","started_at","ended_at","last_seen_at","end_reason")}),flush=True)
+              all_logs=[]
+              for page in (1,2):
+                  data=get("/jobs/"+job["id"]+f"/logs?per_page=100&page={page}")
+                  if isinstance(data,list):all_logs.extend(data)
+              all_logs.sort(key=lambda x:float(x.get("created_at") or x.get("timestamp") or 0), reverse=True)
+              print("LOGS_COLLECTED",len(all_logs),flush=True)
+              for e in all_logs[:12]:
+                  t=e.get("created_at") or e.get("timestamp") or 0
+                  try: dt=datetime.datetime.fromtimestamp(float(t)/1000,datetime.timezone.utc).isoformat()
+                  except (ValueError,TypeError):dt="unavailable"
+                  print("RECENT",dt,str(e.get("message",""))[:250],flush=True)
+          stats=get("/stats")
+          print("STATS",json.dumps({k:stats.get(k) for k in ("queued","completed","running","error","skipped")}),flush=True)
+          PY

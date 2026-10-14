@@ -348,22 +348,96 @@ export const widgetStyles = css`
     background: #252c35;
     color: white;
   }
-  .reader-head .source-close { position: static; color: #202932; }
-  .reader-nav { display: flex; gap: 12px; border-bottom: 1px solid #e6d5bd; padding: 10px 18px; }
-  .reader-nav button { border: 0; padding: 7px 10px; background: #f3eadb; border-radius: 8px; }
-  .reader-body { min-height: 0; overflow: auto; padding: 18px 22px 42px; }
-  .reader-body h2 { margin: 0 0 10px; font-size: 21px; }
-  .reader-body h3 { margin: 10px 0; font-size: 16px; }
-  .reader-body p { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.7; }
-  .reader-meta { color: #68747d; font-size: 12px; }
-  .reader-body nav { max-height: 125px; overflow: auto; background: #f7f3ee; padding: 8px; border-radius: 9px; }
-  .reader-body nav button { display: block; border: 0; background: transparent; padding: 4px 6px; text-align: left; width: 100%; }
-  .reader-body section { padding: 13px 4px; scroll-margin-top: 14px; }
-  .reader-body section.reader-highlight { background: #fff2cc; border-left: 4px solid #c49032; padding: 12px; border-radius: 8px; }
-  .reader-body img { display: block; max-width: 100%; max-height: 430px; object-fit: contain; margin-top: 12px; }
-  .reader-item { display: flex; flex-direction: column; width: 100%; text-align: left; border: 1px solid #e4d9c9; border-radius: 10px; padding: 12px; margin: 8px 0; background: #fff; }
-  .reader-item small { color: #68747d; }
+  .reader-head .source-close {
+    position: static;
+    color: #202932;
+  }
+  .reader-nav {
+    display: flex;
+    gap: 12px;
+    border-bottom: 1px solid #e6d5bd;
+    padding: 10px 18px;
+  }
+  .reader-nav button {
+    border: 0;
+    padding: 7px 10px;
+    background: #f3eadb;
+    border-radius: 8px;
+  }
+  .reader-body {
+    min-height: 0;
+    overflow: auto;
+    padding: 18px 22px 42px;
+  }
+  .reader-body h2 {
+    margin: 0 0 10px;
+    font-size: 21px;
+  }
+  .reader-body h3 {
+    margin: 10px 0;
+    font-size: 16px;
+  }
+  .reader-body p {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    line-height: 1.7;
+  }
+  .reader-meta {
+    color: #68747d;
+    font-size: 12px;
+  }
+  .reader-body nav {
+    max-height: 125px;
+    overflow: auto;
+    background: #f7f3ee;
+    padding: 8px;
+    border-radius: 9px;
+  }
+  .reader-body nav button {
+    display: block;
+    border: 0;
+    background: transparent;
+    padding: 4px 6px;
+    text-align: left;
+    width: 100%;
+  }
+  .reader-body section {
+    padding: 13px 4px;
+    scroll-margin-top: 14px;
+  }
+  .reader-body section.reader-highlight {
+    background: #fff2cc;
+    border-left: 4px solid #c49032;
+    padding: 12px;
+    border-radius: 8px;
+  }
+  .reader-body img {
+    display: block;
+    max-width: 100%;
+    max-height: 430px;
+    object-fit: contain;
+    margin-top: 12px;
+  }
+  .reader-item {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    text-align: left;
+    border: 1px solid #e4d9c9;
+    border-radius: 10px;
+    padding: 12px;
+    margin: 8px 0;
+    background: #fff;
+  }
+  .reader-item small {
+    color: #68747d;
+  }
   @media (max-width: 540px) {
-    .reader-panel { inset: 0; width: 100vw; height: 100dvh; border-radius: 0; }
+    .reader-panel {
+      inset: 0;
+      width: 100vw;
+      height: 100dvh;
+      border-radius: 0;
+    }
   }
 `;

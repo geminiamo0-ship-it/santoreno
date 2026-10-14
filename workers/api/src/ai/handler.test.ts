@@ -367,13 +367,16 @@ describe("grounded AI handler", () => {
 
   it("tries general mode only when the grounded model explicitly reports insufficient evidence", async () => {
     env.SANTO_GENERAL_MEDICAL_FALLBACK = "true";
-    model.generate = vi.fn()
+    model.generate = vi
+      .fn()
       .mockResolvedValueOnce({ answer: "INSUFFICIENT_EVIDENCE", citationIds: [] })
       .mockResolvedValueOnce({ answer: "General medical explanation", citationIds: [] });
     const response = await handler()(request(token), env);
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({
-      groundingMode: "general", citations: [], answer: "General medical explanation",
+      groundingMode: "general",
+      citations: [],
+      answer: "General medical explanation",
     });
     expect(model.generate).toHaveBeenCalledTimes(2);
     expect(quota.finalizeCalls).toBe(1);
@@ -381,7 +384,9 @@ describe("grounded AI handler", () => {
 
   it("never turns retrieval outages into uncited medical assertions", async () => {
     env.SANTO_GENERAL_MEDICAL_FALLBACK = "true";
-    retrieval.retrieve = vi.fn(async () => { throw new Error("Search offline"); });
+    retrieval.retrieve = vi.fn(async () => {
+      throw new Error("Search offline");
+    });
     const response = await handler()(request(token), env);
     expect(response.status).toBe(502);
     expect(model.generate).not.toHaveBeenCalled();

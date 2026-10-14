@@ -281,8 +281,12 @@ export const widgetStyles = css`
     font-size: 13px;
     line-height: 1.75;
   }
-  .medical-markdown .md-paragraph { margin: 0 0 12px; }
-  .medical-markdown .md-paragraph:last-child { margin-bottom: 0; }
+  .medical-markdown .md-paragraph {
+    margin: 0 0 12px;
+  }
+  .medical-markdown .md-paragraph:last-child {
+    margin-bottom: 0;
+  }
   .medical-markdown .md-heading {
     margin: 17px 0 8px;
     color: #906a31;
@@ -303,7 +307,9 @@ export const widgetStyles = css`
     margin-bottom: 4px;
     color: #795a31;
   }
-  .medical-markdown .md-callout p { margin: 0; }
+  .medical-markdown .md-callout p {
+    margin: 0;
+  }
   .medical-markdown .md-table-scroll {
     max-width: 100%;
     overflow-x: auto;
@@ -332,22 +338,38 @@ export const widgetStyles = css`
     border-bottom: 1px solid #eee6dd;
     vertical-align: top;
   }
-  .medical-markdown tr:last-child td { border-bottom: none; }
-  .medical-markdown tbody tr:nth-child(even) { background: #fcfaf6; }
-  .medical-markdown .md-list { margin: 7px 0 12px; padding-inline-start: 23px; }
-  .medical-markdown .md-list li { padding-inline-start: 3px; margin-bottom: 5px; }
+  .medical-markdown tr:last-child td {
+    border-bottom: none;
+  }
+  .medical-markdown tbody tr:nth-child(even) {
+    background: #fcfaf6;
+  }
+  .medical-markdown .md-list {
+    margin: 7px 0 12px;
+    padding-inline-start: 23px;
+  }
+  .medical-markdown .md-list li {
+    padding-inline-start: 3px;
+    margin-bottom: 5px;
+  }
   .medical-markdown .md-quote {
     border-inline-start: 3px solid #a4855c;
     margin: 12px 0;
     padding: 8px 13px;
     background: #f8f4ed;
   }
-  .medical-markdown .md-rule { border: 0; border-top: 1px solid #e6dbc8; margin: 16px 0; }
+  .medical-markdown .md-rule {
+    border: 0;
+    border-top: 1px solid #e6dbc8;
+    margin: 16px 0;
+  }
   .medical-markdown code {
     background: #f3ede2;
     border-radius: 4px;
     padding: 1px 4px;
-    font: 0.92em ui-monospace, monospace;
+    font:
+      0.92em ui-monospace,
+      monospace;
   }
   .medical-markdown .md-code-block {
     margin: 13px 0;
@@ -385,7 +407,9 @@ export const widgetStyles = css`
     color: #506276;
     border-color: #dce2eb;
   }
-  .source-collection { margin: 16px 0 0; }
+  .source-collection {
+    margin: 16px 0 0;
+  }
   .source-collection summary {
     cursor: pointer;
     font-size: 11px;
@@ -412,10 +436,24 @@ export const widgetStyles = css`
     gap: 6px;
     min-width: 0;
   }
-  .source-card:hover { border-color: #af8954; background: #fff8ed; }
-  .source-card strong { font-size: 12px; overflow-wrap: anywhere; }
-  .source-label { text-transform: uppercase; color: #966d32; font-size: 9px; letter-spacing: .05em; }
-  .source-meta { font-size: 10px; color: #746858; }
+  .source-card:hover {
+    border-color: #af8954;
+    background: #fff8ed;
+  }
+  .source-card strong {
+    font-size: 12px;
+    overflow-wrap: anywhere;
+  }
+  .source-label {
+    text-transform: uppercase;
+    color: #966d32;
+    font-size: 9px;
+    letter-spacing: 0.05em;
+  }
+  .source-meta {
+    font-size: 10px;
+    color: #746858;
+  }
   .pending-message {
     font-size: 12px;
     color: #796b5a;

@@ -57,7 +57,6 @@ export function buildGroundedPrompt(query: string, evidence: readonly RetrievedE
   ].join("\n");
 }
 
-
 /** General medical answers never pretend to cite the Santo library. */
 export function buildGeneralMedicalPrompt(query: string): string {
   return [

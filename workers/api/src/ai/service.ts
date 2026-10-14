@@ -119,15 +119,20 @@ export class GroundedAiService {
       // infrastructure outages still fail closed, never silently become "general".
       let groundingMode: "santo" | "general" = "santo";
       if (evidence.length === 0 && !this.generalFallbackEnabled) {
-        throw new GroundedAiError(422, "INSUFFICIENT_EVIDENCE", "No sufficient Santo evidence was retrieved");
+        throw new GroundedAiError(
+          422,
+          "INSUFFICIENT_EVIDENCE",
+          "No sufficient Santo evidence was retrieved",
+        );
       }
       if (evidence.length === 0) groundingMode = "general";
       let draft = await withAiDeadline(
-        () => this.model.generate(
-          groundingMode === "general"
-            ? buildGeneralMedicalPrompt(input.query)
-            : buildGroundedPrompt(input.query, evidence),
-        ),
+        () =>
+          this.model.generate(
+            groundingMode === "general"
+              ? buildGeneralMedicalPrompt(input.query)
+              : buildGroundedPrompt(input.query, evidence),
+          ),
         signal,
         this.timeouts.modelMs,
         "MODEL_TIMEOUT",
@@ -135,8 +140,11 @@ export class GroundedAiService {
 
       // If evidence existed but even the grounded model declined to rely on it,
       // retry once as explicitly uncited medical education, under the SAME quota.
-      if (draft.answer === "INSUFFICIENT_EVIDENCE" &&
-          groundingMode === "santo" && this.generalFallbackEnabled) {
+      if (
+        draft.answer === "INSUFFICIENT_EVIDENCE" &&
+        groundingMode === "santo" &&
+        this.generalFallbackEnabled
+      ) {
         groundingMode = "general";
         draft = await withAiDeadline(
           () => this.model.generate(buildGeneralMedicalPrompt(input.query)),
@@ -146,7 +154,11 @@ export class GroundedAiService {
         );
       }
       if (draft.answer === "INSUFFICIENT_EVIDENCE") {
-        throw new GroundedAiError(422, "INSUFFICIENT_EVIDENCE", "No responsible medical answer available");
+        throw new GroundedAiError(
+          422,
+          "INSUFFICIENT_EVIDENCE",
+          "No responsible medical answer available",
+        );
       }
 
       answer = draft.answer;
@@ -154,7 +166,11 @@ export class GroundedAiService {
       if (groundingMode === "general") {
         // A provider-supplied citation in general mode is never trusted.
         if (draft.citationIds.length !== 0) {
-          throw new GroundedAiError(502, "CITATION_INVALID", "General medical answer cannot cite Santo");
+          throw new GroundedAiError(
+            502,
+            "CITATION_INVALID",
+            "General medical answer cannot cite Santo",
+          );
         }
         citations = [];
       } else {

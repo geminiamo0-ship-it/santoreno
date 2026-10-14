@@ -41,21 +41,31 @@ describe("Santo grounded-versus-general response contract", () => {
     usage: { unitsCharged: 1, remaining: 9 },
   };
   it("accepts a clearly labeled general answer with no citations", () => {
-    expect(GroundedAiQueryResponseSchema.safeParse({
-      ...base, groundingMode: "general", citations: [],
-    }).success).toBe(true);
+    expect(
+      GroundedAiQueryResponseSchema.safeParse({
+        ...base,
+        groundingMode: "general",
+        citations: [],
+      }).success,
+    ).toBe(true);
   });
   it("rejects general answer with fabricated Santo citations", () => {
-    expect(GroundedAiQueryResponseSchema.safeParse({
-      ...base, groundingMode: "general", citations: [
-        { sourceId: "fake", title: "Fake book", page: null },
-      ],
-    }).success).toBe(false);
+    expect(
+      GroundedAiQueryResponseSchema.safeParse({
+        ...base,
+        groundingMode: "general",
+        citations: [{ sourceId: "fake", title: "Fake book", page: null }],
+      }).success,
+    ).toBe(false);
   });
   it("rejects missing citations from unlabeled or Santo-grounded answers", () => {
     expect(GroundedAiQueryResponseSchema.safeParse({ ...base, citations: [] }).success).toBe(false);
-    expect(GroundedAiQueryResponseSchema.safeParse({
-      ...base, groundingMode: "santo", citations: [],
-    }).success).toBe(false);
+    expect(
+      GroundedAiQueryResponseSchema.safeParse({
+        ...base,
+        groundingMode: "santo",
+        citations: [],
+      }).success,
+    ).toBe(false);
   });
 });

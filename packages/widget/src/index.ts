@@ -319,26 +319,45 @@ export class SantoAiElement extends LitElement {
     const general = "groundingMode" in response && response.groundingMode === "general";
     const quickReply = "kind" in response && response.kind === "quick_reply";
     return html`
-      ${!quickReply ? html`<div class="answer-mode ${general ? "mode-general" : "mode-grounded"}">
-        ${general ? "General medical knowledge · No matching Santo source"
-          : "Verified Santo medical sources"}
-      </div>` : ""}
-      <div class="answer-text medical-markdown" dir="auto">${renderSantoMarkdown(response.answer)}</div>
-      ${response.citations.length ? html`
-        <details class="source-collection" open>
-          <summary>Sources used · ${response.citations.length}</summary>
-          <div class="source-cards">
-            ${response.citations.map((citation) => html`
-              <button type="button" class="source-card"
-                @click=${() => this.showSource(response.messageId, citation.sourceId)}
-                aria-label="Open verified source ${citation.title}">
-                <span class="source-label">Verified medical reference</span>
-                <strong>${citation.title}</strong>
-                <span class="source-meta">${citation.page ? `Page ${citation.page} · ` : ""}Open article ↗</span>
-              </button>
-            `)}
-          </div>
-        </details>` : ""}
+      ${
+        !quickReply
+          ? html`<div class="answer-mode ${general ? "mode-general" : "mode-grounded"}">
+              ${
+                general
+                  ? "General medical knowledge · No matching Santo source"
+                  : "Verified Santo medical sources"
+              }
+            </div>`
+          : ""
+      }
+      <div class="answer-text medical-markdown" dir="auto">
+        ${renderSantoMarkdown(response.answer)}
+      </div>
+      ${
+        response.citations.length
+          ? html` <details class="source-collection" open>
+              <summary>Sources used · ${response.citations.length}</summary>
+              <div class="source-cards">
+                ${response.citations.map(
+                  (citation) => html`
+                    <button
+                      type="button"
+                      class="source-card"
+                      @click=${() => this.showSource(response.messageId, citation.sourceId)}
+                      aria-label="Open verified source ${citation.title}"
+                    >
+                      <span class="source-label">Verified medical reference</span>
+                      <strong>${citation.title}</strong>
+                      <span class="source-meta"
+                        >${citation.page ? `Page ${citation.page} · ` : ""}Open article ↗</span
+                      >
+                    </button>
+                  `,
+                )}
+              </div>
+            </details>`
+          : ""
+      }
     `;
   }
 
@@ -351,7 +370,10 @@ export class SantoAiElement extends LitElement {
       return html`<div class="empty">
         <span class="empty-icon" aria-hidden="true">✦</span>
         <h2>Ask with confidence</h2>
-        <p>Evidence-based medical answers, clear comparisons, and transparent general knowledge when sources are unavailable.</p>
+        <p>
+          Evidence-based medical answers, clear comparisons, and transparent general knowledge when
+          sources are unavailable.
+        </p>
       </div>`;
     }
     return html`

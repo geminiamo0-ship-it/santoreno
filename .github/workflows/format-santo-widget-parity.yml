@@ -1,0 +1,35 @@
+name: Format Santo Widget Parity
+on:
+  push:
+    branches:
+      - feat/91-widget-royal-reading-parity
+    paths:
+      - .github/workflows/format-santo-widget-parity.yml
+permissions:
+  contents: write
+jobs:
+  format-three-files:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/91-widget-royal-reading-parity
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: |
+          corepack enable
+          pnpm install --frozen-lockfile
+          pnpm exec prettier --write packages/widget/src/index.ts packages/widget/src/source-title.ts packages/widget/src/source-title.test.ts
+      - name: Commit automated formatting
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add packages/widget/src/index.ts packages/widget/src/source-title.ts packages/widget/src/source-title.test.ts
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "style(widget): apply Prettier to Royal parity changes"
+          git push origin HEAD:feat/91-widget-royal-reading-parity

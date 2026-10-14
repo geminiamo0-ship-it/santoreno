@@ -3,7 +3,12 @@ name: Santo Citation Integrity Repair — Staging Verify
 on:
   push:
     branches: [feat/96-draft-disappears-diagnosis-20261015]
-    paths: [.github/workflows/staging-citation-repair-verify-once.yml]
+    paths:
+      - .github/workflows/staging-citation-repair-verify-once.yml
+      - workers/api/src/ai/model.ts
+      - workers/api/src/ai/model.test.ts
+      - workers/api/src/ai/service.ts
+      - workers/api/src/ai/types.ts
 
 permissions:
   contents: read

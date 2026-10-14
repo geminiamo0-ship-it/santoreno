@@ -1,0 +1,62 @@
+name: GPT-6 Luna API Compatibility — One-Time Staging Probe
+
+on:
+  push:
+    branches:
+      - feat/96-luna-professor-staging
+    paths:
+      - .github/workflows/luna-api-probe-once.yml
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check third-party model availability without customer content
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${CLOUDFLARE_ACCOUNT_ID:-}" && test -n "${CLOUDFLARE_API_TOKEN:-}"
+          cat > "$RUNNER_TEMP/luna-request.json" <<'JSON'
+          {
+            "model":"openai/gpt-6-luna",
+            "input":"Educational test only. State a simple clinical learning fact about sodium in one sentence. Give citation_ids an empty array.",
+            "instructions":"Respond with JSON matching the required schema. This contains no patient data or licensed source content.",
+            "max_output_tokens":256,
+            "reasoning":{"effort":"none"},
+            "service_tier":"fast",
+            "store":false,
+            "text":{"format":{"type":"json_schema","name":"santo_grounded","strict":true,"schema":{"type":"object","properties":{"answer":{"type":"string"},"citation_ids":{"type":"array","items":{"type":"string"},"maxItems":5}},"required":["answer","citation_ids"],"additionalProperties":false}}}
+          }
+          JSON
+          status="$(curl --silent --show-error --max-time 100 --retry 1 \
+            -o "$RUNNER_TEMP/luna-response.json" -w '%{http_code}' \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" -H "Content-Type: application/json" \
+            --data-binary @"$RUNNER_TEMP/luna-request.json" \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/ai/v1/responses")"
+          echo "Cloudflare Luna request HTTP status: $status"
+          if [ "$status" != 200 ]; then
+            jq -c '{type:(.error.type//.errors[0].code//"provider_error"),message:(.error.message//.errors[0].message//"No provider message")}' "$RUNNER_TEMP/luna-response.json" || true
+            exit 1
+          fi
+          jq -e '.status=="completed" and ([.output[]? | select(.type=="message") | .content[]? | select(.type=="output_text") | .text] | length > 0)' "$RUNNER_TEMP/luna-response.json" >/dev/null
+          jq -r '[.output[]? | select(.type=="message") | .content[]? | select(.type=="output_text") | .text] | first' "$RUNNER_TEMP/luna-response.json" \
+            | jq -e '.answer | type=="string"' >/dev/null
+          {
+            echo '## GPT-6 Luna compatibility probe'
+            echo "- Exact branch commit: \`$GITHUB_SHA\`"
+            echo '- Live third-party model responded via Cloudflare Responses API.'
+            echo '- Requested reasoning=none, service_tier=fast, strict JSON; model answer parsed.'
+            echo '- No customer data or medical library content was sent.'
+            echo '- This does NOT switch Staging/Production AI model or enable true streaming.'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Securely remove temporary request and response
+        if: always()
+        run: rm -f "$RUNNER_TEMP/luna-request.json" "$RUNNER_TEMP/luna-response.json"

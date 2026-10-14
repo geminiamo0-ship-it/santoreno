@@ -7,10 +7,12 @@ on:
       source_release_tag:
         description: "Tag of a PRIVATE repository Release containing the licensed corpus ZIP"
         required: true
+        default: "licensed-medical-libraries-2026-10-14"
         type: string
       archive_sha256:
         description: "SHA-256 of santo_staging_medical_library_r2_bundle.zip"
         required: true
+        default: "708398d7b8fcc8b2b6b82142a2e819a8d322d30596f8a892eda57672b7eaa700"
         type: string
       upload_to_private_r2:
         description: "Actually upload 74,579 validated objects to santo-content-staging"

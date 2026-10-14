@@ -24,7 +24,11 @@ const fetch: typeof app.fetch = async (request, env, executionContext) => {
   if (url.pathname.startsWith("/__infra/p33-global-search-acceptance")) {
     return handleP33GlobalSearchAcceptance(request, env as SantoBindings);
   }
-  if (url.pathname === "/v1/libraries" || url.pathname.startsWith("/v1/libraries/") || url.pathname === "/v1/sources/article") {
+  if (
+    url.pathname === "/v1/libraries" ||
+    url.pathname.startsWith("/v1/libraries/") ||
+    url.pathname === "/v1/sources/article"
+  ) {
     return handleLibraryReader(request, env as SantoBindings);
   }
   if (url.pathname.startsWith("/v1/sources/")) {

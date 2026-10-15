@@ -1,6 +1,6 @@
 name: Professor Teaching Staging Deploy
 
-# Verified staging-only rollout: one source per each of five medical libraries and corrected image batch routing.
+# Verified staging-only rollout: 5-library medical retrieval + single paid Luna attempt cost guard.
 # Ordinary main commits do not redeploy staging; manual reruns remain possible.
 on:
   push:

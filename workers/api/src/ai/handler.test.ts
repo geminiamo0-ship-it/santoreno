@@ -237,6 +237,61 @@ describe("grounded AI handler", () => {
     });
   }
 
+  it("passes one consistent sourced Markdown contract to staging Luna", async () => {
+    env.SANTO_ENV = "staging";
+    env.SANTO_LUNA_PREVIEW = "true";
+    env.SANTO_SINGLE_PASS_GENERATION_V1 = "true";
+    env.SANTO_PLAIN_TEXT_LUNA_V1 = "true";
+    model.generate = vi.fn(async () => ({
+      answer: "The provided medical evidence supports this answer.",
+      citationIds: [SOURCE_ID],
+    }));
+    const response = await handler()(request(token), env);
+    expect(response.status).toBe(200);
+    expect(model.generate).toHaveBeenCalledTimes(1);
+    const prompt = vi.mocked(model.generate).mock.calls[0]?.[0] as string;
+    expect(prompt).toContain("OUTPUT CONTRACT: Write the teaching response directly in Markdown");
+    expect(prompt).toContain("using [[N]]");
+    expect(prompt).not.toContain("Return JSON only");
+    expect(prompt).not.toContain("citation_ids");
+    expect(quota.finalizeCalls).toBe(1);
+  });
+
+  it("passes an uncited Markdown contract to staging when retrieval is empty", async () => {
+    env.SANTO_ENV = "staging";
+    env.SANTO_LUNA_PREVIEW = "true";
+    env.SANTO_SINGLE_PASS_GENERATION_V1 = "true";
+    env.SANTO_PLAIN_TEXT_LUNA_V1 = "true";
+    env.SANTO_GENERAL_MEDICAL_FALLBACK = "true";
+    retrieval.retrieve = vi.fn(async () => []);
+    model.generate = vi.fn(async () => ({
+      answer: "General medical education without library citations.",
+      citationIds: [],
+    }));
+    const response = await handler()(request(token), env);
+    expect(response.status).toBe(200);
+    expect(model.generate).toHaveBeenCalledTimes(1);
+    const prompt = vi.mocked(model.generate).mock.calls[0]?.[0] as string;
+    expect(prompt).toContain("Write the medical education answer directly in Markdown");
+    expect(prompt).not.toContain("Return exactly valid JSON");
+    expect(prompt).not.toContain("citation_ids");
+    expect(quota.finalizeCalls).toBe(1);
+  });
+
+  it("preserves the JSON contract for non-Luna production models", async () => {
+    env.SANTO_ENV = "production";
+    env.SANTO_PLAIN_TEXT_LUNA_V1 = "true";
+    model.generate = vi.fn(async () => ({
+      answer: "Clinical answer supported by the source.",
+      citationIds: [SOURCE_ID],
+    }));
+    const response = await handler()(request(token), env);
+    expect(response.status).toBe(200);
+    const prompt = vi.mocked(model.generate).mock.calls[0]?.[0] as string;
+    expect(prompt).toContain("Return JSON only");
+    expect(prompt).toContain("citation_ids");
+  });
+
   it("saves only verified citation metadata before finalizing quota", async () => {
     const save = vi.fn(async () => undefined);
     const response = await handler({ save })(request(token), env);

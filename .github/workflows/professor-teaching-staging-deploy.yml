@@ -1,6 +1,6 @@
 name: Professor Teaching Staging Deploy
 
-# Verified staging-only rollout: balanced evidence citations, compact streams and safe sources.
+# Verified staging-only rollout: batched cited images, balanced sources and compact streams.
 # Ordinary main commits do not redeploy staging; manual reruns remain possible.
 on:
   push:

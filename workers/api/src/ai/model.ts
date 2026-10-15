@@ -73,9 +73,14 @@ export function stripInternalCitationLinks(
 ): string {
   if (!allowedCitationIds?.length) return answer;
   const ids = new Set(allowedCitationIds);
-  return answer.replace(
+  const unlinked = answer.replace(
     /\[([^\]\n]{1,1500})\]\(([^)\n\s]{1,512})\)/g,
     (link, label: string, target: string) => (ids.has(target) ? label : link),
+  );
+  // Some provider drafts use [source_id] as a textual citation, rather than a
+  // Markdown link. Never display internal retrieval IDs to a student.
+  return unlinked.replace(/ ?\[([^\]\n]{1,512})\]/g, (token, id: string) =>
+    ids.has(id) ? "" : token,
   );
 }
 

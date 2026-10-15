@@ -218,6 +218,7 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
       }
       throw new GroundedAiError(502, "SEARCH_FAILED", "AI Search request failed");
     }
+  }
 
   /**
    * Quality-first staging rollout. The source *collection* is never passed
@@ -270,6 +271,5 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
       best = rankMedicalCandidates(query, [...first, ...second], MAX_RESULTS);
     }
     return best;
-  }
   }
 }

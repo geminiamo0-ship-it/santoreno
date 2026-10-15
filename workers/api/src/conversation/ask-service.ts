@@ -9,8 +9,6 @@ import {
 
 import { handleGroundedAiQuery } from "../ai/handler";
 import { GroundedAiError } from "../ai/errors";
-import { DurableObjectQuotaService } from "../quota/service";
-import { classifyQuickReply, quickReply } from "./quick-reply";
 import type { SantoBindings } from "../runtime/bindings";
 import { ConversationService, ConversationServiceError } from "./service";
 
@@ -50,68 +48,8 @@ export class ConversationAskService {
     const attemptId = started.attemptId;
     if (!attemptId) throw new ConversationServiceError(503, "CONVERSATION_UNAVAILABLE");
 
-    // Only Staging can opt into the new zero-cost path until host and QA gates pass.
-    // The conversation lease has already been obtained, and the request has already
-    // passed Santo session/tenant/user authorization in the handler.
-    const intent =
-      env.SANTO_ENV === "staging" && env.SANTO_COPILOT_ROUTING_V1 === "true"
-        ? classifyQuickReply(body.text)
-        : null;
-    if (intent) {
-      let completed = false;
-      try {
-        if (!env.TENANT_METER) {
-          throw new ConversationServiceError(503, "QUOTA_UNAVAILABLE");
-        }
-        // Read-only quota snapshot: do not reserve/finalize or spend units.
-        // Still block suspended/expired entitled users instead of granting a
-        // free bypass around the authoritative TenantMeterDO state.
-        let quota;
-        try {
-          quota = await new DurableObjectQuotaService(env.TENANT_METER).read({
-            tenantId: actor.tenantId,
-            externalUserId: actor.externalUserId,
-          });
-        } catch {
-          throw new ConversationServiceError(503, "QUOTA_UNAVAILABLE");
-        }
-        if (quota.tenantStatus !== "active" || quota.userStatus !== "active") {
-          throw new ConversationServiceError(403, "USER_SUSPENDED");
-        }
-        if (quota.expiresAt && Date.parse(quota.expiresAt) <= Date.now()) {
-          throw new ConversationServiceError(403, "QUOTA_EXPIRED");
-        }
-        const answer = ConversationAnswerSchema.parse({
-          kind: "quick_reply",
-          requestId: crypto.randomUUID(),
-          messageId: crypto.randomUUID(),
-          answer: quickReply(intent, body.text),
-          citations: [],
-          usage: {
-            unitsCharged: 0,
-            remaining: Math.min(quota.tenant.remaining, quota.user.remaining),
-          },
-        });
-        await this.conversations.completeTurn(
-          actor,
-          conversationId,
-          body.idempotencyKey,
-          attemptId,
-          answer,
-        );
-        completed = true;
-        return answer;
-      } catch (error) {
-        // If durable completion may have committed, the same-key retry
-        // replays it. Never rotate the metered model key on this path.
-        if (!completed) {
-          await this.conversations
-            .failTurn(actor, conversationId, body.idempotencyKey, attemptId, false)
-            .catch(() => undefined);
-        }
-        throw error;
-      }
-    }
+    // Every user message, including greetings and clarifications, must be
+    // answered by Luna. Do not substitute deterministic canned responses.
 
     // Pinning context in the DO ensures retries always address the same evidence request.
     const context = started.context.slice(0, 1200);

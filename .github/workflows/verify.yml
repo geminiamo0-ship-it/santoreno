@@ -136,12 +136,6 @@ jobs:
         if: steps.workspace.outputs.exists == 'true'
         run: pnpm install --frozen-lockfile
 
-      - name: Temporary read-only search formatter diagnostic
-        if: steps.workspace.outputs.exists == 'true'
-        run: |
-          pnpm exec prettier --write scripts/medical-retrieval-v2-readonly-smoke.mjs .github/workflows/medical-retrieval-v2-readonly-smoke.yml
-          git diff -- scripts/medical-retrieval-v2-readonly-smoke.mjs .github/workflows/medical-retrieval-v2-readonly-smoke.yml
-
       - name: Lint
         if: steps.workspace.outputs.exists == 'true'
         run: pnpm lint

@@ -6,6 +6,7 @@ import {
   type LibraryCatalogPort,
 } from "./library-catalog";
 import type { RetrievalPort, RetrievalRequest, RetrievedEvidence } from "./types";
+import { focusedSearchQuery, matchesSearchSubject } from "./source-relevance";
 
 const LIBRARIES = ["amboss", "usmle", "passmedicine", "pastest", "one-examination"] as const;
 const MAX_RESULTS = 5;
@@ -174,6 +175,7 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
 
     try {
       const selectedLibraries = selectLibraries(await this.catalog.list(), request.libraryId);
+      const currentTopicQuery = focusedSearchQuery(request.query);
       // Query each index concurrently. Asking a single global top-5 search
       // routinely hides smaller libraries, even when their evidence is relevant.
       // No Reranker or synthetic citation is involved. From each library we
@@ -181,7 +183,7 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
       const results = await Promise.all(
         selectedLibraries.map(async (entry) => {
           const search = await this.namespace!.search({
-            query: request.query,
+            query: currentTopicQuery,
             ai_search_options: {
               instance_ids: [entry.instanceId],
               retrieval: {
@@ -193,7 +195,11 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
               query_rewrite: { enabled: false },
             },
           });
-          return evidenceFromSearch(search, [entry]).slice(0, 1);
+          // Do not force one result per library: a high semantic score can
+          // still be for a DIFFERENT disease from a previous discussion.
+          return evidenceFromSearch(search, [entry])
+            .filter((candidate) => matchesSearchSubject(currentTopicQuery, candidate))
+            .slice(0, 1);
         }),
       );
       return results.flat().slice(0, MAX_RESULTS);

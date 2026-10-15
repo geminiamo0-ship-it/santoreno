@@ -66,6 +66,8 @@ describe("deterministic grounded prompt builder", () => {
       expect(prompt).toContain("Never claim the second layer was explicitly verified");
       expect(prompt).toContain("Match the learner\u0027s language");
       expect(prompt).toContain("Every citation_id must exactly match a source_id");
+      expect(prompt).toContain("Review EACH retrieved EVIDENCE_JSON source");
+      expect(prompt).toContain("NEVER add an unrelated source");
       expect(prompt).toContain("INSUFFICIENT_EVIDENCE");
       expect(promptSections(prompt).sources).toHaveLength(1);
     }

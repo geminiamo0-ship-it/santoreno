@@ -134,6 +134,13 @@ export const ConversationProgressEventSchema = z.discriminatedUnion("type", [
     .strict(),
   z
     .object({
+      type: z.literal("draft_delta"),
+      // Opt-in compact SSE: append text to the most recent cumulative draft.
+      text: z.string().min(1).max(12000),
+    })
+    .strict(),
+  z
+    .object({
       type: z.literal("complete"),
       response: ConversationAnswerSchema,
     })

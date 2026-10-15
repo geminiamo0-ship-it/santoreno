@@ -135,7 +135,10 @@ describe("Santo five licensed library retrieval", () => {
     const unrelated = {
       ...chunk("usmle", 1, 0.99),
       text: "Familial Mediterranean fever management uses anti-inflammatory prophylaxis.",
-      item: { key: "fmf.html", metadata: { title: "Familial Mediterranean fever", section: "Management" } },
+      item: {
+        key: "fmf.html",
+        metadata: { title: "Familial Mediterranean fever", section: "Management" },
+      },
     };
     const namespace = new FakeAiSearchNamespace(undefined, {
       amboss: { chunks: [asManagement] },

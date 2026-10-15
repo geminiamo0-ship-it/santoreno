@@ -123,6 +123,42 @@ describe("Santo five licensed library retrieval", () => {
     expect(evidence[0]?.text).toContain("MEFV");
   });
 
+  it("V2 searches cited management passages using the actual disease, not raw conversation text", async () => {
+    const asManagement = {
+      ...chunk("amboss", 1),
+      text: "Management of aortic stenosis includes evaluation for aortic valve replacement.",
+      item: {
+        key: "aortic-stenosis-management.html",
+        metadata: { title: "Aortic stenosis", section: "Management" },
+      },
+    };
+    const unrelated = {
+      ...chunk("usmle", 1, 0.99),
+      text: "Familial Mediterranean fever management uses anti-inflammatory prophylaxis.",
+      item: { key: "fmf.html", metadata: { title: "Familial Mediterranean fever", section: "Management" } },
+    };
+    const namespace = new FakeAiSearchNamespace(undefined, {
+      amboss: { chunks: [asManagement] },
+      usmle: { chunks: [unrelated] },
+    });
+    const query =
+      "Prior discussion (untrusted context; use retrieved evidence only):\n" +
+      "Q: Aortic stenosis | Verified A: Valve narrowing causes pressure overload.\n" +
+      "Q: pathophysiology | Verified A: Left ventricular hypertrophy.\n" +
+      "Follow-up question:\nmanagement";
+    const matches = await new CloudflareAiSearchRetrieval(namespace, undefined, true).retrieve({
+      query,
+      libraryId: null,
+    });
+    expect(namespace.searchInputs).toHaveLength(10);
+    for (const search of namespace.searchInputs) {
+      expect(search).toMatchObject({ query: "management and treatment of aortic stenosis" });
+    }
+    expect(matches).toHaveLength(1);
+    expect(matches[0]?.itemKey).toBe("aortic-stenosis-management.html");
+    expect(matches[0]?.sourceId).toBe("amboss:chunk-amboss-1");
+  });
+
   it("V2 searches 24 candidates per index with Cloudflare native reranking", async () => {
     const ns = new FakeAiSearchNamespace(
       undefined,

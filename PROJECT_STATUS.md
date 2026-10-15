@@ -6,13 +6,6 @@
 >
 > **Rule:** GitHub code, issues, PRs, commits, and Actions are the source of truth. Update this file whenever meaningful work completes, a gate passes/fails, architecture changes, or the active issue changes.
 
-### Royal Bank streaming delivery cap regression — 15 October 2026
-
-- Screenshot of a long Aortic stenosis teaching answer still showed `Response interrupted · Unverified preview` even after Royal Bank preserved draft text in PR #119. The returned stream contains cumulative answer drafts on every provider update; the Royal client imposes a 300,000-byte total SSE ceiling. This means a normally generated long answer can exhaust the transport limit from repeated text, independent of model/provider success. This is a code-level explanation that still requires authenticated browser replay to verify conclusively.
-- Santo PR #106 adds opt-in `draft_delta` SSE frames selected by `Accept: text/event-stream; santo-draft=delta`, while retaining legacy cumulative frames and verified, persisted `complete` and fail-closed error events. A 12,000-character response simulated in 5-character updates remains below the Royal 300KB budget. The existing model instructions and server citations/quota remain unchanged.
-- PR #106 also removes Markdown link targets that exactly match server-retrieved technical source IDs from displayed teaching text; canonical citations/source access still use only server-verified `citation_ids`.
-- Royal Bank PR #120 merged and its Vercel production deployment is READY, with a compatible delta-capable client and formatted provisional Markdown. Santo isolated release-branch code tests passed via one-time GitHub Actions; **Santo Staging deployment and logged-in browser Aortic stenosis → ttt acceptance remain outstanding**. No Santo Production changes.
-
 ### Luna creative, source-informed clinical teaching — 15 October 2026
 
 - User clarified the intended AI model: retrieved books/citations are verified reference anchors and study material, not a hard upper bound on Luna's own medically accurate explanations. Generate genuinely useful, original professor-style clinical teaching with mechanism chains, examples, diagrams-as-verbal-mental-models, comparisons, selective tables, pearls and short follow-up shorthand resolution.

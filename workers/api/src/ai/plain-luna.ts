@@ -42,10 +42,18 @@ export function previewPlainLuna(text: string, sourceIds: readonly string[]): st
 function isNonClinicalReply(answer: string): boolean {
   const normalized = answer.trim().replace(/\s+/g, " ");
   if (normalized.length > 420) return false;
-  return /^(?:what|which)\s+(?:condition|disease|medical condition|topic)\b/i.test(normalized) ||
-    /^(?:could you|can you|please)\s+(?:clarify|specify|name)\s+(?:the\s+)?(?:condition|disease|topic)/i.test(normalized) ||
-    /^(?:hi|hello|hey|thanks|thank you|you're welcome|you are welcome)[!.,\s؟]*$/i.test(normalized) ||
-    /^(?:تقصد (?:أي|اي) (?:مرض|حالة)|(?:ما|ايه) (?:المرض|الحالة) المقصود)/u.test(normalized);
+  if (/^(?:what|which) (?:condition|disease|medical condition|topic)\b/i.test(normalized)) {
+    return true;
+  }
+  if (/^(?:could you|can you|please) (?:clarify|specify|name)\b/i.test(normalized)) {
+    return true;
+  }
+  if (/^(?:hi|hello|hey|thanks|thank you|you're welcome|you are welcome)[!.,\s؟]*$/i.test(normalized)) {
+    return true;
+  }
+  return /^(?:تقصد (?:أي|اي) (?:مرض|حالة)|(?:ما|ايه) (?:المرض|الحالة) المقصود)/u.test(
+    normalized,
+  );
 }
 
 /**
@@ -78,7 +86,11 @@ export function parsePlainLunaAnswer(
   }
   answer = scrubMachineIds(answer.trim(), allowed);
   if (!answer || answer.length > 64000) {
-    throw new GroundedAiError(502, "MODEL_RESPONSE_INVALID", "Model returned unusable teaching text");
+    throw new GroundedAiError(
+      502,
+      "MODEL_RESPONSE_INVALID",
+      "Model returned unusable teaching text",
+    );
   }
   if (allowed.length > 0 && used.length === 0) {
     return {

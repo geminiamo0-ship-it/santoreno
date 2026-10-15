@@ -1,0 +1,34 @@
+name: Santo Compact SSE Verification (one-time)
+
+on:
+  push:
+    branches:
+      - fix/119-delta-stream-medical-citations-20261015
+    paths:
+      - .github/workflows/santo-compact-sse-verify-once.yml
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install
+        run: |
+          corepack enable
+          pnpm install --frozen-lockfile
+      - name: Format lint typecheck tests build smoke
+        run: |
+          set -euo pipefail
+          pnpm exec oxlint .
+          pnpm exec prettier --check packages/contracts/src/conversation.ts workers/api/src/conversation/native-stream.ts workers/api/src/conversation/handler.ts workers/api/src/conversation/native-stream.test.ts workers/api/src/ai/model.ts workers/api/src/ai/model.test.ts
+          pnpm typecheck
+          pnpm test
+          pnpm build
+          pnpm smoke

@@ -164,8 +164,12 @@ describe("grounded turn billing/verification coordinator", () => {
       const model = vi.fn(async () => response);
       const t = harness();
       const result = await new ConversationAskService(t.client, model).ask(
-        actor, conversationId, { ...body, text: value },
-        "Bearer signed", { SANTO_ENV: "staging" }, signal,
+        actor,
+        conversationId,
+        { ...body, text: value },
+        "Bearer signed",
+        { SANTO_ENV: "staging" },
+        signal,
       );
       expect(result).toEqual(response);
       expect(model).toHaveBeenCalledTimes(1);

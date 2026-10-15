@@ -35,7 +35,7 @@ describe("deterministic grounded prompt builder", () => {
     const prompt = buildGroundedPrompt("Teach aortic stenosis", [evidence], "markdown");
     const trusted = promptSections(prompt);
     expect(trusted.sources).toHaveLength(1);
-    expect(trusted.sources[0]).toMatchObject({source_id: evidence.sourceId});
+    expect(trusted.sources[0]).toMatchObject({ source_id: evidence.sourceId });
     expect(prompt).toContain("OUTPUT CONTRACT: Write the teaching response directly in Markdown");
     expect(prompt).toContain("using [[N]]");
     expect(prompt).not.toContain("Return JSON only");
@@ -52,8 +52,8 @@ describe("deterministic grounded prompt builder", () => {
     expect(prompt).not.toContain("citation_ids");
     expect(prompt).toContain("No Santo references were retrieved");
     const original = buildGeneralMedicalPrompt("Aortic stenosis");
-    expect(original).toContain('Return exactly valid JSON');
-    expect(original).toContain('citation_ids');
+    expect(original).toContain("Return exactly valid JSON");
+    expect(original).toContain("citation_ids");
   });
 
   it("uses only normalized retrieved evidence and preserves exact citation identifiers", () => {

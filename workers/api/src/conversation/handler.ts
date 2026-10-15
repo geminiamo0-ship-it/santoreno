@@ -133,16 +133,18 @@ export function createConversationHandler(deps: ConversationHandlerDependencies 
           const draftFormat = (request.headers.get("accept") ?? "").includes("santo-draft=delta")
             ? "delta"
             : "cumulative";
-          return streamProvisionalConversationAnswer((onDraft) =>
-            askService(client).ask(
-              actor,
-              selected.conversationId,
-              parsed.data,
-              request.headers.get("authorization") ?? "",
-              env,
-              request.signal,
-              onDraft,
-            ), draftFormat,
+          return streamProvisionalConversationAnswer(
+            (onDraft) =>
+              askService(client).ask(
+                actor,
+                selected.conversationId,
+                parsed.data,
+                request.headers.get("authorization") ?? "",
+                env,
+                request.signal,
+                onDraft,
+              ),
+            draftFormat,
           );
         }
         const answer = await askService(client).ask(

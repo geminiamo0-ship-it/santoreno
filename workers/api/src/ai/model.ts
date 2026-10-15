@@ -75,7 +75,7 @@ export function stripInternalCitationLinks(
   const ids = new Set(allowedCitationIds);
   return answer.replace(
     /\[([^\]\n]{1,1500})\]\(([^)\n\s]{1,512})\)/g,
-    (link, label: string, target: string) => ids.has(target) ? label : link,
+    (link, label: string, target: string) => (ids.has(target) ? label : link),
   );
 }
 
@@ -239,7 +239,8 @@ export class CloudflareLunaModel implements ModelPort {
       });
       const text = onProvisionalAnswer
         ? await collectLunaEventStream(raw, (draft) =>
-            onProvisionalAnswer(stripInternalCitationLinks(draft, allowedCitationIds)))
+            onProvisionalAnswer(stripInternalCitationLinks(draft, allowedCitationIds)),
+          )
         : modelText(raw);
       if (!text) {
         throw new GroundedAiError(502, "MODEL_RESPONSE_INVALID", "Model returned no text");

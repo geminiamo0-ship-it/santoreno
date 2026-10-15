@@ -250,7 +250,24 @@ export class CloudflareLunaModel implements ModelPort {
       if (!text) {
         throw new GroundedAiError(502, "MODEL_RESPONSE_INVALID", "Model returned no text");
       }
-      const draft = parseDraft(text);
+      let draft: GroundedModelDraft;
+      try {
+        draft = parseDraft(text);
+      } catch (cause) {
+        if (cause instanceof GroundedAiError && cause.code === "MODEL_RESPONSE_INVALID") {
+          // Fixed-form telemetry only: no student text, prompts, excerpts or citations.
+          console.warn("santo_luna_stream_failure", {
+            stage: cause.message === "Model did not return valid JSON"
+              ? "completed_json_invalid"
+              : "completed_json_contract_invalid",
+            outputChars: text.length,
+            hasAnswerField: /"answer"\\s*:/.test(text),
+            hasCitationField: /"citation_ids"\\s*:/.test(text),
+            endsWithClosingBrace: text.trimEnd().endsWith("}"),
+          });
+        }
+        throw cause;
+      }
       return { ...draft, answer: stripInternalCitationLinks(draft.answer, allowedCitationIds) };
     } catch (error) {
       if (error instanceof GroundedAiError) throw error;

@@ -1,4 +1,4 @@
-name: Verify Luna Failure Reasons Once
+name: Verify Luna Failure Reasons and Error Codes Once
 on:
   push:
     branches:

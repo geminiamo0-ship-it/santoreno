@@ -210,9 +210,10 @@ export class GroundedAiService {
         // Missing/invalid model markers do not erase a completed teaching answer.
         // Only existing retrieved evidence is included, as a separately labeled
         // related-article list rather than invented inline provenance.
-        const selected = this.markdownOutput && draft.sourcePresentation === "related"
-          ? { ...draft, citationIds: evidence.slice(0, 5).map((item) => item.sourceId) }
-          : draft;
+        const selected =
+          this.markdownOutput && draft.sourcePresentation === "related"
+            ? { ...draft, citationIds: evidence.slice(0, 5).map((item) => item.sourceId) }
+            : draft;
         citations = validateGroundedCitations(selected, evidence);
         if (selected !== draft) citationMode = "related";
       }
@@ -357,7 +358,7 @@ export class GroundedAiService {
     session: SessionContextResponse,
     startedAt: number,
     code: string,
-    diagnostic: Partial<Pick<AiTelemetryEvent, "failureStage" | "responseFormat" | "retrievedSourceCount" | "validCitationCount" | "outputChars">> = {},
+    diagnostic: Partial<AiTelemetryEvent> = {},
   ): void {
     this.telemetry.record({
       requestId,

@@ -140,10 +140,13 @@ describe("native Luna Responses SSE collector", () => {
   });
 
   it("still refuses provider SSE exceeding the bounded 10k-token text budget", async () => {
-    const stream = sse([
-      { type: "response.output_text.delta", delta: "A".repeat(120_001) },
-      { type: "response.completed", response: { status: "completed" } },
-    ], 4096);
+    const stream = sse(
+      [
+        { type: "response.output_text.delta", delta: "A".repeat(120_001) },
+        { type: "response.completed", response: { status: "completed" } },
+      ],
+      4096,
+    );
     await expect(collectLunaEventStream(stream, vi.fn(), "plain")).rejects.toMatchObject({
       code: "MODEL_RESPONSE_INVALID",
     });

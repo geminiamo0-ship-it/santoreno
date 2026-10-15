@@ -43,9 +43,9 @@ describe("Medical Retrieval v2 cross-library ranking", () => {
         8,
       ),
     ];
-    expect(
-      rankMedicalCandidates("Aortic stenosis mechanism", candidates)[0]?.sourceId,
-    ).toBe("amboss:mechanism");
+    expect(rankMedicalCandidates("Aortic stenosis mechanism", candidates)[0]?.sourceId).toBe(
+      "amboss:mechanism",
+    );
   });
 
   it("never treats a high-score aortic-valve result as an FMF source", () => {
@@ -59,9 +59,7 @@ describe("Medical Retrieval v2 cross-library ranking", () => {
         9,
       ),
     ];
-    expect(rankMedicalCandidates("FMF", candidates).map((x) => x.sourceId)).toEqual([
-      "amboss:fmf",
-    ]);
+    expect(rankMedicalCandidates("FMF", candidates).map((x) => x.sourceId)).toEqual(["amboss:fmf"]);
   });
 
   it("caps repeated chunks from one article and never manufactures identifiers", () => {

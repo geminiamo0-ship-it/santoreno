@@ -1,0 +1,52 @@
+name: AMBOSS single-item safe indexing probe
+on:
+  push:
+    branches:
+      - diagnostic/amboss-stalled-index-20261015
+    paths:
+      - .github/workflows/amboss-single-item-retry.yml
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - name: Reindex exactly one stalled small item using supported PATCH action
+        run: |
+          python3 - <<'PY'
+          import os,json,urllib.request,urllib.error,urllib.parse
+          a=os.environ['CF_ACCOUNT'];t=os.environ['CF_TOKEN']
+          base=f'https://api.cloudflare.com/client/v4/accounts/{a}/ai-search/namespaces/default/instances/amboss'
+          def call(url,method='GET',body=None):
+            headers={'Authorization':'Bearer '+t,'Content-Type':'application/json'}
+            req=urllib.request.Request(url,headers=headers,method=method,
+              data=json.dumps(body).encode() if body is not None else None)
+            try:
+              with urllib.request.urlopen(req,timeout=38) as res:result=json.load(res)
+              return result.get('result') if result.get('success') else None
+            except urllib.error.HTTPError as e:
+              print('API_HTTP',e.code,method)
+              return None
+          before=call(base+'/stats')
+          print('BEFORE', {k:before.get(k) for k in ('completed','queued','running','error')} if isinstance(before,dict) else 'unavailable')
+          results=call(base+'/items?status=running&per_page=10')
+          if not isinstance(results,list): raise SystemExit('Could not verify item state')
+          eligible=[x for x in results if x.get('status')=='running' and x.get('id') and
+            x.get('file_size') is not None and x['file_size']<10000]
+          if not eligible: raise SystemExit('No eligible small running item; nothing changed')
+          item=eligible[0]
+          # Cloudflare documented targeted reindex. No deletion or index recreation.
+          outcome=call(base+'/items/'+urllib.parse.quote(str(item['id']),safe=''),
+            method='PATCH',body={'next_action':'INDEX','wait_for_completion':True})
+          if not isinstance(outcome,dict): raise SystemExit('Targeted reindex rejected')
+          print('SINGLE_ITEM_AFTER', {
+            'status':outcome.get('status'),'next_action':outcome.get('next_action'),
+            'chunks_count':outcome.get('chunks_count'),'error':outcome.get('error'),
+          })
+          after=call(base+'/stats')
+          print('AFTER',{k:after.get(k) for k in ('completed','queued','running','error')} if isinstance(after,dict) else 'unavailable')
+          PY

@@ -27,7 +27,10 @@ jobs:
               data=json.dumps(body).encode() if body is not None else None)
             try:
               with urllib.request.urlopen(req,timeout=38) as res:result=json.load(res)
-              return result.get('result') if result.get('success') else None
+              if not result.get('success'):
+                print('API_ERROR_CODES', method, [z.get('code') for z in result.get('errors',[])][:3])
+                return None
+              return result.get('result')
             except urllib.error.HTTPError as e:
               print('API_HTTP',e.code,method)
               return None

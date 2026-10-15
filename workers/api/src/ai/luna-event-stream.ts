@@ -168,7 +168,11 @@ export async function collectLunaEventStream(
         onProgress(preview);
       }
     }
-    if (value.type === "response.output_text.done" && typeof value.text === "string" && value.text.trim()) {
+    if (
+      value.type === "response.output_text.done" &&
+      typeof value.text === "string" &&
+      value.text.trim()
+    ) {
       doneText = value.text;
       completionTextReceived = true;
     }

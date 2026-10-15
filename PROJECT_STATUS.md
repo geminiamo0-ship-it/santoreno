@@ -6,6 +6,13 @@
 >
 > **Rule:** GitHub code, issues, PRs, commits, and Actions are the source of truth. Update this file whenever meaningful work completes, a gate passes/fails, architecture changes, or the active issue changes.
 
+### Context-aware medical follow-up retrieval (Issue #131 / PR #132) — 16 October 2026
+
+- Staging candidate: extract the most recent explicit topic from completed ConversationDO Q lines, without treating assistant Verified A text as a disease anchor. A short student follow-up such as `management`, `ttt`, `dx`, or `How is it diagnosed?` searches for the corresponding clinical section of that topic rather than the full conversation envelope.
+- New explicit disease questions use the current question without carrying a previous disease into AI Search. Original user text and context still reach Luna unchanged. The source relevance gate validates only genuine R2-backed AI Search results; unknown topics do not create synthetic citations.
+- One unchanged Luna inference call, unchanged number of Cloudflare AI Search calls (up to 5 first-pass/10 conditional for all five indexes), existing tenant scope, quota, persistence and same-key retries. No extra LLM query rewriter, paid call, index mutation, R2 image change or production rollout.
+- Required gates: exact-head Verify, native rerank follow-up tests and independent topic-switch tests, isolated staging deployment plus health/auth smoke. Real authenticated cited long follow-up still needs acceptance before production.
+
 ### Medical Retrieval v2 — first runtime implementation (Issue #123 / PR #125) — 15 October 2026
 
 - User approved maximum-quality **Cloudflare-only** clinical search. First staging-flagged slice in PR #125: per-library Hybrid/RRF candidate breadth **24**, Cloudflare AI Search native reranking `@cf/baai/bge-reranker-base`, section-intent-sensitive cross-library evidence ranking, max two chunks per source article and **no fixed one-result-per-library quota**. If fewer than three relevant sources survive, a second staged search expands up to **40 candidates** per selected authorized library at 0.25 minimum similarity. Max **10 AI Search operations** per all-library question, below the approved ceiling of 15. No second Luna answer generation.

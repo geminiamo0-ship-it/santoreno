@@ -140,28 +140,55 @@ describe("native Luna Responses SSE collector", () => {
   it("records a token-limit failure without exposing medical content or sources", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     try {
-      await expect(collectLunaEventStream(sse([
-        { type: "response.output_text.delta", delta: '{"answer":"Clinical text' },
-        { type: "response.incomplete", response: {
-          status: "incomplete", incomplete_details: { reason: "max_output_tokens" },
-        }},
-      ]), vi.fn())).rejects.toMatchObject({ code: "MODEL_OUTPUT_TRUNCATED" });
-      expect(warn).toHaveBeenCalledWith("santo_luna_stream_failure", expect.objectContaining({
-        stage: "max_output_tokens", outputChars: 24,
-      }));
+      await expect(
+        collectLunaEventStream(
+          sse([
+            { type: "response.output_text.delta", delta: '{"answer":"Clinical text' },
+            {
+              type: "response.incomplete",
+              response: {
+                status: "incomplete",
+                incomplete_details: { reason: "max_output_tokens" },
+              },
+            },
+          ]),
+          vi.fn(),
+        ),
+      ).rejects.toMatchObject({ code: "MODEL_OUTPUT_TRUNCATED" });
+      expect(warn).toHaveBeenCalledWith(
+        "santo_luna_stream_failure",
+        expect.objectContaining({
+          stage: "max_output_tokens",
+          outputChars: 24,
+        }),
+      );
       expect(JSON.stringify(warn.mock.calls)).not.toContain("Clinical text");
-    } finally { warn.mockRestore(); }
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   it("distinguishes provider incompletion from interrupted SSE", async () => {
-    await expect(collectLunaEventStream(sse([
-      { type: "response.incomplete", response: {
-        status: "incomplete", incomplete_details: { reason: "content_filter" },
-      }},
-    ]), vi.fn())).rejects.toMatchObject({ code: "MODEL_PROVIDER_INCOMPLETE" });
-    await expect(collectLunaEventStream(sse([
-      { type: "response.output_text.delta", delta: '{"answer":"preview"}' },
-    ]), vi.fn())).rejects.toMatchObject({ code: "MODEL_STREAM_UNFINISHED" });
+    await expect(
+      collectLunaEventStream(
+        sse([
+          {
+            type: "response.incomplete",
+            response: {
+              status: "incomplete",
+              incomplete_details: { reason: "content_filter" },
+            },
+          },
+        ]),
+        vi.fn(),
+      ),
+    ).rejects.toMatchObject({ code: "MODEL_PROVIDER_INCOMPLETE" });
+    await expect(
+      collectLunaEventStream(
+        sse([{ type: "response.output_text.delta", delta: '{"answer":"preview"}' }]),
+        vi.fn(),
+      ),
+    ).rejects.toMatchObject({ code: "MODEL_STREAM_UNFINISHED" });
   });
 
   it("does not print provider secret details in error responses", () => {

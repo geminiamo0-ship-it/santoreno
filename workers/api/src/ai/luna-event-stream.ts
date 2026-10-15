@@ -86,9 +86,10 @@ function recordStreamFailure(stage: string, outputChars: number, outputTokens?: 
 function providerIncompleteReason(value: Record<string, unknown> | null): string {
   if (!value) return "provider_incomplete";
   const details = value.incomplete_details;
-  const reason = typeof details === "object" && details !== null
-    ? (details as Record<string, unknown>).reason
-    : undefined;
+  const reason =
+    typeof details === "object" && details !== null
+      ? (details as Record<string, unknown>).reason
+      : undefined;
   return reason === "max_output_tokens" ? "max_output_tokens" : "provider_incomplete";
 }
 
@@ -133,9 +134,10 @@ export async function collectLunaEventStream(raw: unknown, onProgress: Progress)
       throw new GroundedAiError(502, "MODEL_FAILED", "Provider streaming request failed");
     }
     if (value.type === "response.incomplete") {
-      const provider = typeof value.response === "object" && value.response !== null
-        ? value.response as Record<string, unknown>
-        : null;
+      const provider =
+        typeof value.response === "object" && value.response !== null
+          ? (value.response as Record<string, unknown>)
+          : null;
       const reason = providerIncompleteReason(provider);
       recordStreamFailure(reason, generated.length, observedOutputTokens);
       throw new GroundedAiError(
@@ -242,7 +244,11 @@ export async function collectLunaEventStream(raw: unknown, onProgress: Progress)
     }
     if (!completionTextReceived && actualText && !actualText.trim().endsWith("}")) {
       // Do not invent JSON braces or sources to transform a truncated response.
-      recordStreamFailure("completed_delta_missing_json_end", generated.length, observedOutputTokens);
+      recordStreamFailure(
+        "completed_delta_missing_json_end",
+        generated.length,
+        observedOutputTokens,
+      );
     }
     return actualText;
   } finally {

@@ -129,12 +129,13 @@ export class GroundedAiService {
         );
       }
       if (evidence.length === 0) groundingMode = "general";
+      const answerFormat = this.markdownOutput ? "markdown" : "json";
       let draft = await withAiDeadline(
         () =>
           this.model.generate(
             groundingMode === "general"
-              ? buildGeneralMedicalPrompt(input.query, this.markdownOutput ? "markdown" : "json")
-              : buildGroundedPrompt(input.query, evidence, this.markdownOutput ? "markdown" : "json"),
+              ? buildGeneralMedicalPrompt(input.query, answerFormat)
+              : buildGroundedPrompt(input.query, evidence, answerFormat),
             onProvisionalAnswer,
             groundingMode === "general" ? [] : evidence.map((item) => item.sourceId),
           ),

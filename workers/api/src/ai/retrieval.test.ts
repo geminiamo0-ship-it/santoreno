@@ -200,6 +200,17 @@ describe("Santo five licensed library retrieval", () => {
     });
   });
 
+  it("V2 preserves infrastructure errors instead of treating them as absent medical evidence", async () => {
+    const ns = new FakeAiSearchNamespace();
+    ns.search = async () => { throw new Error("AI Search reranking unavailable"); };
+    await expect(
+      new CloudflareAiSearchRetrieval(ns, undefined, true).retrieve({
+        query: "aortic stenosis",
+        libraryId: null,
+      }),
+    ).rejects.toMatchObject({ status: 502, code: "SEARCH_FAILED" });
+  });
+
   it("never manufactures a missing fifth citation or returns a low-score passage", async () => {
     const aiSearch = new FakeAiSearchNamespace(undefined, {
       amboss: { chunks: [chunk("amboss", 1, 0.35)] },

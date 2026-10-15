@@ -12,6 +12,8 @@ import {
   LUNA_STAGING_COMPLETION_BUDGET,
   groundedSchemaForCitationIds,
   stripInternalCitationLinks,
+  createLunaCitationAliases,
+  redactKnownSourceIds,
 } from "./model";
 
 describe("medical citation presentation", () => {
@@ -195,6 +197,73 @@ describe("GPT-6 Luna isolated Santo staging preview", () => {
       status: 502,
       code: "MODEL_FAILED",
     });
+  });
+});
+
+describe("Staging-only compact citation mapping", () => {
+  const rawId = "amboss:bc5678eef0c033a2211a911efabc124911ef0deeddad019ab987";
+  const otherId = "usmle:ef01c2ff787a0ea116af8042c563388ad96d97e122";
+  it("replaces private RAG identifiers in the model prompt but restores verified IDs afterward", async () => {
+    const frames = [
+      { type: "response.output_text.delta", delta: JSON.stringify({
+        answer: "Clinical teaching. cite" + rawId + " and " + otherId,
+        citation_ids: ["SANTO_REF_1", "SANTO_REF_2"],
+      })},
+      { type: "response.completed", response: {status:"completed"} },
+    ].map(event => "data: " + JSON.stringify(event) + "\\n\\n").join("");
+    const text = new TextEncoder().encode(frames.replaceAll("\\n", "\n"));
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) { controller.enqueue(text); controller.close(); },
+    });
+    const ai: WorkersAiLike = {run:vi.fn(async () => stream)};
+    const previews: string[] = [];
+    const model = new CloudflareLunaModel(ai, true);
+    const result = await model.generate(
+      'USER_QUESTION_JSON:"aortic stenosis"\\nEVIDENCE_JSON:' + JSON.stringify([
+        {source_id:rawId},{source_id:otherId},
+      ]),
+      x => previews.push(x),
+      [rawId,otherId],
+    );
+    expect(result.citationIds).toEqual([rawId,otherId]);
+    expect(result.answer).toBe("Clinical teaching.  and ");
+    expect(previews).toHaveLength(1);
+    expect(previews[0]).not.toContain(rawId);
+    expect(previews[0]).not.toContain("cite");
+    expect(ai.run).toHaveBeenCalledTimes(1);
+    const body = vi.mocked(ai.run).mock.calls[0]![1] as {
+      input:string; text:{format:{schema:{properties:{citation_ids:{items:{enum:string[]}}}}}};
+    };
+    expect(body.input).toContain("SANTO_REF_1");
+    expect(body.input).toContain("SANTO_REF_2");
+    expect(body.input).not.toContain(rawId);
+    expect(body.input).not.toContain(otherId);
+    expect(body.text.format.schema.properties.citation_ids.items.enum).toEqual([
+      "SANTO_REF_1","SANTO_REF_2",
+    ]);
+  });
+
+  it("never removes ordinary clinical writing while deleting known machine source markers", () => {
+    const input = "Severe aortic stenosis can cause angina. cite" + rawId
+      + "\\n[s1]\\n" + otherId + "\\nAnd syncope.";
+    const cleaned = redactKnownSourceIds(input.replaceAll("\\n", "\n"),[rawId,otherId]);
+    expect(cleaned).toContain("angina");
+    expect(cleaned).toContain("syncope");
+    expect(cleaned).not.toContain(rawId);
+    expect(cleaned).not.toContain(otherId);
+    const refs = createLunaCitationAliases("source_id: "+rawId,[rawId]);
+    expect(refs.resolve("SANTO_REF_1")).toBe(rawId);
+    expect(refs.prompt).not.toContain(rawId);
+  });
+
+  it("leaves the legacy model's real source IDs unchanged when aliasing is off", () => {
+    const ai: WorkersAiLike = {run:vi.fn()};
+    const model = createGroundedModel({
+      AI:ai,SANTO_ENV:"production",SANTO_LUNA_PREVIEW:"true",
+      SANTO_SINGLE_PASS_GENERATION_V1:"true",SANTO_COMPACT_CITATION_ALIASES_V1:"true",
+      SANTO_AI_MODEL:"@cf/test/llama",
+    });
+    expect(model).toBeInstanceOf(CloudflareWorkersAiModel);
   });
 });
 

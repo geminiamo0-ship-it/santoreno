@@ -133,19 +133,18 @@ describe("Santo five licensed library retrieval", () => {
   });
 
   it("does not silently downgrade to fewer indexes when one parallel query fails", async () => {
-    const aiSearch = new FakeAiSearchNamespace(undefined, {
-      amboss: {error: "SEARCH_FAILED"},
-    });
-    await expect(new CloudflareAiSearchRetrieval(aiSearch).retrieve({
-      query:"aortic stenosis",libraryId:null,
-    })).resolves.toEqual([]);
-    // An actual malformed backend payload fails closed rather than appearing
-    // as an intentionally empty result.
-    const invalid = new FakeAiSearchNamespace(undefined, {
-      amboss: {broken:true},
-    });
+    const invalid = new FakeAiSearchNamespace(undefined, {amboss: {broken: true}});
     await expect(new CloudflareAiSearchRetrieval(invalid).retrieve({
-      query:"aortic stenosis", libraryId:null,
+      query: "aortic stenosis", libraryId: null,
+    })).rejects.toMatchObject({status:502,code:"SEARCH_FAILED"});
+    const failed = new FakeAiSearchNamespace();
+    failed.search = async (input: unknown) => {
+      if ((input as {ai_search_options:{instance_ids:string[]}}).ai_search_options.instance_ids[0] === "amboss")
+        throw new Error("Search temporarily unavailable");
+      return {chunks: []};
+    };
+    await expect(new CloudflareAiSearchRetrieval(failed).retrieve({
+      query: "aortic stenosis", libraryId: null,
     })).rejects.toMatchObject({status:502,code:"SEARCH_FAILED"});
   });
 });

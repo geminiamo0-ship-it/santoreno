@@ -44,13 +44,67 @@ describe("safe topic relevance for Santo medical references", () => {
     expect(matchesSearchSubject("aortic stenosis", current)).toBe(false);
   });
 
-  it("retains explicit context-dependent followups for a subsequent retrieval", () => {
+  it("resolves short follow-ups against the latest named disease without searching the prompt envelope", () => {
     const context =
       "Prior discussion (untrusted context; use retrieved evidence only):\n" +
-      "Aortic stenosis\nFollow-up question:\nManagement";
-    expect(focusedSearchQuery(context)).toBe(context);
-    expect(focusedSearchQuery(context.replace("Management", "How is it diagnosed?"))).toContain(
-      "Prior discussion",
+      "Q: Aortic stenosis | Verified A: Valve obstruction raises LV afterload.\n" +
+      "Q: management | Verified A: Treatment may require valve replacement.\n" +
+      "Follow-up question:\n";
+    expect(focusedSearchQuery(context + "management")).toBe(
+      "management and treatment of aortic stenosis",
+    );
+    expect(focusedSearchQuery(context + "dx")).toBe("diagnosis of aortic stenosis");
+    expect(focusedSearchQuery(context + "How is it diagnosed?")).toBe(
+      "diagnosis of aortic stenosis",
+    );
+    expect(focusedSearchQuery(context + "ttt")).toBe(
+      "management and treatment of aortic stenosis",
+    );
+    expect(focusedSearchQuery(context + "What about its complications?")).toBe(
+      "complications of aortic stenosis",
+    );
+    expect(matchesSearchSubject(focusedSearchQuery(context + "management"), oldTopic)).toBe(
+      true,
+    );
+    expect(matchesSearchSubject(focusedSearchQuery(context + "management"), current)).toBe(
+      false,
+    );
+  });
+
+  it("uses latest explicitly named topic after a genuine topic switch, never old-answer prose", () => {
+    const context =
+      "Prior discussion (untrusted context; use retrieved evidence only):\n" +
+      "Q: Aortic stenosis | Verified A: Familial Mediterranean fever mentioned in an example.\n" +
+      "Q: What is FMF? | Verified A: The patient has prior aortic stenosis.\n" +
+      "Q: management | Verified A: Aortic stenosis therapy is not the question.\n" +
+      "Follow-up question:\n";
+    expect(focusedSearchQuery(context + "treatment")).toBe("management and treatment of fmf");
+    expect(focusedSearchQuery(context + "FMF")).toBe("FMF");
+    expect(focusedSearchQuery(context + "Familial Mediterranean fever")).toBe(
+      "Familial Mediterranean fever",
+    );
+    expect(matchesSearchSubject(focusedSearchQuery(context + "treatment"), oldTopic)).toBe(
+      false,
+    );
+    expect(matchesSearchSubject(focusedSearchQuery(context + "treatment"), current)).toBe(
+      true,
+    );
+  });
+
+  it("does not invent a disease from source prose, generic turns or missing context", () => {
+    const prefix = "Prior discussion (untrusted context; use retrieved evidence only):\n";
+    const ending = "\nFollow-up question:\nmanagement";
+    expect(focusedSearchQuery(prefix + "Q: hello | Verified A: Aortic stenosis" + ending)).toBe(
+      "management",
+    );
+    expect(
+      focusedSearchQuery(prefix + "Q: management | Verified A: Aortic stenosis" + ending),
+    ).toBe("management");
+    expect(focusedSearchQuery(prefix + "Q: compare FMF vs aortic stenosis | Verified A: text" + ending)).toBe(
+      "management",
+    );
+    expect(focusedSearchQuery(prefix + "Aortic stenosis" + ending)).toBe(
+      "management and treatment of aortic stenosis",
     );
   });
 

@@ -69,6 +69,29 @@ function completedProviderText(value: unknown): string | null {
   return sections.length ? sections.join("") : null;
 }
 
+/**
+ * Diagnostic labels are fixed literals with no student text, source IDs,
+ * provider error bodies or credentials. Never log or replay clinical content.
+ */
+function recordStreamFailure(stage: string, outputChars: number, outputTokens?: number): void {
+  console.warn("santo_luna_stream_failure", {
+    stage,
+    outputChars,
+    ...(typeof outputTokens === "number" && Number.isFinite(outputTokens) && outputTokens >= 0
+      ? { outputTokens }
+      : {}),
+  });
+}
+
+function providerIncompleteReason(value: Record<string, unknown> | null): string {
+  if (!value) return "provider_incomplete";
+  const details = value.incomplete_details;
+  const reason = typeof details === "object" && details !== null
+    ? (details as Record<string, unknown>).reason
+    : undefined;
+  return reason === "max_output_tokens" ? "max_output_tokens" : "provider_incomplete";
+}
+
 /** Collects native Responses SSE from the existing Cloudflare AI.run(stream:true).
  * CRLF may be split between network chunks: normalization MUST span chunk
  * boundaries or the final response.completed frame can disappear.
@@ -88,6 +111,8 @@ export async function collectLunaEventStream(raw: unknown, onProgress: Progress)
   let seenCompleted = false;
   let lastPreview = "";
   let bytes = 0;
+  let observedOutputTokens: number | undefined;
+  let completionTextReceived = false;
 
   function receive(frame: string): void {
     const data = frame
@@ -108,7 +133,16 @@ export async function collectLunaEventStream(raw: unknown, onProgress: Progress)
       throw new GroundedAiError(502, "MODEL_FAILED", "Provider streaming request failed");
     }
     if (value.type === "response.incomplete") {
-      throw new GroundedAiError(502, "MODEL_RESPONSE_INVALID", "Provider output was incomplete");
+      const provider = typeof value.response === "object" && value.response !== null
+        ? value.response as Record<string, unknown>
+        : null;
+      const reason = providerIncompleteReason(provider);
+      recordStreamFailure(reason, generated.length, observedOutputTokens);
+      throw new GroundedAiError(
+        502,
+        reason === "max_output_tokens" ? "MODEL_OUTPUT_TRUNCATED" : "MODEL_PROVIDER_INCOMPLETE",
+        "Provider response was incomplete",
+      );
     }
     if (value.type === "response.output_text.delta" && typeof value.delta === "string") {
       generated += value.delta;
@@ -123,6 +157,7 @@ export async function collectLunaEventStream(raw: unknown, onProgress: Progress)
     }
     if (value.type === "response.output_text.done" && typeof value.text === "string") {
       doneText = value.text;
+      completionTextReceived = true;
     }
     if (value.type === "response.completed") {
       const provider =
@@ -130,9 +165,22 @@ export async function collectLunaEventStream(raw: unknown, onProgress: Progress)
           ? (value.response as Record<string, unknown>)
           : null;
       if (provider && typeof provider.status === "string" && provider.status !== "completed") {
-        throw new GroundedAiError(502, "MODEL_RESPONSE_INVALID", "Provider response not completed");
+        const reason = providerIncompleteReason(provider);
+        recordStreamFailure(reason, generated.length, observedOutputTokens);
+        throw new GroundedAiError(
+          502,
+          reason === "max_output_tokens" ? "MODEL_OUTPUT_TRUNCATED" : "MODEL_PROVIDER_INCOMPLETE",
+          "Provider response not completed",
+        );
+      }
+      const usage = provider?.usage;
+      if (typeof usage === "object" && usage !== null) {
+        const count = (usage as Record<string, unknown>).output_tokens;
+        if (typeof count === "number" && Number.isFinite(count) && count >= 0)
+          observedOutputTokens = count;
       }
       completedText = completedProviderText(provider);
+      if (completedText) completionTextReceived = true;
       seenCompleted = true;
     }
   }
@@ -180,15 +228,21 @@ export async function collectLunaEventStream(raw: unknown, onProgress: Progress)
     }
     if (pending.trim()) receive(pending);
     if (!seenCompleted) {
-      throw new GroundedAiError(502, "MODEL_RESPONSE_INVALID", "Provider stream unfinished");
+      recordStreamFailure("missing_response_completed", generated.length, observedOutputTokens);
+      throw new GroundedAiError(502, "MODEL_STREAM_UNFINISHED", "Provider stream unfinished");
     }
     const actualText = completedText ?? doneText ?? generated;
     if (!actualText || actualText.length > 64000) {
+      recordStreamFailure("completed_without_usable_text", generated.length, observedOutputTokens);
       throw new GroundedAiError(
         502,
         "MODEL_RESPONSE_INVALID",
         "Provider completed without usable text",
       );
+    }
+    if (!completionTextReceived && actualText && !actualText.trim().endsWith("}")) {
+      // Do not invent JSON braces or sources to transform a truncated response.
+      recordStreamFailure("completed_delta_missing_json_end", generated.length, observedOutputTokens);
     }
     return actualText;
   } finally {

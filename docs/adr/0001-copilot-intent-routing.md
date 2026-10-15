@@ -1,6 +1,6 @@
 # ADR 0001 — Medical Education Copilot: conservative intent routing before grounded AI
 
-- **Status:** Proposed (product concept endorsed; architecture not deployed)
+- **Status:** Superseded by ADR 0002 for the Santo Luna pilot (2026-10-15). Prior proposal retained for history; deterministic quick replies must not intercept student messages.
 - **Date:** 2026-10-14
 - **Owners:** Santo engineering
 

@@ -21,7 +21,7 @@ const GENERIC_QUESTION =
  * Read the latest explicitly named topic from completed QUESTION entries.
  */
 function explicitSubject(question: string): string | null {
-  let subject = question
+  const subject = question
     .trim()
     .replace(/[?.!؟\s]+$/g, "")
     .replace(
@@ -96,10 +96,9 @@ export function focusedSearchQuery(input: string): string {
     // Explicit new-topic questions must NEVER inherit a prior condition.
     return question;
   }
-  const context = input.slice(
-    "Prior discussion (untrusted context; use retrieved evidence only):\n".length,
-    markerIndex,
-  );
+  const contextPrefix = "Prior discussion (untrusted context; use retrieved evidence only):\n";
+  if (!input.startsWith(contextPrefix)) return question;
+  const context = input.slice(contextPrefix.length, markerIndex);
   const subject = latestExplicitSubject(context);
   if (!subject) return question;
   const intent = followUpIntent(question);

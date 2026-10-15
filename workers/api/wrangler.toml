@@ -61,6 +61,7 @@ SANTO_AI_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
 SANTO_LUNA_PREVIEW = "true"
 # One provider response per user generation attempt; no silent paid fallback.
 SANTO_SINGLE_PASS_GENERATION_V1 = "true"
+SANTO_COMPACT_CITATION_ALIASES_V1 = "true"
 SANTO_COPILOT_ROUTING_V1 = "true"
 SANTO_GENERAL_MEDICAL_FALLBACK = "true"
 SANTO_AI_SEARCH_INSTANCE_IDS = "amboss,usmle,passmedicine,pastest,one-examination-isolated"

@@ -1,4 +1,5 @@
 import { GroundedAiError } from "./errors";
+import { LUNA_MAX_GENERATED_CHARS } from "./luna-event-stream";
 import type { GroundedModelDraft } from "./types";
 
 /**
@@ -95,7 +96,7 @@ export function parsePlainLunaAnswer(
     answer = answer.split("\u0000" + used[i] + "\u0000").join("[" + (i + 1) + "]");
   }
   answer = scrubMachineIds(answer.trim(), allowed);
-  if (!answer || answer.length > 64000) {
+  if (!answer || answer.length > LUNA_MAX_GENERATED_CHARS) {
     throw new GroundedAiError(
       502,
       "MODEL_RESPONSE_INVALID",

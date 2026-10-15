@@ -132,6 +132,22 @@ describe("staging single-pass plain-Luna citation contract", () => {
     expect(previews[previews.length - 1]).not.toContain("[[");
   });
 
+  it("accepts 70k chars of completed Luna Markdown and keeps citations", () => {
+    const longChapter = "Valve pressure overload. ".repeat(3100) + " [[1]]";
+    expect(longChapter.length).toBeGreaterThan(64_000);
+    const parsed = parsePlainLunaAnswer(longChapter, [sourceA]);
+    expect(parsed.answer.length).toBeGreaterThan(64_000);
+    expect(parsed.answer).toContain("Valve pressure overload.");
+    expect(parsed.answer.endsWith(" [1]")).toBe(true);
+    expect(parsed.citationIds).toEqual([sourceA]);
+  });
+
+  it("continues to reject a completed Luna chapter that exceeds the bounded parser cap", () => {
+    expect(() => parsePlainLunaAnswer("A".repeat(120_001), [sourceA])).toThrow(
+      "Model returned unusable teaching text",
+    );
+  });
+
   it("still rejects incomplete streams without launching a fallback model", async () => {
     const ai: WorkersAiLike = {
       run: vi.fn(async () => {

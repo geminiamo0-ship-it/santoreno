@@ -1,6 +1,6 @@
 name: Professor Teaching Staging Deploy
 
-# One-time Staging-only rollout after merging this feature workflow.
+# Deploys only when this Staging workflow changes on an approved release branch.
 # Ordinary main commits do not redeploy staging; manual reruns remain possible.
 on:
   push:

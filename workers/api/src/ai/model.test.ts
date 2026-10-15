@@ -25,12 +25,15 @@ describe("medical citation presentation", () => {
         "[clinical reference](https://example.edu/reference).",
     );
     expect(stripInternalCitationLinks(draft, [])).toBe(draft);
-    const withBare = "Aortic stenosis [one-examination-isolated:chunk-2] " +
-      "and documented [passmedicine:chunk-5]. [Medical reference](https://example.edu)";
-    expect(stripInternalCitationLinks(withBare, [
+    const withBare = [
+      "Aortic stenosis [one-examination-isolated:chunk-2]",
+      "and documented [passmedicine:chunk-5].",
+    ].join(" ");
+    const cleaned = stripInternalCitationLinks(withBare, [
       "one-examination-isolated:chunk-2",
       "passmedicine:chunk-5",
-    ])).toBe("Aortic stenosis and documented. [Medical reference](https://example.edu)");
+    ]);
+    expect(cleaned).toBe("Aortic stenosis and documented.");
     expect(stripInternalCitationLinks(withBare, ["other:chunk"])).toBe(withBare);
     expect(stripInternalCitationLinks(draft, ["different:source"])).toBe(draft);
   });

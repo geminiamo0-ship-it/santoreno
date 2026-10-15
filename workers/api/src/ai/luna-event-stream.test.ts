@@ -110,7 +110,9 @@ describe("native Luna Responses SSE collector", () => {
     ];
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     try {
-      await expect(collectLunaEventStream(sse(events), vi.fn(), "plain")).resolves.toBe(clinicalText);
+      await expect(collectLunaEventStream(sse(events), vi.fn(), "plain")).resolves.toBe(
+        clinicalText,
+      );
       expect(warn).not.toHaveBeenCalledWith(
         "santo_luna_stream_failure",
         expect.objectContaining({ stage: "completed_delta_missing_json_end" }),

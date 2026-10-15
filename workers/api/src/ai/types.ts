@@ -41,6 +41,12 @@ export interface AiTelemetryEvent {
   status: "success" | "failure";
   latencyMs: number;
   errorCode: string | null;
+  failureStage?: string;
+  responseFormat?: "json" | "markdown";
+  retrievedSourceCount?: number;
+  validCitationCount?: number;
+  outputChars?: number;
+  sourcePresentation?: "inline" | "related";
 }
 
 export interface AiTelemetryPort {

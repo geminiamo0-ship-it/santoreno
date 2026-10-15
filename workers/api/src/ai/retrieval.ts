@@ -183,7 +183,7 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
       const selectedLibraries = selectLibraries(await this.catalog.list(), request.libraryId);
       const currentTopicQuery = focusedSearchQuery(request.query);
       if (this.medicalRetrievalV2) {
-        return this.retrieveMedicalV2(currentTopicQuery, selectedLibraries);
+        return await this.retrieveMedicalV2(currentTopicQuery, selectedLibraries);
       }
       // Query each index concurrently. Asking a single global top-5 search
       // routinely hides smaller libraries, even when their evidence is relevant.

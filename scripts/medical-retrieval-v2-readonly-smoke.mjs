@@ -88,8 +88,16 @@ for (const test of cases) {
     const results = await Promise.all(
       instances.map((instance) => readOnlySearch(instance, test.query, v2)),
     );
-    const all = results.flatMap((result) => result.chunks);
-    const stat = summarize(all, test);
+    const stats = results.map((result) => summarize(result.chunks, test));
+    const stat = stats.reduce(
+      (acc, part) => ({
+        returned: acc.returned + part.returned,
+        relevantTop3: acc.relevantTop3 + part.relevantTop3,
+        relevantAll: acc.relevantAll + part.relevantAll,
+        wrongTopicAll: acc.wrongTopicAll + part.wrongTopicAll,
+      }),
+      { returned: 0, relevantTop3: 0, relevantAll: 0, wrongTopicAll: 0 },
+    );
     const mean = Math.round(
       results.reduce((sum, result) => sum + result.elapsed, 0) / instances.length,
     );
@@ -121,6 +129,4 @@ if (process.env.GITHUB_STEP_SUMMARY) {
   const { appendFile } = await import("node:fs/promises");
   await appendFile(process.env.GITHUB_STEP_SUMMARY, summary);
 }
-process.stdout.write(
-  "Read-only Cloudflare search smoke completed for 2 topics across 5 allowed instances.\n",
-);
+process.stdout.write(summary);

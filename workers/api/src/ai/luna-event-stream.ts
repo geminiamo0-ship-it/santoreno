@@ -157,9 +157,8 @@ export async function collectLunaEventStream(
       }
       // Plain Markdown uses the same SSE parser and completion checks,
       // but does not depend on an enclosing JSON string to show its draft.
-      const preview = previewFormat === "plain"
-        ? generated.slice(0, 12000)
-        : previewStructuredAnswer(generated);
+      const preview =
+        previewFormat === "plain" ? generated.slice(0, 12000) : previewStructuredAnswer(generated);
       if (preview && preview !== lastPreview) {
         lastPreview = preview;
         onProgress(preview);

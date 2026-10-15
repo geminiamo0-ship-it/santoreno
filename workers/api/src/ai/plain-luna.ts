@@ -19,7 +19,7 @@ export const LUNA_PLAIN_TEXT_INSTRUCTIONS =
 
 function scrubMachineIds(text: string, ids: readonly string[]): string {
   let safe = text;
-  for (const id of [...new Set(ids)].sort((a,b) => b.length - a.length)) {
+  for (const id of [...new Set(ids)].sort((a, b) => b.length - a.length)) {
     if (!id) continue;
     safe = safe.split("cite" + id).join("");
     safe = safe.split(id).join("");
@@ -32,7 +32,10 @@ function scrubMachineIds(text: string, ids: readonly string[]): string {
 export function previewPlainLuna(text: string, sourceIds: readonly string[]): string {
   const withoutFullCitations = text.replace(/\[\[\d{1,2}\]\]/g, "");
   const withoutPartial = withoutFullCitations.replace(/\[\[(?:\d{0,2})?$/g, "");
-  return scrubMachineIds(withoutPartial, sourceIds).replace(/\[?SANTO_(?:R(?:E(?:F(?:_\d*)?)?)?)?$/g, "");
+  return scrubMachineIds(withoutPartial, sourceIds).replace(
+    /\[?SANTO_(?:R(?:E(?:F(?:_\d*)?)?)?)?$/g,
+    "",
+  );
 }
 
 /** An explicit [[N]] must map to the Nth actual retrieved source.
@@ -65,7 +68,11 @@ export function parsePlainLunaAnswer(
     return "\u0000" + source + "\u0000";
   });
   if (invalidCitation || (allowed.length > 0 && used.length === 0)) {
-    throw new GroundedAiError(502, "CITATION_INVALID", "Model did not cite trusted source excerpts");
+    throw new GroundedAiError(
+      502,
+      "CITATION_INVALID",
+      "Model did not cite trusted source excerpts",
+    );
   }
   if (/\[\[\d{0,2}$/.test(answer) || /\bSANTO_REF_?\d*$/.test(answer)) {
     throw new GroundedAiError(502, "MODEL_RESPONSE_INVALID", "Unfinished model citation");
@@ -75,7 +82,11 @@ export function parsePlainLunaAnswer(
   }
   answer = scrubMachineIds(answer.trim(), allowed);
   if (!answer || answer.length > 64000) {
-    throw new GroundedAiError(502, "MODEL_RESPONSE_INVALID", "Model returned unusable teaching text");
+    throw new GroundedAiError(
+      502,
+      "MODEL_RESPONSE_INVALID",
+      "Model returned unusable teaching text",
+    );
   }
   return { answer, citationIds: used };
 }

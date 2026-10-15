@@ -19,7 +19,7 @@ describe("actual Worker route dispatch for verified image batches", () => {
   it("dispatches image batch to the library reader, not generic source router", async () => {
     const batch = await request("POST", "/v1/sources/article-images/batch");
     expect(batch.status).toBe(401);
-    const error = await batch.json() as {error?: string};
+    const error = (await batch.json()) as { error?: string };
     expect(error.error).not.toBe("SOURCE_NOT_FOUND");
 
     const oldArticle = await request("POST", "/v1/sources/article");
@@ -28,9 +28,9 @@ describe("actual Worker route dispatch for verified image batches", () => {
   });
 
   it("remains disabled if the medical article feature flag is off", async () => {
-    const disabled = {...env, SANTO_LIBRARY_READER_V1: "false"};
+    const disabled = { ...env, SANTO_LIBRARY_READER_V1: "false" };
     const response = await request("POST", "/v1/sources/article-images/batch", disabled);
     expect(response.status).toBe(404);
-    await expect(response.json()).resolves.toEqual({error:"LIBRARY_NOT_FOUND"});
+    await expect(response.json()).resolves.toEqual({ error: "LIBRARY_NOT_FOUND" });
   });
 });

@@ -125,9 +125,10 @@ export async function collectLunaEventStream(raw: unknown, onProgress: Progress)
       doneText = value.text;
     }
     if (value.type === "response.completed") {
-      const provider = typeof value.response === "object" && value.response !== null
-        ? value.response as Record<string, unknown>
-        : null;
+      const provider =
+        typeof value.response === "object" && value.response !== null
+          ? (value.response as Record<string, unknown>)
+          : null;
       if (provider && typeof provider.status === "string" && provider.status !== "completed") {
         throw new GroundedAiError(502, "MODEL_RESPONSE_INVALID", "Provider response not completed");
       }
@@ -183,7 +184,11 @@ export async function collectLunaEventStream(raw: unknown, onProgress: Progress)
     }
     const actualText = completedText ?? doneText ?? generated;
     if (!actualText || actualText.length > 64000) {
-      throw new GroundedAiError(502, "MODEL_RESPONSE_INVALID", "Provider completed without usable text");
+      throw new GroundedAiError(
+        502,
+        "MODEL_RESPONSE_INVALID",
+        "Provider completed without usable text",
+      );
     }
     return actualText;
   } finally {

@@ -62,6 +62,23 @@ function modelText(raw: unknown): string | null {
   return null;
 }
 
+/**
+ * Inline Markdown URLs containing Santo's internal retrieval IDs are not
+ * navigable references. Keep the teaching text; canonical source cards come
+ * exclusively from the validated citation_ids response field.
+ */
+export function stripInternalCitationLinks(
+  answer: string,
+  allowedCitationIds: readonly string[] | undefined,
+): string {
+  if (!allowedCitationIds?.length) return answer;
+  const ids = new Set(allowedCitationIds);
+  return answer.replace(
+    /\\[([^\\]\\n]{1,1500})\\]\\(([^)\\n\\s]{1,512})\\)/g,
+    (link, label: string, target: string) => ids.has(target) ? label : link,
+  );
+}
+
 function stripJsonFence(value: string): string {
   const trimmed = value.trim();
   const fenced = /^```(?:json)?\s*([\s\S]*?)\s*```$/i.exec(trimmed);
@@ -176,7 +193,8 @@ export class CloudflareWorkersAiModel implements ModelPort {
       if (!text) {
         throw new GroundedAiError(502, "MODEL_RESPONSE_INVALID", "Model returned no text response");
       }
-      return parseDraft(text);
+      const draft = parseDraft(text);
+      return { ...draft, answer: stripInternalCitationLinks(draft.answer, allowedCitationIds) };
     } catch (error) {
       if (error instanceof GroundedAiError) {
         throw error;
@@ -220,12 +238,14 @@ export class CloudflareLunaModel implements ModelPort {
         },
       });
       const text = onProvisionalAnswer
-        ? await collectLunaEventStream(raw, onProvisionalAnswer)
+        ? await collectLunaEventStream(raw, (draft) =>
+            onProvisionalAnswer(stripInternalCitationLinks(draft, allowedCitationIds)))
         : modelText(raw);
       if (!text) {
         throw new GroundedAiError(502, "MODEL_RESPONSE_INVALID", "Model returned no text");
       }
-      return parseDraft(text);
+      const draft = parseDraft(text);
+      return { ...draft, answer: stripInternalCitationLinks(draft.answer, allowedCitationIds) };
     } catch (error) {
       if (error instanceof GroundedAiError) throw error;
       throw new GroundedAiError(502, "MODEL_FAILED", "Luna preview model request failed");

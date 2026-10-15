@@ -136,6 +136,12 @@ jobs:
         if: steps.workspace.outputs.exists == 'true'
         run: pnpm install --frozen-lockfile
 
+      - name: Temporary medical retrieval formatter diagnostic
+        if: steps.workspace.outputs.exists == 'true'
+        run: |
+          pnpm exec prettier --write workers/api/src/ai/medical-ranking.ts workers/api/src/ai/medical-ranking.test.ts workers/api/src/ai/retrieval.test.ts
+          git diff -- workers/api/src/ai/medical-ranking.ts workers/api/src/ai/medical-ranking.test.ts workers/api/src/ai/retrieval.test.ts
+
       - name: Lint
         if: steps.workspace.outputs.exists == 'true'
         run: pnpm lint

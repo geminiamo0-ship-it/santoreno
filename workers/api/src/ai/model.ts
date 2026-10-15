@@ -74,7 +74,7 @@ export function stripInternalCitationLinks(
   if (!allowedCitationIds?.length) return answer;
   const ids = new Set(allowedCitationIds);
   return answer.replace(
-    /\\[([^\\]\\n]{1,1500})\\]\\(([^)\\n\\s]{1,512})\\)/g,
+    /\[([^\]\n]{1,1500})\]\(([^)\n\s]{1,512})\)/g,
     (link, label: string, target: string) => ids.has(target) ? label : link,
   );
 }

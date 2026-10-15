@@ -73,6 +73,7 @@ export function createGroundedAiHandler(dependencies: GroundedAiHandlerDependenc
       return new CloudflareAiSearchRetrieval(
         env.AI_SEARCH,
         new AiSearchNamespaceLibraryCatalog(env.AI_SEARCH, allowed),
+        env.SANTO_ENV === "staging" && env.SANTO_MEDICAL_RETRIEVAL_V2 === "true",
       );
     });
   const modelFactory = dependencies.modelFactory ?? createGroundedModel;

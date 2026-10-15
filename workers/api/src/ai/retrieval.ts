@@ -7,10 +7,13 @@ import {
 } from "./library-catalog";
 import type { RetrievalPort, RetrievalRequest, RetrievedEvidence } from "./types";
 import { focusedSearchQuery, matchesSearchSubject } from "./source-relevance";
+import { rankMedicalCandidates, type RankedCandidate } from "./medical-ranking";
 
 const LIBRARIES = ["amboss", "usmle", "passmedicine", "pastest", "one-examination"] as const;
 const MAX_RESULTS = 5;
 const PER_LIBRARY_CANDIDATES = 3;
+const V2_PER_LIBRARY_CANDIDATES = 24;
+const V2_EXPANDED_CANDIDATES = 40;
 const MATCH_THRESHOLD = 0.4;
 const MAX_CHUNK_CHARS = 5000;
 
@@ -95,6 +98,8 @@ function selectLibraries(
 function evidenceFromSearch(
   raw: unknown,
   selectedLibraries: readonly LibraryCatalogEntry[],
+  maxResults = MAX_RESULTS,
+  minScore = MATCH_THRESHOLD,
 ): RetrievedEvidence[] {
   const root = asRecord(raw);
   const chunks = root?.chunks;
@@ -123,7 +128,7 @@ function evidenceFromSearch(
       !chunkId ||
       !text ||
       score === null ||
-      score < MATCH_THRESHOLD ||
+      score < minScore ||
       !itemKey ||
       !instanceId ||
       !library
@@ -150,7 +155,7 @@ function evidenceFromSearch(
       score,
     });
 
-    if (evidence.length >= MAX_RESULTS) {
+    if (evidence.length >= maxResults) {
       break;
     }
   }
@@ -164,6 +169,7 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
   constructor(
     private readonly namespace: AiSearchNamespaceLike | undefined,
     catalog?: LibraryCatalogPort,
+    private readonly medicalRetrievalV2 = false,
   ) {
     this.catalog = catalog ?? new AiSearchNamespaceLibraryCatalog(namespace);
   }
@@ -176,6 +182,9 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
     try {
       const selectedLibraries = selectLibraries(await this.catalog.list(), request.libraryId);
       const currentTopicQuery = focusedSearchQuery(request.query);
+      if (this.medicalRetrievalV2) {
+        return await this.retrieveMedicalV2(currentTopicQuery, selectedLibraries);
+      }
       // Query each index concurrently. Asking a single global top-5 search
       // routinely hides smaller libraries, even when their evidence is relevant.
       // No Reranker or synthetic citation is involved. From each library we
@@ -209,5 +218,58 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
       }
       throw new GroundedAiError(502, "SEARCH_FAILED", "AI Search request failed");
     }
+  }
+
+  /**
+   * Quality-first staging rollout. The source *collection* is never passed
+   * straight through to Luna. Relevance and source diversity are evaluated
+   * after Cloudflare's native per-index reranking. Extra retrieval only runs
+   * when insufficient relevant passages survive the first stage.
+   */
+  private async retrieveMedicalV2(
+    query: string,
+    libraries: readonly LibraryCatalogEntry[],
+  ): Promise<RetrievedEvidence[]> {
+    const searchStage = async (
+      maxResults: number,
+      minScore: number,
+    ): Promise<RankedCandidate[]> => {
+      const batches = await Promise.all(
+        libraries.map(async (library) => {
+          const response = await this.namespace!.search({
+            query,
+            ai_search_options: {
+              instance_ids: [library.instanceId],
+              retrieval: {
+                retrieval_type: "hybrid",
+                match_threshold: minScore,
+                max_num_results: maxResults,
+                return_on_failure: true,
+                fusion_method: "rrf",
+              },
+              reranking: {
+                enabled: true,
+                model: "@cf/baai/bge-reranker-base",
+              },
+              query_rewrite: { enabled: false },
+            },
+          });
+          return evidenceFromSearch(response, [library], maxResults, minScore).map(
+            (evidence, position) => ({ evidence, position }),
+          );
+        }),
+      );
+      return batches.flat();
+    };
+
+    const first = await searchStage(V2_PER_LIBRARY_CANDIDATES, MATCH_THRESHOLD);
+    let best = rankMedicalCandidates(query, first, MAX_RESULTS);
+    // No speculative retries or new Luna generation. At most one extra
+    // retrieval pass (10 AI Search operations for all five libraries).
+    if (best.length < Math.min(3, libraries.length)) {
+      const second = await searchStage(V2_EXPANDED_CANDIDATES, 0.25);
+      best = rankMedicalCandidates(query, [...first, ...second], MAX_RESULTS);
+    }
+    return best;
   }
 }

@@ -62,11 +62,12 @@ describe("library reader session and rollout authorization", () => {
       "/v1/libraries/passmedicine/articles",
       "/v1/libraries/passmedicine/articles/passmed-5683",
       "/v1/sources/article",
+      "/v1/sources/article-images/batch",
     ]) {
       const response = await handler(
         new Request("https://santo.test" + path, {
-          method: path.endsWith("/article") ? "POST" : "GET",
-          body: path.endsWith("/article") ? JSON.stringify({}) : undefined,
+          method: path === "/v1/sources/article" || path.endsWith("/batch") ? "POST" : "GET",
+          body: path === "/v1/sources/article" || path.endsWith("/batch") ? JSON.stringify({}) : undefined,
         }),
         enabled,
       );

@@ -1,0 +1,24 @@
+name: Santo Medical Retrieval v2 Read-only Smoke
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  search-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check read-only smoke script
+        run: node --check scripts/medical-retrieval-v2-readonly-smoke.mjs
+      - name: Compare legacy and new Cloudflare search without Luna
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: node scripts/medical-retrieval-v2-readonly-smoke.mjs

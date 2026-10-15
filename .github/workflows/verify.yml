@@ -136,12 +136,6 @@ jobs:
         if: steps.workspace.outputs.exists == 'true'
         run: pnpm install --frozen-lockfile
 
-      - name: Temporary Luna 10k formatter diagnostic
-        if: steps.workspace.outputs.exists == 'true'
-        run: |
-          pnpm exec prettier --write PROJECT_STATUS.md workers/api/src/ai/luna-event-stream.ts workers/api/src/ai/luna-event-stream.test.ts
-          git diff -- PROJECT_STATUS.md workers/api/src/ai/luna-event-stream.ts workers/api/src/ai/luna-event-stream.test.ts
-
       - name: Lint
         if: steps.workspace.outputs.exists == 'true'
         run: pnpm lint

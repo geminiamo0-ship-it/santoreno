@@ -10,7 +10,8 @@ export interface RankedCandidate {
 const CLINICAL_SECTIONS: ReadonlyArray<{ intent: RegExp; section: RegExp }> = [
   {
     intent: /\b(?:mechanism|pathophysiology|physiology|pathogenesis|why|hemodynamic)\b/i,
-    section: /\b(?:mechanism|pathophysiology|physiology|pathogenesis|hemodynamic|pressure.overload)\b/i,
+    section:
+      /\b(?:mechanism|pathophysiology|physiology|pathogenesis|hemodynamic|pressure.overload)\b/i,
   },
   {
     intent: /\b(?:symptoms?|signs?|presentation|manifestations?|clinical features?)\b/i,
@@ -27,10 +28,32 @@ const CLINICAL_SECTIONS: ReadonlyArray<{ intent: RegExp; section: RegExp }> = [
 ];
 
 const COMMON = new Set([
-  "about", "and", "brief", "can", "clinical", "describe", "explain", "for",
-  "from", "how", "its", "medical", "more", "of", "overview", "please",
-  "question", "summary", "tell", "the", "this", "what", "when", "which",
-  "with", "you",
+  "about",
+  "and",
+  "brief",
+  "can",
+  "clinical",
+  "describe",
+  "explain",
+  "for",
+  "from",
+  "how",
+  "its",
+  "medical",
+  "more",
+  "of",
+  "overview",
+  "please",
+  "question",
+  "summary",
+  "tell",
+  "the",
+  "this",
+  "what",
+  "when",
+  "which",
+  "with",
+  "you",
 ]);
 
 function words(value: string): string[] {
@@ -75,15 +98,12 @@ export function rankMedicalCandidates(
           : 0;
       return {
         evidence,
-        quality:
-          titleMatch * 4 +
-          sectionMatch * 2 +
-          bodyMatch +
-          sectionBonus +
-          2 / (1 + position),
+        quality: titleMatch * 4 + sectionMatch * 2 + bodyMatch + sectionBonus + 2 / (1 + position),
       };
     })
-    .sort((a, b) => b.quality - a.quality || a.evidence.sourceId.localeCompare(b.evidence.sourceId));
+    .sort(
+      (a, b) => b.quality - a.quality || a.evidence.sourceId.localeCompare(b.evidence.sourceId),
+    );
 
   const seenIds = new Set<string>();
   const articleCount = new Map<string, number>();

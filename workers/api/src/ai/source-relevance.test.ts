@@ -30,8 +30,8 @@ describe("safe topic relevance for Santo medical references", () => {
 
   it("searches a newly named topic, not the previous completed conversation", () => {
     const withContext =
-      "Prior discussion (untrusted context; use retrieved evidence only):\\n" +
-      "Aortic stenosis and echocardiography\\nFollow-up question:\\nbrief summary of FMF";
+      "Prior discussion (untrusted context; use retrieved evidence only):\n" +
+      "Aortic stenosis and echocardiography\nFollow-up question:\nbrief summary of FMF";
     expect(focusedSearchQuery(withContext)).toBe("brief summary of FMF");
     expect(matchesSearchSubject("brief summary of FMF", oldTopic)).toBe(false);
     expect(matchesSearchSubject("brief summary of FMF", current)).toBe(true);
@@ -46,8 +46,8 @@ describe("safe topic relevance for Santo medical references", () => {
 
   it("retains explicit context-dependent followups for a subsequent retrieval", () => {
     const context =
-      "Prior discussion (untrusted context; use retrieved evidence only):\\n" +
-      "Aortic stenosis\\nFollow-up question:\\nManagement";
+      "Prior discussion (untrusted context; use retrieved evidence only):\n" +
+      "Aortic stenosis\nFollow-up question:\nManagement";
     expect(focusedSearchQuery(context)).toBe(context);
     expect(focusedSearchQuery(context.replace("Management", "How is it diagnosed?"))).toContain(
       "Prior discussion",

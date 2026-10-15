@@ -94,7 +94,8 @@ describe("native Luna Responses SSE collector", () => {
   });
 
   it("recovers actual completed Markdown deltas if the provider sends empty final fields", async () => {
-    const clinicalText = "## Aortic stenosis\\nValve narrowing causes LV pressure overload.\\nManagement depends on severity.";
+    const clinicalText =
+      "## Aortic stenosis\\nValve narrowing causes LV pressure overload.\\nManagement depends on severity.";
     const events = [
       { type: "response.output_text.delta", delta: clinicalText },
       { type: "response.output_text.done", text: "" },

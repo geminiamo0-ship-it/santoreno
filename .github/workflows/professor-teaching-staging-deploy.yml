@@ -1,6 +1,6 @@
 name: Professor Teaching Staging Deploy
 
-# Verified staging-only rollout: 5-library medical retrieval + single paid Luna attempt cost guard.
+# Verified staging-only rollout: single-paid Luna attempt + robust same-stream completed JSON.
 # Ordinary main commits do not redeploy staging; manual reruns remain possible.
 on:
   push:

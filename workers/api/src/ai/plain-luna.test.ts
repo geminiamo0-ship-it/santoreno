@@ -34,19 +34,48 @@ describe("staging single-pass plain-Luna citation contract", () => {
     });
   });
 
-  it("rejects fake and missing source references rather than fabricating provenance", () => {
-    expect(() => parsePlainLunaAnswer("Unattributed advice.", [sourceA])).toThrow();
-    expect(() => parsePlainLunaAnswer("Wrong source [[3]].", [sourceA])).toThrow();
-    expect(() => parsePlainLunaAnswer("Malformed [[xx]]. [[1]]", [sourceA])).toThrow();
-    expect(() => parsePlainLunaAnswer("Partial marker [[1", [sourceA])).toThrow();
+  it("preserves completed uncited medical teaching with related source status", () => {
+    expect(parsePlainLunaAnswer("Management consists of valve replacement.", [sourceA])).toEqual({
+      answer: "Management consists of valve replacement.",
+      citationIds: [],
+      sourcePresentation: "related",
+    });
+    expect(parsePlainLunaAnswer("Wrong source [[3]].", [sourceA])).toEqual({
+      answer: "Wrong source .",
+      citationIds: [],
+      sourcePresentation: "related",
+    });
+    expect(parsePlainLunaAnswer("Malformed [[xx]]. Correct [[1]].", [sourceA])).toEqual({
+      answer: "Malformed . Correct [1].",
+      citationIds: [sourceA],
+    });
+    expect(parsePlainLunaAnswer("Partial marker [[1", [sourceA])).toEqual({
+      answer: "Partial marker",
+      citationIds: [],
+      sourcePresentation: "related",
+    });
   });
 
-  it("allows a single uncited answer only when retrieval returned no evidence", () => {
+  it("keeps Luna clarifications and social answers free of random source citations", () => {
+    const clarification = "What condition do you mean by management? Please name the disease.";
+    expect(parsePlainLunaAnswer(clarification, [sourceA])).toEqual({
+      answer: clarification,
+      citationIds: [],
+      sourcePresentation: "none",
+    });
+    expect(parsePlainLunaAnswer("Hello!", [sourceA])).toEqual({
+      answer: "Hello!",
+      citationIds: [],
+      sourcePresentation: "none",
+    });
     expect(parsePlainLunaAnswer("General medical teaching.", [])).toEqual({
       answer: "General medical teaching.",
       citationIds: [],
     });
-    expect(() => parsePlainLunaAnswer("Fabricated [[1]]", [])).toThrow();
+    expect(parsePlainLunaAnswer("Fabricated [[1]]", [])).toEqual({
+      answer: "Fabricated",
+      citationIds: [],
+    });
   });
 
   it("never exposes partial internal references in an unverified SSE preview", () => {

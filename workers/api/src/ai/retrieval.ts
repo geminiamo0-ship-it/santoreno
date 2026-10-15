@@ -7,8 +7,9 @@ import {
 } from "./library-catalog";
 import type { RetrievalPort, RetrievalRequest, RetrievedEvidence } from "./types";
 
-const MAX_SEARCH_INSTANCES = 10;
+const LIBRARIES = ["amboss", "usmle", "passmedicine", "pastest", "one-examination"] as const;
 const MAX_RESULTS = 5;
+const PER_LIBRARY_CANDIDATES = 3;
 const MATCH_THRESHOLD = 0.4;
 const MAX_CHUNK_CHARS = 5000;
 
@@ -62,20 +63,32 @@ function titleFromItem(item: Record<string, unknown> | null): string {
   ).slice(0, 500);
 }
 
+/**
+ * There are five fixed licensed medical libraries in this rollout. A global
+ * search always considers EXACTLY those libraries, independent of the score
+ * distribution returned by a combined namespace query.
+ */
 function selectLibraries(
   catalog: readonly LibraryCatalogEntry[],
   libraryId: string | null,
 ): readonly LibraryCatalogEntry[] {
-  if (libraryId === null) {
-    return catalog;
-  }
-
-  const selected = catalog.find((entry) => entry.id === libraryId);
-  if (!selected) {
+  const supported = new Set<string>(LIBRARIES);
+  if (libraryId !== null && !supported.has(libraryId)) {
     throw new GroundedAiError(400, "INVALID_LIBRARY_FILTER", "Unknown Santo library filter");
   }
-
-  return [selected];
+  const selected = LIBRARIES.map((id) => catalog.find((entry) => entry.id === id));
+  // Reject misconfigured/incomplete namespaces rather than silently searching
+  // an unrelated index. For an explicit filter, require that index only.
+  const required =
+    libraryId === null ? selected : [catalog.find((entry) => entry.id === libraryId)];
+  if (required.some((entry) => !entry)) {
+    throw new GroundedAiError(
+      503,
+      "SEARCH_CONFIGURATION_ERROR",
+      "Required medical library index unavailable",
+    );
+  }
+  return required as LibraryCatalogEntry[];
 }
 
 function evidenceFromSearch(
@@ -105,7 +118,15 @@ function evidenceFromSearch(
     const instanceId = stringField(chunk, "instance_id") ?? fallbackLibrary?.instanceId ?? null;
     const library = instanceId ? libraryByInstanceId.get(instanceId) : undefined;
 
-    if (!chunkId || !text || score === null || !itemKey || !instanceId || !library) {
+    if (
+      !chunkId ||
+      !text ||
+      score === null ||
+      score < MATCH_THRESHOLD ||
+      !itemKey ||
+      !instanceId ||
+      !library
+    ) {
       continue;
     }
 
@@ -153,34 +174,29 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
 
     try {
       const selectedLibraries = selectLibraries(await this.catalog.list(), request.libraryId);
-      if (selectedLibraries.length === 0) {
-        return [];
-      }
-      if (selectedLibraries.length > MAX_SEARCH_INSTANCES) {
-        throw new GroundedAiError(
-          503,
-          "SEARCH_CONFIGURATION_ERROR",
-          `All Libraries currently supports at most ${MAX_SEARCH_INSTANCES} AI Search instances`,
-        );
-      }
-
-      const result = await this.namespace.search({
-        query: request.query,
-        ai_search_options: {
-          instance_ids: selectedLibraries.map((entry) => entry.instanceId),
-          retrieval: {
-            retrieval_type: "hybrid",
-            match_threshold: MATCH_THRESHOLD,
-            max_num_results: MAX_RESULTS,
-            return_on_failure: true,
-          },
-          query_rewrite: {
-            enabled: false,
-          },
-        },
-      });
-
-      return evidenceFromSearch(result, selectedLibraries);
+      // Query each index concurrently. Asking a single global top-5 search
+      // routinely hides smaller libraries, even when their evidence is relevant.
+      // No Reranker or synthetic citation is involved. From each library we
+      // retain at most one valid, relevant, Cloudflare-ranked source passage.
+      const results = await Promise.all(
+        selectedLibraries.map(async (entry) => {
+          const search = await this.namespace!.search({
+            query: request.query,
+            ai_search_options: {
+              instance_ids: [entry.instanceId],
+              retrieval: {
+                retrieval_type: "hybrid",
+                match_threshold: MATCH_THRESHOLD,
+                max_num_results: PER_LIBRARY_CANDIDATES,
+                return_on_failure: true,
+              },
+              query_rewrite: { enabled: false },
+            },
+          });
+          return evidenceFromSearch(search, [entry]).slice(0, 1);
+        }),
+      );
+      return results.flat().slice(0, MAX_RESULTS);
     } catch (error) {
       if (error instanceof GroundedAiError) {
         throw error;

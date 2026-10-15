@@ -105,3 +105,31 @@ export const SourceArticleResponseSchema = z
 export type SourceArticleResponse = z.infer<typeof SourceArticleResponseSchema>;
 export type LibraryCatalog = z.infer<typeof LibraryCatalogSchema>;
 export type LibraryArticleListResponse = z.infer<typeof LibraryArticleListResponseSchema>;
+
+/** Small article-image projection, scoped to a single verified message snapshot.
+ * The response intentionally omits copyrighted article prose/HTML and has
+ * strict bounds for same-origin customer bridges.
+ */
+export const BatchSourceImagesRequestSchema = z
+  .object({
+    messageId: z.string().uuid(),
+    sourceIds: z.array(TrustedSourceIdSchema).min(1).max(5).refine(
+      (ids) => new Set(ids).size === ids.length, "Duplicate source IDs",
+    ),
+  })
+  .strict();
+export const BatchSourceImagesResponseSchema = z
+  .object({
+    items: z.array(z.object({
+      sourceId: TrustedSourceIdSchema,
+      articleTitle: z.string().min(1).max(500),
+      sections: z.array(z.object({
+        heading: z.string().min(1).max(300),
+        citedSection: z.boolean(),
+        images: z.array(z.object({src: ImageUrlSchema, alt: z.string().max(250)}).strict()).max(24),
+      }).strict()).max(24),
+    }).strict()).max(5),
+  })
+  .strict();
+export type BatchSourceImagesRequest = z.infer<typeof BatchSourceImagesRequestSchema>;
+export type BatchSourceImagesResponse = z.infer<typeof BatchSourceImagesResponseSchema>;

@@ -123,6 +123,72 @@ describe("Santo five licensed library retrieval", () => {
     expect(evidence[0]?.text).toContain("MEFV");
   });
 
+  it("V2 searches 24 candidates per index with Cloudflare native reranking", async () => {
+    const ns = new FakeAiSearchNamespace(undefined, Object.fromEntries(
+      expectedIds.map((id) => [
+        instanceFor(id),
+        { chunks: Array.from({ length: 15 }, (_, index) => chunk(id, index + 1)) },
+      ]),
+    ));
+    const retrieval = new CloudflareAiSearchRetrieval(ns, undefined, true);
+    const selected = await retrieval.retrieve({ query: "aortic stenosis", libraryId: null });
+    expect(ns.searchInputs).toHaveLength(5);
+    for (const input of ns.searchInputs) {
+      expect(input).toMatchObject({
+        ai_search_options: {
+          retrieval: { retrieval_type: "hybrid", max_num_results: 24 },
+          reranking: { enabled: true, model: "@cf/baai/bge-reranker-base" },
+        },
+      });
+    }
+    expect(selected).toHaveLength(5);
+    expect(new Set(selected.map((source) => source.sourceId)).size).toBe(5);
+  });
+
+  it("V2 can find a disease deep in the list without returning old-topic articles", async () => {
+    const incorrect = Array.from({ length: 11 }, (_, i) => ({
+      ...chunk("amboss", i + 1, 0.98),
+      text: "Aortic stenosis and heart failure; pressure overload of aortic valve.",
+      item: { key: "old-topic.html", metadata: { title: "Aortic stenosis" } },
+    }));
+    const fmf = {
+      ...chunk("amboss", 12, 0.68),
+      text: "Familial Mediterranean fever (FMF) is an autosomal recessive autoinflammatory disorder.",
+      item: {
+        key: "fmf.html",
+        metadata: { title: "Familial Mediterranean fever", section: "Pathogenesis" },
+      },
+    };
+    const ns = new FakeAiSearchNamespace(undefined, { amboss: { chunks: [...incorrect, fmf] } });
+    const selection = await new CloudflareAiSearchRetrieval(ns, undefined, true).retrieve({
+      query:
+        "Prior discussion (untrusted context; use retrieved evidence only):\nAortic stenosis\n" +
+        "Follow-up question:\nbrief summary of FMF",
+      libraryId: null,
+    });
+    expect(selection.map((item) => item.itemKey)).toEqual(["fmf.html"]);
+    expect(ns.searchInputs).toHaveLength(10);
+    expect(ns.searchInputs.every((x) => (x as { query: string }).query === "brief summary of FMF")).toBe(true);
+    expect(ns.searchInputs.slice(5).every((x) =>
+      (x as { ai_search_options: { retrieval: { max_num_results: number } } }).ai_search_options.retrieval.max_num_results === 40
+    )).toBe(true);
+  });
+
+  it("V2 filters to an explicitly authorized library and never searches other indexes", async () => {
+    const ns = new FakeAiSearchNamespace(undefined, {
+      "one-examination-isolated": { chunks: [chunk("one-examination")] },
+    });
+    const found = await new CloudflareAiSearchRetrieval(ns, undefined, true).retrieve({
+      query: "aortic stenosis",
+      libraryId: "one-examination",
+    });
+    expect(found).toHaveLength(1);
+    expect(ns.searchInputs).toHaveLength(1);
+    expect(ns.searchInputs[0]).toMatchObject({
+      ai_search_options: { instance_ids: ["one-examination-isolated"] },
+    });
+  });
+
   it("never manufactures a missing fifth citation or returns a low-score passage", async () => {
     const aiSearch = new FakeAiSearchNamespace(undefined, {
       amboss: { chunks: [chunk("amboss", 1, 0.35)] },

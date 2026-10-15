@@ -44,6 +44,13 @@ export const GroundedAiQueryResponseSchema = z
   })
   .superRefine((response, ctx) => {
     const general = response.groundingMode === "general";
+    if (general && response.citationMode) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["citationMode"],
+        message: "General answers cannot have related Santo source lists",
+      });
+    }
     if (general && response.citations.length !== 0) {
       ctx.addIssue({
         code: "custom",

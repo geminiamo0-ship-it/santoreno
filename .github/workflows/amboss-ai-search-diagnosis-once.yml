@@ -1,0 +1,70 @@
+name: AMBOSS AI Search diagnosis (read-only)
+
+on:
+  push:
+    branches:
+      - diagnostic/amboss-ai-search-readonly-20261015
+    paths:
+      - .github/workflows/amboss-ai-search-diagnosis-once.yml
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    env:
+      CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - name: Read source index health (no content or secrets)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, urllib.request, urllib.error
+          a=os.environ.get('CF_ACCOUNT','')
+          t=os.environ.get('CF_TOKEN','')
+          if not a or not t: raise SystemExit('Cloudflare credentials unavailable; no diagnosis')
+          base=f'https://api.cloudflare.com/client/v4/accounts/{a}/ai-search/namespaces/default'
+          def call(url, body=None):
+            request=urllib.request.Request(
+              url,data=json.dumps(body).encode() if body is not None else None,
+              headers={'Authorization':'Bearer '+t,'Content-Type':'application/json','Accept':'application/json'},
+              method='POST' if body is not None else 'GET'
+            )
+            try:
+              with urllib.request.urlopen(request,timeout=35) as response:
+                payload=json.load(response)
+            except urllib.error.HTTPError as error:
+              print('API_STATUS',error.code)
+              return None
+            if not payload.get('success'): return None
+            return payload.get('result')
+          for lib in ['amboss','usmle','passmedicine','pastest','one-examination-isolated']:
+            stats=call(base+'/instances/'+lib+'/stats')
+            if not isinstance(stats,dict):
+              print('INDEX_UNAVAILABLE',lib)
+              continue
+            fields={k:stats.get(k) for k in ['completed','running','queued','error','skipped']}
+            print('INDEX_STATUS',lib,json.dumps(fields))
+          for selected in [
+            ['amboss'], ['amboss','usmle','passmedicine','pastest','one-examination-isolated']
+          ]:
+            result=call(base+'/search',{
+              'query':'aortic stenosis',
+              'ai_search_options':{
+                'instance_ids':selected,
+                'retrieval':{'retrieval_type':'hybrid','max_num_results':5,'match_threshold':0.4,'return_on_failure':True},
+                'query_rewrite':{'enabled':False}
+              }
+            })
+            if not isinstance(result,dict):
+              print('SEARCH_DIAG_UNAVAILABLE',','.join(selected))
+              continue
+            chunks=result.get('chunks',[])
+            summary=[{'instance_id':c.get('instance_id'),'score':round(float(c.get('score',0)),3)}
+              for c in chunks if isinstance(c,dict)]
+            print('SEARCH_RESULT_METADATA',','.join(selected),json.dumps(summary))
+          PY

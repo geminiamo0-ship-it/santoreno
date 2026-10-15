@@ -65,6 +65,8 @@ SANTO_COMPACT_CITATION_ALIASES_V1 = "true"
 SANTO_PLAIN_TEXT_LUNA_V1 = "true"
 SANTO_COPILOT_ROUTING_V1 = "true"
 SANTO_GENERAL_MEDICAL_FALLBACK = "true"
+# Staging-only rollback switch for precision-first medical retrieval.
+SANTO_MEDICAL_RETRIEVAL_V2 = "true"
 SANTO_AI_SEARCH_INSTANCE_IDS = "amboss,usmle,passmedicine,pastest,one-examination-isolated"
 SANTO_LIBRARY_READER_V1 = "true"
 

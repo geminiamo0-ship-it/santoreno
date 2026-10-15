@@ -11,14 +11,14 @@ const cases = [
   {
     name: "Aortic stenosis mechanism",
     query: "aortic stenosis pathophysiology",
-    expected: /aortic\\s+stenosis/i,
-    wrongTopic: /familial\\s+mediterranean\\s+fever|\\bFMF\\b/i,
+    expected: /aortic\s+stenosis/i,
+    wrongTopic: /familial\s+mediterranean\s+fever|\bFMF\b/i,
   },
   {
     name: "Familial Mediterranean fever",
     query: "Familial Mediterranean fever",
-    expected: /familial\\s+mediterranean\\s+fever|\\bFMF\\b/i,
-    wrongTopic: /aortic\\s+stenosis/i,
+    expected: /familial\s+mediterranean\s+fever|\bFMF\b/i,
+    wrongTopic: /aortic\s+stenosis/i,
   },
 ];
 

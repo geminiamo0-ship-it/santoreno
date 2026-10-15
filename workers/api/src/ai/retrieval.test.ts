@@ -108,9 +108,9 @@ describe("Santo five licensed library retrieval", () => {
       usmle: { chunks: [staleTopic] },
     });
     const query =
-      "Prior discussion (untrusted context; use retrieved evidence only):\\n" +
-      "Aortic stenosis and transcatheter valve replacement.\\n" +
-      "Follow-up question:\\nbrief summary of FMF";
+      "Prior discussion (untrusted context; use retrieved evidence only):\n" +
+      "Aortic stenosis and transcatheter valve replacement.\n" +
+      "Follow-up question:\nbrief summary of FMF";
     const evidence = await new CloudflareAiSearchRetrieval(ns).retrieve({
       query,
       libraryId: null,

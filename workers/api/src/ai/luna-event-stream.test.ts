@@ -93,6 +93,45 @@ describe("native Luna Responses SSE collector", () => {
     await expect(collectLunaEventStream(sse(events), vi.fn())).resolves.toBe(full);
   });
 
+  it("recovers actual completed Markdown deltas if the provider sends empty final fields", async () => {
+    const clinicalText =
+      "## Aortic stenosis\\nValve narrowing causes LV pressure overload.\\nManagement depends on severity.";
+    const events = [
+      { type: "response.output_text.delta", delta: clinicalText },
+      { type: "response.output_text.done", text: "" },
+      {
+        type: "response.completed",
+        response: {
+          status: "completed",
+          output_text: "",
+          output: [{ type: "message", content: [{ type: "output_text", text: "" }] }],
+        },
+      },
+    ];
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    try {
+      await expect(collectLunaEventStream(sse(events), vi.fn(), "plain")).resolves.toBe(
+        clinicalText,
+      );
+      expect(warn).not.toHaveBeenCalledWith(
+        "santo_luna_stream_failure",
+        expect.objectContaining({ stage: "completed_delta_missing_json_end" }),
+      );
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("still fails if completion is missing, even when the final text is blank", async () => {
+    const events = [
+      { type: "response.output_text.delta", delta: "Potential clinical answer." },
+      { type: "response.output_text.done", text: "" },
+    ];
+    await expect(collectLunaEventStream(sse(events), vi.fn(), "plain")).rejects.toMatchObject({
+      code: "MODEL_STREAM_UNFINISHED",
+    });
+  });
+
   it("rejects a provider response declared incomplete even when it contains plausible clinical text", async () => {
     const events = [
       { type: "response.output_text.delta", delta: '{"answer":"partial"}' },

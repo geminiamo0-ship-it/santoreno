@@ -48,7 +48,19 @@ function isNonClinicalReply(answer: string): boolean {
   if (/^(?:could you|can you|please) (?:clarify|specify|name)\b/i.test(normalized)) {
     return true;
   }
-  if (/^(?:hi|hello|hey|thanks|thank you|you(?:'re| are) welcome)[!.,\s؟]*$/i.test(normalized)) {
+  if (
+    /^(?:hi|hello|hey|good morning|good evening|good afternoon|thanks|thank you|you(?:'re| are) welcome)[!.,\s؟]*$/i.test(
+      normalized,
+    )
+  ) {
+    return true;
+  }
+  // Luna's real greeting is often two sentences, not just the literal "Hi!".
+  if (
+    /^(?:hi|hello|hey|good morning|good evening)[!.,\s؟]+(?:what would you like to learn about today\?|how can i help you(?: today)?\?|what can i help you with(?: today)?\?)$/i.test(
+      normalized,
+    )
+  ) {
     return true;
   }
   return /^(?:تقصد (?:أي|اي) (?:مرض|حالة)|(?:ما|ايه) (?:المرض|الحالة) المقصود)/u.test(normalized);

@@ -6,6 +6,12 @@
 >
 > **Rule:** GitHub code, issues, PRs, commits, and Actions are the source of truth. Update this file whenever meaningful work completes, a gate passes/fails, architecture changes, or the active issue changes.
 
+### Staging Luna greeting/source and blank provider finalization regression — 15 October 2026
+
+- Real Royal Bank screenshot after PR #120 rollout: Luna responded `Hi! What would you like to learn about today?` but the social-reply classifier only recognized standalone `Hi!`, causing unrelated retrieved medical library articles and images to be attached. Update exact social-response classification and a regression using the real greeting; **Luna still authors the reply**.
+- The same screenshot shows a long aortic stenosis draft followed by `MODEL_RESPONSE_INVALID`. One possible code path in `collectLunaEventStream` selected empty `response.output_text.done` or `response.completed.response.output_text` over real nonempty deltas. Candidate fix uses the genuine accumulated text only after an explicit provider `response.completed`; empty final fields are ignored. This candidate is not proof that the live error had that cause. Also avoid logging JSON-end warnings for valid plain Markdown and tag actual malformed provider SSE frames.
+- No context changes, automatic retries, extra Luna calls, invented citations, relaxed provider completion, or production core changes. Must pass exact-head tests, staging deploy and eventually authenticated real-world acceptance to establish resolution.
+
 ### Luna-only conversation and browsable source recovery — 15 October 2026 (PR #120)
 
 - User explicitly requested **Luna generates every reply**, including greetings and clarifications. Removed the deterministic quick-reply interceptor from `ConversationAskService`; existing access, quota, same-key retry and ConversationDO state remain server enforced, and the old source-independent contract stays readable for historical turns.

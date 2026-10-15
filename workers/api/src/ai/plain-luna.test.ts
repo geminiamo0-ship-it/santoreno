@@ -68,6 +68,12 @@ describe("staging single-pass plain-Luna citation contract", () => {
       citationIds: [],
       sourcePresentation: "none",
     });
+    const actualGreeting = "Hi! What would you like to learn about today?";
+    expect(parsePlainLunaAnswer(actualGreeting, [sourceA, sourceB])).toEqual({
+      answer: actualGreeting,
+      citationIds: [],
+      sourcePresentation: "none",
+    });
     expect(parsePlainLunaAnswer("General medical teaching.", [])).toEqual({
       answer: "General medical teaching.",
       citationIds: [],

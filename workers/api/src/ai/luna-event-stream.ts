@@ -51,7 +51,9 @@ export function previewStructuredAnswer(json: string): string {
 function completedProviderText(value: unknown): string | null {
   if (typeof value !== "object" || value === null) return null;
   const response = value as Record<string, unknown>;
-  if (typeof response.output_text === "string") return response.output_text;
+  if (typeof response.output_text === "string" && response.output_text.trim()) {
+    return response.output_text;
+  }
   if (!Array.isArray(response.output)) return null;
   const sections: string[] = [];
   for (const entry of response.output) {
@@ -66,7 +68,8 @@ function completedProviderText(value: unknown): string | null {
       }
     }
   }
-  return sections.length ? sections.join("") : null;
+  const text = sections.join("");
+  return text.trim() ? text : null;
 }
 
 /**
@@ -130,6 +133,7 @@ export async function collectLunaEventStream(
     try {
       event = JSON.parse(data);
     } catch {
+      recordStreamFailure("provider_sse_event_invalid", generated.length, observedOutputTokens);
       throw new GroundedAiError(502, "MODEL_RESPONSE_INVALID", "Invalid provider SSE event");
     }
     if (typeof event !== "object" || event === null) return;
@@ -164,7 +168,11 @@ export async function collectLunaEventStream(
         onProgress(preview);
       }
     }
-    if (value.type === "response.output_text.done" && typeof value.text === "string") {
+    if (
+      value.type === "response.output_text.done" &&
+      typeof value.text === "string" &&
+      value.text.trim()
+    ) {
       doneText = value.text;
       completionTextReceived = true;
     }
@@ -249,7 +257,12 @@ export async function collectLunaEventStream(
         "Provider completed without usable text",
       );
     }
-    if (!completionTextReceived && actualText && !actualText.trim().endsWith("}")) {
+    if (
+      previewFormat === "json" &&
+      !completionTextReceived &&
+      actualText &&
+      !actualText.trim().endsWith("}")
+    ) {
       // Do not invent JSON braces or sources to transform a truncated response.
       recordStreamFailure(
         "completed_delta_missing_json_end",

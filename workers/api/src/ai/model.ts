@@ -294,7 +294,10 @@ export class FallbackGroundedModel implements ModelPort {
 }
 
 export function createGroundedModel(
-  env: Pick<SantoBindings, "AI" | "SANTO_AI_MODEL" | "SANTO_ENV" | "SANTO_LUNA_PREVIEW" | "SANTO_SINGLE_PASS_GENERATION_V1">,
+  env: Pick<
+    SantoBindings,
+    "AI" | "SANTO_AI_MODEL" | "SANTO_ENV" | "SANTO_LUNA_PREVIEW" | "SANTO_SINGLE_PASS_GENERATION_V1"
+  >,
 ): ModelPort {
   if (env.SANTO_ENV === "staging" && env.SANTO_LUNA_PREVIEW === "true") {
     // Opt-in cost guard: never generate a second paid model response after

@@ -392,7 +392,7 @@ describe("grounded AI handler", () => {
     }));
     const response = await handler()(request(token), env);
     expect(response.status).toBe(422);
-    expect(await response.json()).toEqual({error:"INSUFFICIENT_EVIDENCE"});
+    expect(await response.json()).toEqual({ error: "INSUFFICIENT_EVIDENCE" });
     expect(model.generate).toHaveBeenCalledTimes(1);
     expect(quota.finalizeCalls).toBe(0);
     expect(quota.releaseCalls).toBe(1);
@@ -411,9 +411,9 @@ describe("grounded AI handler", () => {
     const response = await handler()(request(token), env);
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({
-      groundingMode:"general",
-      citations:[],
-      usage:{unitsCharged:1},
+      groundingMode: "general",
+      citations: [],
+      usage: { unitsCharged: 1 },
     });
     expect(model.generate).toHaveBeenCalledTimes(1);
     expect(quota.finalizeCalls).toBe(1);
@@ -423,9 +423,10 @@ describe("grounded AI handler", () => {
     env.SANTO_ENV = "production";
     env.SANTO_SINGLE_PASS_GENERATION_V1 = "true";
     env.SANTO_GENERAL_MEDICAL_FALLBACK = "true";
-    model.generate = vi.fn()
-      .mockResolvedValueOnce({answer:"INSUFFICIENT_EVIDENCE",citationIds:[]})
-      .mockResolvedValueOnce({answer:"Legacy production general response",citationIds:[]});
+    model.generate = vi
+      .fn()
+      .mockResolvedValueOnce({ answer: "INSUFFICIENT_EVIDENCE", citationIds: [] })
+      .mockResolvedValueOnce({ answer: "Legacy production general response", citationIds: [] });
     const response = await handler()(request(token), env);
     expect(response.status).toBe(200);
     expect(model.generate).toHaveBeenCalledTimes(2);

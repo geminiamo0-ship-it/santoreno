@@ -200,46 +200,60 @@ describe("GPT-6 Luna isolated Santo staging preview", () => {
 describe("Staging cost protection: exactly one paid provider generation per attempt", () => {
   it("uses Luna once and never invokes Llama after a transient Luna error", async () => {
     const ai: WorkersAiLike = {
-      run: vi.fn(async (_model: string) => { throw new Error("provider offline"); }),
+      run: vi.fn(async (_model: string) => {
+        throw new Error("provider offline");
+      }),
     };
     const model = createGroundedModel({
-      AI:ai,
-      SANTO_ENV:"staging",
-      SANTO_LUNA_PREVIEW:"true",
-      SANTO_SINGLE_PASS_GENERATION_V1:"true",
-      SANTO_AI_MODEL:"@cf/test/llama",
+      AI: ai,
+      SANTO_ENV: "staging",
+      SANTO_LUNA_PREVIEW: "true",
+      SANTO_SINGLE_PASS_GENERATION_V1: "true",
+      SANTO_AI_MODEL: "@cf/test/llama",
     });
     expect(model).toBeInstanceOf(CloudflareLunaModel);
-    await expect(model.generate("Medical prompt")).rejects.toMatchObject({code:"MODEL_FAILED"});
+    await expect(model.generate("Medical prompt")).rejects.toMatchObject({ code: "MODEL_FAILED" });
     expect(vi.mocked(ai.run)).toHaveBeenCalledTimes(1);
     expect(vi.mocked(ai.run).mock.calls[0]?.[0]).toBe("openai/gpt-6-luna");
   });
 
   it("does not re-generate after a malformed Luna JSON response", async () => {
     const ai: WorkersAiLike = {
-      run: vi.fn(async () => ({output_text:'{"bad":"output"}'})),
+      run: vi.fn(async () => ({ output_text: '{"bad":"output"}' })),
     };
     const model = createGroundedModel({
-      AI:ai,
-      SANTO_ENV:"staging",
-      SANTO_LUNA_PREVIEW:"true",
-      SANTO_SINGLE_PASS_GENERATION_V1:"true",
-      SANTO_AI_MODEL:"@cf/test/llama",
+      AI: ai,
+      SANTO_ENV: "staging",
+      SANTO_LUNA_PREVIEW: "true",
+      SANTO_SINGLE_PASS_GENERATION_V1: "true",
+      SANTO_AI_MODEL: "@cf/test/llama",
     });
-    await expect(model.generate("Evidence")).rejects.toMatchObject({code:"MODEL_RESPONSE_INVALID"});
+    await expect(model.generate("Evidence")).rejects.toMatchObject({
+      code: "MODEL_RESPONSE_INVALID",
+    });
     expect(vi.mocked(ai.run)).toHaveBeenCalledTimes(1);
   });
 
   it("does not affect production and respects disabled flag", () => {
-    const ai: WorkersAiLike = {run:vi.fn()};
-    expect(createGroundedModel({
-      AI:ai, SANTO_ENV:"production", SANTO_LUNA_PREVIEW:"true",
-      SANTO_SINGLE_PASS_GENERATION_V1:"true", SANTO_AI_MODEL:"@cf/test/llama",
-    })).toBeInstanceOf(CloudflareWorkersAiModel);
-    expect(createGroundedModel({
-      AI:ai, SANTO_ENV:"staging", SANTO_LUNA_PREVIEW:"true",
-      SANTO_SINGLE_PASS_GENERATION_V1:"false", SANTO_AI_MODEL:"@cf/test/llama",
-    })).toBeInstanceOf(FallbackGroundedModel);
+    const ai: WorkersAiLike = { run: vi.fn() };
+    expect(
+      createGroundedModel({
+        AI: ai,
+        SANTO_ENV: "production",
+        SANTO_LUNA_PREVIEW: "true",
+        SANTO_SINGLE_PASS_GENERATION_V1: "true",
+        SANTO_AI_MODEL: "@cf/test/llama",
+      }),
+    ).toBeInstanceOf(CloudflareWorkersAiModel);
+    expect(
+      createGroundedModel({
+        AI: ai,
+        SANTO_ENV: "staging",
+        SANTO_LUNA_PREVIEW: "true",
+        SANTO_SINGLE_PASS_GENERATION_V1: "false",
+        SANTO_AI_MODEL: "@cf/test/llama",
+      }),
+    ).toBeInstanceOf(FallbackGroundedModel);
   });
 });
 

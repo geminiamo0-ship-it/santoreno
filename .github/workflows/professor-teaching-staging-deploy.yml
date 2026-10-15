@@ -1,6 +1,6 @@
 name: Professor Teaching Staging Deploy
 
-# Verified staging-only rollout: preserve one Luna call and finish cited JSON before the output cap.
+# Verified staging-only rollout: private citation aliases with server-side verified source mapping.
 # Ordinary main commits do not redeploy staging; manual reruns remain possible.
 on:
   push:

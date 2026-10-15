@@ -1,0 +1,32 @@
+name: Format Santo Release Status Once
+on:
+  push:
+    branches:
+      - release/santo-medical-rich-prod-candidate-20261014
+    paths:
+      - .github/workflows/format-santo-status-once.yml
+permissions:
+  contents: write
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: release/santo-medical-rich-prod-candidate-20261014
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: corepack enable && pnpm install --frozen-lockfile
+      - name: Format current status and commit
+        run: |
+          set -euo pipefail
+          pnpm exec prettier --write PROJECT_STATUS.md
+          if ! git diff --quiet; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add PROJECT_STATUS.md
+            git commit -m "style(status): format staged Luna SSE validation notes"
+            git push origin HEAD:refs/heads/release/santo-medical-rich-prod-candidate-20261014
+          fi

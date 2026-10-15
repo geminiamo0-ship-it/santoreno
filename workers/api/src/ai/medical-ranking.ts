@@ -69,7 +69,7 @@ export function rankMedicalCandidates(
       const sectionBonus = sectionIntents.some((entry) =>
         entry.section.test(evidence.section ?? ""),
       )
-        ? 1.6
+        ? 2.8
         : sectionIntents.some((entry) => entry.section.test(evidence.text.slice(0, 800)))
           ? 0.25
           : 0;

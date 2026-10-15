@@ -42,7 +42,9 @@ function explicitSubject(question: string): string | null {
     BARE_FOLLOW_UP.test(subject) ||
     CONTEXTUAL.test(subject) ||
     /\b(?:versus|vs|compare|compared|difference|between|my|mine|i|you|your)\b/i.test(subject) ||
-    /^(?:what|why|how|when|where|which|who|is|are|do|does|did|should|can|could|would|will)\b/i.test(subject)
+    /^(?:what|why|how|when|where|which|who|is|are|do|does|did|should|can|could|would|will)\b/i.test(
+      subject,
+    )
   ) {
     return null;
   }
@@ -69,7 +71,11 @@ function latestExplicitSubject(context: string): string | null {
 }
 
 function followUpIntent(question: string): string | null {
-  if (/\b(?:management|treatment|treat|treated|therapy|manage|managed|ttt|mx)\b|العلاج/iu.test(question)) {
+  if (
+    /\b(?:management|treatment|treat|treated|therapy|manage|managed|ttt|mx)\b|العلاج/iu.test(
+      question,
+    )
+  ) {
     return "management and treatment";
   }
   if (/\b(?:diagnosis|diagnose|diagnosed|investigations?|dx)\b|التشخيص/iu.test(question)) {

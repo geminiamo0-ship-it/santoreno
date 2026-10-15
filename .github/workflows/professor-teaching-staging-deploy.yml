@@ -1,6 +1,6 @@
 name: Professor Teaching Staging Deploy
 
-# Verified staging-only rollout: corrected image batch routing, validated sources and compact streams.
+# Verified staging-only rollout: one source per each of five medical libraries and corrected image batch routing.
 # Ordinary main commits do not redeploy staging; manual reruns remain possible.
 on:
   push:

@@ -101,7 +101,12 @@ export function stripInternalCitationLinks(
 export function createLunaCitationAliases(
   prompt: string,
   verifiedSourceIds: readonly string[] | undefined,
-): {prompt: string; modelCitationIds: readonly string[] | undefined; resolve: (id: string) => string; privateIds: string[]} {
+): {
+  prompt: string;
+  modelCitationIds: readonly string[] | undefined;
+  resolve: (id: string) => string;
+  privateIds: string[];
+} {
   if (!verifiedSourceIds?.length) {
     return { prompt, modelCitationIds: verifiedSourceIds, resolve: (id) => id, privateIds: [] };
   }
@@ -109,12 +114,15 @@ export function createLunaCitationAliases(
   const mapping = new Map(aliases.map((alias, index) => [alias, verifiedSourceIds[index]!]));
   let sanitizedPrompt = prompt;
   // Sort longest first so an unusual ID that prefixes another is not partly replaced.
-  for (const [id, alias] of verifiedSourceIds.map((id, i) => [id, aliases[i]!] as const)
+  for (const [id, alias] of verifiedSourceIds
+    .map((id, i) => [id, aliases[i]!] as const)
     .sort((a, b) => b[0].length - a[0].length)) {
     sanitizedPrompt = sanitizedPrompt.split(id).join(alias);
   }
   return {
-    prompt: sanitizedPrompt + "\\nOnly refer to evidence using its temporary SANTO_REF_N labels. Put labels inside citation_ids only, never in the answer prose.",
+    prompt:
+      sanitizedPrompt +
+      "\\nOnly refer to evidence using its temporary SANTO_REF_N labels. Put labels inside citation_ids only, never in the answer prose.",
     modelCitationIds: aliases,
     resolve: (id: string) => mapping.get(id) ?? id,
     privateIds: [...verifiedSourceIds, ...aliases],
@@ -380,7 +388,12 @@ export class FallbackGroundedModel implements ModelPort {
 export function createGroundedModel(
   env: Pick<
     SantoBindings,
-    "AI" | "SANTO_AI_MODEL" | "SANTO_ENV" | "SANTO_LUNA_PREVIEW" | "SANTO_SINGLE_PASS_GENERATION_V1" | "SANTO_COMPACT_CITATION_ALIASES_V1"
+    | "AI"
+    | "SANTO_AI_MODEL"
+    | "SANTO_ENV"
+    | "SANTO_LUNA_PREVIEW"
+    | "SANTO_SINGLE_PASS_GENERATION_V1"
+    | "SANTO_COMPACT_CITATION_ALIASES_V1"
   >,
 ): ModelPort {
   if (env.SANTO_ENV === "staging" && env.SANTO_LUNA_PREVIEW === "true") {
@@ -388,10 +401,7 @@ export function createGroundedModel(
     // Luna returns malformed output or an upstream failure. Callers receive
     // an explicit error and retain the same-key recovery path.
     if (env.SANTO_SINGLE_PASS_GENERATION_V1 === "true") {
-      return new CloudflareLunaModel(
-        env.AI,
-        env.SANTO_COMPACT_CITATION_ALIASES_V1 === "true",
-      );
+      return new CloudflareLunaModel(env.AI, env.SANTO_COMPACT_CITATION_ALIASES_V1 === "true");
     }
     return new FallbackGroundedModel(
       new CloudflareLunaModel(env.AI),

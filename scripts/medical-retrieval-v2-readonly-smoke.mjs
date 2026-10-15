@@ -45,9 +45,7 @@ async function readOnlySearch(index, query, v2) {
           match_threshold: 0.4,
           max_num_results: v2 ? 24 : 3,
         },
-        ...(v2
-          ? { reranking: { enabled: true, model: "@cf/baai/bge-reranker-base" } }
-          : {}),
+        ...(v2 ? { reranking: { enabled: true, model: "@cf/baai/bge-reranker-base" } } : {}),
       },
     }),
     signal: AbortSignal.timeout(45000),
@@ -123,4 +121,6 @@ if (process.env.GITHUB_STEP_SUMMARY) {
   const { appendFile } = await import("node:fs/promises");
   await appendFile(process.env.GITHUB_STEP_SUMMARY, summary);
 }
-process.stdout.write("Read-only Cloudflare search smoke completed for 2 topics across 5 allowed instances.\n");
+process.stdout.write(
+  "Read-only Cloudflare search smoke completed for 2 topics across 5 allowed instances.\n",
+);

@@ -70,6 +70,7 @@ export interface SantoBindings {
   SANTO_AI_MODEL?: string;
   SANTO_LUNA_PREVIEW?: string;
   SANTO_SINGLE_PASS_GENERATION_V1?: string;
+  SANTO_COMPACT_CITATION_ALIASES_V1?: string;
   SANTO_NATIVE_STREAMING_V1?: string;
   SANTO_AI_SEARCH_INSTANCE_IDS?: string;
   SANTO_COPILOT_ROUTING_V1?: string;

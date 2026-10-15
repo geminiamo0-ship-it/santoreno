@@ -102,6 +102,7 @@ export function stripInternalCitationLinks(
 export function createLunaCitationAliases(
   prompt: string,
   verifiedSourceIds: readonly string[] | undefined,
+  format: "json" | "markdown" = "json",
 ): {
   prompt: string;
   modelCitationIds: readonly string[] | undefined;
@@ -123,7 +124,9 @@ export function createLunaCitationAliases(
   return {
     prompt:
       sanitizedPrompt +
-      "\\nOnly refer to evidence using its temporary SANTO_REF_N labels. Put labels inside citation_ids only, never in the answer prose.",
+      (format === "markdown"
+        ? "\nOnly use temporary SANTO_REF_N labels to identify real evidence. Cite a supported statement as [[N]], using the N from its source label. Never print source labels, raw IDs or JSON fields."
+        : "\nOnly refer to evidence using its temporary SANTO_REF_N labels. Put labels inside citation_ids only, never in the answer prose."),
     modelCitationIds: aliases,
     resolve: (id: string) => mapping.get(id) ?? id,
     privateIds: [...verifiedSourceIds, ...aliases],
@@ -286,7 +289,11 @@ export class CloudflareLunaModel implements ModelPort {
     }
     try {
       const citations = this.compactCitationAliases
-        ? createLunaCitationAliases(prompt, allowedCitationIds)
+        ? createLunaCitationAliases(
+            prompt,
+            allowedCitationIds,
+            this.plainTextOutput ? "markdown" : "json",
+          )
         : {
             prompt,
             modelCitationIds: allowedCitationIds,

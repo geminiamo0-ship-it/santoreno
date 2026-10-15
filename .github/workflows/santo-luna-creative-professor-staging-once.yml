@@ -1,0 +1,74 @@
+name: Santo Luna Source-Informed Professor — Staging Rollout
+
+on:
+  push:
+    branches: [feat/96-luna-creative-medical-synthesis-20261015]
+    paths: [.github/workflows/santo-luna-creative-professor-staging-once.yml]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: santo-pilot-staging-deploy
+  cancel-in-progress: false
+
+jobs:
+  verify-and-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      WORKER_URL: https://santo-api-staging.geminiamo0.workers.dev
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - name: Exact-source lint, tests, typecheck, build, smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm exec oxlint .
+          pnpm exec prettier --check workers/api/src/ai/prompt.ts workers/api/src/ai/prompt.test.ts workers/api/src/ai/model.ts workers/api/src/ai/model.test.ts
+          pnpm typecheck
+          pnpm test
+          pnpm build
+          pnpm smoke
+      - name: Funded synthetic Luna response with evidence plus explanatory medical knowledge
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_ACCOUNT_ID" && test -n "$CLOUDFLARE_API_TOKEN"
+          cat > "$RUNNER_TEMP/creative-prompt.json" <<'JSON'
+          {"model":"openai/gpt-6-luna","input":"STUDENT QUESTION: Explain the mechanism of exertional dyspnea in aortic stenosis for medical education. EVIDENCE_JSON: [{\"source_id\":\"training:as-1\",\"text\":\"Aortic stenosis produces left ventricular pressure overload; symptoms include exertional dyspnea.\"}]. Teach causally, and distinguish any additional foundational medical knowledge from the provided evidence. Do not invent source references. Explain briefly for a synthetic test.","instructions":"You are a professor-grade medical educator. Retrieved snippets anchor attribution, but stable basic medical knowledge may enrich conceptual explanations. Never imply the retrieved snippet verified extra facts. Return only structured JSON with genuine source IDs.","max_output_tokens":600,"reasoning":{"effort":"none"},"service_tier":"fast","store":false,"text":{"format":{"type":"json_schema","name":"santo_grounded","strict":true,"schema":{"type":"object","properties":{"answer":{"type":"string"},"citation_ids":{"type":"array","items":{"type":"string","enum":["training:as-1"]},"minItems":1,"maxItems":1}},"required":["answer","citation_ids"],"additionalProperties":false}}}}
+          JSON
+          http="$(curl --silent --show-error --max-time 95 --output "$RUNNER_TEMP/creative-result.json" --write-out '%{http_code}' -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" -H 'Content-Type: application/json' --data-binary @"$RUNNER_TEMP/creative-prompt.json" "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/ai/v1/responses")"
+          echo "LUNA_CREATIVE_PROVIDER_HTTP=$http"
+          test "$http" = 200
+          jq -er '[.output[]? | select(.type=="message") | .content[]? | select(.type=="output_text") | .text] | first' "$RUNNER_TEMP/creative-result.json" | jq -e '(.citation_ids == ["training:as-1"]) and (.answer | type=="string" and length > 80)' >/dev/null
+          echo 'LUNA_CREATIVE_JSON_GATE=PASS'
+      - name: Deploy unchanged Santo Staging only
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd workers/api
+          pnpm exec wrangler deploy --env staging --keep-vars
+      - name: Health and protected SSE route
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 30); do
+            health="$(curl --silent --show-error "$WORKER_URL/health" || true)"
+            if jq -e '.service=="santo-api" and .status=="ok"' <<<"$health" >/dev/null 2>&1; then break; fi
+            sleep 2
+          done
+          jq -e '.service=="santo-api" and .status=="ok"' <<<"$health" >/dev/null
+          status="$(curl -sS -o /dev/null -w '%{http_code}' -X POST "$WORKER_URL/v1/conversations/11111111-1111-4111-8111-111111111111/ask" -H 'Accept: text/event-stream' -H 'Content-Type: application/json' -d '{"idempotencyKey":"synthetic-check","expectedSequence":0,"text":"test"}')"
+          test "$status" = 401
+          echo "SANTO_CREATIVE_STAGING_DEPLOY_SHA=$GITHUB_SHA"
+      - name: Clean synthetic test data
+        if: always()
+        run: rm -f "$RUNNER_TEMP/creative-prompt.json" "$RUNNER_TEMP/creative-result.json"

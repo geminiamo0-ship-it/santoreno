@@ -1,6 +1,12 @@
 name: Santo Medical Retrieval v2 Read-only Smoke
 
 on:
+  push:
+    branches:
+      - release/santo-medical-rich-prod-candidate-20261014
+    paths:
+      - .github/workflows/medical-retrieval-v2-readonly-smoke.yml
+      - scripts/medical-retrieval-v2-readonly-smoke.mjs
   workflow_dispatch:
 
 permissions:

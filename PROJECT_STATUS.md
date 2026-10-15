@@ -6,6 +6,14 @@
 >
 > **Rule:** GitHub code, issues, PRs, commits, and Actions are the source of truth. Update this file whenever meaningful work completes, a gate passes/fails, architecture changes, or the active issue changes.
 
+### Medical Retrieval v2 — first runtime implementation (Issue #123 / PR #125) — 15 October 2026
+
+- User approved maximum-quality **Cloudflare-only** clinical search. First staging-flagged slice in PR #125: per-library Hybrid/RRF candidate breadth **24**, Cloudflare AI Search native reranking `@cf/baai/bge-reranker-base`, section-intent-sensitive cross-library evidence ranking, max two chunks per source article and **no fixed one-result-per-library quota**. If fewer than three relevant sources survive, a second staged search expands up to **40 candidates** per selected authorized library at 0.25 minimum similarity. Max **10 AI Search operations** per all-library question, below the approved ceiling of 15. No second Luna answer generation.
+- `SANTO_MEDICAL_RETRIEVAL_V2=true` applies only where `SANTO_ENV=staging`. Production and legacy retrieval remain untouched. Rollback by disabling staging variable (and redeploying), or reverting staged commit; preserve all five index IDs, original R2 content, authorized citations, existing source cards and ConversationDO context.
+- Source matching and section priority are deterministic after **native Cloudflare per-index reranking**. Their effectiveness across medical languages and synonyms is **not yet independently benchmarked**; tests are synthetic. The requested 100–200 manually reviewed gold-set, cross-lingual synonym query expansion, source accuracy and paid real-world browser acceptance remain pending.
+- Companion Royal Bank image-quality draft PR #128 moves illustration selection toward matching actual article-image alt and source-section to the exact answer section, excludes shock/complication images from mechanism explanations and deduplicates matching caption text. Standalone index/image embeddings are NOT introduced. Await its separate CI and preview acceptance before production.
+- As of this note, the implementation is **not a proven production-quality release**. Issue #58 stays open; AMBOSS indexing recovery #109 remains a separate issue. No index reset, no bulk ingestion.
+
 ### Real FMF source contamination after aortic stenosis — 15 October 2026 (PR #122)
 
 - Real Royal Bank screenshot: fresh student prompt requesting Familial Mediterranean fever (FMF) surfaced TAVR/aortic stenosis illustrations and unrelated article cards despite correct prose. Root-causes: conversation `effectiveQuery` (with previous topic) was sent unmodified to each AI Search index; retrieval also forced a top-1 passage from **each** of five indexes on semantic score alone; staging `citationMode: related` then attached all five to an answer even when the model had not cited those articles, triggering image injection in Royal Bank.

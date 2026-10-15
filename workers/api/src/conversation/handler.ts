@@ -128,16 +128,23 @@ export function createConversationHandler(deps: ConversationHandlerDependencies 
         // Provider-native progressive text is a Staging-only opt-in. Drafts
         // are never portrayed as verified, sourced or charged until completion.
         if (acceptsSse && env.SANTO_ENV === "staging" && env.SANTO_NATIVE_STREAMING_V1 === "true") {
-          return streamProvisionalConversationAnswer((onDraft) =>
-            askService(client).ask(
-              actor,
-              selected.conversationId,
-              parsed.data,
-              request.headers.get("authorization") ?? "",
-              env,
-              request.signal,
-              onDraft,
-            ),
+          // Only an opt-in client receives draft_delta frames; existing consumers
+          // keep the original cumulative-draft SSE contract unchanged.
+          const draftFormat = (request.headers.get("accept") ?? "").includes("santo-draft=delta")
+            ? "delta"
+            : "cumulative";
+          return streamProvisionalConversationAnswer(
+            (onDraft) =>
+              askService(client).ask(
+                actor,
+                selected.conversationId,
+                parsed.data,
+                request.headers.get("authorization") ?? "",
+                env,
+                request.signal,
+                onDraft,
+              ),
+            draftFormat,
           );
         }
         const answer = await askService(client).ask(

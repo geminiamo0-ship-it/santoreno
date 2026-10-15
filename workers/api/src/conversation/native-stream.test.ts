@@ -68,6 +68,47 @@ describe("native provisional conversation SSE (staging only)", () => {
     expect(frames).toEqual([{ type: "error", code: "SANTO_UNAVAILABLE" }]);
   });
 
+  it("streams 12k characters in compact deltas without exceeding the Royal client 300KB budget", async () => {
+    const final = "a".repeat(12000);
+    const stream = streamProvisionalConversationAnswer(async (emit) => {
+      // Simulates provider emitting very small cumulative tokens.
+      for (let length = 5; length <= final.length; length += 5) {
+        emit(final.slice(0, length));
+      }
+      return { ...answer, answer: final };
+    }, "delta");
+    const raw = await stream.text();
+    expect(new TextEncoder().encode(raw).length).toBeLessThan(300_000);
+    const frames = events(raw);
+    expect(frames[0]).toEqual({ type: "draft", text: "aaaaa" });
+    expect(frames.some((event) => event.type === "draft_delta")).toBe(true);
+    let preview = "";
+    for (const event of frames) {
+      if (event.type === "draft") preview = event.text ?? "";
+      if (event.type === "draft_delta") preview += event.text ?? "";
+    }
+    expect(preview).toBe(final);
+    expect(frames.at(-1)?.type).toBe("complete");
+  });
+
+  it("resets the delta stream when fallback withdraws its previous draft", async () => {
+    const stream = streamProvisionalConversationAnswer(async (emit) => {
+      emit("first");
+      emit("first half");
+      emit("");
+      emit("replacement");
+      return answer;
+    }, "delta");
+    const frames = events(await stream.text());
+    expect(frames.slice(0, 4)).toEqual([
+      { type: "draft", text: "first" },
+      { type: "draft_delta", text: " half" },
+      { type: "draft", text: "" },
+      { type: "draft", text: "replacement" },
+    ]);
+    expect(frames.at(-1)?.type).toBe("complete");
+  });
+
   it("does not double-emit duplicate cumulative provider drafts", async () => {
     const stream = streamProvisionalConversationAnswer(async (emit) => {
       emit("same");

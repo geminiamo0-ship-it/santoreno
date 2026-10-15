@@ -6,6 +6,7 @@ on:
   push:
     branches:
       - main
+      - release/santo-medical-rich-prod-candidate-20261014
     paths:
       - .github/workflows/professor-teaching-staging-deploy.yml
   workflow_dispatch:

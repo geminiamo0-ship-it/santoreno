@@ -261,8 +261,8 @@ export class CloudflareLunaModel implements ModelPort {
               ? "completed_json_invalid"
               : "completed_json_contract_invalid",
             outputChars: text.length,
-            hasAnswerField: /"answer"\\s*:/.test(text),
-            hasCitationField: /"citation_ids"\\s*:/.test(text),
+            hasAnswerField: /"answer"\s*:/.test(text),
+            hasCitationField: /"citation_ids"\s*:/.test(text),
             endsWithClosingBrace: text.trimEnd().endsWith("}"),
           });
         }

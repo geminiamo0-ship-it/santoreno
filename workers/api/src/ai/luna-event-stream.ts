@@ -286,7 +286,8 @@ export async function collectLunaEventStream(
     }
     // The terminal preview is still PROVISIONAL; only the subsequent verified
     // conversation completion can mark the answer final and show citations.
-    const finalPreview = previewFormat === "plain" ? actualText : previewStructuredAnswer(actualText);
+    const finalPreview =
+      previewFormat === "plain" ? actualText : previewStructuredAnswer(actualText);
     if (finalPreview && finalPreview !== lastPreview) onProgress(finalPreview);
     return actualText;
   } finally {

@@ -14,7 +14,7 @@ const catalogItems = expectedIds.map((id) => ({
 function chunk(id: string, index = 1, score = 0.91) {
   return {
     id: "chunk-" + id + "-" + index,
-    text: id + " evidence " + index,
+    text: id + " evidence " + index + " about aortic stenosis, ECG and sodium.",
     score,
     instance_id: instanceFor(id),
     item: {
@@ -87,6 +87,40 @@ describe("Santo five licensed library retrieval", () => {
       libraryId: "one-examination",
       instanceId: "one-examination-isolated",
     });
+  });
+
+  it("does not carry over aortic stenosis articles when user switches to FMF", async () => {
+    const previousTopic = chunk("amboss", 1, 0.99);
+    const newTopic = {
+      ...chunk("amboss", 2, 0.86),
+      text: "Familial Mediterranean fever is associated with mutations in MEFV and recurrent fever.",
+      item: {
+        key: "medical-search/v1/amboss/article/fmf.md",
+        metadata: { title: "Familial Mediterranean fever", section: "Pathophysiology" },
+      },
+    };
+    const staleTopic = {
+      ...chunk("usmle", 1, 0.97),
+      text: "Aortic stenosis: calcification of the aortic valve.",
+    };
+    const ns = new FakeAiSearchNamespace(undefined, {
+      amboss: { chunks: [previousTopic, newTopic] },
+      usmle: { chunks: [staleTopic] },
+    });
+    const query =
+      "Prior discussion (untrusted context; use retrieved evidence only):\\n" +
+      "Aortic stenosis and transcatheter valve replacement.\\n" +
+      "Follow-up question:\\nbrief summary of FMF";
+    const evidence = await new CloudflareAiSearchRetrieval(ns).retrieve({
+      query,
+      libraryId: null,
+    });
+    expect(ns.searchInputs).toHaveLength(5);
+    for (const input of ns.searchInputs) {
+      expect(input).toMatchObject({ query: "brief summary of FMF" });
+    }
+    expect(evidence.map((x) => x.title)).toEqual(["Familial Mediterranean fever"]);
+    expect(evidence[0]?.text).toContain("MEFV");
   });
 
   it("never manufactures a missing fifth citation or returns a low-score passage", async () => {

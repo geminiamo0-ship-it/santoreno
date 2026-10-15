@@ -6,6 +6,14 @@
 >
 > **Rule:** GitHub code, issues, PRs, commits, and Actions are the source of truth. Update this file whenever meaningful work completes, a gate passes/fails, architecture changes, or the active issue changes.
 
+### Luna output ceiling 10,000 tokens — 16 October 2026 (Issue #128, staging candidate)
+
+- User approved raising **Luna's response maximum** to **10,000 output tokens**, not retrieval input tokens and not a mandatory long answer. Legacy Cloudflare Workers AI production model stays at 5,000 tokens. One Luna answer-generating inference attempt per request, no paid automatic fallback.
+- Staging candidate sets Responses `max_output_tokens=10000`; removes obsolete JSON instruction to budget only 2600 narrative tokens, while still requiring completion, valid model-owned citations and bounded server validation.
+- Long responses require adjusting the backend SSE accumulated-character and byte caps to 120k/2 MB and *batching provisional draft updates* instead of flooding the browser with thousands of per-token frames. Correct answer and sources are displayed only after provider `response.completed`, verified citations, quota and persisted conversation finalization.
+- Staging-only Luna model timeout becomes 180 seconds. Royal Bank companion Preview extends only the authenticated conversation SSE fetch to 210 seconds, Vercel bridge function to 240 seconds, the accumulated draft cap to 120k characters and client SSE safety limit to 1 MB. Legacy production model policies unchanged. These are runtime configuration changes, NOT evidence that live Luna will generate 10k tokens reliably.
+- Regression gates: token request shape, 70k-character byte-split provider SSE, source completion, cross-provider failure behavior, browser 70k-character draft accumulation, exact-head CI, Staging health/auth denial and authorized real medical test before production. No index/resync/R2 mutations.
+
 ### Medical Retrieval v2 — first runtime implementation (Issue #123 / PR #125) — 15 October 2026
 
 - User approved maximum-quality **Cloudflare-only** clinical search. First staging-flagged slice in PR #125: per-library Hybrid/RRF candidate breadth **24**, Cloudflare AI Search native reranking `@cf/baai/bge-reranker-base`, section-intent-sensitive cross-library evidence ranking, max two chunks per source article and **no fixed one-result-per-library quota**. If fewer than three relevant sources survive, a second staged search expands up to **40 candidates** per selected authorized library at 0.25 minimum similarity. Max **10 AI Search operations** per all-library question, below the approved ceiling of 15. No second Luna answer generation.

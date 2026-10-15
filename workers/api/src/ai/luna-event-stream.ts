@@ -2,6 +2,12 @@ import { GroundedAiError } from "./errors";
 
 type Progress = (provisionalAnswer: string) => void;
 
+// Bounded separately from the number of *tokens* requested from Luna.
+// A 10k-token answer may exceed 64k characters or 160k bytes of SSE framing.
+export const LUNA_MAX_GENERATED_CHARS = 120_000;
+export const LUNA_MAX_PROVIDER_SSE_BYTES = 2_000_000;
+const MIN_PREVIEW_INCREMENT_CHARS = 128;
+
 function streamBody(value: unknown): ReadableStream<Uint8Array> | null {
   if (value instanceof ReadableStream) return value as ReadableStream<Uint8Array>;
   if (value instanceof Response && value.body) return value.body;
@@ -33,7 +39,7 @@ export function previewStructuredAnswer(json: string): string {
   while (quoted.length) {
     try {
       const answer: unknown = JSON.parse('"' + quoted + '"');
-      return typeof answer === "string" ? answer.slice(0, 12000) : "";
+      return typeof answer === "string" ? answer.slice(0, LUNA_MAX_GENERATED_CHARS) : "";
     } catch {
       quoted = quoted.slice(0, -1);
     }
@@ -156,14 +162,22 @@ export async function collectLunaEventStream(
     }
     if (value.type === "response.output_text.delta" && typeof value.delta === "string") {
       generated += value.delta;
-      if (generated.length > 64000) {
+      if (generated.length > LUNA_MAX_GENERATED_CHARS) {
         throw new GroundedAiError(502, "MODEL_RESPONSE_INVALID", "Provider output exceeds limit");
       }
       // Plain Markdown uses the same SSE parser and completion checks,
       // but does not depend on an enclosing JSON string to show its draft.
       const preview =
-        previewFormat === "plain" ? generated.slice(0, 12000) : previewStructuredAnswer(generated);
-      if (preview && preview !== lastPreview) {
+        previewFormat === "plain"
+          ? generated.slice(0, LUNA_MAX_GENERATED_CHARS)
+          : previewStructuredAnswer(generated);
+      // The browser receives delta SSE. Batch tiny model deltas to avoid
+      // thousands of frame headers and keep a 10k-token answer under its
+      // bounded network limit. Flush the final tail on response.completed.
+      if (
+        preview &&
+        (lastPreview === "" || preview.length - lastPreview.length >= MIN_PREVIEW_INCREMENT_CHARS)
+      ) {
         lastPreview = preview;
         onProgress(preview);
       }
@@ -233,7 +247,7 @@ export async function collectLunaEventStream(
       const next = await reader.read();
       if (next.done) break;
       bytes += next.value.byteLength;
-      if (bytes > 160000) {
+      if (bytes > LUNA_MAX_PROVIDER_SSE_BYTES) {
         throw new GroundedAiError(502, "MODEL_RESPONSE_INVALID", "Oversized provider SSE");
       }
       appendChunk(decoder.decode(next.value, { stream: true }));
@@ -249,7 +263,7 @@ export async function collectLunaEventStream(
       throw new GroundedAiError(502, "MODEL_STREAM_UNFINISHED", "Provider stream unfinished");
     }
     const actualText = completedText ?? doneText ?? generated;
-    if (!actualText || actualText.length > 64000) {
+    if (!actualText || actualText.length > LUNA_MAX_GENERATED_CHARS) {
       recordStreamFailure("completed_without_usable_text", generated.length, observedOutputTokens);
       throw new GroundedAiError(
         502,
@@ -270,6 +284,11 @@ export async function collectLunaEventStream(
         observedOutputTokens,
       );
     }
+    // The terminal preview is still PROVISIONAL; only the subsequent verified
+    // conversation completion can mark the answer final and show citations.
+    const finalPreview =
+      previewFormat === "plain" ? actualText : previewStructuredAnswer(actualText);
+    if (finalPreview && finalPreview !== lastPreview) onProgress(finalPreview);
     return actualText;
   } finally {
     reader.releaseLock();

@@ -122,6 +122,36 @@ describe("native Luna Responses SSE collector", () => {
     }
   });
 
+  it("preserves long Luna teaching over the previous SSE byte/character limits with batched previews", async () => {
+    const full = "A".repeat(70_000);
+    const chunks = Array.from({ length: Math.ceil(full.length / 16) }, (_, index) => ({
+      type: "response.output_text.delta",
+      delta: full.slice(index * 16, index * 16 + 16),
+    }));
+    const stream = sse(
+      [...chunks, { type: "response.completed", response: { status: "completed" } }],
+      4096,
+    );
+    const progress = vi.fn();
+    await expect(collectLunaEventStream(stream, progress, "plain")).resolves.toBe(full);
+    expect(progress.mock.calls.at(-1)?.[0]).toBe(full);
+    expect(progress.mock.calls.length).toBeLessThan(1000);
+    expect(progress.mock.calls.length).toBeGreaterThan(20);
+  });
+
+  it("still refuses provider SSE exceeding the bounded 10k-token text budget", async () => {
+    const stream = sse(
+      [
+        { type: "response.output_text.delta", delta: "A".repeat(120_001) },
+        { type: "response.completed", response: { status: "completed" } },
+      ],
+      4096,
+    );
+    await expect(collectLunaEventStream(stream, vi.fn(), "plain")).rejects.toMatchObject({
+      code: "MODEL_RESPONSE_INVALID",
+    });
+  });
+
   it("still fails if completion is missing, even when the final text is blank", async () => {
     const events = [
       { type: "response.output_text.delta", delta: "Potential clinical answer." },

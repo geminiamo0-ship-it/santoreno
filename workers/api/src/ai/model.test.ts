@@ -10,6 +10,7 @@ import {
   createGroundedModel,
   GROUNDED_MODEL_POLICY,
   LUNA_STAGING_COMPLETION_BUDGET,
+  LUNA_MAX_OUTPUT_TOKENS,
   groundedSchemaForCitationIds,
   stripInternalCitationLinks,
   createLunaCitationAliases,
@@ -158,7 +159,7 @@ describe("GPT-6 Luna isolated Santo staging preview", () => {
         reasoning: { effort: "none" },
         service_tier: "fast",
         store: false,
-        max_output_tokens: 5000,
+        max_output_tokens: LUNA_MAX_OUTPUT_TOKENS,
         text: expect.objectContaining({
           format: expect.objectContaining({ type: "json_schema", strict: true }),
         }),
@@ -444,7 +445,7 @@ describe("strict server-bound citation schema regression", () => {
     );
   });
 
-  it("keeps a fixed single-pass output budget without buying additional model tokens", async () => {
+  it("uses the enlarged Luna output ceiling with one provider call and fully closed JSON", async () => {
     const ai: WorkersAiLike = {
       run: vi.fn(async () => ({
         output_text:
@@ -457,12 +458,14 @@ describe("strict server-bound citation schema regression", () => {
     expect(ai.run).toHaveBeenCalledWith(
       "openai/gpt-6-luna",
       expect.objectContaining({
-        max_output_tokens: 5000,
+        max_output_tokens: LUNA_MAX_OUTPUT_TOKENS,
         text: { format: expect.objectContaining({ type: "json_schema", strict: true }) },
         instructions: expect.stringContaining(LUNA_STAGING_COMPLETION_BUDGET),
       }),
     );
-    expect(LUNA_STAGING_COMPLETION_BUDGET).toContain("finish JSON immediately");
+    expect(LUNA_MAX_OUTPUT_TOKENS).toBe(10_000);
+    expect(GROUNDED_MODEL_POLICY.maxTokens).toBe(5_000);
+    expect(LUNA_STAGING_COMPLETION_BUDGET).toContain("finalize the JSON immediately");
     expect(LUNA_STAGING_COMPLETION_BUDGET).toContain("citation_ids");
   });
 

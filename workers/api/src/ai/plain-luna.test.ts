@@ -119,7 +119,7 @@ describe("staging single-pass plain-Luna citation contract", () => {
     };
     expect(payload.text).toBeUndefined();
     expect(payload.stream).toBe(true);
-    expect(payload.max_output_tokens).toBe(5000);
+    expect(payload.max_output_tokens).toBe(10_000);
     expect(payload.instructions).toContain("Respond in readable Markdown, never JSON");
     expect(payload.input).toContain("SANTO_REF_1");
     expect(payload.input).toContain("Cite a supported statement as [[N]]");

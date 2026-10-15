@@ -10,6 +10,7 @@ import { SessionError, SessionExchangeService } from "../session/service";
 import { SantoSessionTokenService, SessionTokenError } from "../session/token";
 import { D1TenantRepository, type TenantRepository } from "../tenancy/repository";
 import { GroundedAiError } from "./errors";
+import { AI_STAGE_TIMEOUTS } from "./deadline";
 import { AiSearchNamespaceLibraryCatalog } from "./library-catalog";
 import { createGroundedModel } from "./model";
 import { CloudflareAiSearchRetrieval } from "./retrieval";
@@ -115,7 +116,10 @@ export function createGroundedAiHandler(dependencies: GroundedAiHandlerDependenc
         modelFactory(env),
         telemetryFactory(env),
         undefined,
-        dependencies.stageTimeouts,
+        dependencies.stageTimeouts ??
+          (env.SANTO_ENV === "staging" && env.SANTO_LUNA_PREVIEW === "true"
+            ? { ...AI_STAGE_TIMEOUTS, modelMs: 180_000 }
+            : undefined),
         sourceStoreFactory(env),
         env.SANTO_GENERAL_MEDICAL_FALLBACK === "true",
         env.SANTO_ENV === "staging" && env.SANTO_SINGLE_PASS_GENERATION_V1 === "true",

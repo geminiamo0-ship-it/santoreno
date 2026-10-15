@@ -9,6 +9,7 @@ import {
   FallbackGroundedModel,
   createGroundedModel,
   GROUNDED_MODEL_POLICY,
+  LUNA_STAGING_COMPLETION_BUDGET,
   groundedSchemaForCitationIds,
   stripInternalCitationLinks,
 } from "./model";
@@ -356,6 +357,22 @@ describe("strict server-bound citation schema regression", () => {
     expect(() => groundedSchemaForCitationIds(["a", "b", "c", "d", "e", "f"])).toThrowError(
       "Invalid verified source references",
     );
+  });
+
+  it("keeps a fixed single-pass output budget without buying additional model tokens", async () => {
+    const ai: WorkersAiLike = {run:vi.fn(async () => ({
+      output_text:'{"answer":"Relevant mechanisms and management.","citation_ids":["amboss:chunk-123"]}',
+    }))};
+    const model = new CloudflareLunaModel(ai);
+    await model.generate("Aortic stenosis", undefined, trusted);
+    expect(ai.run).toHaveBeenCalledTimes(1);
+    expect(ai.run).toHaveBeenCalledWith("openai/gpt-6-luna", expect.objectContaining({
+      max_output_tokens:5000,
+      text: {format: expect.objectContaining({type:"json_schema",strict:true})},
+      instructions: expect.stringContaining(LUNA_STAGING_COMPLETION_BUDGET),
+    }));
+    expect(LUNA_STAGING_COMPLETION_BUDGET).toContain("finish JSON immediately");
+    expect(LUNA_STAGING_COMPLETION_BUDGET).toContain("citation_ids");
   });
 
   it("supplies the same verified source enum to Luna's strict schema", async () => {

@@ -5,6 +5,7 @@ name: Professor Teaching Staging Deploy
 # PR #121 follow-up: fix source-free Luna greetings and fallback to nonempty completed SSE deltas.
 # PR #122: exclude stale conversation topics and mismatched disease article sources (FMF/Aortic regression).
 # PR #125: gated v2 native reranking, clinical section priority and larger candidate pool.
+# Updated Luna native long-answer parser rollout.
 # Ordinary main commits do not redeploy staging; manual reruns remain possible.
 on:
   push:

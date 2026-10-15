@@ -1,4 +1,4 @@
-name: Diagnose AMBOSS Stalled AI Search Index
+name: Diagnose AMBOSS Stalled AI Search Index (follow-up)
 on:
   push:
     branches:

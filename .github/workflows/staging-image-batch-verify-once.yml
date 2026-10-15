@@ -1,0 +1,44 @@
+name: Santo Staging Image Batch Verify Once
+
+on:
+  push:
+    branches:
+      - perf/staging-batched-citation-images-20261015
+    paths:
+      - .github/workflows/staging-image-batch-verify-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install pinned dependencies
+        run: |
+          corepack enable
+          pnpm install --frozen-lockfile
+      - name: Format new batch code
+        run: |
+          set -euo pipefail
+          pnpm exec prettier --write packages/contracts/src/library-reader.ts workers/api/src/library/reader.ts workers/api/src/library/handler.ts workers/api/src/library/reader.test.ts workers/api/src/library/handler.test.ts
+          if ! git diff --quiet; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add packages/contracts/src/library-reader.ts workers/api/src/library/reader.ts workers/api/src/library/handler.ts workers/api/src/library/reader.test.ts workers/api/src/library/handler.test.ts
+            git commit -m "style(santo): format image batching code"
+            git push origin HEAD:refs/heads/perf/staging-batched-citation-images-20261015
+          fi
+      - name: Verify full Santo repo
+        run: |
+          set -euo pipefail
+          pnpm lint
+          pnpm typecheck
+          pnpm test
+          pnpm build
+          pnpm smoke

@@ -1,0 +1,127 @@
+import { describe, expect, it, vi } from "vitest";
+
+import type { WorkersAiLike } from "../runtime/bindings";
+import { CloudflareLunaModel, createGroundedModel } from "./model";
+import { parsePlainLunaAnswer, previewPlainLuna } from "./plain-luna";
+
+function sse(text: string): ReadableStream<Uint8Array> {
+  const delta = { type: "response.output_text.delta", delta: text };
+  const completed = { type: "response.completed", response: { status: "completed" } };
+  const content = [delta, completed].map((x) => "data: " + JSON.stringify(x) + "\n\n").join("");
+  const bytes = new TextEncoder().encode(content);
+  return new ReadableStream({
+    start(controller) {
+      controller.enqueue(bytes);
+      controller.close();
+    },
+  });
+}
+
+describe("staging single-pass plain-Luna citation contract", () => {
+  const sourceA = "amboss:chunk-012345678900000000000001";
+  const sourceB = "usmle:chunk-abcdef112233445566778899";
+
+  it("cites only evidence actually referenced, preserving first-use order", () => {
+    expect(
+      parsePlainLunaAnswer(
+        "## Diagnosis\nEcho confirms valve obstruction [[2]].\n## Causes\nCalcification [[1]].\nManagement [[2]].",
+        [sourceA, sourceB],
+      ),
+    ).toEqual({
+      answer:
+        "## Diagnosis\nEcho confirms valve obstruction [1].\n## Causes\nCalcification [2].\nManagement [1].",
+      citationIds: [sourceB, sourceA],
+    });
+  });
+
+  it("rejects fake and missing source references rather than fabricating provenance", () => {
+    expect(() => parsePlainLunaAnswer("Unattributed advice.", [sourceA])).toThrow();
+    expect(() => parsePlainLunaAnswer("Wrong source [[3]].", [sourceA])).toThrow();
+    expect(() => parsePlainLunaAnswer("Malformed [[xx]]. [[1]]", [sourceA])).toThrow();
+    expect(() => parsePlainLunaAnswer("Partial marker [[1", [sourceA])).toThrow();
+  });
+
+  it("allows a single uncited answer only when retrieval returned no evidence", () => {
+    expect(parsePlainLunaAnswer("General medical teaching.", [])).toEqual({
+      answer: "General medical teaching.",
+      citationIds: [],
+    });
+    expect(() => parsePlainLunaAnswer("Fabricated [[1]]", [])).toThrow();
+  });
+
+  it("never exposes partial internal references in an unverified SSE preview", () => {
+    expect(previewPlainLuna("Clinical point. [[1]]\nNext statement [[", [sourceA])).toBe(
+      "Clinical point. \nNext statement ",
+    );
+    expect(previewPlainLuna("Mechanism [" + sourceA, [sourceA])).not.toContain(sourceA);
+    expect(previewPlainLuna("Aortic stenosis [SANTO_REF", [sourceA])).toBe("Aortic stenosis ");
+  });
+
+  it("returns a server-mapped verified draft in ONE provider call without JSON formatting", async () => {
+    const ai: WorkersAiLike = {
+      run: vi.fn(async () =>
+        sse(
+          "## Aortic stenosis\n" +
+            "Pressure overload causes hypertrophy [[1]]. Echo confirms severity [[2]].",
+        ),
+      ),
+    };
+    const model = new CloudflareLunaModel(ai, true, true);
+    const previews: string[] = [];
+    const result = await model.generate(
+      'USER_QUESTION_JSON:"aortic stenosis"\nEVIDENCE_JSON:' +
+        JSON.stringify([{ source_id: sourceA }, { source_id: sourceB }]),
+      (p) => previews.push(p),
+      [sourceA, sourceB],
+    );
+    expect(vi.mocked(ai.run)).toHaveBeenCalledTimes(1);
+    const payload = vi.mocked(ai.run).mock.calls[0]![1] as {
+      input: string;
+      text?: unknown;
+      max_output_tokens: number;
+      stream: boolean;
+      instructions: string;
+    };
+    expect(payload.text).toBeUndefined();
+    expect(payload.stream).toBe(true);
+    expect(payload.max_output_tokens).toBe(5000);
+    expect(payload.instructions).toContain("Respond in readable Markdown, never JSON");
+    expect(payload.input).toContain("SANTO_REF_1");
+    expect(payload.input).not.toContain(sourceA);
+    expect(result.citationIds).toEqual([sourceA, sourceB]);
+    expect(result.answer).toContain("hypertrophy [1]");
+    expect(previews.join("")).not.toContain("SANTO_REF");
+    expect(previews[previews.length - 1]).not.toContain("[[");
+  });
+
+  it("still rejects incomplete streams without launching a fallback model", async () => {
+    const ai: WorkersAiLike = {
+      run: vi.fn(async () => {
+        const bytes = new TextEncoder().encode(
+          "data: " +
+            JSON.stringify({ type: "response.output_text.delta", delta: "Preview [[1]]" }) +
+            "\n\n",
+        );
+        return new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(bytes);
+            controller.close();
+          },
+        });
+      }),
+    };
+    const model = createGroundedModel({
+      AI: ai,
+      SANTO_ENV: "staging",
+      SANTO_LUNA_PREVIEW: "true",
+      SANTO_SINGLE_PASS_GENERATION_V1: "true",
+      SANTO_COMPACT_CITATION_ALIASES_V1: "true",
+      SANTO_PLAIN_TEXT_LUNA_V1: "true",
+      SANTO_AI_MODEL: "@cf/test/secondary",
+    });
+    await expect(model.generate("Question", vi.fn(), [sourceA])).rejects.toMatchObject({
+      code: "MODEL_STREAM_UNFINISHED",
+    });
+    expect(vi.mocked(ai.run)).toHaveBeenCalledTimes(1);
+  });
+});

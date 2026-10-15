@@ -97,7 +97,11 @@ function providerIncompleteReason(value: Record<string, unknown> | null): string
  * CRLF may be split between network chunks: normalization MUST span chunk
  * boundaries or the final response.completed frame can disappear.
  */
-export async function collectLunaEventStream(raw: unknown, onProgress: Progress): Promise<string> {
+export async function collectLunaEventStream(
+  raw: unknown,
+  onProgress: Progress,
+  previewFormat: "json" | "plain" = "json",
+): Promise<string> {
   const body = streamBody(raw);
   if (!body) {
     throw new GroundedAiError(502, "MODEL_RESPONSE_INVALID", "Model did not return SSE");
@@ -151,7 +155,10 @@ export async function collectLunaEventStream(raw: unknown, onProgress: Progress)
       if (generated.length > 64000) {
         throw new GroundedAiError(502, "MODEL_RESPONSE_INVALID", "Provider output exceeds limit");
       }
-      const preview = previewStructuredAnswer(generated);
+      // Plain Markdown uses the same SSE parser and completion checks,
+      // but does not depend on an enclosing JSON string to show its draft.
+      const preview =
+        previewFormat === "plain" ? generated.slice(0, 12000) : previewStructuredAnswer(generated);
       if (preview && preview !== lastPreview) {
         lastPreview = preview;
         onProgress(preview);

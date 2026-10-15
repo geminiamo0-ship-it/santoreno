@@ -132,8 +132,8 @@ describe("staging single-pass plain-Luna citation contract", () => {
     expect(previews[previews.length - 1]).not.toContain("[[");
   });
 
-  it("accepts a provider-completed 70k-character cited Luna chapter without truncating or adding a second call", async () => {
-    const longChapter = "## Pathophysiology\\n" + "Valve pressure overload. ".repeat(3100) + " [[1]]";
+  it("accepts 70k chars of completed Luna Markdown and keeps citations", () => {
+    const longChapter = "Valve pressure overload. ".repeat(3100) + " [[1]]";
     expect(longChapter.length).toBeGreaterThan(64_000);
     const parsed = parsePlainLunaAnswer(longChapter, [sourceA]);
     expect(parsed.answer.length).toBeGreaterThan(64_000);

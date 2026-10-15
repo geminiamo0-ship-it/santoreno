@@ -1,6 +1,6 @@
 name: Professor Teaching Staging Deploy
 
-# Verified staging-only rollout: private citation aliases with server-side verified source mapping.
+# Verified staging-only rollout: one-pass Markdown stream with source-mapped citation markers and no JSON framing.
 # Ordinary main commits do not redeploy staging; manual reruns remain possible.
 on:
   push:

@@ -1,0 +1,44 @@
+name: Inspect AMBOSS item state without PHI
+on:
+  push:
+    branches:
+      - diagnostic/amboss-stalled-index-20261015
+    paths:
+      - .github/workflows/amboss-running-state-check.yml
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    env:
+      CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - name: Read item statuses, timestamps and error codes only
+        run: |
+          python3 - <<'PY'
+          import os,json,urllib.request,urllib.error,urllib.parse
+          a=os.environ['CF_ACCOUNT'];t=os.environ['CF_TOKEN']
+          base=f'https://api.cloudflare.com/client/v4/accounts/{a}/ai-search/namespaces/default/instances/amboss'
+          def call(url):
+            try:
+              with urllib.request.urlopen(urllib.request.Request(url,headers={'Authorization':'Bearer '+t}),timeout=35) as response: j=json.load(response)
+              return j.get('result') if j.get('success') else None
+            except urllib.error.HTTPError as e:
+              print('API_HTTP',e.code,url.split('/')[-1])
+              return None
+          for status in ('running','queued','error','completed'):
+            data=call(base+'/items?status='+status+'&per_page=5&sort_by=status')
+            if not isinstance(data,list):
+              print('STATUS_UNAVAILABLE',status);continue
+            print('STATUS_ITEM_SAMPLE',status,len(data))
+            for item in data[:5]:
+              print('ITEM_STATE',status,{k:item.get(k) for k in ('status','created_at','last_seen_at','chunks_count','file_size','next_action','error')})
+              if status=='running' and item.get('id'):
+                logs=call(base+'/items/'+str(item['id'])+'/logs?per_page=10')
+                if isinstance(logs,list):
+                  print('ITEM_LOG_SAFE',[(z.get('action'),z.get('errorType'),z.get('processingTimeMs'),z.get('timestamp')) for z in logs[:5]])
+          stats=call(base+'/stats')
+          if isinstance(stats,dict): print('CURRENT_STATS',{k:stats.get(k) for k in ('completed','queued','running','error','last_activity')})
+          PY

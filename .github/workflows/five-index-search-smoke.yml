@@ -1,0 +1,54 @@
+name: Validate five medical indexes read-only
+on:
+  push:
+    branches:
+      - diagnostic/amboss-stalled-index-20261015
+    paths:
+      - .github/workflows/five-index-search-smoke.yml
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - name: Check independently ranked source coverage without printing licensed content
+        run: |
+          python3 - <<'PY'
+          import os,json,time,urllib.request,urllib.error,concurrent.futures
+          a=os.environ.get('CF_ACCOUNT'); t=os.environ.get('CF_TOKEN')
+          if not a or not t: raise SystemExit('Missing Cloudflare credentials')
+          url=f'https://api.cloudflare.com/client/v4/accounts/{a}/ai-search/namespaces/default/search'
+          sources=['amboss','usmle','passmedicine','pastest','one-examination-isolated']
+          def one(source):
+            payload={
+              'query':'aortic stenosis',
+              'ai_search_options': {
+                'instance_ids':[source],
+                'retrieval': {
+                  'retrieval_type':'hybrid',
+                  'max_num_results':3,
+                  'match_threshold':0.4,
+                  'return_on_failure':True,
+                },
+                'query_rewrite':{'enabled':False}
+              }
+            }
+            start=time.monotonic()
+            request=urllib.request.Request(url,data=json.dumps(payload).encode(),
+              headers={'Authorization':'Bearer '+t,'Content-Type':'application/json'},method='POST')
+            try:
+              with urllib.request.urlopen(request,timeout=40) as response: body=json.load(response)
+              chunks=(body.get('result') or {}).get('chunks',[]) if body.get('success') else []
+              ok=sum(1 for c in chunks if isinstance(c,dict) and c.get('instance_id')==source and c.get('score',0)>=0.4)
+              return (source,round((time.monotonic()-start)*1000),min(ok,3),'success')
+            except urllib.error.HTTPError as e:
+              return (source,round((time.monotonic()-start)*1000),0,'http_'+str(e.code))
+            except Exception:
+              return (source,round((time.monotonic()-start)*1000),0,'network_error')
+          with concurrent.futures.ThreadPoolExecutor(max_workers=5) as pool:
+            for result in pool.map(one,sources): print('INDEX_SOURCE_COVERAGE',*result)
+          PY

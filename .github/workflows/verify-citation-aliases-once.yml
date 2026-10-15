@@ -1,0 +1,38 @@
+name: Verify source alias safety once
+on:
+  push:
+    branches:
+      - fix/staging-compact-citation-aliases-20261015
+    paths:
+      - .github/workflows/verify-citation-aliases-once.yml
+permissions:
+  contents: write
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: corepack enable && pnpm install --frozen-lockfile
+      - name: Format source aliasing and tests
+        run: |
+          set -euo pipefail
+          pnpm exec prettier --write workers/api/src/ai/model.ts workers/api/src/ai/model.test.ts workers/api/src/runtime/bindings.ts
+          if ! git diff --quiet; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add workers/api/src/ai/model.ts workers/api/src/ai/model.test.ts workers/api/src/runtime/bindings.ts
+            git commit -m "style(ai): format compact evidence aliases"
+            git push origin HEAD:refs/heads/fix/staging-compact-citation-aliases-20261015
+          fi
+      - name: Run full Santo gates
+        run: |
+          set -euo pipefail
+          pnpm lint
+          pnpm typecheck
+          pnpm test
+          pnpm build
+          pnpm smoke

@@ -8,7 +8,7 @@ on:
       - .github/workflows/santo-compact-sse-verify-once.yml
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   verify:
@@ -23,6 +23,17 @@ jobs:
         run: |
           corepack enable
           pnpm install --frozen-lockfile
+      - name: Apply Prettier consistently on the implementation branch
+        run: |
+          set -euo pipefail
+          pnpm exec prettier --write packages/contracts/src/conversation.ts workers/api/src/conversation/native-stream.ts workers/api/src/conversation/handler.ts workers/api/src/conversation/native-stream.test.ts workers/api/src/ai/model.ts workers/api/src/ai/model.test.ts
+          if ! git diff --quiet; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add packages/contracts/src/conversation.ts workers/api/src/conversation/native-stream.ts workers/api/src/conversation/handler.ts workers/api/src/conversation/native-stream.test.ts workers/api/src/ai/model.ts workers/api/src/ai/model.test.ts
+            git commit -m "style(santo): format delta SSE implementation"
+            git push origin HEAD:refs/heads/fix/119-delta-stream-medical-citations-20261015
+          fi
       - name: Format lint typecheck tests build smoke
         run: |
           set -euo pipefail

@@ -136,11 +136,6 @@ jobs:
         if: steps.workspace.outputs.exists == 'true'
         run: pnpm install --frozen-lockfile
 
-      - name: Temporary follow-up formatter diagnostics
-        run: |
-          pnpm exec prettier --write workers/api/src/ai/source-relevance.ts workers/api/src/ai/source-relevance.test.ts workers/api/src/ai/retrieval.test.ts
-          git diff -- workers/api/src/ai/source-relevance.ts workers/api/src/ai/source-relevance.test.ts workers/api/src/ai/retrieval.test.ts
-
       - name: Lint
         if: steps.workspace.outputs.exists == 'true'
         run: pnpm lint

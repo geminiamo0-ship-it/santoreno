@@ -31,7 +31,7 @@ describe("Cloudflare Workers AI model adapter", () => {
       answer: "Sodium is 135–145 mmol/L.",
       citationIds: ["medical:chunk-1"],
     });
-    expect(GROUNDED_MODEL_POLICY.maxTokens).toBe(3200);
+    expect(GROUNDED_MODEL_POLICY.maxTokens).toBe(5000);
     expect(ai.run).toHaveBeenCalledWith(
       "@cf/test/grounded-model",
       expect.objectContaining({
@@ -48,7 +48,7 @@ describe("Cloudflare Workers AI model adapter", () => {
       { messages?: { role: string; content: string }[] } | undefined;
     expect(request?.messages?.[0]?.content).toContain("source-grounded medical tutor");
     expect(request?.messages?.[0]?.content).toContain(
-      "never introduce claims not supported by the provided evidence",
+      "not a ceiling on stable general medical teaching knowledge",
     );
   });
 
@@ -128,7 +128,7 @@ describe("GPT-6 Luna isolated Santo staging preview", () => {
         reasoning: { effort: "none" },
         service_tier: "fast",
         store: false,
-        max_output_tokens: 3200,
+        max_output_tokens: 5000,
         text: expect.objectContaining({
           format: expect.objectContaining({ type: "json_schema", strict: true }),
         }),

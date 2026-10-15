@@ -6,6 +6,14 @@
 >
 > **Rule:** GitHub code, issues, PRs, commits, and Actions are the source of truth. Update this file whenever meaningful work completes, a gate passes/fails, architecture changes, or the active issue changes.
 
+### Luna creative, source-informed clinical teaching — 15 October 2026
+
+- User clarified the intended AI model: retrieved books/citations are verified reference anchors and study material, not a hard upper bound on Luna's own medically accurate explanations. Generate genuinely useful, original professor-style clinical teaching with mechanism chains, examples, diagrams-as-verbal-mental-models, comparisons, selective tables, pearls and short follow-up shorthand resolution.
+- Santo Staging now separates **verified source-backed points** from **supplementary established general medical knowledge** in prompt instructions. It does not permit attributing uncited extra claims to a library; source IDs are still server-owned and restricted to retrieved IDs. No fake references, invented individual care recommendations, unsupported medication doses or unverified new guideline thresholds. Same tenant, auth, source access, quotas, idempotent conversations and R2 images preserved.
+- Both Luna and Llama fallback system prompts updated. Luna remains Fast + `reasoning.effort=none`; output token headroom 3,200 → 5,000, Llama fallback temperature 0.1 → 0.35. Higher output headroom may increase spend and completion latency; benchmark real user perceived TTFT/total after release. Avoid claiming the 5k budget is always fully used.
+- [Exact head verify + funded synthetic Luna schema check + Staging worker rollout 38657661260](https://github.com/geminiamo0-ship-it/santoreno/actions/runs/38657661260) **SUCCESS**, including 146 API tests, HTTP 200 JSON provider constraint, Staging health and denied anonymous SSE. Santo Production untouched, Royal Bank Vercel Production still targets Santo Staging.
+- **Still to verify:** real logged-in multi-turn broad disease/abbreviation follow-ups, subjective medical explanation quality, exact inline sentence citation semantics, source titles, mobile presentation and latency. Prompt freedom is not a substitute for clinical validation, retrieval improvements or citation renderer engineering.
+
 ### Native Luna SSE citation rejection repair — 15 October 2026
 
 - Real Royal Bank screenshot demonstrated a rapid progressive unverified answer draft being withdrawn with safe same-key Retry. Aggregated last-12-hour Staging AI telemetry, queried WITHOUT identifiers or medical user questions: 15 successful AI queries and 4 `CITATION_INVALID` failures, [read-only run 38650542086](https://github.com/geminiamo0-ship-it/santoreno/actions/runs/38650542086).

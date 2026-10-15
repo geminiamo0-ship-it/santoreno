@@ -34,7 +34,8 @@ export function createLibraryReaderHandler(deps: LibraryReaderDependencies = {})
     const imageBatch = path === "/v1/sources/article-images/batch";
     const listed = /^\/v1\/libraries\/([^/]+)\/articles$/.exec(path);
     const detail = /^\/v1\/libraries\/([^/]+)\/articles\/([^/]+)$/.exec(path);
-    if (!catalog && !citation && !imageBatch && !listed && !detail) return error("LIBRARY_NOT_FOUND", 404);
+    if (!catalog && !citation && !imageBatch && !listed && !detail)
+      return error("LIBRARY_NOT_FOUND", 404);
     if (citation || imageBatch ? request.method !== "POST" : request.method !== "GET") {
       return error("METHOD_NOT_ALLOWED", 405);
     }

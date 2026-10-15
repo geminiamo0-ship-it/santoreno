@@ -78,18 +78,28 @@ describe("verified source explorer and private article browser", () => {
   it("batch reads a verified snapshot once and returns images without article text", async () => {
     const { service, bucket } = await setup();
     const src = "https://pub-2a81f2cb19cc4473a3d076e657af6121.r2.dev/offline_media/valve.jpg";
-    bucket.data.set(articleKey, JSON.stringify({
-      ...article,
-      sections: [
-        {...article.sections[0], images: [{src, alt: "Valve anatomy"}]},
-        {...article.sections[1], images: [{src: src.replace("valve.jpg", "pressure.jpg"), alt: "Pressure gradient"}]},
-      ],
-    }));
+    bucket.data.set(
+      articleKey,
+      JSON.stringify({
+        ...article,
+        sections: [
+          { ...article.sections[0], images: [{ src, alt: "Valve anatomy" }] },
+          {
+            ...article.sections[1],
+            images: [{ src: src.replace("valve.jpg", "pressure.jpg"), alt: "Pressure gradient" }],
+          },
+        ],
+      }),
+    );
     let reads = 0;
     const previousGet = bucket.get.bind(bucket);
-    bucket.get = async (key) => { if (key.includes("verified-messages/")) reads++; return previousGet(key); };
+    bucket.get = async (key) => {
+      if (key.includes("verified-messages/")) reads++;
+      return previousGet(key);
+    };
     const result = await service.batchImages(session, {
-      messageId, sourceIds: [source.sourceId],
+      messageId,
+      sourceIds: [source.sourceId],
     });
     expect(reads).toBe(1);
     expect(result.items).toHaveLength(1);
@@ -100,18 +110,33 @@ describe("verified source explorer and private article browser", () => {
   });
   it("batch rejects forged, duplicated and cross-user citations before reading article", async () => {
     const { service } = await setup();
-    await expect(service.batchImages(session, {
-      messageId, sourceIds: [source.sourceId, source.sourceId],
-    })).rejects.toMatchObject({status:400});
-    await expect(service.batchImages(session, {
-      messageId, sourceIds: [source.sourceId, "pass-instance:forged"],
-    })).rejects.toMatchObject({status:404});
-    await expect(service.batchImages({...session, externalUserId:"unknown"}, {
-      messageId, sourceIds: [source.sourceId],
-    })).rejects.toMatchObject({status:404});
-    await expect(service.batchImages(session, {messageId, sourceIds: []})).rejects.toMatchObject({status:400});
-    await expect(service.batchImages(session, {messageId, sourceIds: Array(6).fill(source.sourceId)}))
-      .rejects.toMatchObject({status:400});
+    await expect(
+      service.batchImages(session, {
+        messageId,
+        sourceIds: [source.sourceId, source.sourceId],
+      }),
+    ).rejects.toMatchObject({ status: 400 });
+    await expect(
+      service.batchImages(session, {
+        messageId,
+        sourceIds: [source.sourceId, "pass-instance:forged"],
+      }),
+    ).rejects.toMatchObject({ status: 404 });
+    await expect(
+      service.batchImages(
+        { ...session, externalUserId: "unknown" },
+        {
+          messageId,
+          sourceIds: [source.sourceId],
+        },
+      ),
+    ).rejects.toMatchObject({ status: 404 });
+    await expect(service.batchImages(session, { messageId, sourceIds: [] })).rejects.toMatchObject({
+      status: 400,
+    });
+    await expect(
+      service.batchImages(session, { messageId, sourceIds: Array(6).fill(source.sourceId) }),
+    ).rejects.toMatchObject({ status: 400 });
   });
 
   it("retrieves only server-known article ID and exact verified section", async () => {

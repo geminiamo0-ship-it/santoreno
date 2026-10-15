@@ -67,7 +67,10 @@ describe("library reader session and rollout authorization", () => {
       const response = await handler(
         new Request("https://santo.test" + path, {
           method: path === "/v1/sources/article" || path.endsWith("/batch") ? "POST" : "GET",
-          body: path === "/v1/sources/article" || path.endsWith("/batch") ? JSON.stringify({}) : undefined,
+          body:
+            path === "/v1/sources/article" || path.endsWith("/batch")
+              ? JSON.stringify({})
+              : undefined,
         }),
         enabled,
       );

@@ -6,6 +6,13 @@
 >
 > **Rule:** GitHub code, issues, PRs, commits, and Actions are the source of truth. Update this file whenever meaningful work completes, a gate passes/fails, architecture changes, or the active issue changes.
 
+### Real FMF source contamination after aortic stenosis — 15 October 2026 (PR #122)
+
+- Real Royal Bank screenshot: fresh student prompt requesting Familial Mediterranean fever (FMF) surfaced TAVR/aortic stenosis illustrations and unrelated article cards despite correct prose. Root-causes: conversation `effectiveQuery` (with previous topic) was sent unmodified to each AI Search index; retrieval also forced a top-1 passage from **each** of five indexes on semantic score alone; staging `citationMode: related` then attached all five to an answer even when the model had not cited those articles, triggering image injection in Royal Bank.
+- Staging fix: isolate explicit new-topic search query from the previous conversation context **only at retrieval boundary**, leaving ConversationDO and Luna prompt context intact; retain prior context for dependent followups. Filter search candidates using actual clinical topic anchors in title/section/text (including generic acronym expansion by initials), not score alone. Avoid forced unrelated top-1 hits from each library. When no relevant source exists, one-pass Luna fallback answers without fabricated medical articles. Scoped source/image browsing remains authorized.
+- Companion Royal Bank PR #127 avoids embedding R2 images for `citationMode: related`; separate browseable article cards can remain, but only actual Luna-selected inline citations may supply inline figures. Existing wrong related images are prevented on re-render; old saved related cards can still exist pending archival/revalidation.
+- No paid inference, no extra model, no model-generated citations, no change to persisted context, tenant scope, quota or exam state. Exact-head CI, staging rollout and real licensed corpus acceptance are required before calling this solved.
+
 ### Staging Luna greeting/source and blank provider finalization regression — 15 October 2026
 
 - Real Royal Bank screenshot after PR #120 rollout: Luna responded `Hi! What would you like to learn about today?` but the social-reply classifier only recognized standalone `Hi!`, causing unrelated retrieved medical library articles and images to be attached. Update exact social-response classification and a regression using the real greeting; **Luna still authors the reply**.

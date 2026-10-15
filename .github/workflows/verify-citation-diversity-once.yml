@@ -1,4 +1,4 @@
-name: Verify medical citation diversity candidate (once)
+name: Verify medical citation diversity candidate (recheck)
 
 on:
   push:

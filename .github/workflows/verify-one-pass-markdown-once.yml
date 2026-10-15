@@ -1,0 +1,41 @@
+name: Verify Santo Plain One-Pass Answer
+on:
+  push:
+    branches:
+      - fix/staging-plain-text-one-pass-20261015
+    paths:
+      - .github/workflows/verify-one-pass-markdown-once.yml
+permissions:
+  contents: write
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install pinned deps
+        run: |
+          corepack enable
+          pnpm install --frozen-lockfile
+      - name: Format and commit changed sources
+        run: |
+          set -euo pipefail
+          pnpm exec prettier --write workers/api/src/ai/model.ts workers/api/src/ai/luna-event-stream.ts workers/api/src/ai/plain-luna.ts workers/api/src/ai/plain-luna.test.ts workers/api/src/runtime/bindings.ts
+          if ! git diff --quiet; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add workers/api/src/ai workers/api/src/runtime/bindings.ts
+            git commit -m "style(ai): format staging one-pass plain responses"
+            git push origin HEAD:refs/heads/fix/staging-plain-text-one-pass-20261015
+          fi
+      - name: Full repository quality gates
+        run: |
+          set -euo pipefail
+          pnpm lint
+          pnpm typecheck
+          pnpm test
+          pnpm build
+          pnpm smoke

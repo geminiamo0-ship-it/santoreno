@@ -51,9 +51,7 @@ function isNonClinicalReply(answer: string): boolean {
   if (/^(?:hi|hello|hey|thanks|thank you|you(?:'re| are) welcome)[!.,\s؟]*$/i.test(normalized)) {
     return true;
   }
-  return /^(?:تقصد (?:أي|اي) (?:مرض|حالة)|(?:ما|ايه) (?:المرض|الحالة) المقصود)/u.test(
-    normalized,
-  );
+  return /^(?:تقصد (?:أي|اي) (?:مرض|حالة)|(?:ما|ايه) (?:المرض|الحالة) المقصود)/u.test(normalized);
 }
 
 /**

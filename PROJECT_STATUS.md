@@ -6,6 +6,13 @@
 >
 > **Rule:** GitHub code, issues, PRs, commits, and Actions are the source of truth. Update this file whenever meaningful work completes, a gate passes/fails, architecture changes, or the active issue changes.
 
+### Luna SSE completion and incomplete response — 15 October 2026
+
+- Real authenticated Royal screenshot: model streamed a substantial *aortic stenosis* draft but then Royal displayed `Santo generated an incomplete response` + same-key retry. That **exact string** maps to `MODEL_RESPONSE_INVALID`, which can mean provider `response.incomplete`, missing `response.completed`, invalid/truncated final JSON, or a streaming-frame parsing failure; the screenshot alone does not establish which.
+- Identified deterministic parser weakness in `workers/api/src/ai/luna-event-stream.ts`: normalizing `\r\n` per decoded network chunk loses a CRLF pair if a chunk ends after `\r` and the next starts with `\n`. The collector looked only for `\n\n` to delimit SSE frames; a genuine `response.completed` may thus be missed. It also discarded canonical `response.completed.response.output` / `response.output_text.done` JSON text from the SAME provider call, even if deltas were incomplete.
+- PR #114 merged isolated Santo staging release `ec4fc14c9dc8005b33fe79ba4a0750e0058f9c2b`. Fixes CRLF across network splits, accepts valid `data:` syntax, and only uses real, provider-supplied completed JSON text from existing request. Safety preserves `response.incomplete` and missing completion as errors. Final `parseDraft` and server citation validation unchanged; **one Luna inference attempt**, no extra tokens due to a retry or replacement model.
+- Branch full CI [38747908295](https://github.com/geminiamo0-ship-it/santoreno/actions/runs/38747908295) success with byte-split SSE and completed-payload recovery regression. Release Verify and Staging deployment gates still required. Authenticated end-to-end reproduction not yet measured. If failures persist, obtain sanitized response frame/error status and model output length/finish reason without exposing licensed user content.
+
 ### One paid inference per Santo request attempt — 15 October 2026
 
 - User observed double provider-generated answers after native Luna SSE; previous behavior silently retried through `FallbackGroundedModel` on `MODEL_FAILED`/`MODEL_RESPONSE_INVALID`, or through `GroundedAiService` when sourced `INSUFFICIENT_EVIDENCE` and general fallback was allowed. A single Santo student quota unit **does not guarantee** a single provider billing event.

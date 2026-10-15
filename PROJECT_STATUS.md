@@ -6,6 +6,12 @@
 >
 > **Rule:** GitHub code, issues, PRs, commits, and Actions are the source of truth. Update this file whenever meaningful work completes, a gate passes/fails, architecture changes, or the active issue changes.
 
+### Luna-only conversation and browsable source recovery — 15 October 2026 (PR #120)
+
+- User explicitly requested **Luna generates every reply**, including greetings and clarifications. Removed the deterministic quick-reply interceptor from `ConversationAskService`; existing access, quota, same-key retry and ConversationDO state remain server enforced, and the old source-independent contract stays readable for historical turns.
+- Staging Markdown Luna now strips invalid numeric markers from a provider-**completed** answer instead of discarding useful teaching. Actual Luna-selected `[[N]]` references still map only to retrieved allowlisted source IDs. If no valid marker exists, a non-clarification medical answer may attach genuine retrieved R2-backed article snapshots with `citationMode: "related"` — not fabricated inline support. Non-clinical Luna replies do not inherit arbitrary RAG results. Frontend must label related articles explicitly and keep source browsing.
+- No Context/ConversationDO modification. No extra model, silent retry, fabricated reference, or acceptance of an unfinished provider stream. See ADR 0002 and companion Royal Bank pilot PR #126. Exact CI verification and staging deploy still required; a passing synthetic test is not real user acceptance.
+
 ### Luna SSE completion and incomplete response — 15 October 2026
 
 - Real authenticated Royal screenshot: model streamed a substantial _aortic stenosis_ draft but then Royal displayed `Santo generated an incomplete response` + same-key retry. That **exact string** maps to `MODEL_RESPONSE_INVALID`, which can mean provider `response.incomplete`, missing `response.completed`, invalid/truncated final JSON, or a streaming-frame parsing failure; the screenshot alone does not establish which.

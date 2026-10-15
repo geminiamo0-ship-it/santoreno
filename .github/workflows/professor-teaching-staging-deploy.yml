@@ -1,6 +1,7 @@
 name: Professor Teaching Staging Deploy
 
 # Verified staging-only rollout: one consistent Markdown prompt, no contradictory JSON citation instructions.
+# PR #120 rollout: source-integrity-preserving Luna recovery and one-model conversational replies.
 # Ordinary main commits do not redeploy staging; manual reruns remain possible.
 on:
   push:

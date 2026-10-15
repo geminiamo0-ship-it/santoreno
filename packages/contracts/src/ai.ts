@@ -38,10 +38,19 @@ export const GroundedAiQueryResponseSchema = z
     /** Legacy responses without this property are always source-grounded. */
     groundingMode: z.enum(["santo", "general"]).optional(),
     citations: z.array(GroundedAiCitationSchema).max(5),
+    /** Real browsable library articles, but not model-cited inline medical claims. */
+    citationMode: z.literal("related").optional(),
     usage: GroundedAiUsageSchema,
   })
   .superRefine((response, ctx) => {
     const general = response.groundingMode === "general";
+    if (general && response.citationMode) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["citationMode"],
+        message: "General answers cannot have related Santo source lists",
+      });
+    }
     if (general && response.citations.length !== 0) {
       ctx.addIssue({
         code: "custom",

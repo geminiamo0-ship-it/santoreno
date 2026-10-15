@@ -22,6 +22,8 @@ export interface RetrievalPort {
 export interface GroundedModelDraft {
   answer: string;
   citationIds: string[];
+  /** Staging Markdown: no inline citation is implied by related library sources. */
+  sourcePresentation?: "related" | "none";
 }
 
 export interface ModelPort {
@@ -39,6 +41,12 @@ export interface AiTelemetryEvent {
   status: "success" | "failure";
   latencyMs: number;
   errorCode: string | null;
+  failureStage?: string;
+  responseFormat?: "json" | "markdown";
+  retrievedSourceCount?: number;
+  validCitationCount?: number;
+  outputChars?: number;
+  sourcePresentation?: "inline" | "related";
 }
 
 export interface AiTelemetryPort {

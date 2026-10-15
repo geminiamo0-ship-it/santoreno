@@ -292,6 +292,52 @@ describe("grounded AI handler", () => {
     expect(prompt).toContain("citation_ids");
   });
 
+  it("keeps a completed Luna answer with genuine browseable related source snapshots", async () => {
+    env.SANTO_ENV = "staging";
+    env.SANTO_LUNA_PREVIEW = "true";
+    env.SANTO_SINGLE_PASS_GENERATION_V1 = "true";
+    env.SANTO_PLAIN_TEXT_LUNA_V1 = "true";
+    model.generate = vi.fn(async () => ({
+      answer: "Aortic stenosis can require valve replacement.",
+      citationIds: [],
+      sourcePresentation: "related" as const,
+    }));
+    const save = vi.fn(async () => undefined);
+    const response = await handler({ save })(request(token), env);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      citationMode: "related",
+      citations: [{ sourceId: SOURCE_ID, title: "Electrolytes", page: 12 }],
+      usage: { unitsCharged: 1 },
+    });
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(model.generate).toHaveBeenCalledTimes(1);
+    expect(quota.finalizeCalls).toBe(1);
+  });
+
+  it("lets Luna clarify without falsely attaching medical articles", async () => {
+    env.SANTO_ENV = "staging";
+    env.SANTO_LUNA_PREVIEW = "true";
+    env.SANTO_SINGLE_PASS_GENERATION_V1 = "true";
+    env.SANTO_PLAIN_TEXT_LUNA_V1 = "true";
+    model.generate = vi.fn(async () => ({
+      answer: "What condition do you mean?",
+      citationIds: [],
+      sourcePresentation: "none" as const,
+    }));
+    const save = vi.fn(async () => undefined);
+    const response = await handler({ save })(request(token), env);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      groundingMode: "general",
+      citations: [],
+      usage: { unitsCharged: 1 },
+    });
+    expect(save).not.toHaveBeenCalled();
+    expect(model.generate).toHaveBeenCalledTimes(1);
+    expect(quota.finalizeCalls).toBe(1);
+  });
+
   it("saves only verified citation metadata before finalizing quota", async () => {
     const save = vi.fn(async () => undefined);
     const response = await handler({ save })(request(token), env);

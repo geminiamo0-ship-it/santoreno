@@ -9,7 +9,7 @@ import { validateGroundedCitations } from "./citations";
 import { AI_STAGE_TIMEOUTS, withAiDeadline } from "./deadline";
 import { GroundedAiError } from "./errors";
 import { buildGeneralMedicalPrompt, buildGroundedPrompt } from "./prompt";
-import type { AiTelemetryPort, ModelPort, RetrievalPort } from "./types";
+import type { AiTelemetryEvent, AiTelemetryPort, ModelPort, RetrievalPort } from "./types";
 
 function quotaDenial(reason: string | null): GroundedAiError {
   switch (reason) {
@@ -33,6 +33,15 @@ function errorCode(error: unknown): string {
     return error.code;
   }
   return "INTERNAL_ERROR";
+}
+
+function failureStage(code: string): string {
+  if (code.startsWith("MODEL_")) return "model_output";
+  if (code.startsWith("CITATION_")) return "source_validation";
+  if (code.startsWith("SEARCH_")) return "retrieval";
+  if (code === "SOURCE_SNAPSHOT_FAILED") return "source_snapshot";
+  if (code.startsWith("QUOTA_")) return "quota";
+  return "request";
 }
 
 async function deriveQuotaIdempotencyKey(
@@ -111,6 +120,10 @@ export class GroundedAiService {
     let answer: string;
     let citations: GroundedAiQueryResponse["citations"];
     let responseMode: "santo" | "general" = "santo";
+    let citationMode: "related" | undefined;
+    let retrievedSourceCount = 0;
+    let validCitationCount = 0;
+    let outputChars = 0;
     try {
       const evidence = await withAiDeadline(
         () => this.retrieval.retrieve({ query: input.query, libraryId }),
@@ -118,6 +131,7 @@ export class GroundedAiService {
         this.timeouts.retrievalMs,
         "SEARCH_TIMEOUT",
       );
+      retrievedSourceCount = evidence.length;
       // A genuinely empty result is different from SEARCH_FAILED / SEARCH_TIMEOUT:
       // infrastructure outages still fail closed, never silently become "general".
       let groundingMode: "santo" | "general" = "santo";
@@ -175,8 +189,14 @@ export class GroundedAiService {
       }
 
       answer = draft.answer;
+      outputChars = answer.length;
       responseMode = groundingMode;
-      if (groundingMode === "general") {
+      // A complete Luna clarification/social answer has no medical claim to
+      // cite. Never attach unrelated retrieval passages to it.
+      if (this.markdownOutput && draft.sourcePresentation === "none") {
+        responseMode = "general";
+      }
+      if (responseMode === "general") {
         // A provider-supplied citation in general mode is never trusted.
         if (draft.citationIds.length !== 0) {
           throw new GroundedAiError(
@@ -187,9 +207,18 @@ export class GroundedAiService {
         }
         citations = [];
       } else {
-        citations = validateGroundedCitations(draft, evidence);
+        // Missing/invalid model markers do not erase a completed teaching answer.
+        // Only existing retrieved evidence is included, as a separately labeled
+        // related-article list rather than invented inline provenance.
+        const selected =
+          this.markdownOutput && draft.sourcePresentation === "related"
+            ? { ...draft, citationIds: evidence.slice(0, 5).map((item) => item.sourceId) }
+            : draft;
+        citations = validateGroundedCitations(selected, evidence);
+        if (selected !== draft) citationMode = "related";
       }
-      if (this.sourceStore && groundingMode === "santo") {
+      validCitationCount = citations.length;
+      if (this.sourceStore && responseMode === "santo") {
         const sources = citations.map((citation) => {
           const matching = evidence.filter((item) => item.sourceId === citation.sourceId);
           if (matching.length !== 1) {
@@ -240,7 +269,13 @@ export class GroundedAiService {
         : error instanceof GroundedAiError
           ? error
           : new GroundedAiError(502, "MODEL_FAILED", "Grounded AI request failed");
-      this.recordFailure(requestId, session, startedAt, mapped.code);
+      this.recordFailure(requestId, session, startedAt, mapped.code, {
+        failureStage: failureStage(mapped.code),
+        responseFormat: this.markdownOutput ? "markdown" : "json",
+        retrievedSourceCount,
+        validCitationCount,
+        outputChars,
+      });
       throw mapped;
     }
 
@@ -271,6 +306,11 @@ export class GroundedAiService {
       status: "success",
       latencyMs: Math.max(0, this.nowMs() - startedAt),
       errorCode: null,
+      responseFormat: this.markdownOutput ? "markdown" : "json",
+      retrievedSourceCount,
+      validCitationCount,
+      outputChars,
+      sourcePresentation: citationMode ?? "inline",
     });
 
     return {
@@ -278,6 +318,7 @@ export class GroundedAiService {
       messageId,
       answer,
       citations,
+      ...(citationMode ? { citationMode } : {}),
       ...(responseMode === "general" ? { groundingMode: "general" as const } : {}),
       usage: {
         unitsCharged: 1,
@@ -317,6 +358,7 @@ export class GroundedAiService {
     session: SessionContextResponse,
     startedAt: number,
     code: string,
+    diagnostic: Partial<AiTelemetryEvent> = {},
   ): void {
     this.telemetry.record({
       requestId,
@@ -325,6 +367,7 @@ export class GroundedAiService {
       status: "failure",
       latencyMs: Math.max(0, this.nowMs() - startedAt),
       errorCode: code,
+      ...diagnostic,
     });
   }
 }

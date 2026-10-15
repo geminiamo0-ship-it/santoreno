@@ -87,6 +87,9 @@ describe("staging single-pass plain-Luna citation contract", () => {
     expect(payload.max_output_tokens).toBe(5000);
     expect(payload.instructions).toContain("Respond in readable Markdown, never JSON");
     expect(payload.input).toContain("SANTO_REF_1");
+    expect(payload.input).toContain("Cite a supported statement as [[N]]");
+    expect(payload.input).not.toContain("citation_ids");
+    expect(payload.input).not.toContain("Put labels inside");
     expect(payload.input).not.toContain(sourceA);
     expect(result.citationIds).toEqual([sourceA, sourceB]);
     expect(result.answer).toContain("hypertrophy [1]");

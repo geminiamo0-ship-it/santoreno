@@ -118,6 +118,10 @@ export function createGroundedAiHandler(dependencies: GroundedAiHandlerDependenc
         sourceStoreFactory(env),
         env.SANTO_GENERAL_MEDICAL_FALLBACK === "true",
         env.SANTO_ENV === "staging" && env.SANTO_SINGLE_PASS_GENERATION_V1 === "true",
+        env.SANTO_ENV === "staging" &&
+          env.SANTO_LUNA_PREVIEW === "true" &&
+          env.SANTO_SINGLE_PASS_GENERATION_V1 === "true" &&
+          env.SANTO_PLAIN_TEXT_LUNA_V1 === "true",
       ).query(session, parsed.data, request.signal, onProvisionalAnswer);
 
       const validated = GroundedAiQueryResponseSchema.parse(response);

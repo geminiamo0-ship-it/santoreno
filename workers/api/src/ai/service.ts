@@ -60,6 +60,7 @@ export class GroundedAiService {
     private readonly sourceStore?: SourceSnapshotWriter | null,
     private readonly generalFallbackEnabled = false,
     private readonly singlePassGeneration = false,
+    private readonly markdownOutput = false,
   ) {}
 
   async query(
@@ -132,8 +133,8 @@ export class GroundedAiService {
         () =>
           this.model.generate(
             groundingMode === "general"
-              ? buildGeneralMedicalPrompt(input.query)
-              : buildGroundedPrompt(input.query, evidence),
+              ? buildGeneralMedicalPrompt(input.query, this.markdownOutput ? "markdown" : "json")
+              : buildGroundedPrompt(input.query, evidence, this.markdownOutput ? "markdown" : "json"),
             onProvisionalAnswer,
             groundingMode === "general" ? [] : evidence.map((item) => item.sourceId),
           ),

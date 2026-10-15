@@ -16,6 +16,7 @@ import { ConversationServiceError } from "./service";
  */
 export function streamProvisionalConversationAnswer(
   work: (onDraft: (text: string) => void) => Promise<ConversationAnswer>,
+  draftFormat: "cumulative" | "delta" = "cumulative",
 ): Response {
   const encoder = new TextEncoder();
   let canceled = false;
@@ -35,9 +36,17 @@ export function streamProvisionalConversationAnswer(
       void (async () => {
         try {
           const result = await work((text) => {
-            if (canceled || text === lastText || ++count > 1000) return;
+            if (canceled || text === lastText || ++count > 4000) return;
+            const previous = lastText;
             lastText = text;
-            send({ type: "draft", text });
+            if (draftFormat === "delta" && text.startsWith(previous) && previous.length > 0) {
+              // The provider gives cumulative snapshots. Send only the suffix so
+              // total network traffic is linear, not quadratic in answer length.
+              send({ type: "draft_delta", text: text.slice(previous.length) });
+            } else {
+              // First preview, legacy client, or explicit reset/fallback.
+              send({ type: "draft", text });
+            }
           });
           send({ type: "complete", response: ConversationAnswerSchema.parse(result) });
         } catch (error) {

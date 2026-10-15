@@ -111,6 +111,7 @@ export class GroundedAiService {
     let answer: string;
     let citations: GroundedAiQueryResponse["citations"];
     let responseMode: "santo" | "general" = "santo";
+    let citationMode: "related" | undefined;
     try {
       const evidence = await withAiDeadline(
         () => this.retrieval.retrieve({ query: input.query, libraryId }),
@@ -176,7 +177,12 @@ export class GroundedAiService {
 
       answer = draft.answer;
       responseMode = groundingMode;
-      if (groundingMode === "general") {
+      // A complete Luna clarification/social answer has no medical claim to
+      // cite. Never attach unrelated retrieval passages to it.
+      if (this.markdownOutput && draft.sourcePresentation === "none") {
+        responseMode = "general";
+      }
+      if (responseMode === "general") {
         // A provider-supplied citation in general mode is never trusted.
         if (draft.citationIds.length !== 0) {
           throw new GroundedAiError(
@@ -187,9 +193,16 @@ export class GroundedAiService {
         }
         citations = [];
       } else {
-        citations = validateGroundedCitations(draft, evidence);
+        // Missing/invalid model markers do not erase a completed teaching answer.
+        // Only existing retrieved evidence is included, as a separately labeled
+        // related-article list rather than invented inline provenance.
+        const selected = this.markdownOutput && draft.sourcePresentation === "related"
+          ? { ...draft, citationIds: evidence.slice(0, 5).map((item) => item.sourceId) }
+          : draft;
+        citations = validateGroundedCitations(selected, evidence);
+        if (selected !== draft) citationMode = "related";
       }
-      if (this.sourceStore && groundingMode === "santo") {
+      if (this.sourceStore && responseMode === "santo") {
         const sources = citations.map((citation) => {
           const matching = evidence.filter((item) => item.sourceId === citation.sourceId);
           if (matching.length !== 1) {
@@ -278,6 +291,7 @@ export class GroundedAiService {
       messageId,
       answer,
       citations,
+      ...(citationMode ? { citationMode } : {}),
       ...(responseMode === "general" ? { groundingMode: "general" as const } : {}),
       usage: {
         unitsCharged: 1,

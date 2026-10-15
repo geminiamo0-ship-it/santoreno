@@ -351,8 +351,9 @@ export class CloudflareLunaModel implements ModelPort {
         if (cause instanceof GroundedAiError && cause.code === "MODEL_RESPONSE_INVALID") {
           // Fixed-form telemetry only: no student text, prompts, excerpts or citations.
           console.warn("santo_luna_stream_failure", {
-            stage:
-              cause.message === "Model did not return valid JSON"
+            stage: this.plainTextOutput
+              ? "completed_markdown_unusable"
+              : cause.message === "Model did not return valid JSON"
                 ? "completed_json_invalid"
                 : "completed_json_contract_invalid",
             outputChars: text.length,

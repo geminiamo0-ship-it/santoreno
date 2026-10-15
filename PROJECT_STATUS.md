@@ -6,6 +6,13 @@
 >
 > **Rule:** GitHub code, issues, PRs, commits, and Actions are the source of truth. Update this file whenever meaningful work completes, a gate passes/fails, architecture changes, or the active issue changes.
 
+### Approved Medical Retrieval v2 — quality-first Cloudflare ecosystem — 15 October 2026
+
+- User approved the new quality-first architecture for Santo: Cloudflare AI Search + Cloudflare Workers + original R2 article HTML, with adaptive candidate retrieval, section-aware global reranking, and selection/deduplication of figures directly inside **verified original article HTML**. No Elasticsearch, third-party retrieval providers, image embedding/index project, or separate answer model. Luna still authors all replies, and ConversationDO/auth/quotas remain unchanged.
+- Quality > latency > cost. Hard upper planning limit of **15 billable AI Search operations per question** is a ceiling, never fixed usage. Any provider parameters/models (including native reranker) require up-to-date API verification and quality benchmarks.
+- Issue [#123](https://github.com/geminiamo0-ship-it/santoreno/issues/123) is the implementation backlog; `docs/MEDICAL_RETRIEVAL_V2.md` records ordered architecture, benchmark gold-set, source/image/citation acceptance and staged rollout. This document-only branch **does not implement or deploy runtime behavior**. Baseline and 100–200 human-reviewed evaluation cases come first, before code and before any production rollout.
+- Distinct active issue [#58](https://github.com/geminiamo0-ship-it/santoreno/issues/58) still awaits authenticated full pilot acceptance. Keep indexing recovery #109 separate; no delete/reindex.
+
 ### Real FMF source contamination after aortic stenosis — 15 October 2026 (PR #122)
 
 - Real Royal Bank screenshot: fresh student prompt requesting Familial Mediterranean fever (FMF) surfaced TAVR/aortic stenosis illustrations and unrelated article cards despite correct prose. Root-causes: conversation `effectiveQuery` (with previous topic) was sent unmodified to each AI Search index; retrieval also forced a top-1 passage from **each** of five indexes on semantic score alone; staging `citationMode: related` then attached all five to an answer even when the model had not cited those articles, triggering image injection in Royal Bank.

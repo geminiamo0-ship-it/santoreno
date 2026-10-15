@@ -57,18 +57,12 @@ describe("safe topic relevance for Santo medical references", () => {
     expect(focusedSearchQuery(context + "How is it diagnosed?")).toBe(
       "diagnosis of aortic stenosis",
     );
-    expect(focusedSearchQuery(context + "ttt")).toBe(
-      "management and treatment of aortic stenosis",
-    );
+    expect(focusedSearchQuery(context + "ttt")).toBe("management and treatment of aortic stenosis");
     expect(focusedSearchQuery(context + "What about its complications?")).toBe(
       "complications of aortic stenosis",
     );
-    expect(matchesSearchSubject(focusedSearchQuery(context + "management"), oldTopic)).toBe(
-      true,
-    );
-    expect(matchesSearchSubject(focusedSearchQuery(context + "management"), current)).toBe(
-      false,
-    );
+    expect(matchesSearchSubject(focusedSearchQuery(context + "management"), oldTopic)).toBe(true);
+    expect(matchesSearchSubject(focusedSearchQuery(context + "management"), current)).toBe(false);
   });
 
   it("uses latest explicitly named topic after a genuine topic switch, never old-answer prose", () => {
@@ -83,12 +77,8 @@ describe("safe topic relevance for Santo medical references", () => {
     expect(focusedSearchQuery(context + "Familial Mediterranean fever")).toBe(
       "Familial Mediterranean fever",
     );
-    expect(matchesSearchSubject(focusedSearchQuery(context + "treatment"), oldTopic)).toBe(
-      false,
-    );
-    expect(matchesSearchSubject(focusedSearchQuery(context + "treatment"), current)).toBe(
-      true,
-    );
+    expect(matchesSearchSubject(focusedSearchQuery(context + "treatment"), oldTopic)).toBe(false);
+    expect(matchesSearchSubject(focusedSearchQuery(context + "treatment"), current)).toBe(true);
   });
 
   it("does not invent a disease from source prose, generic turns or missing context", () => {
@@ -100,9 +90,9 @@ describe("safe topic relevance for Santo medical references", () => {
     expect(
       focusedSearchQuery(prefix + "Q: management | Verified A: Aortic stenosis" + ending),
     ).toBe("management");
-    expect(focusedSearchQuery(prefix + "Q: compare FMF vs aortic stenosis | Verified A: text" + ending)).toBe(
-      "management",
-    );
+    expect(
+      focusedSearchQuery(prefix + "Q: compare FMF vs aortic stenosis | Verified A: text" + ending),
+    ).toBe("management");
     expect(focusedSearchQuery(prefix + "Aortic stenosis" + ending)).toBe(
       "management and treatment of aortic stenosis",
     );

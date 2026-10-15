@@ -1,6 +1,6 @@
 name: Professor Teaching Staging Deploy
 
-# Verified staging-only rollout: single-paid Luna attempt + robust same-stream completed JSON.
+# Verified staging-only rollout: single-pass Luna + verified CRLF framing and completed response payload.
 # Ordinary main commits do not redeploy staging; manual reruns remain possible.
 on:
   push:

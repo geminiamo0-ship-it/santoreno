@@ -136,12 +136,6 @@ jobs:
         if: steps.workspace.outputs.exists == 'true'
         run: pnpm install --frozen-lockfile
 
-      - name: Temporary source-relevance formatter diagnostic
-        if: steps.workspace.outputs.exists == 'true'
-        run: |
-          pnpm exec prettier --write workers/api/src/ai/source-relevance.ts
-          git diff -- workers/api/src/ai/source-relevance.ts
-
       - name: Lint
         if: steps.workspace.outputs.exists == 'true'
         run: pnpm lint

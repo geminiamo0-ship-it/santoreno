@@ -202,7 +202,9 @@ describe("Santo five licensed library retrieval", () => {
 
   it("V2 preserves infrastructure errors instead of treating them as absent medical evidence", async () => {
     const ns = new FakeAiSearchNamespace();
-    ns.search = async () => { throw new Error("AI Search reranking unavailable"); };
+    ns.search = async () => {
+      throw new Error("AI Search reranking unavailable");
+    };
     await expect(
       new CloudflareAiSearchRetrieval(ns, undefined, true).retrieve({
         query: "aortic stenosis",

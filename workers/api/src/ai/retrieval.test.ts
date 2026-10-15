@@ -124,12 +124,15 @@ describe("Santo five licensed library retrieval", () => {
   });
 
   it("V2 searches 24 candidates per index with Cloudflare native reranking", async () => {
-    const ns = new FakeAiSearchNamespace(undefined, Object.fromEntries(
-      expectedIds.map((id) => [
-        instanceFor(id),
-        { chunks: Array.from({ length: 15 }, (_, index) => chunk(id, index + 1)) },
-      ]),
-    ));
+    const ns = new FakeAiSearchNamespace(
+      undefined,
+      Object.fromEntries(
+        expectedIds.map((id) => [
+          instanceFor(id),
+          { chunks: Array.from({ length: 15 }, (_, index) => chunk(id, index + 1)) },
+        ]),
+      ),
+    );
     const retrieval = new CloudflareAiSearchRetrieval(ns, undefined, true);
     const selected = await retrieval.retrieve({ query: "aortic stenosis", libraryId: null });
     expect(ns.searchInputs).toHaveLength(5);
@@ -168,10 +171,18 @@ describe("Santo five licensed library retrieval", () => {
     });
     expect(selection.map((item) => item.itemKey)).toEqual(["fmf.html"]);
     expect(ns.searchInputs).toHaveLength(10);
-    expect(ns.searchInputs.every((x) => (x as { query: string }).query === "brief summary of FMF")).toBe(true);
-    expect(ns.searchInputs.slice(5).every((x) =>
-      (x as { ai_search_options: { retrieval: { max_num_results: number } } }).ai_search_options.retrieval.max_num_results === 40
-    )).toBe(true);
+    expect(
+      ns.searchInputs.every((x) => (x as { query: string }).query === "brief summary of FMF"),
+    ).toBe(true);
+    expect(
+      ns.searchInputs
+        .slice(5)
+        .every(
+          (x) =>
+            (x as { ai_search_options: { retrieval: { max_num_results: number } } })
+              .ai_search_options.retrieval.max_num_results === 40,
+        ),
+    ).toBe(true);
   });
 
   it("V2 filters to an explicitly authorized library and never searches other indexes", async () => {

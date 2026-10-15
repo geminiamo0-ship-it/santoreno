@@ -382,6 +382,56 @@ describe("grounded AI handler", () => {
     expect(quota.finalizeCalls).toBe(1);
   });
 
+  it("staging cost guard makes no second paid model call after an insufficient-evidence response", async () => {
+    env.SANTO_ENV = "staging";
+    env.SANTO_SINGLE_PASS_GENERATION_V1 = "true";
+    env.SANTO_GENERAL_MEDICAL_FALLBACK = "true";
+    model.generate = vi.fn(async () => ({
+      answer: "INSUFFICIENT_EVIDENCE",
+      citationIds: [],
+    }));
+    const response = await handler()(request(token), env);
+    expect(response.status).toBe(422);
+    expect(await response.json()).toEqual({ error: "INSUFFICIENT_EVIDENCE" });
+    expect(model.generate).toHaveBeenCalledTimes(1);
+    expect(quota.finalizeCalls).toBe(0);
+    expect(quota.releaseCalls).toBe(1);
+    expect(quota.used).toBe(0);
+  });
+
+  it("staging cost guard still answers with one general-model request when retrieval is empty", async () => {
+    env.SANTO_ENV = "staging";
+    env.SANTO_SINGLE_PASS_GENERATION_V1 = "true";
+    env.SANTO_GENERAL_MEDICAL_FALLBACK = "true";
+    retrieval.retrieve = vi.fn(async () => []);
+    model.generate = vi.fn(async () => ({
+      answer: "A safe, explicitly uncited medical teaching answer.",
+      citationIds: [],
+    }));
+    const response = await handler()(request(token), env);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      groundingMode: "general",
+      citations: [],
+      usage: { unitsCharged: 1 },
+    });
+    expect(model.generate).toHaveBeenCalledTimes(1);
+    expect(quota.finalizeCalls).toBe(1);
+  });
+
+  it("production never enables staging-only cost guard even if the variable is supplied", async () => {
+    env.SANTO_ENV = "production";
+    env.SANTO_SINGLE_PASS_GENERATION_V1 = "true";
+    env.SANTO_GENERAL_MEDICAL_FALLBACK = "true";
+    model.generate = vi
+      .fn()
+      .mockResolvedValueOnce({ answer: "INSUFFICIENT_EVIDENCE", citationIds: [] })
+      .mockResolvedValueOnce({ answer: "Legacy production general response", citationIds: [] });
+    const response = await handler()(request(token), env);
+    expect(response.status).toBe(200);
+    expect(model.generate).toHaveBeenCalledTimes(2);
+  });
+
   it("never turns retrieval outages into uncited medical assertions", async () => {
     env.SANTO_GENERAL_MEDICAL_FALLBACK = "true";
     retrieval.retrieve = vi.fn(async () => {

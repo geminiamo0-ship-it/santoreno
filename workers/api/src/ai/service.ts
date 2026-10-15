@@ -59,6 +59,7 @@ export class GroundedAiService {
     private readonly timeouts: { retrievalMs: number; modelMs: number } = AI_STAGE_TIMEOUTS,
     private readonly sourceStore?: SourceSnapshotWriter | null,
     private readonly generalFallbackEnabled = false,
+    private readonly singlePassGeneration = false,
   ) {}
 
   async query(
@@ -141,12 +142,16 @@ export class GroundedAiService {
         "MODEL_TIMEOUT",
       );
 
-      // If evidence existed but even the grounded model declined to rely on it,
-      // retry once as explicitly uncited medical education, under the SAME quota.
+      // Legacy fallback can create a SECOND paid generation after a complete
+      // grounded model response. The staging single-pass cost policy disables
+      // that retry; a refusal becomes a clear 422 error (quota released), not
+      // another silent provider call. Empty retrieval is handled *before*
+      // generation and can still use one general-mode call.
       if (
         draft.answer === "INSUFFICIENT_EVIDENCE" &&
         groundingMode === "santo" &&
-        this.generalFallbackEnabled
+        this.generalFallbackEnabled &&
+        !this.singlePassGeneration
       ) {
         groundingMode = "general";
         // Withdraw the previous grounded draft before changing its source policy.

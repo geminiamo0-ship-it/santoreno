@@ -10,7 +10,22 @@ import {
   createGroundedModel,
   GROUNDED_MODEL_POLICY,
   groundedSchemaForCitationIds,
+  stripInternalCitationLinks,
 } from "./model";
+
+describe("medical citation presentation", () => {
+  it("removes raw search ID link targets without changing teaching prose or authentic citations", () => {
+    const id = "one-examination-isolated:10a236b9772d5f3add5c93e77";
+    const draft = "Aortic stenosis is obstructive. [Valve obstruction raises afterload](" +
+      id + ") and normal [clinical reference](https://example.edu/reference).";
+    expect(stripInternalCitationLinks(draft, [id])).toBe(
+      "Aortic stenosis is obstructive. Valve obstruction raises afterload and normal " +
+      "[clinical reference](https://example.edu/reference).",
+    );
+    expect(stripInternalCitationLinks(draft, [])).toBe(draft);
+    expect(stripInternalCitationLinks(draft, ["different:source"])).toBe(draft);
+  });
+});
 
 describe("Cloudflare Workers AI model adapter", () => {
   it("selects the configured model and owns its generation policy", async () => {

@@ -38,9 +38,22 @@ export function previewPlainLuna(text: string, sourceIds: readonly string[]): st
   );
 }
 
-/** An explicit [[N]] must map to the Nth actual retrieved source.
- * Never manufacture a citation or cite a source not selected by the model.
- * The ordinary GroundedAiService still validates source identity and snapshots.
+/** A short social/clarifying Luna answer must not inherit unrelated RAG sources. */
+function isNonClinicalReply(answer: string): boolean {
+  const normalized = answer.trim().replace(/\s+/g, " ");
+  if (normalized.length > 420) return false;
+  return /^(?:what|which)\s+(?:condition|disease|medical condition|topic)\b/i.test(normalized) ||
+    /^(?:could you|can you|please)\s+(?:clarify|specify|name)\s+(?:the\s+)?(?:condition|disease|topic)/i.test(normalized) ||
+    /^(?:hi|hello|hey|thanks|thank you|you're welcome|you are welcome)[!.,\s؟]*$/i.test(normalized) ||
+    /^(?:تقصد (?:أي|اي) (?:مرض|حالة)|(?:ما|ايه) (?:المرض|الحالة) المقصود)/u.test(normalized);
+}
+
+/**
+ * Luna chooses inline citations using [[N]], while Santo alone owns the source
+ * identifiers. Unknown/malformed markers are stripped, never relinked.
+ * Complete uncited teaching may be accompanied by real, separately labeled
+ * related-library sources (not claimed sentence-level provenance).
+ * A response.completed provider frame is still mandatory upstream.
  */
 export function parsePlainLunaAnswer(
   text: string,
@@ -49,44 +62,30 @@ export function parsePlainLunaAnswer(
   const allowed = sourceIds ?? [];
   const used: string[] = [];
   const found = new Set<string>();
-  let invalidCitation = false;
-  let answer = text.replace(/\[\[([^\]\n]{1,24})\]\]/g, (whole, token: string) => {
-    if (!/^[1-9]\d?$/.test(token)) {
-      invalidCitation = true;
-      return whole;
-    }
+  let answer = text.replace(/\[\[([^\]\n]{0,24})\]\]/g, (_whole, token: string) => {
+    if (!/^[1-9]\d?$/.test(token)) return "";
     const source = allowed[Number(token) - 1];
-    if (!source) {
-      invalidCitation = true;
-      return whole;
-    }
+    if (!source) return "";
     if (!found.has(source)) {
       found.add(source);
       used.push(source);
     }
-    // Placeholder is transient inside Santo and never sent to the client.
     return "\u0000" + source + "\u0000";
   });
-  if (invalidCitation || (allowed.length > 0 && used.length === 0)) {
-    throw new GroundedAiError(
-      502,
-      "CITATION_INVALID",
-      "Model did not cite trusted source excerpts",
-    );
-  }
-  if (/\[\[\d{0,2}$/.test(answer) || /\bSANTO_REF_?\d*$/.test(answer)) {
-    throw new GroundedAiError(502, "MODEL_RESPONSE_INVALID", "Unfinished model citation");
-  }
+  answer = answer.replace(/\[\[[^\]\n]{0,24}(?=\n|$)/g, "");
   for (let i = 0; i < used.length; i++) {
     answer = answer.split("\u0000" + used[i] + "\u0000").join("[" + (i + 1) + "]");
   }
   answer = scrubMachineIds(answer.trim(), allowed);
   if (!answer || answer.length > 64000) {
-    throw new GroundedAiError(
-      502,
-      "MODEL_RESPONSE_INVALID",
-      "Model returned unusable teaching text",
-    );
+    throw new GroundedAiError(502, "MODEL_RESPONSE_INVALID", "Model returned unusable teaching text");
+  }
+  if (allowed.length > 0 && used.length === 0) {
+    return {
+      answer,
+      citationIds: [],
+      sourcePresentation: isNonClinicalReply(answer) ? "none" : "related",
+    };
   }
   return { answer, citationIds: used };
 }

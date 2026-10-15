@@ -136,6 +136,12 @@ jobs:
         if: steps.workspace.outputs.exists == 'true'
         run: pnpm install --frozen-lockfile
 
+      - name: Show Prettier suggested edit (temporary PR diagnostic)
+        if: steps.workspace.outputs.exists == 'true'
+        run: |
+          pnpm exec prettier --write workers/api/src/ai/plain-luna.ts
+          git diff -- workers/api/src/ai/plain-luna.ts
+
       - name: Lint
         if: steps.workspace.outputs.exists == 'true'
         run: pnpm lint

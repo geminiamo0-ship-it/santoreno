@@ -1,0 +1,41 @@
+name: Verify Luna Output Budget Once
+on:
+  push:
+    branches:
+      - fix/staging-luna-output-budget-20261015
+    paths:
+      - .github/workflows/verify-luna-output-budget-once.yml
+permissions:
+  contents: write
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install pinned dependencies
+        run: |
+          corepack enable
+          pnpm install --frozen-lockfile
+      - name: Format Luna output budget code
+        run: |
+          set -euo pipefail
+          pnpm exec prettier --write workers/api/src/ai/model.ts workers/api/src/ai/model.test.ts
+          if ! git diff --quiet; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add workers/api/src/ai/model.ts workers/api/src/ai/model.test.ts
+            git commit -m "style(ai): format single-pass completion budget"
+            git push origin HEAD:refs/heads/fix/staging-luna-output-budget-20261015
+          fi
+      - name: Run full Santo gates
+        run: |
+          set -euo pipefail
+          pnpm lint
+          pnpm typecheck
+          pnpm test
+          pnpm build
+          pnpm smoke

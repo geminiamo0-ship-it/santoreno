@@ -6,7 +6,7 @@ name: Professor Teaching Staging Deploy
 # PR #122: exclude stale conversation topics and mismatched disease article sources (FMF/Aortic regression).
 # PR #125: gated v2 native reranking, clinical section priority and larger candidate pool.
 # Issue #131: resolve short medical follow-ups to latest completed explicit clinical topic.
-# Issue #133: staging-only, cost-neutral MeSH synonym expansion experiment.
+# Issue #135: cancelled MeSH, one bounded Granite Micro medical query rewrite on staging.
 # Updated Luna native long-answer parser rollout.
 # Ordinary main commits do not redeploy staging; manual reruns remain possible.
 on:

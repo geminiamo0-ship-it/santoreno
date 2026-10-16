@@ -53,10 +53,7 @@ describe("staging Granite Micro medical query rewriter", () => {
       ),
     ).toBe(null);
     expect(
-      acceptMedicalRewrite(
-        "aortic stenosis without symptoms",
-        "aortic stenosis management",
-      ),
+      acceptMedicalRewrite("aortic stenosis without symptoms", "aortic stenosis management"),
     ).toBe(null);
     expect(
       acceptMedicalRewrite(
@@ -68,7 +65,11 @@ describe("staging Granite Micro medical query rewriter", () => {
 
   it("falls back to deterministic search on model outage, malformed and missing bindings", async () => {
     const focused = "management and treatment of aortic stenosis";
-    const failed: WorkersAiLike = { run: async () => { throw new Error("429"); } };
+    const failed: WorkersAiLike = {
+      run: async () => {
+        throw new Error("429");
+      },
+    };
     const malformed: WorkersAiLike = { run: async () => ({ response: "management of FMF" }) };
     expect(await rewriteMedicalSearchQuery(failed, "management", focused)).toBe(focused);
     expect(await rewriteMedicalSearchQuery(malformed, "management", focused)).toBe(focused);
@@ -77,7 +78,12 @@ describe("staging Granite Micro medical query rewriter", () => {
 
   it("never calls a model for missing topic or oversized input", async () => {
     let calls = 0;
-    const ai: WorkersAiLike = { run: async () => { calls++; return { response: "aortic stenosis" }; } };
+    const ai: WorkersAiLike = {
+      run: async () => {
+        calls++;
+        return { response: "aortic stenosis" };
+      },
+    };
     expect(await rewriteMedicalSearchQuery(ai, "management", "management")).toBe("management");
     const oversized = "aortic stenosis " + "patient ".repeat(180);
     expect(await rewriteMedicalSearchQuery(ai, oversized, oversized)).toBe(oversized);

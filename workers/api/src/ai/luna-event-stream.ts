@@ -6,7 +6,7 @@ type Progress = (provisionalAnswer: string) => void;
 // A 10k-token answer may exceed 64k characters or 160k bytes of SSE framing.
 export const LUNA_MAX_GENERATED_CHARS = 120_000;
 export const LUNA_MAX_PROVIDER_SSE_BYTES = 2_000_000;
-const MIN_PREVIEW_INCREMENT_CHARS = 128;
+// Streaming previews must not wait for a minimum character batch.
 
 function streamBody(value: unknown): ReadableStream<Uint8Array> | null {
   if (value instanceof ReadableStream) return value as ReadableStream<Uint8Array>;
@@ -171,13 +171,9 @@ export async function collectLunaEventStream(
         previewFormat === "plain"
           ? generated.slice(0, LUNA_MAX_GENERATED_CHARS)
           : previewStructuredAnswer(generated);
-      // The browser receives delta SSE. Batch tiny model deltas to avoid
-      // thousands of frame headers and keep a 10k-token answer under its
-      // bounded network limit. Flush the final tail on response.completed.
-      if (
-        preview &&
-        (lastPreview === "" || preview.length - lastPreview.length >= MIN_PREVIEW_INCREMENT_CHARS)
-      ) {
+      // Emit on the SAME provider output_text.delta event. No batching until
+      // completion; the first visible word cannot be replayed after generation.
+      if (preview && preview !== lastPreview) {
         lastPreview = preview;
         onProgress(preview);
       }

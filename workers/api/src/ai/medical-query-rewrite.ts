@@ -12,17 +12,74 @@ function words(text: string): string[] {
 }
 
 const IGNORED = new Set([
-  "a", "an", "the", "and", "of", "or", "in", "on", "for", "to", "with", "at",
-  "is", "are", "was", "were", "what", "how", "why", "please", "explain", "describe",
-  "tell", "me", "about", "can", "you", "its", "it", "this", "that", "management",
-  "treatment", "diagnosis", "symptoms", "causes", "pathophysiology", "complications",
-  "overview", "summary", "of", "therapy", "question", "clinical", "patient",
+  "a",
+  "an",
+  "the",
+  "and",
+  "of",
+  "or",
+  "in",
+  "on",
+  "for",
+  "to",
+  "with",
+  "at",
+  "is",
+  "are",
+  "was",
+  "were",
+  "what",
+  "how",
+  "why",
+  "please",
+  "explain",
+  "describe",
+  "tell",
+  "me",
+  "about",
+  "can",
+  "you",
+  "its",
+  "it",
+  "this",
+  "that",
+  "management",
+  "treatment",
+  "diagnosis",
+  "symptoms",
+  "causes",
+  "pathophysiology",
+  "complications",
+  "overview",
+  "summary",
+  "of",
+  "therapy",
+  "question",
+  "clinical",
+  "patient",
 ]);
 
 const MUST_KEEP = new Set([
-  "not", "without", "exclude", "severe", "mild", "moderate", "acute", "chronic",
-  "asymptomatic", "symptomatic", "pregnant", "pregnancy", "adult", "pediatric",
-  "paediatric", "neonatal", "child", "children", "elderly", "unstable",
+  "not",
+  "without",
+  "exclude",
+  "severe",
+  "mild",
+  "moderate",
+  "acute",
+  "chronic",
+  "asymptomatic",
+  "symptomatic",
+  "pregnant",
+  "pregnancy",
+  "adult",
+  "pediatric",
+  "paediatric",
+  "neonatal",
+  "child",
+  "children",
+  "elderly",
+  "unstable",
 ]);
 
 export function acceptMedicalRewrite(focused: string, output: unknown): string | null {
@@ -33,7 +90,8 @@ export function acceptMedicalRewrite(focused: string, output: unknown): string |
     candidate.length > 220 ||
     /[\n\r{}<>]/.test(candidate) ||
     /^(?:here|sure|query:|search query:|i |please |note:)/i.test(candidate)
-  ) return null;
+  )
+    return null;
   const inputWords = words(focused);
   const candidateWords = new Set(words(candidate));
   const anchors = [...new Set(inputWords.filter((word) => word.length >= 3 && !IGNORED.has(word)))];
@@ -92,13 +150,9 @@ export async function rewriteMedicalSearchQuery(
     const choices = Array.isArray(data?.choices) ? data.choices : [];
     const first = choices[0];
     const message =
-      first && typeof first === "object"
-        ? (first as Record<string, unknown>).message
-        : null;
+      first && typeof first === "object" ? (first as Record<string, unknown>).message : null;
     const content =
-      message && typeof message === "object"
-        ? (message as Record<string, unknown>).content
-        : null;
+      message && typeof message === "object" ? (message as Record<string, unknown>).content : null;
     const rewritten = typeof data?.response === "string" ? data.response : content;
     return acceptMedicalRewrite(focusedQuery, rewritten) ?? focusedQuery;
   } catch {

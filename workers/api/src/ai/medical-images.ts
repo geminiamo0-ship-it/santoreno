@@ -205,10 +205,10 @@ export async function loadMedicalImages(
       )
         continue;
       const article = await originalHtml(validated.data);
-      const candidates = extractHtmlImages(article, item.sourceId);
-      for (const image of candidates.length
-        ? candidates
-        : extractSectionImages(article, item.sourceId)) {
+      const candidates = article.contentHtml
+        ? extractHtmlImages(article, item.sourceId)
+        : extractSectionImages(article, item.sourceId);
+      for (const image of candidates) {
         if (seenUrls.has(image.src)) continue;
         seenUrls.add(image.src);
         found.push(image);

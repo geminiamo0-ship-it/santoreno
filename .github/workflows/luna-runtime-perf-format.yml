@@ -19,7 +19,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Format isolated staging runtime patch
         run: |
-          pnpm exec prettier --write workers/api/src/ai/medical-query-rewrite.ts workers/api/src/ai/medical-query-rewrite.test.ts workers/api/src/ai/types.ts workers/api/src/ai/retrieval.ts workers/api/src/ai/handler.ts workers/api/src/ai/handler.test.ts workers/api/src/ai/service.ts workers/api/src/ai/medical-images.ts workers/api/src/ai/medical-images.test.ts workers/api/wrangler.toml PROJECT_STATUS.md
+          pnpm exec prettier --write workers/api/src/ai/medical-query-rewrite.ts workers/api/src/ai/medical-query-rewrite.test.ts workers/api/src/ai/types.ts workers/api/src/ai/retrieval.ts workers/api/src/ai/handler.ts workers/api/src/ai/handler.test.ts workers/api/src/ai/service.ts workers/api/src/ai/medical-images.ts workers/api/src/ai/medical-images.test.ts PROJECT_STATUS.md
       - name: Commit formatted patch
         run: |
           set -euo pipefail

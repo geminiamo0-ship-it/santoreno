@@ -111,26 +111,64 @@ describe("Luna original medical article images", () => {
     expect(repeat.map((item) => item.sourceId)).toEqual(ids.map((id) => id + ":another-chunk"));
   });
 
-  it("bounds prompt to 15 distinct source-verified image candidates and prioritizes clinical matches", () => {
-    const candidates = Array.from({ length: 30 }, (_, index) => ({
+  it("offers up to 30 source-verified image candidates and prioritizes clinical matches", () => {
+    const candidates = Array.from({ length: 45 }, (_, index) => ({
       id: "IMG_" + String(index + 1).padStart(3, "0"),
-      sourceId: index === 29 ? "usmle:unique" : "amboss:source",
+      sourceId: index === 44 ? "usmle:unique" : "amboss:source",
       src: MEDIA + index + ".png",
       articleTitle: "Cardiology",
-      section: index === 29 ? "Aortic stenosis Doppler ultrasound" : "Unrelated figure",
+      section: index === 44 ? "Aortic stenosis Doppler ultrasound" : "Unrelated figure",
       alt: "Figure " + index,
       caption: "",
       originalId: null,
       before: "",
       after: "",
     }));
-    const chosen = selectMedicalImagesForPrompt(candidates, "aortic stenosis", 15);
-    expect(chosen).toHaveLength(15);
-    expect(chosen.map((item) => item.id)).toContain("IMG_030");
+    const chosen = selectMedicalImagesForPrompt(candidates, "aortic stenosis", 30);
+    expect(chosen).toHaveLength(30);
+    expect(chosen.map((item) => item.id)).toContain("IMG_045");
     const prompt = medicalImagePrompt(candidates, "aortic stenosis");
-    expect(prompt).toContain("IMG_030");
-    expect(prompt).not.toContain("IMG_029");
-    expect(prompt.match(/"image_id":/g)).toHaveLength(15);
+    expect(prompt).toContain("IMG_045");
+    expect(prompt).not.toContain("IMG_044");
+    expect(prompt.match(/"image_id":/g)).toHaveLength(30);
+    expect(prompt).not.toContain(MEDIA + "44.png"); // Original URLs stay server-side
+    expect(prompt).toContain("Illustrations are a PRIORITY");
+  });
+
+  it("combines lazy HTML images with section image metadata without duplicating original figures", async () => {
+    const html =
+      '<h2>Diagnosis</h2><img data-src="' +
+      MEDIA +
+      'doppler.png" alt="Doppler study"><img src="' +
+      MEDIA +
+      'valve.png" alt="Valve">';
+    const original = bucket(html);
+    const merged: R2BucketLike = {
+      ...original,
+      async get(key) {
+        const object = await original.get(key);
+        if (!object) return null;
+        const article = JSON.parse(await object.text()) as {
+          sections: Array<{ images: Array<{ src: string; alt: string }> }>;
+        };
+        article.sections[0]!.images.push({ src: MEDIA + "doppler.png", alt: "Doppler" });
+        article.sections[0]!.images.push({
+          src: MEDIA + "additional.png",
+          alt: "Extra section figure",
+        });
+        // Structured section image URLs are already schema-validated; test
+        // hostile HTML separately rather than invalidating the whole article.
+        return { text: async () => JSON.stringify(article) };
+      },
+    };
+    const results = await loadMedicalImages(merged, evidence);
+    expect(results.map((item) => item.src)).toEqual([
+      MEDIA + "doppler.png",
+      MEDIA + "valve.png",
+      MEDIA + "additional.png",
+    ]);
+    expect(results[0]!.alt).toBe("Doppler study");
+    expect(results.every((item) => item.sourceId === "amboss:chunk-123")).toBe(true);
   });
 
   it("hydrates HTML images with canonical R2 src, original IDs and figcaption", async () => {
@@ -193,7 +231,10 @@ describe("Luna original medical article images", () => {
       bucket('<img src="https://evil.example/x.png">'),
       evidence,
     );
-    expect(article).toEqual([]);
+    // An unsafe HTML URL is rejected; safe section metadata from the same
+    // schema-validated source can still be used as a legitimate fallback.
+    expect(article.map((image) => image.src)).toEqual([MEDIA + "valve.png"]);
+    expect(article.every((image) => !image.src.includes("evil.example"))).toBe(true);
     const forged: RetrievedEvidence[] = [{ ...evidence[0]!, itemKey: "../../outside" }];
     const reads = { reads: 0 };
     expect(await loadMedicalImages(bucket("", reads), forged)).toEqual([]);

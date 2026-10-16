@@ -23,6 +23,59 @@ describe("staging Qwen3 medical query rewriter", () => {
     expect(calls).toBe(1);
   });
 
+  it("asks one clarification with the same Qwen call when a question lacks the medical topic", async () => {
+    let calls = 0;
+    const ai: WorkersAiLike = {
+      run: async () => {
+        calls++;
+        return {
+          response: JSON.stringify({
+            intent: "CLARIFY",
+            question: "Do you mean treatment or diagnosis, and for which disease?",
+          }),
+        };
+      },
+    };
+    expect(await routeMedicalRequest(ai, "ttt?", "ttt?")).toEqual({
+      intent: "clarify",
+      question: "Do you mean treatment or diagnosis, and for which disease?",
+    });
+    expect(calls).toBe(1);
+  });
+
+  it("accepts an Arabic clarification and rejects claims, links and invalid clarifications", async () => {
+    const ai: WorkersAiLike = {
+      run: async () => ({
+        response: JSON.stringify({ intent: "CLARIFY", question: "تقصد علاج أي مرض بالتحديد؟" }),
+      }),
+    };
+    expect(await routeMedicalRequest(ai, "العلاج؟", "العلاج؟")).toEqual({
+      intent: "clarify",
+      question: "تقصد علاج أي مرض بالتحديد؟",
+    });
+    const unsafe: WorkersAiLike = {
+      run: async () => ({
+        response: JSON.stringify({
+          intent: "CLARIFY",
+          question: "See https://evil.example for the treatment?",
+        }),
+      }),
+    };
+    expect(await routeMedicalRequest(unsafe, "ttt", "ttt")).toEqual({
+      intent: "medical",
+      searchQuery: "ttt",
+    });
+    const notQuestion: WorkersAiLike = {
+      run: async () => ({
+        response: JSON.stringify({ intent: "CLARIFY", question: "I know you have diabetes." }),
+      }),
+    };
+    expect(await routeMedicalRequest(notQuestion, "?", "?")).toEqual({
+      intent: "medical",
+      searchQuery: "?",
+    });
+  });
+
   it("creates a safe medical search query in the SAME Qwen call, preserving clinical intent", async () => {
     let calls = 0;
     const ai: WorkersAiLike = {

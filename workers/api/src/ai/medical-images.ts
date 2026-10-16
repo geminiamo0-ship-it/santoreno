@@ -131,7 +131,7 @@ function extractHtmlImages(
   const seen = new Set<string>();
   for (const match of matches) {
     const tag = match[0];
-    const src = approvedUrl(attr(tag, "src"));
+    const src = approvedUrl(attr(tag, "src")) ?? approvedUrl(attr(tag, "data-src"));
     if (!src || seen.has(src)) continue;
     seen.add(src);
     const at = match.index ?? 0;
@@ -246,10 +246,16 @@ async function articleImages(
         return null;
       if (diagnostics) diagnostics.validArticles++;
       const article = await originalHtml(validated.data);
-      const extracted = article.contentHtml
-        ? extractHtmlImages(article, "")
-        : extractSectionImages(article, "");
-      const images = extracted.map(({ sourceId: _sourceId, ...rest }) => rest);
+      // Original HTML and section.images can contain complementary figures.
+      // Keep HTML figure captions/IDs where both mention the same src.
+      const bySrc = new Map<string, Omit<MedicalImageCandidate, "id">>();
+      for (const figure of [
+        ...extractHtmlImages(article, ""),
+        ...extractSectionImages(article, ""),
+      ]) {
+        if (!bySrc.has(figure.src)) bySrc.set(figure.src, figure);
+      }
+      const images = [...bySrc.values()].map(({ sourceId: _sourceId, ...rest }) => rest);
       let entries = imageCache.get(bucket);
       if (!entries) {
         entries = new Map();
@@ -324,11 +330,11 @@ export async function loadMedicalImages(
 export function selectMedicalImagesForPrompt(
   images: readonly MedicalImageCandidate[],
   query: string,
-  limit = 15,
+  limit = 30,
 ): MedicalImageCandidate[] {
   if (images.length <= limit) return [...images];
   const words = new Set(
-    (query.toLowerCase().match(/[\\p{L}\\p{N}]{3,}/gu) ?? []).filter(
+    (query.toLowerCase().match(/[\p{L}\p{N}]{3,}/gu) ?? []).filter(
       (word) => !["what", "about", "explain", "please", "study"].includes(word),
     ),
   );
@@ -368,15 +374,22 @@ export function medicalImagePrompt(images: readonly MedicalImageCandidate[], que
         image_id: image.id,
         source_id: image.sourceId,
         original_html_id: image.originalId,
-        src: image.src,
+        // Backend expands verified original URLs from image_id; sending URLs
+        // to Luna wastes context and encourages it to print raw image links.
         article: image.articleTitle,
         section: image.section,
-        alt: image.alt,
-        caption: image.caption || null,
-        ...(image.caption ? {} : { context_before: image.before, context_after: image.after }),
+        alt: image.alt.slice(0, 120),
+        caption: image.caption.slice(0, 160) || null,
+        ...(image.caption
+          ? {}
+          : {
+              context_before: image.before.slice(0, 130),
+              context_after: image.after.slice(0, 130),
+            }),
       })),
     ) +
-    "\nUse as many clinically relevant figures as improve the teaching, placed inline beside their corresponding explanations. " +
+    "\nIllustrations are a PRIORITY teaching resource. When images genuinely match the question, actively use as MANY distinct, complementary original source figures as are useful (often several across multiple sections rather than just one or two). " +
+    "Position each relevant figure beside the matching clinical explanation and use multiple figures when each shows different anatomy, mechanism, findings or management. " +
     "To request a figure, write ONLY its exact [[IMG_001]]-style image_id on a standalone line. " +
     "Never invent image IDs or URLs, never cite an image as evidence for an unsupported clinical claim, " +
     "and exclude unrelated, decorative and duplicate pictures. Each image must correspond to the question " +

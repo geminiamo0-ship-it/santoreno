@@ -20,8 +20,11 @@ export const LUNA_PLAIN_TEXT_INSTRUCTIONS =
   "Exception: if AVAILABLE_ORIGINAL_ARTICLE_IMAGES is supplied, exact [[IMG_001]]-style " +
   "markers from its image_id list are ALLOWED and ENCOURAGED inline in your Markdown explanation. " +
   "These are safe image-placement requests to Santo, NOT forbidden machine/source identifiers. " +
-  "Use as many genuinely relevant source illustrations as improve understanding; write each image " +
-  "marker on its own line after the corresponding explanation. Never invent image IDs or URLs. " +
+  "Actively incorporate as many distinct, clinically relevant available figures as are useful across your explanation; " +
+  "don't stop after the first or second figure if other images illustrate additional anatomy, diagnosis, physiology or treatment. " +
+  "For a broad teaching topic, aim to show several complementary images in their relevant sections; for a narrow question " +
+  "use only the figures that truly contribute. Write each chosen image marker on its own line immediately after " +
+  "its corresponding explanation. Never force unrelated/duplicated figures or invent image IDs or URLs. " +
   "When the available list is empty, do not emit image markers. Finish complete sentences.";
 
 function scrubMachineIds(text: string, ids: readonly string[]): string {

@@ -6,6 +6,14 @@
 >
 > **Rule:** GitHub code, issues, PRs, commits, and Actions are the source of truth. Update this file whenever meaningful work completes, a gate passes/fails, architecture changes, or the active issue changes.
 
+### Qwen clarification and richer Luna figure usage — Staging candidate (16 Oct 2026)
+
+- Keep `@cf/qwen/qwen3-30b-a3b-fp8` as the **single** small inference per turn. A third structured `CLARIFY` route asks one concise, language-matched question when the student's request is genuinely uninterpretable or missing essential information. Valid medical questions, broad diseases, and resolvable follow-ups remain MEDICAL and preserve sourced Luna teaching. Provider failure/invalid content defaults to the existing medical route.
+- Clarifications come directly from Qwen, with no AI Search/Luna invocation, but retain server-side auth, quota finalization, ConversationDO turn persistence and response validation. No extra routing model/call.
+- Offer up to **30** source-backed original images (previously 15) to Luna, with stronger high-priority instructions to use multiple complementary figures where clinically pertinent. Build image candidates from both `contentHtml` (`src`/`data-src`) and `sections.images`; de-duplicate by canonical allowlisted R2 URL, preserve original HTML captions and source identities. Prompt omits URL bytes to limit token cost; Santo still expands **only** server-approved marker IDs.
+- All five current index releases and their chunking/embedding stay untouched. No R2 content writes, Production rollout, user data exposure or invented media.
+- Pending exact-head Verify, stage deployment and live observation of clarity/figure selection. More _available_ figures do not guarantee more displayed images where the retrieved articles contain few relevant images.
+
 ### Santo Staging Luna runtime speed rollout — 16 Oct 2026 (code + deploy verified; live latency benchmark pending)
 
 - User explicitly froze all five existing AI Search indexes; **no re-indexing, embedding changes, chunking changes, metadata migrations or new R2 release writes**.
@@ -14,7 +22,7 @@
 - Staging original-article R2 image metadata hydration uses `Promise.all` for up to five validated articles, with a bounded five-minute per-isolate cache keyed by R2 binding and article key, and request-specific source IDs reapplied after cache lookup. Prompt uses at most 15 clinical-image candidates per turn, preserving diverse valid sources without changing actual R2 content or authorized image lookup rules.
 - Privacy-safe timing stages record Qwen route, retrieval, image hydration, Luna time-to-first-delta and Luna total generation. No user medical text, source IDs, tokens, URL paths, or secrets are logged.
 - **Verified:** PR #143 merged, feature head Verify #38927311868 successful, Workers AI Qwen rewrite smoke #38927311879 successful; post-merge exact-commit Verify and Cloudflare Staging deployment #38927566489 completed successfully (including health and unauthenticated-deny smoke). No re-indexing or Production edits.
-- **Still pending:** authenticated end-to-end Royal Bank p50/p95 *first visible token* benchmark and clinician review for edge-case classification. Do not claim a 1s/5s improvement until observed. Royal Bank Preview-only server session optimization is isolated in PR #134, with quota/authentication checks retained.
+- **Still pending:** authenticated end-to-end Royal Bank p50/p95 _first visible token_ benchmark and clinician review for edge-case classification. Do not claim a 1s/5s improvement until observed. Royal Bank Preview-only server session optimization is isolated in PR #134, with quota/authentication checks retained.
 
 ### Qwen3 medical query normalization replacement — PR #141 (Staging candidate; 16 Oct 2026)
 

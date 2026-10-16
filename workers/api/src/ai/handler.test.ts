@@ -259,6 +259,30 @@ describe("grounded AI handler", () => {
     expect(save).not.toHaveBeenCalled();
   });
 
+  it("persistently finalizes a Qwen CLARIFY question without Luna or medical retrieval", async () => {
+    env.SANTO_ENV = "staging";
+    env.SANTO_QWEN_ROUTING_V1 = "true";
+    retrieval.route = vi.fn(async () => ({
+      intent: "clarify" as const,
+      question: "Do you mean diagnosis or treatment?",
+    }));
+    retrieval.retrieve = vi.fn(async () => {
+      throw new Error("retrieval must wait for clarification");
+    });
+    const save = vi.fn(async () => undefined);
+    const response = await handler({ save })(request(token, "clarify-1", "ttt?"), env);
+    expect(response.status).toBe(200);
+    const payload = await response.json();
+    expect(payload.answer).toBe("Do you mean diagnosis or treatment?");
+    expect(payload.citations).toEqual([]);
+    expect(payload.groundingMode).toBe("general");
+    expect(quota.reserveCalls).toBe(1);
+    expect(quota.finalizeCalls).toBe(1);
+    expect(retrieval.retrieve).not.toHaveBeenCalled();
+    expect(model.generate).not.toHaveBeenCalled();
+    expect(save).not.toHaveBeenCalled();
+  });
+
   it("uses Qwen's prepared MEDICAL query without a second rewrite and preserves citation verification", async () => {
     env.SANTO_ENV = "staging";
     env.SANTO_QWEN_ROUTING_V1 = "true";

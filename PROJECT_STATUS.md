@@ -6,13 +6,14 @@
 >
 > **Rule:** GitHub code, issues, PRs, commits, and Actions are the source of truth. Update this file whenever meaningful work completes, a gate passes/fails, architecture changes, or the active issue changes.
 
-### Qwen clarification and richer Luna figure usage — Staging candidate (16 Oct 2026)
+### Qwen clarification and richer Luna figure usage — Staging deployed and verified (16 Oct 2026)
 
 - Keep `@cf/qwen/qwen3-30b-a3b-fp8` as the **single** small inference per turn. A third structured `CLARIFY` route asks one concise, language-matched question when the student's request is genuinely uninterpretable or missing essential information. Valid medical questions, broad diseases, and resolvable follow-ups remain MEDICAL and preserve sourced Luna teaching. Provider failure/invalid content defaults to the existing medical route.
 - Clarifications come directly from Qwen, with no AI Search/Luna invocation, but retain server-side auth, quota finalization, ConversationDO turn persistence and response validation. No extra routing model/call.
 - Offer up to **30** source-backed original images (previously 15) to Luna, with stronger high-priority instructions to use multiple complementary figures where clinically pertinent. Build image candidates from both `contentHtml` (`src`/`data-src`) and `sections.images`; de-duplicate by canonical allowlisted R2 URL, preserve original HTML captions and source identities. Prompt omits URL bytes to limit token cost; Santo still expands **only** server-approved marker IDs.
 - All five current index releases and their chunking/embedding stay untouched. No R2 content writes, Production rollout, user data exposure or invented media.
-- Pending exact-head Verify, stage deployment and live observation of clarity/figure selection. More _available_ figures do not guarantee more displayed images where the retrieved articles contain few relevant images.
+- **Verified:** PR #144 merged, candidate Verify #38938099974 succeeded with 230 unit/integration tests, exact staging commit Verify #38938276342 passed, and Cloudflare Staging Deploy #38938267930 passed with health and unauthorized AI deny smoke. No re-indexing or production edits.
+- **Still pending:** authenticated real-student Qwen CLARIFY behavior and rendered-image count validation; the current live Qwen smoke tests query rewriting, not the new CLARIFY intent. More _available_ images do not guarantee more displayed images without relevant licensed figures.
 
 ### Santo Staging Luna runtime speed rollout — 16 Oct 2026 (code + deploy verified; live latency benchmark pending)
 

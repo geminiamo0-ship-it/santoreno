@@ -257,6 +257,55 @@ describe("grounded AI handler", () => {
     expect(quota.finalizeCalls).toBe(1);
   });
 
+  it("sends real source HTML figure metadata to Luna and renders selected image IDs inline", async () => {
+    env.SANTO_ENV = "staging";
+    env.SANTO_LUNA_PREVIEW = "true";
+    env.SANTO_SINGLE_PASS_GENERATION_V1 = "true";
+    env.SANTO_PLAIN_TEXT_LUNA_V1 = "true";
+    env.SANTO_LUNA_RICH_IMAGES_V1 = "true";
+    const media = "https://pub-2a81f2cb19cc4473a3d076e657af6121.r2.dev/offline_media/valve.png";
+    const sourceId = "amboss:chunk-valve";
+    const article = {
+      schemaVersion: 1, libraryId: "amboss", articleId: "aortic-stenosis",
+      title: "Aortic stenosis", category: "Cardiology", source: "AMBOSS",
+      sections: [{ id: "s-0001", heading: "Diagnosis", text: "Doppler measures valve gradients",
+        images: [{ src: media, alt: "Aortic valve Doppler" }] }],
+      contentHtml: "<h2>Diagnosis</h2><figure><img id=\"echo-7\" src=\"" + media +
+        "\" alt=\"Doppler\"><figcaption>Continuous wave Doppler across stenotic valve</figcaption></figure>",
+    };
+    const get = vi.fn(async (key: string) => key === "medical-articles/v1/amboss/aortic-stenosis.json"
+      ? { text: async () => JSON.stringify(article) }
+      : null);
+    env.CONTENT_BUCKET = { get, put: async () => undefined, delete: async () => undefined };
+    retrieval.retrieve = vi.fn(async () => [{
+      sourceId, libraryId: "amboss", instanceId: "amboss",
+      itemKey: "medical-search/v1/amboss/aortic-stenosis/s-0001.md",
+      title: "Aortic stenosis", section: "Diagnosis", text: "Doppler echocardiography",
+      page: null, score: 0.94,
+    }]);
+    model.generate = vi.fn(async () => ({
+      answer: "## Diagnosis\nDoppler confirms valve obstruction [[1]].\n\n[[IMG_001]]",
+      citationIds: [sourceId],
+    }));
+    const save = vi.fn(async () => undefined);
+    const output = await handler({ save })(request(token, "valve-image", "Aortic stenosis echo"), env);
+    expect(output.status).toBe(200);
+    const body = await output.json();
+    expect(body.answer).toContain("![Continuous wave Doppler across stenotic valve](" + media + ")");
+    expect(body.answer).toContain("Source: Aortic stenosis — Diagnosis");
+    expect(body.answer).not.toContain("[[IMG_001]]");
+    expect(body.citations).toMatchObject([{ sourceId }]);
+    expect(get).toHaveBeenCalledWith("medical-articles/v1/amboss/aortic-stenosis.json");
+    expect(model.generate).toHaveBeenCalledTimes(1);
+    const prompt = vi.mocked(model.generate).mock.calls[0]![0] as string;
+    expect(prompt).toContain("AVAILABLE_ORIGINAL_ARTICLE_IMAGES");
+    expect(prompt).toContain("Continuous wave Doppler across stenotic valve");
+    expect(prompt).toContain("echo-7");
+    expect(prompt).toContain("IMG_001");
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(quota.finalizeCalls).toBe(1);
+  });
+
   it("passes an uncited Markdown contract to staging when retrieval is empty", async () => {
     env.SANTO_ENV = "staging";
     env.SANTO_LUNA_PREVIEW = "true";

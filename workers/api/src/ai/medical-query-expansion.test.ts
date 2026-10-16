@@ -54,8 +54,8 @@ describe("MeSH-backed controlled medical query expansion pilot", () => {
     expect(expansion.query).toContain("aortic valve stenosis");
     expect(expansion.query).not.toMatch(/TAVR|SAVR|valve replacement/i);
     expect(expandMedicalSearchQuery("not-aortic stenosis")).toEqual({
-      query: "not-aortic stenosis aortic valve stenosis",
-      expanded: true,
+      query: "not-aortic stenosis",
+      expanded: false,
     });
   });
 });

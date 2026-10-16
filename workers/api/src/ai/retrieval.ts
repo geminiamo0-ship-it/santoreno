@@ -6,7 +6,7 @@ import {
   type LibraryCatalogPort,
 } from "./library-catalog";
 import type { RetrievalPort, RetrievalRequest, RetrievedEvidence } from "./types";
-import { focusedSearchQuery, matchesSearchSubject } from "./source-relevance";
+import { focusedSearchQuery } from "./source-relevance";
 import { rankMedicalCandidates, type RankedCandidate } from "./medical-ranking";
 import type { WorkersAiLike } from "../runtime/bindings";
 import { rewriteMedicalSearchQuery } from "./medical-query-rewrite";
@@ -214,7 +214,6 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
           // Do not force one result per library: a high semantic score can
           // still be for a DIFFERENT disease from a previous discussion.
           return evidenceFromSearch(search, [entry])
-            .filter((candidate) => matchesSearchSubject(currentTopicQuery, candidate))
             .slice(0, 1);
         }),
       );

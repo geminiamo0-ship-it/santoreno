@@ -21,6 +21,24 @@ const MEDIA_HOST = "pub-2a81f2cb19cc4473a3d076e657af6121.r2.dev";
 const MAX_IMAGES = 80;
 const MAX_ARTICLES = 5;
 
+/** Privacy-safe staging diagnostics: counters only, no article text, image URLs,
+ * student prompts or private article identifiers are ever logged. */
+export interface ImageHydrationDiagnostics {
+  evidenceCount: number;
+  recognizedSourcePaths: number;
+  articleReads: number;
+  articleObjectsFound: number;
+  validArticles: number;
+  articlesWithImages: number;
+  unreadableArticles: number;
+  imageCandidates: number;
+}
+
+export function emptyImageHydrationDiagnostics(evidenceCount: number): ImageHydrationDiagnostics {
+  return { evidenceCount, recognizedSourcePaths: 0, articleReads: 0, articleObjectsFound: 0,
+    validArticles: 0, articlesWithImages: 0, unreadableArticles: 0, imageCandidates: 0 };
+}
+
 function approvedUrl(value: string): string | null {
   try {
     const url = new URL(value);
@@ -183,6 +201,7 @@ async function originalHtml(article: LibraryArticle): Promise<LibraryArticle> {
 export async function loadMedicalImages(
   bucket: R2BucketLike,
   evidence: readonly RetrievedEvidence[],
+  diagnostics?: ImageHydrationDiagnostics,
 ): Promise<MedicalImageCandidate[]> {
   const articles = new Set<string>();
   const found: Omit<MedicalImageCandidate, "id">[] = [];
@@ -190,12 +209,15 @@ export async function loadMedicalImages(
   for (const item of evidence) {
     const parsed = SEARCH_KEY.exec(item.itemKey);
     if (!parsed || parsed[1] !== item.libraryId) continue;
+    if (diagnostics) diagnostics.recognizedSourcePaths++;
     const key = "medical-articles/v1/" + parsed[1] + "/" + parsed[2] + ".json";
     if (articles.has(key) || articles.size >= MAX_ARTICLES) continue;
     articles.add(key);
+    if (diagnostics) diagnostics.articleReads++;
     try {
       const object = await bucket.get(key);
       if (!object) continue;
+      if (diagnostics) diagnostics.articleObjectsFound++;
       const raw: unknown = JSON.parse(await object.text());
       const validated = LibraryArticleSchema.safeParse(raw);
       if (
@@ -204,10 +226,12 @@ export async function loadMedicalImages(
         validated.data.articleId !== parsed[2]
       )
         continue;
+      if (diagnostics) diagnostics.validArticles++;
       const article = await originalHtml(validated.data);
       const candidates = article.contentHtml
         ? extractHtmlImages(article, item.sourceId)
         : extractSectionImages(article, item.sourceId);
+      if (diagnostics && candidates.length > 0) diagnostics.articlesWithImages++;
       for (const image of candidates) {
         if (seenUrls.has(image.src)) continue;
         seenUrls.add(image.src);
@@ -215,10 +239,12 @@ export async function loadMedicalImages(
         if (found.length >= MAX_IMAGES) break;
       }
     } catch {
+      if (diagnostics) diagnostics.unreadableArticles++;
       // Image hydration is optional: a failure must not erase the medical answer.
     }
     if (found.length >= MAX_IMAGES) break;
   }
+  if (diagnostics) diagnostics.imageCandidates = found.length;
   return found.map((image, index) => ({
     ...image,
     id: "IMG_" + String(index + 1).padStart(3, "0"),

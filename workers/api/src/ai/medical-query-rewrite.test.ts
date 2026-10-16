@@ -9,7 +9,9 @@ describe("staging Granite Micro medical query rewriter", () => {
     const ai: WorkersAiLike = {
       run: async (model, input) => {
         calls.push({ model, input });
-        return { response: "aortic stenosis management and treatment" };
+        return {
+          choices: [{ message: { content: "aortic stenosis management and treatment" } }],
+        };
       },
     };
     const envelope =

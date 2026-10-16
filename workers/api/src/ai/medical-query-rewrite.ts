@@ -57,7 +57,12 @@ export async function rewriteMedicalSearchQuery(
   originalRequest: string,
   focusedQuery: string,
 ): Promise<string> {
-  if (!ai || focusedQuery.length > MAX_FOCUSED_CHARS || focusedQuery.length < 3) {
+  if (
+    !ai ||
+    focusedQuery.length > MAX_FOCUSED_CHARS ||
+    focusedQuery.length < 3 ||
+    !words(focusedQuery).some((word) => word.length >= 3 && !IGNORED.has(word))
+  ) {
     return focusedQuery;
   }
   const marker = originalRequest.lastIndexOf(FOLLOW_UP_MARKER);

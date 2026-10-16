@@ -19,6 +19,10 @@ describe("MeSH-backed controlled medical query expansion pilot", () => {
       query: "management of fmf familial mediterranean fever",
       expanded: true,
     });
+    expect(expandMedicalSearchQuery("recurrent polyserositis treatment")).toEqual({
+      query: "recurrent polyserositis treatment familial mediterranean fever",
+      expanded: true,
+    });
     expect(expandMedicalSearchQuery("Familial Mediterranean fever")).toEqual({
       query: "Familial Mediterranean fever",
       expanded: false,

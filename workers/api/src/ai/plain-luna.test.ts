@@ -61,7 +61,10 @@ describe("staging single-pass plain-Luna citation contract", () => {
     expect(answer.answer).toContain("[[IMG_001]]");
     expect(answer.answer).toContain("[1]");
     expect(answer.citationIds).toEqual([sourceA]);
-    const preview = previewPlainLuna("Valve anatomy [[IMG_001]] ![bad](https://bad.invalid/a.png)", [sourceA]);
+    const preview = previewPlainLuna(
+      "Valve anatomy [[IMG_001]] ![bad](https://bad.invalid/a.png)",
+      [sourceA],
+    );
     expect(preview).not.toContain("IMG_001");
     expect(preview).not.toContain("bad.invalid");
   });

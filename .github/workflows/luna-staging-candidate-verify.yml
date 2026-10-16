@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: write
+  issues: write
 
 concurrency:
   group: luna-staging-candidate-verify
@@ -54,8 +55,24 @@ jobs:
             git commit -m "style(staging): prettier-format Luna sources and image pipeline"
             git push origin HEAD:feat/luna-rich-sources-images-20261016
           fi
-      - run: pnpm lint
-      - run: pnpm typecheck
-      - run: pnpm test
-      - run: pnpm build
-      - run: pnpm smoke
+      - id: lint
+        run: pnpm lint
+      - id: typecheck
+        run: pnpm typecheck
+      - id: test
+        run: pnpm test
+      - id: build
+        run: pnpm build
+      - id: smoke
+        run: pnpm smoke
+      - name: Post exact run outcome on Santo staging PR
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LINT: ${{ steps.lint.outcome }}
+          TYPES: ${{ steps.typecheck.outcome }}
+          TESTS: ${{ steps.test.outcome }}
+          BUILD: ${{ steps.build.outcome }}
+          SMOKE: ${{ steps.smoke.outcome }}
+        run: |
+          gh pr comment 137 --body "Staging-only candidate CI: lint=${LINT}, typecheck=${TYPES}, test=${TESTS}, build=${BUILD}, smoke=${SMOKE}. Logs: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}. This workflow never deploys Production."

@@ -242,7 +242,8 @@ async function articleImages(
         !validated.success ||
         validated.data.libraryId !== libraryId ||
         validated.data.articleId !== articleId
-      ) return null;
+      )
+        return null;
       if (diagnostics) diagnostics.validArticles++;
       const article = await originalHtml(validated.data);
       const extracted = article.contentHtml
@@ -327,15 +328,18 @@ export function selectMedicalImagesForPrompt(
 ): MedicalImageCandidate[] {
   if (images.length <= limit) return [...images];
   const words = new Set(
-    (query.toLowerCase().match(/[\\p{L}\\p{N}]{3,}/gu) ?? [])
-      .filter((word) => !["what", "about", "explain", "please", "study"].includes(word)),
+    (query.toLowerCase().match(/[\\p{L}\\p{N}]{3,}/gu) ?? []).filter(
+      (word) => !["what", "about", "explain", "please", "study"].includes(word),
+    ),
   );
   const scores = images.map((image, index) => ({
     image,
     index,
     score: [...words].filter((word) =>
       [image.caption, image.alt, image.section, image.articleTitle]
-        .join(" ").toLowerCase().includes(word),
+        .join(" ")
+        .toLowerCase()
+        .includes(word),
     ).length,
   }));
   scores.sort((a, b) => b.score - a.score || a.index - b.index);
@@ -354,10 +358,7 @@ export function selectMedicalImagesForPrompt(
   return chosen.sort((a, b) => a.index - b.index).map(({ image }) => image);
 }
 
-export function medicalImagePrompt(
-  images: readonly MedicalImageCandidate[],
-  query = "",
-): string {
+export function medicalImagePrompt(images: readonly MedicalImageCandidate[], query = ""): string {
   if (!images.length) return "";
   const selected = selectMedicalImagesForPrompt(images, query);
   return (

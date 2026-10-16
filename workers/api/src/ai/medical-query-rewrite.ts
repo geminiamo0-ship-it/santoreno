@@ -141,13 +141,11 @@ export async function rewriteMedicalSearchQuery(
   }
 }
 
-
 /** One Qwen inference classifies a student turn and normalizes medical search.
  * The generated CHAT answer is only accepted for short, unambiguous social
  * turns. All questionable output fails closed to medical retrieval. */
 export type MedicalRoute =
-  | { intent: "medical"; searchQuery: string }
-  | { intent: "chat"; answer: string };
+  { intent: "medical"; searchQuery: string } | { intent: "chat"; answer: string };
 
 const ROUTE_PROMPT =
   "You are the medical education assistant Santo's request router. Use the latest student question and its clinical topic context. " +
@@ -164,9 +162,11 @@ function modelOutput(raw: unknown): string | null {
   const response = raw as Record<string, unknown>;
   if (typeof response.response === "string") return response.response;
   const choice = Array.isArray(response.choices) ? response.choices[0] : undefined;
-  const record = choice && typeof choice === "object" ? choice as Record<string, unknown> : null;
-  const message = record?.message && typeof record.message === "object"
-    ? record.message as Record<string, unknown> : null;
+  const record = choice && typeof choice === "object" ? (choice as Record<string, unknown>) : null;
+  const message =
+    record?.message && typeof record.message === "object"
+      ? (record.message as Record<string, unknown>)
+      : null;
   return typeof message?.content === "string" ? message.content : null;
 }
 
@@ -178,9 +178,17 @@ function latestStudentMessage(original: string): string {
 function clearlyNonClinical(input: string): boolean {
   if (!input || input.length > 180) return false;
   // Medical education stays source-grounded even if Qwen misclassifies it.
-  if (/\b(?:treat(?:ment)?|manage(?:ment)?|diagnos(?:e|is|tic)|syndrome|disease|symptom|pain|fever|diabet(?:es|ic)|heart|cancer|drug|aspirin|dose|st[e]?nosis|pathophys|surgery|medical|medicine|patient|test|exam|therapy|what about|how does)\b/i.test(input)) return false;
-  if (/[\u0600-\u06ff]/u.test(input) &&
-    /(?:علاج|دواء|مرض|الم|ألم|اعراض|أعراض|تشخيص|طب|سرطان|سكر|قلب|حمى|حرارة)/u.test(input)) return false;
+  if (
+    /\b(?:treat(?:ment)?|manage(?:ment)?|diagnos(?:e|is|tic)|syndrome|disease|symptom|pain|fever|diabet(?:es|ic)|heart|cancer|drug|aspirin|dose|st[e]?nosis|pathophys|surgery|medical|medicine|patient|test|exam|therapy|what about|how does)\b/i.test(
+      input,
+    )
+  )
+    return false;
+  if (
+    /[\u0600-\u06ff]/u.test(input) &&
+    /(?:علاج|دواء|مرض|الم|ألم|اعراض|أعراض|تشخيص|طب|سرطان|سكر|قلب|حمى|حرارة)/u.test(input)
+  )
+    return false;
   return true;
 }
 
@@ -214,7 +222,9 @@ export async function routeMedicalRequest(
         timer = setTimeout(() => reject(new Error("ROUTER_TIMEOUT")), 4000);
       }),
     ]);
-    const output = modelOutput(raw)?.replace(/^<think>[\s\S]*?<\/think>\s*/i, "").trim();
+    const output = modelOutput(raw)
+      ?.replace(/^<think>[\s\S]*?<\/think>\s*/i, "")
+      .trim();
     if (!output || output.length > 850) return fallback;
     const parsed: unknown = JSON.parse(output);
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return fallback;
@@ -232,7 +242,8 @@ export async function routeMedicalRequest(
       clearlyNonClinical(latest) &&
       !originalRequest.includes(FOLLOW_UP_MARKER) &&
       !/https?:|\[\[|SANTO_REF_|(?:source|citation|guideline):/i.test(result.answer)
-    ) return { intent: "chat", answer: result.answer.trim() };
+    )
+      return { intent: "chat", answer: result.answer.trim() };
     return fallback;
   } catch {
     return fallback;

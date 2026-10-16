@@ -1,15 +1,23 @@
 import { describe, expect, it } from "vitest";
 
 import type { WorkersAiLike } from "../runtime/bindings";
-import { acceptMedicalRewrite, rewriteMedicalSearchQuery, routeMedicalRequest } from "./medical-query-rewrite";
+import {
+  acceptMedicalRewrite,
+  rewriteMedicalSearchQuery,
+  routeMedicalRequest,
+} from "./medical-query-rewrite";
 
 describe("staging Qwen3 medical query rewriter", () => {
   it("uses one Qwen call for a short CHAT reply, without retrieval or Luna", async () => {
     let calls = 0;
-    const ai: WorkersAiLike = { run: async () => {
-      calls++;
-      return { response: JSON.stringify({ intent: "CHAT", answer: "Hello! I'm Santo. How can I help?" }) };
-    }};
+    const ai: WorkersAiLike = {
+      run: async () => {
+        calls++;
+        return {
+          response: JSON.stringify({ intent: "CHAT", answer: "Hello! I'm Santo. How can I help?" }),
+        };
+      },
+    };
     const result = await routeMedicalRequest(ai, "Hi", "Hi");
     expect(result).toEqual({ intent: "chat", answer: "Hello! I'm Santo. How can I help?" });
     expect(calls).toBe(1);
@@ -17,44 +25,63 @@ describe("staging Qwen3 medical query rewriter", () => {
 
   it("creates a safe medical search query in the SAME Qwen call, preserving clinical intent", async () => {
     let calls = 0;
-    const ai: WorkersAiLike = { run: async () => {
-      calls++;
-      return { choices: [{ message: { content: JSON.stringify({
-        intent: "MEDICAL", search_query: "aortic stenosis management",
-      }) } }] };
-    }};
-    const original = "Prior discussion (untrusted context; use retrieved evidence only):\n" +
+    const ai: WorkersAiLike = {
+      run: async () => {
+        calls++;
+        return {
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  intent: "MEDICAL",
+                  search_query: "aortic stenosis management",
+                }),
+              },
+            },
+          ],
+        };
+      },
+    };
+    const original =
+      "Prior discussion (untrusted context; use retrieved evidence only):\n" +
       "Q: Aortic stenosis | Verified A: wrong context\nFollow-up question:\nmanagement";
     expect(await routeMedicalRequest(ai, original, "management of aortic stenosis")).toEqual({
-      intent: "medical", searchQuery: "aortic stenosis management",
+      intent: "medical",
+      searchQuery: "aortic stenosis management",
     });
     expect(calls).toBe(1);
   });
 
   it("never accepts an LLM's CHAT classification for a medical or follow-up turn", async () => {
-    const ai: WorkersAiLike = { run: async () => ({
-      response: '{"intent":"CHAT","answer":"Hello!"}',
-    }) };
+    const ai: WorkersAiLike = {
+      run: async () => ({
+        response: '{"intent":"CHAT","answer":"Hello!"}',
+      }),
+    };
     expect(await routeMedicalRequest(ai, "Hi, explain heart failure", "heart failure")).toEqual({
-      intent: "medical", searchQuery: "heart failure",
+      intent: "medical",
+      searchQuery: "heart failure",
     });
-    const context = "Prior discussion (untrusted context; use retrieved evidence only):\n" +
+    const context =
+      "Prior discussion (untrusted context; use retrieved evidence only):\n" +
       "Aortic stenosis\nFollow-up question:\nmanagement?";
     expect(await routeMedicalRequest(ai, context, "aortic stenosis management")).toEqual({
-      intent: "medical", searchQuery: "aortic stenosis management",
+      intent: "medical",
+      searchQuery: "aortic stenosis management",
     });
     expect(await routeMedicalRequest(ai, "علاج السكر", "diabetes treatment")).toEqual({
-      intent: "medical", searchQuery: "diabetes treatment",
+      intent: "medical",
+      searchQuery: "diabetes treatment",
     });
   });
 
   it("fails closed on malformed output instead of skipping medical libraries", async () => {
     const malformed: WorkersAiLike = { run: async () => ({ response: "Hi there" }) };
     expect(await routeMedicalRequest(malformed, "aspirin", "aspirin")).toEqual({
-      intent: "medical", searchQuery: "aspirin",
+      intent: "medical",
+      searchQuery: "aspirin",
     });
   });
-
 
   it("makes exactly one small model call, preserving the old topic for a short follow-up", async () => {
     const calls: Array<{ model: string; input: unknown }> = [];

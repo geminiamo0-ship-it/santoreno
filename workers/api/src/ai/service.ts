@@ -135,18 +135,20 @@ export class GroundedAiService {
     let outputChars = 0;
     try {
       const routeStartedAt = performance.now();
-      const route = this.intentRoutingEnabled && libraryId === null && this.retrieval.route
-        ? await withAiDeadline(
-            () => this.retrieval.route!({ query: input.query, libraryId }),
-            signal,
-            this.timeouts.retrievalMs,
-            "SEARCH_TIMEOUT",
-          )
-        : undefined;
-      if (route) console.info("santo_runtime_stage_ms", {
-        stage: "qwen_route",
-        milliseconds: Math.round(performance.now() - routeStartedAt),
-      });
+      const route =
+        this.intentRoutingEnabled && libraryId === null && this.retrieval.route
+          ? await withAiDeadline(
+              () => this.retrieval.route!({ query: input.query, libraryId }),
+              signal,
+              this.timeouts.retrievalMs,
+              "SEARCH_TIMEOUT",
+            )
+          : undefined;
+      if (route)
+        console.info("santo_runtime_stage_ms", {
+          stage: "qwen_route",
+          milliseconds: Math.round(performance.now() - routeStartedAt),
+        });
       if (route?.intent === "chat") {
         // Same Qwen inference provides the final short social answer; no Luna
         // or medical retrieval, but the original reservation and completion
@@ -157,207 +159,209 @@ export class GroundedAiService {
         outputChars = answer.length;
         onProvisionalAnswer?.(answer);
       } else {
-      const retrievalStartedAt = performance.now();
-      const evidence = await withAiDeadline(
-        () => this.retrieval.retrieve({
-          query: input.query,
-          libraryId,
-          ...(route?.intent === "medical" ? { preparedQuery: route.searchQuery } : {}),
-        }),
-        signal,
-        this.timeouts.retrievalMs,
-        "SEARCH_TIMEOUT",
-      );
-      console.info("santo_runtime_stage_ms", {
-        stage: "retrieval",
-        milliseconds: Math.round(performance.now() - retrievalStartedAt),
-      });
-      retrievedSourceCount = evidence.length;
-      // A genuinely empty result is different from SEARCH_FAILED / SEARCH_TIMEOUT:
-      // infrastructure outages still fail closed, never silently become "general".
-      let groundingMode: "santo" | "general" = "santo";
-      if (evidence.length === 0 && !this.generalFallbackEnabled) {
-        throw new GroundedAiError(
-          422,
-          "INSUFFICIENT_EVIDENCE",
-          "No sufficient Santo evidence was retrieved",
-        );
-      }
-      if (evidence.length === 0) groundingMode = "general";
-      // Resolve article image metadata from the same original R2 articles
-      // selected by native search, BEFORE Luna generates its response.
-      const imageDiagnostics = this.richImagesEnabled
-        ? emptyImageHydrationDiagnostics(evidence.length)
-        : undefined;
-      const imagesStartedAt = performance.now();
-      const originalImages =
-        groundingMode === "santo" && this.richImagesEnabled && this.articleBucket
-          ? await loadMedicalImages(this.articleBucket, evidence, imageDiagnostics)
-          : [];
-      if (imageDiagnostics) console.info("santo_runtime_stage_ms", {
-        stage: "image_hydration",
-        milliseconds: Math.round(performance.now() - imagesStartedAt),
-      });
-      if (imageDiagnostics) {
-        console.info("santo_luna_image_pipeline", {
-          phase: "before_model",
-          requestId,
-          ...imageDiagnostics,
-          promptIncludesImages: originalImages.length > 0,
-        });
-      }
-      const answerFormat = this.markdownOutput ? "markdown" : "json";
-      const sourcedPrompt =
-        buildGroundedPrompt(input.query, evidence, answerFormat) +
-        medicalImagePrompt(originalImages, input.query);
-      const modelStartedAt = performance.now();
-      let firstModelDeltaRecorded = false;
-      const progress = onProvisionalAnswer
-        ? (text: string) => {
-            if (text && !firstModelDeltaRecorded) {
-              firstModelDeltaRecorded = true;
-              console.info("santo_runtime_stage_ms", {
-                stage: "luna_first_delta",
-                milliseconds: Math.round(performance.now() - modelStartedAt),
-              });
-            }
-            onProvisionalAnswer(text);
-          }
-        : undefined;
-      let draft = await withAiDeadline(
-        () =>
-          this.model.generate(
-            groundingMode === "general"
-              ? buildGeneralMedicalPrompt(input.query, answerFormat)
-              : sourcedPrompt,
-            progress,
-            groundingMode === "general" ? [] : evidence.map((item) => item.sourceId),
-          ),
-        signal,
-        this.timeouts.modelMs,
-        "MODEL_TIMEOUT",
-      );
-
-      console.info("santo_runtime_stage_ms", {
-        stage: "luna_generation",
-        milliseconds: Math.round(performance.now() - modelStartedAt),
-      });
-
-      // Legacy fallback can create a SECOND paid generation after a complete
-      // grounded model response. The staging single-pass cost policy disables
-      // that retry; a refusal becomes a clear 422 error (quota released), not
-      // another silent provider call. Empty retrieval is handled *before*
-      // generation and can still use one general-mode call.
-      if (
-        draft.answer === "INSUFFICIENT_EVIDENCE" &&
-        groundingMode === "santo" &&
-        this.generalFallbackEnabled &&
-        !this.singlePassGeneration
-      ) {
-        groundingMode = "general";
-        // Withdraw the previous grounded draft before changing its source policy.
-        onProvisionalAnswer?.("");
-        draft = await withAiDeadline(
+        const retrievalStartedAt = performance.now();
+        const evidence = await withAiDeadline(
           () =>
-            this.model.generate(buildGeneralMedicalPrompt(input.query), onProvisionalAnswer, []),
+            this.retrieval.retrieve({
+              query: input.query,
+              libraryId,
+              ...(route?.intent === "medical" ? { preparedQuery: route.searchQuery } : {}),
+            }),
+          signal,
+          this.timeouts.retrievalMs,
+          "SEARCH_TIMEOUT",
+        );
+        console.info("santo_runtime_stage_ms", {
+          stage: "retrieval",
+          milliseconds: Math.round(performance.now() - retrievalStartedAt),
+        });
+        retrievedSourceCount = evidence.length;
+        // A genuinely empty result is different from SEARCH_FAILED / SEARCH_TIMEOUT:
+        // infrastructure outages still fail closed, never silently become "general".
+        let groundingMode: "santo" | "general" = "santo";
+        if (evidence.length === 0 && !this.generalFallbackEnabled) {
+          throw new GroundedAiError(
+            422,
+            "INSUFFICIENT_EVIDENCE",
+            "No sufficient Santo evidence was retrieved",
+          );
+        }
+        if (evidence.length === 0) groundingMode = "general";
+        // Resolve article image metadata from the same original R2 articles
+        // selected by native search, BEFORE Luna generates its response.
+        const imageDiagnostics = this.richImagesEnabled
+          ? emptyImageHydrationDiagnostics(evidence.length)
+          : undefined;
+        const imagesStartedAt = performance.now();
+        const originalImages =
+          groundingMode === "santo" && this.richImagesEnabled && this.articleBucket
+            ? await loadMedicalImages(this.articleBucket, evidence, imageDiagnostics)
+            : [];
+        if (imageDiagnostics)
+          console.info("santo_runtime_stage_ms", {
+            stage: "image_hydration",
+            milliseconds: Math.round(performance.now() - imagesStartedAt),
+          });
+        if (imageDiagnostics) {
+          console.info("santo_luna_image_pipeline", {
+            phase: "before_model",
+            requestId,
+            ...imageDiagnostics,
+            promptIncludesImages: originalImages.length > 0,
+          });
+        }
+        const answerFormat = this.markdownOutput ? "markdown" : "json";
+        const sourcedPrompt =
+          buildGroundedPrompt(input.query, evidence, answerFormat) +
+          medicalImagePrompt(originalImages, input.query);
+        const modelStartedAt = performance.now();
+        let firstModelDeltaRecorded = false;
+        const progress = onProvisionalAnswer
+          ? (text: string) => {
+              if (text && !firstModelDeltaRecorded) {
+                firstModelDeltaRecorded = true;
+                console.info("santo_runtime_stage_ms", {
+                  stage: "luna_first_delta",
+                  milliseconds: Math.round(performance.now() - modelStartedAt),
+                });
+              }
+              onProvisionalAnswer(text);
+            }
+          : undefined;
+        let draft = await withAiDeadline(
+          () =>
+            this.model.generate(
+              groundingMode === "general"
+                ? buildGeneralMedicalPrompt(input.query, answerFormat)
+                : sourcedPrompt,
+              progress,
+              groundingMode === "general" ? [] : evidence.map((item) => item.sourceId),
+            ),
           signal,
           this.timeouts.modelMs,
           "MODEL_TIMEOUT",
         );
-      }
-      if (draft.answer === "INSUFFICIENT_EVIDENCE") {
-        throw new GroundedAiError(
-          422,
-          "INSUFFICIENT_EVIDENCE",
-          "No responsible medical answer available",
-        );
-      }
 
-      // Only requested image IDs are expanded to canonical R2 URLs by Santo;
-      // Luna cannot author a media URL or add arbitrary article figures.
-      const images = this.richImagesEnabled
-        ? renderMedicalImageMarkers(draft.answer, originalImages)
-        : { answer: draft.answer, sourceIds: [] as string[] };
-      answer = images.answer;
-      if (imageDiagnostics) {
-        // Counts refer to actual server-expanded R2 images, not untrusted
-        // model-provided Markdown. Do not log prompt, excerpts or URLs.
-        const selectedImageCount = (
-          answer.match(
-            /!\[[^\]\n]*\]\(https:\/\/pub-2a81f2cb19cc4473a3d076e657af6121\.r2\.dev\/offline_media\//g,
-          ) ?? []
-        ).length;
-        console.info("santo_luna_image_pipeline", {
-          phase: "after_model",
-          requestId,
-          offeredImageCount: originalImages.length,
-          selectedImageCount,
+        console.info("santo_runtime_stage_ms", {
+          stage: "luna_generation",
+          milliseconds: Math.round(performance.now() - modelStartedAt),
         });
-      }
-      outputChars = answer.length;
-      responseMode = groundingMode;
-      const usedSources = [...new Set([...draft.citationIds, ...images.sourceIds])];
-      // No more automatic "Related Library Sources" from unused retrieval.
-      // Source cards are granted solely for explicit Luna citations or
-      // original-article images Luna chose in the response.
-      if (this.markdownOutput && usedSources.length === 0) responseMode = "general";
-      if (
-        this.markdownOutput &&
-        draft.sourcePresentation === "none" &&
-        images.sourceIds.length === 0
-      )
-        responseMode = "general";
-      if (responseMode === "general") {
-        if (draft.citationIds.length !== 0) {
-          throw new GroundedAiError(
-            502,
-            "CITATION_INVALID",
-            "General medical answer cannot cite Santo",
+
+        // Legacy fallback can create a SECOND paid generation after a complete
+        // grounded model response. The staging single-pass cost policy disables
+        // that retry; a refusal becomes a clear 422 error (quota released), not
+        // another silent provider call. Empty retrieval is handled *before*
+        // generation and can still use one general-mode call.
+        if (
+          draft.answer === "INSUFFICIENT_EVIDENCE" &&
+          groundingMode === "santo" &&
+          this.generalFallbackEnabled &&
+          !this.singlePassGeneration
+        ) {
+          groundingMode = "general";
+          // Withdraw the previous grounded draft before changing its source policy.
+          onProvisionalAnswer?.("");
+          draft = await withAiDeadline(
+            () =>
+              this.model.generate(buildGeneralMedicalPrompt(input.query), onProvisionalAnswer, []),
+            signal,
+            this.timeouts.modelMs,
+            "MODEL_TIMEOUT",
           );
         }
-        citations = [];
-      } else {
-        citations = validateGroundedCitations({ ...draft, citationIds: usedSources }, evidence);
-      }
-      validCitationCount = citations.length;
-      if (this.sourceStore && responseMode === "santo") {
-        const sources = citations.map((citation) => {
-          const matching = evidence.filter((item) => item.sourceId === citation.sourceId);
-          if (matching.length !== 1) {
-            throw new GroundedAiError(502, "CITATION_INVALID", "Ambiguous retrieved citation");
-          }
-          const item = matching[0]!;
-          const parsed = TrustedSourceMetadataSchema.safeParse({
-            sourceId: item.sourceId,
-            libraryId: item.libraryId,
-            instanceId: item.instanceId,
-            itemKey: item.itemKey,
-            title: item.title,
-            page: item.page,
-            section: item.section,
+        if (draft.answer === "INSUFFICIENT_EVIDENCE") {
+          throw new GroundedAiError(
+            422,
+            "INSUFFICIENT_EVIDENCE",
+            "No responsible medical answer available",
+          );
+        }
+
+        // Only requested image IDs are expanded to canonical R2 URLs by Santo;
+        // Luna cannot author a media URL or add arbitrary article figures.
+        const images = this.richImagesEnabled
+          ? renderMedicalImageMarkers(draft.answer, originalImages)
+          : { answer: draft.answer, sourceIds: [] as string[] };
+        answer = images.answer;
+        if (imageDiagnostics) {
+          // Counts refer to actual server-expanded R2 images, not untrusted
+          // model-provided Markdown. Do not log prompt, excerpts or URLs.
+          const selectedImageCount = (
+            answer.match(
+              /!\[[^\]\n]*\]\(https:\/\/pub-2a81f2cb19cc4473a3d076e657af6121\.r2\.dev\/offline_media\//g,
+            ) ?? []
+          ).length;
+          console.info("santo_luna_image_pipeline", {
+            phase: "after_model",
+            requestId,
+            offeredImageCount: originalImages.length,
+            selectedImageCount,
           });
-          if (!parsed.success) {
-            throw new GroundedAiError(502, "CITATION_INVALID", "Invalid source metadata");
-          }
-          return parsed.data;
-        });
-        try {
-          await this.sourceStore.save(
-            {
-              tenantId: session.tenantId,
-              externalUserId: session.externalUserId,
-              messageId,
-            },
-            sources,
-          );
-        } catch {
-          throw new GroundedAiError(
-            503,
-            "SOURCE_SNAPSHOT_FAILED",
-            "Could not save verified sources",
-          );
         }
-      }
+        outputChars = answer.length;
+        responseMode = groundingMode;
+        const usedSources = [...new Set([...draft.citationIds, ...images.sourceIds])];
+        // No more automatic "Related Library Sources" from unused retrieval.
+        // Source cards are granted solely for explicit Luna citations or
+        // original-article images Luna chose in the response.
+        if (this.markdownOutput && usedSources.length === 0) responseMode = "general";
+        if (
+          this.markdownOutput &&
+          draft.sourcePresentation === "none" &&
+          images.sourceIds.length === 0
+        )
+          responseMode = "general";
+        if (responseMode === "general") {
+          if (draft.citationIds.length !== 0) {
+            throw new GroundedAiError(
+              502,
+              "CITATION_INVALID",
+              "General medical answer cannot cite Santo",
+            );
+          }
+          citations = [];
+        } else {
+          citations = validateGroundedCitations({ ...draft, citationIds: usedSources }, evidence);
+        }
+        validCitationCount = citations.length;
+        if (this.sourceStore && responseMode === "santo") {
+          const sources = citations.map((citation) => {
+            const matching = evidence.filter((item) => item.sourceId === citation.sourceId);
+            if (matching.length !== 1) {
+              throw new GroundedAiError(502, "CITATION_INVALID", "Ambiguous retrieved citation");
+            }
+            const item = matching[0]!;
+            const parsed = TrustedSourceMetadataSchema.safeParse({
+              sourceId: item.sourceId,
+              libraryId: item.libraryId,
+              instanceId: item.instanceId,
+              itemKey: item.itemKey,
+              title: item.title,
+              page: item.page,
+              section: item.section,
+            });
+            if (!parsed.success) {
+              throw new GroundedAiError(502, "CITATION_INVALID", "Invalid source metadata");
+            }
+            return parsed.data;
+          });
+          try {
+            await this.sourceStore.save(
+              {
+                tenantId: session.tenantId,
+                externalUserId: session.externalUserId,
+                messageId,
+              },
+              sources,
+            );
+          } catch {
+            throw new GroundedAiError(
+              503,
+              "SOURCE_SNAPSHOT_FAILED",
+              "Could not save verified sources",
+            );
+          }
+        }
       } // End grounded medical retrieval branch; CHAT skips Luna/R2/AI Search.
     } catch (error) {
       if (!alreadyFinalized) {

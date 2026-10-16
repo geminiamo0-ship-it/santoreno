@@ -180,8 +180,13 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
   }
 
   async route(request: RetrievalRequest) {
-    if (!this.intentRoutingV1) return { intent: "medical" as const, searchQuery: focusedSearchQuery(request.query) };
-    return routeMedicalRequest(this.smallQueryModel, request.query, focusedSearchQuery(request.query));
+    if (!this.intentRoutingV1)
+      return { intent: "medical" as const, searchQuery: focusedSearchQuery(request.query) };
+    return routeMedicalRequest(
+      this.smallQueryModel,
+      request.query,
+      focusedSearchQuery(request.query),
+    );
   }
 
   async retrieve(request: RetrievalRequest): Promise<RetrievedEvidence[]> {

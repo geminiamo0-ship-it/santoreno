@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { R2BucketLike } from "../runtime/bindings";
 import type { RetrievedEvidence } from "./types";
-import { loadMedicalImages, medicalImagePrompt, renderMedicalImageMarkers, selectMedicalImagesForPrompt } from "./medical-images";
+import {
+  loadMedicalImages,
+  medicalImagePrompt,
+  renderMedicalImageMarkers,
+  selectMedicalImagesForPrompt,
+} from "./medical-images";
 
 const MEDIA = "https://pub-2a81f2cb19cc4473a3d076e657af6121.r2.dev/offline_media/";
 const evidence: RetrievedEvidence[] = [
@@ -62,20 +67,31 @@ describe("Luna original medical article images", () => {
       itemKey: "medical-search/v1/" + id + "/topic/s-0001.md",
     }));
     let finish!: () => void;
-    const gate = new Promise<void>((resolve) => { finish = resolve; });
+    const gate = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
     const b: R2BucketLike = {
       async get(key) {
         started++;
         await gate;
         const lib = ids.find((id) => key === "medical-articles/v1/" + id + "/topic.json")!;
-        return {text: async () => JSON.stringify({
-          schemaVersion: 1, libraryId: lib, articleId: "topic",
-          title: lib, source: lib, category: "General",
-          contentHtml: '<h2>Figure</h2><img src="' + MEDIA + lib + '.png">',
-          sections: [{id:"s-0001",heading:"Figure",text:"Relevant image",images:[]}],
-        })};
+        return {
+          text: async () =>
+            JSON.stringify({
+              schemaVersion: 1,
+              libraryId: lib,
+              articleId: "topic",
+              title: lib,
+              source: lib,
+              category: "General",
+              contentHtml: '<h2>Figure</h2><img src="' + MEDIA + lib + '.png">',
+              sections: [{ id: "s-0001", heading: "Figure", text: "Relevant image", images: [] }],
+            }),
+        };
       },
-      async put() { return null; },
+      async put() {
+        return null;
+      },
       async delete() {},
     };
     const resultPromise = loadMedicalImages(b, articles);
@@ -84,16 +100,19 @@ describe("Luna original medical article images", () => {
     finish();
     const actual = await resultPromise;
     expect(actual.map((item) => item.sourceId)).toEqual(ids.map((id) => id + ":unique-chunk"));
-    const repeat = await loadMedicalImages(b, articles.map((item) => ({
-      ...item, sourceId: item.sourceId.replace("unique", "another"),
-    })));
+    const repeat = await loadMedicalImages(
+      b,
+      articles.map((item) => ({
+        ...item,
+        sourceId: item.sourceId.replace("unique", "another"),
+      })),
+    );
     expect(started).toBe(5);
     expect(repeat.map((item) => item.sourceId)).toEqual(ids.map((id) => id + ":another-chunk"));
   });
 
-
   it("bounds prompt to 15 distinct source-verified image candidates and prioritizes clinical matches", () => {
-    const candidates = Array.from({length: 30}, (_, index) => ({
+    const candidates = Array.from({ length: 30 }, (_, index) => ({
       id: "IMG_" + String(index + 1).padStart(3, "0"),
       sourceId: index === 29 ? "usmle:unique" : "amboss:source",
       src: MEDIA + index + ".png",

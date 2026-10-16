@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { R2BucketLike } from "../runtime/bindings";
 import type { RetrievedEvidence } from "./types";
-import { loadMedicalImages, medicalImagePrompt, renderMedicalImageMarkers } from "./medical-images";
+import { loadMedicalImages, medicalImagePrompt, renderMedicalImageMarkers, selectMedicalImagesForPrompt } from "./medical-images";
 
 const MEDIA = "https://pub-2a81f2cb19cc4473a3d076e657af6121.r2.dev/offline_media/";
 const evidence: RetrievedEvidence[] = [
@@ -91,6 +91,28 @@ describe("Luna original medical article images", () => {
     expect(repeat.map((item) => item.sourceId)).toEqual(ids.map((id) => id + ":another-chunk"));
   });
 
+
+  it("bounds prompt to 15 distinct source-verified image candidates and prioritizes clinical matches", () => {
+    const candidates = Array.from({length: 30}, (_, index) => ({
+      id: "IMG_" + String(index + 1).padStart(3, "0"),
+      sourceId: index === 29 ? "usmle:unique" : "amboss:source",
+      src: MEDIA + index + ".png",
+      articleTitle: "Cardiology",
+      section: index === 29 ? "Aortic stenosis Doppler ultrasound" : "Unrelated figure",
+      alt: "Figure " + index,
+      caption: "",
+      originalId: null,
+      before: "",
+      after: "",
+    }));
+    const chosen = selectMedicalImagesForPrompt(candidates, "aortic stenosis", 15);
+    expect(chosen).toHaveLength(15);
+    expect(chosen.map((item) => item.id)).toContain("IMG_030");
+    const prompt = medicalImagePrompt(candidates, "aortic stenosis");
+    expect(prompt).toContain("IMG_030");
+    expect(prompt).not.toContain("IMG_029");
+    expect(prompt.match(/"image_id":/g)).toHaveLength(15);
+  });
 
   it("hydrates HTML images with canonical R2 src, original IDs and figcaption", async () => {
     const html =

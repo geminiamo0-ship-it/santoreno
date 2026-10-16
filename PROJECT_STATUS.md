@@ -13,7 +13,7 @@
 - Applies only with Staging env and V2 retrieval and the new enable flag; no production routing changes. The first 5-index pass and conditional extra 5-index pass remain unchanged (max 10 operations, under the 15-operation agreed budget), no additional Luna inference, no index/R2/tenant data mutation. Unrecognized, ambiguous, negated, long and multi-condition queries remain unexpanded.
 - A/B: `scripts/medical-query-expansion-readonly-ab.mjs` compares original vs expanded queries on Aortic stenosis and FMF across five licensed indexes with native Cloudflare reranking. Search-only, aggregate statistics and no licensed excerpts logged. These checks are a **small lexical smoke, not clinically verified relevance**. Full clinical gold set and authenticated student answers remain pending.
 
-NaN
+### Context-aware medical follow-up retrieval (Issue #131 / PR #132) — 16 October 2026
 
 - Staging candidate: extract the most recent explicit topic from completed ConversationDO Q lines, without treating assistant Verified A text as a disease anchor. A short student follow-up such as `management`, `ttt`, `dx`, or `How is it diagnosed?` searches for the corresponding clinical section of that topic rather than the full conversation envelope.
 - New explicit disease questions use the current question without carrying a previous disease into AI Search. Original user text and context still reach Luna unchanged. The source relevance gate validates only genuine R2-backed AI Search results; unknown topics do not create synthetic citations.

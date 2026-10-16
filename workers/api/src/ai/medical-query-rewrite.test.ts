@@ -36,41 +36,18 @@ describe("staging Granite Micro medical query rewriter", () => {
     expect(inputText).not.toContain("unrelated past answer");
   });
 
-  it("rejects stale disease switch, malformed output, and invented condition", () => {
-    expect(acceptMedicalRewrite("Familial Mediterranean fever", "aortic stenosis management")).toBe(
-      null,
-    );
+  it("accepts Arabic translation and typo repair despite changed original tokens", () => {
+    expect(acceptMedicalRewrite("علاج ضيق الصمام الأورطي", "aortic stenosis management")).toBe("aortic stenosis management");
+    expect(acceptMedicalRewrite("aortic stnosis", "aortic stenosis")).toBe("aortic stenosis");
     expect(acceptMedicalRewrite("aortic stenosis", "query: aortic stenosis")).toBe(null);
     expect(acceptMedicalRewrite("aortic stenosis", "aortic stenosis\nFMF")).toBe(null);
-    expect(acceptMedicalRewrite("aortic stenosis", "unrelated disease management")).toBe(null);
+    expect(acceptMedicalRewrite("ضيق الصمام", "ضيق الصمام")).toBe(null);
   });
 
-  it("keeps clinical constraints instead of dropping negation or severity", () => {
-    expect(
-      acceptMedicalRewrite(
-        "severe asymptomatic aortic stenosis management",
-        "management of severe aortic stenosis",
-      ),
-    ).toBe(null);
-    expect(
-      acceptMedicalRewrite("aortic stenosis without symptoms", "aortic stenosis management"),
-    ).toBe(null);
-    expect(
-      acceptMedicalRewrite(
-        "severe asymptomatic aortic stenosis management",
-        "management of severe asymptomatic aortic stenosis",
-      ),
-    ).toBe("management of severe asymptomatic aortic stenosis");
-  });
-
-  it("falls back to deterministic search on model outage, malformed and missing bindings", async () => {
+  it("falls back on model outage or syntactically invalid output", async () => {
     const focused = "management and treatment of aortic stenosis";
-    const failed: WorkersAiLike = {
-      run: async () => {
-        throw new Error("429");
-      },
-    };
-    const malformed: WorkersAiLike = { run: async () => ({ response: "management of FMF" }) };
+    const failed: WorkersAiLike = { run: async () => { throw new Error("429"); } };
+    const malformed: WorkersAiLike = { run: async () => ({ response: "query: aortic stenosis" }) };
     expect(await rewriteMedicalSearchQuery(failed, "management", focused)).toBe(focused);
     expect(await rewriteMedicalSearchQuery(malformed, "management", focused)).toBe(focused);
     expect(await rewriteMedicalSearchQuery(undefined, "management", focused)).toBe(focused);

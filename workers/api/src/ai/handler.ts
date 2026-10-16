@@ -77,6 +77,7 @@ export function createGroundedAiHandler(dependencies: GroundedAiHandlerDependenc
         env.SANTO_ENV === "staging" && env.SANTO_MEDICAL_RETRIEVAL_V2 === "true",
         env.SANTO_ENV === "staging" && env.SANTO_MEDICAL_QUERY_REWRITE_V1 === "true",
         env.AI,
+        env.SANTO_ENV === "staging" && env.SANTO_QWEN_ROUTING_V1 === "true",
       );
     });
   const modelFactory = dependencies.modelFactory ?? createGroundedModel;
@@ -131,6 +132,7 @@ export function createGroundedAiHandler(dependencies: GroundedAiHandlerDependenc
           env.SANTO_PLAIN_TEXT_LUNA_V1 === "true",
         env.SANTO_ENV === "staging" && env.SANTO_LUNA_RICH_IMAGES_V1 === "true",
         env.CONTENT_BUCKET,
+        env.SANTO_ENV === "staging" && env.SANTO_QWEN_ROUTING_V1 === "true",
       ).query(session, parsed.data, request.signal, onProvisionalAnswer);
 
       const validated = GroundedAiQueryResponseSchema.parse(response);

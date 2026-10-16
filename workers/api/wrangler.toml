@@ -69,6 +69,7 @@ SANTO_GENERAL_MEDICAL_FALLBACK = "true"
 SANTO_MEDICAL_RETRIEVAL_V2 = "true"
 # Reversible Granite Micro search rewrite experiment; no MeSH dictionary.
 SANTO_MEDICAL_QUERY_REWRITE_V1 = "true"
+SANTO_LUNA_RICH_IMAGES_V1 = "true"
 SANTO_AI_SEARCH_INSTANCE_IDS = "amboss,usmle,passmedicine,pastest,one-examination-isolated"
 SANTO_LIBRARY_READER_V1 = "true"
 

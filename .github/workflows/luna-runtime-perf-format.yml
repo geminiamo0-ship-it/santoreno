@@ -1,0 +1,32 @@
+name: Staging Runtime Performance Format
+on:
+  push:
+    branches: [perf/luna-runtime-no-reindex-20261016]
+permissions:
+  contents: write
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - name: Format isolated staging runtime patch
+        run: |
+          pnpm exec prettier --write workers/api/src/ai/medical-query-rewrite.ts workers/api/src/ai/medical-query-rewrite.test.ts workers/api/src/ai/types.ts workers/api/src/ai/retrieval.ts workers/api/src/ai/handler.ts workers/api/src/ai/handler.test.ts workers/api/src/ai/service.ts workers/api/src/ai/medical-images.ts workers/api/src/ai/medical-images.test.ts workers/api/wrangler.toml PROJECT_STATUS.md
+      - name: Commit formatted patch
+        run: |
+          set -euo pipefail
+          if ! git diff --quiet; then
+            git config user.name github-actions
+            git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+            git add workers/api/src/ai/med* workers/api/src/ai/types.ts workers/api/src/ai/retrieval.ts workers/api/src/ai/handler.ts workers/api/src/ai/handler.test.ts workers/api/src/ai/service.ts workers/api/wrangler.toml PROJECT_STATUS.md
+            git commit -m 'style(staging): format Santo no-reindex performance patch'
+            git push origin HEAD:perf/luna-runtime-no-reindex-20261016
+          fi

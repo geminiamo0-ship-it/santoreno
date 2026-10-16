@@ -50,7 +50,7 @@ export function expandMedicalSearchQuery(focusedQuery: string): MedicalSearchQue
   if (
     query.length < 3 ||
     query.length > 320 ||
-    /\\b(?:vs|versus|compare|comparison|differentiate|differential)\\b/i.test(query)
+    /\\b(?:vs|versus|compare|comparison|differentiate|differential|not|without|exclude|excluded)\\b/i.test(query)
   ) {
     return { query: focusedQuery, expanded: false };
   }

@@ -77,7 +77,7 @@ export interface SantoBindings {
   SANTO_COPILOT_ROUTING_V1?: string;
   SANTO_GENERAL_MEDICAL_FALLBACK?: string;
   SANTO_MEDICAL_RETRIEVAL_V2?: string;
-  SANTO_MEDICAL_QUERY_EXPANSION_V1?: string;
+  SANTO_MEDICAL_QUERY_REWRITE_V1?: string;
   SANTO_LIBRARY_READER_V1?: string;
   CONTROL_DB?: D1DatabaseLike;
   CONTENT_BUCKET?: R2BucketLike;

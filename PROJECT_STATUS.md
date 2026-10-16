@@ -6,12 +6,13 @@
 >
 > **Rule:** GitHub code, issues, PRs, commits, and Actions are the source of truth. Update this file whenever meaningful work completes, a gate passes/fails, architecture changes, or the active issue changes.
 
-### Controlled MeSH Medical Query Expansion pilot (Issue #133) — 16 October 2026
+### Low-cost Granite Micro contextual search rewrite (Issue #135) — 16 October 2026
 
-- Staging-only `SANTO_MEDICAL_QUERY_EXPANSION_V1=true` pilot. Two manually verified NLM MeSH 2026 concepts: D001024 Aortic Valve Stenosis (entry Aortic Stenosis), D010505 Familial Mediterranean Fever (entry Recurrent Polyserositis), and a locally reviewed FMF acronym. No full MeSH/UMLS ingestion, license broadening, or AI-generated synonyms.
-- The retrieval boundary first resolves the previously proven active follow-up topic, then conditionally adds **one** exact MeSH-aligned alternative term to the Cloudflare AI Search request. Keyword BM25 mode is OR **only for expanded requests**, to avoid treating synonyms as mandatory simultaneous tokens. Original focused query is preserved for cross-library rank/medical subject validity gate, and Luna still gets the original student question/conversation.
-- Applies only with Staging env and V2 retrieval and the new enable flag; no production routing changes. The first 5-index pass and conditional extra 5-index pass remain unchanged (max 10 operations, under the 15-operation agreed budget), no additional Luna inference, no index/R2/tenant data mutation. Unrecognized, ambiguous, negated, long and multi-condition queries remain unexpanded.
-- A/B: `scripts/medical-query-expansion-readonly-ab.mjs` compares original vs expanded queries on Aortic stenosis and FMF across five licensed indexes with native Cloudflare reranking. Search-only, aggregate statistics and no licensed excerpts logged. These checks are a **small lexical smoke, not clinically verified relevance**. Full clinical gold set and authenticated student answers remain pending.
+- User cancelled the MeSH dictionary expansion pilot (#133); its runtime module, tests, A/B smoke and CI workflow are removed, and `SANTO_MEDICAL_QUERY_EXPANSION_V1` is removed from staging.
+- Staging-only `SANTO_MEDICAL_QUERY_REWRITE_V1=true` uses Cloudflare Workers AI `@cf/ibm-granite/granite-4.0-h-micro` for **one short non-streaming query rewrite** (single one-sentence prompt, `max_tokens=64`, `temperature=0`). Cloudflare pricing as of Oct 2026: $0.017/M input tokens and $0.112/M output tokens. This is an extra very small Workers AI inference, **not** Luna and not an extra AI Search operation.
+- The model sees only the latest student message and the resolved focused clinical query, not prior assistant Verified A excerpts. Deterministic `focusedSearchQuery` remains a safe baseline; any timeout/invalid/unanchored rewrite returns the original focused query, no retry; preserve clinical negation/severity and real-source citation provenance.
+- 5 AI Search operations first, up to 5 conditional (max 10 under the 15-operation cap); one Luna generation, unchanged R2 and five-index Cloudflare native reranking. Production config untouched. Synthetic unit tests plus a three-case Workers AI clinical-anchor smoke are required before clinical rollout.
+- Pilot adds latency (rewrite first) and small model can misunderstand medical context: measure real end-to-end answer citations and elapsed time. Do not promote without a representative clinician-reviewed gold set.
 
 ### Context-aware medical follow-up retrieval (Issue #131 / PR #132) — 16 October 2026
 

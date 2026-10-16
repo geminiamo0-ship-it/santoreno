@@ -162,6 +162,71 @@ describe("Santo five licensed library retrieval", () => {
     expect(matches[0]?.sourceId).toBe("amboss:chunk-amboss-1");
   });
 
+  it("pilot expands AI Search query in the SAME 5/10 calls but keeps provenance anchored to original topic", async () => {
+    const aortic = {
+      ...chunk("amboss", 1, 0.88),
+      text: "Treatment of aortic stenosis and management of aortic valve obstruction.",
+      item: {
+        key: "aortic-management.html",
+        metadata: { title: "Aortic stenosis", section: "Management" },
+      },
+    };
+    const wrongDisease = {
+      ...chunk("usmle", 1, 0.99),
+      text: "Management of familial Mediterranean fever with colchicine.",
+      item: {
+        key: "fmf.html",
+        metadata: { title: "Familial Mediterranean fever", section: "Management" },
+      },
+    };
+    const namespace = new FakeAiSearchNamespace(undefined, {
+      amboss: { chunks: [aortic] },
+      usmle: { chunks: [wrongDisease] },
+    });
+    const query =
+      "Prior discussion (untrusted context; use retrieved evidence only):\n" +
+      "Q: Aortic stenosis | Verified A: Aortic valve narrowing.\n" +
+      "Follow-up question:\nmanagement";
+    const evidence = await new CloudflareAiSearchRetrieval(
+      namespace,
+      undefined,
+      true,
+      true,
+    ).retrieve({ query, libraryId: null });
+    expect(namespace.searchInputs).toHaveLength(10);
+    for (const search of namespace.searchInputs) {
+      expect(search).toMatchObject({
+        query: "management and treatment of aortic stenosis aortic valve stenosis",
+        ai_search_options: {
+          retrieval: { keyword_match_mode: "or" },
+          reranking: { enabled: true },
+          query_rewrite: { enabled: false },
+        },
+      });
+    }
+    expect(evidence.map((part) => part.itemKey)).toEqual(["aortic-management.html"]);
+  });
+
+  it("does not expand searches when the pilot is off or query contains multiple conditions", async () => {
+    const inactive = new FakeAiSearchNamespace();
+    await new CloudflareAiSearchRetrieval(inactive, undefined, true, false).retrieve({
+      query: "aortic stenosis",
+      libraryId: "amboss",
+    });
+    expect(inactive.searchInputs[0]).toMatchObject({ query: "aortic stenosis" });
+    expect(
+      (inactive.searchInputs[0] as { ai_search_options: { retrieval: object } }).ai_search_options
+        .retrieval,
+    ).not.toHaveProperty("keyword_match_mode");
+
+    const ambiguous = new FakeAiSearchNamespace();
+    await new CloudflareAiSearchRetrieval(ambiguous, undefined, true, true).retrieve({
+      query: "Compare FMF vs aortic stenosis",
+      libraryId: "amboss",
+    });
+    expect(ambiguous.searchInputs[0]).toMatchObject({ query: "Compare FMF vs aortic stenosis" });
+  });
+
   it("V2 searches 24 candidates per index with Cloudflare native reranking", async () => {
     const ns = new FakeAiSearchNamespace(
       undefined,

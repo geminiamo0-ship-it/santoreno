@@ -67,6 +67,8 @@ SANTO_COPILOT_ROUTING_V1 = "true"
 SANTO_GENERAL_MEDICAL_FALLBACK = "true"
 # Staging-only rollback switch for precision-first medical retrieval.
 SANTO_MEDICAL_RETRIEVAL_V2 = "true"
+# Reversible, two-concept MeSH query expansion experiment on Staging only.
+SANTO_MEDICAL_QUERY_EXPANSION_V1 = "true"
 SANTO_AI_SEARCH_INSTANCE_IDS = "amboss,usmle,passmedicine,pastest,one-examination-isolated"
 SANTO_LIBRARY_READER_V1 = "true"
 

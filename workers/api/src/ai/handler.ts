@@ -75,6 +75,7 @@ export function createGroundedAiHandler(dependencies: GroundedAiHandlerDependenc
         env.AI_SEARCH,
         new AiSearchNamespaceLibraryCatalog(env.AI_SEARCH, allowed),
         env.SANTO_ENV === "staging" && env.SANTO_MEDICAL_RETRIEVAL_V2 === "true",
+        env.SANTO_ENV === "staging" && env.SANTO_MEDICAL_QUERY_EXPANSION_V1 === "true",
       );
     });
   const modelFactory = dependencies.modelFactory ?? createGroundedModel;

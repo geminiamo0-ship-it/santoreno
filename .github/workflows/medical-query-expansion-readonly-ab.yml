@@ -1,0 +1,30 @@
+name: Santo MeSH Query Expansion Read-only A/B
+
+on:
+  push:
+    branches:
+      - release/santo-medical-rich-prod-candidate-20261014
+    paths:
+      - scripts/medical-query-expansion-readonly-ab.mjs
+      - .github/workflows/medical-query-expansion-readonly-ab.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  expansion-ab:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Validate A/B runner
+        run: node --check scripts/medical-query-expansion-readonly-ab.mjs
+      - name: Compare fixed-budget baseline and MeSH expansion without Luna
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: node scripts/medical-query-expansion-readonly-ab.mjs

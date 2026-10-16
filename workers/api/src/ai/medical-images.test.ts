@@ -51,6 +51,47 @@ function bucket(html: string, count = { reads: 0 }): R2BucketLike {
 }
 
 describe("Luna original medical article images", () => {
+  it("starts all five R2 article reads before any finishes and preserves evidence ordering", async () => {
+    const ids = ["amboss", "usmle", "passmedicine", "pastest", "one-examination"];
+    let started = 0;
+    const articles = ids.map((id) => ({
+      ...evidence[0]!,
+      sourceId: id + ":unique-chunk",
+      libraryId: id,
+      instanceId: id,
+      itemKey: "medical-search/v1/" + id + "/topic/s-0001.md",
+    }));
+    let finish!: () => void;
+    const gate = new Promise<void>((resolve) => { finish = resolve; });
+    const b: R2BucketLike = {
+      async get(key) {
+        started++;
+        await gate;
+        const lib = ids.find((id) => key === "medical-articles/v1/" + id + "/topic.json")!;
+        return {text: async () => JSON.stringify({
+          schemaVersion: 1, libraryId: lib, articleId: "topic",
+          title: lib, source: lib, category: "General",
+          contentHtml: '<h2>Figure</h2><img src="' + MEDIA + lib + '.png">',
+          sections: [{id:"s-0001",heading:"Figure",text:"Relevant image",images:[]}],
+        })};
+      },
+      async put() { return null; },
+      async delete() {},
+    };
+    const resultPromise = loadMedicalImages(b, articles);
+    await Promise.resolve();
+    expect(started).toBe(5);
+    finish();
+    const actual = await resultPromise;
+    expect(actual.map((item) => item.sourceId)).toEqual(ids.map((id) => id + ":unique-chunk"));
+    const repeat = await loadMedicalImages(b, articles.map((item) => ({
+      ...item, sourceId: item.sourceId.replace("unique", "another"),
+    })));
+    expect(started).toBe(5);
+    expect(repeat.map((item) => item.sourceId)).toEqual(ids.map((id) => id + ":another-chunk"));
+  });
+
+
   it("hydrates HTML images with canonical R2 src, original IDs and figcaption", async () => {
     const html =
       "<h2>Diagnosis</h2><p>Valve narrowing on echocardiography.</p>" +

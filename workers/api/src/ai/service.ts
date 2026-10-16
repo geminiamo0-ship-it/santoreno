@@ -124,7 +124,6 @@ export class GroundedAiService {
     let answer: string;
     let citations: GroundedAiQueryResponse["citations"];
     let responseMode: "santo" | "general" = "santo";
-    let citationMode: "related" | undefined;
     let retrievedSourceCount = 0;
     let validCitationCount = 0;
     let outputChars = 0;
@@ -325,7 +324,7 @@ export class GroundedAiService {
       retrievedSourceCount,
       validCitationCount,
       outputChars,
-      sourcePresentation: citationMode ?? "inline",
+      sourcePresentation: "inline",
     });
 
     return {
@@ -333,7 +332,6 @@ export class GroundedAiService {
       messageId,
       answer,
       citations,
-      ...(citationMode ? { citationMode } : {}),
       ...(responseMode === "general" ? { groundingMode: "general" as const } : {}),
       usage: {
         unitsCharged: 1,

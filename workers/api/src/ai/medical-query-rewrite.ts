@@ -179,8 +179,10 @@ function clearlyNonClinical(input: string): boolean {
   if (!input || input.length > 180) return false;
   // Permit only explicitly social turns, never the broad inverse of a disease
   // dictionary (which could miss clinical terms or another language).
-  const socialEnglish = /^(?:(?:hi|hello|hey|good (?:morning|evening|afternoon)|thanks(?: a lot)?|thank you|bye|goodbye|how are you|who are you|what(?:'s| is) your name|what can you do|can you help me|tell me a joke|cheer me up|give me study motivation)[!.?\\s]*)$/i;
-  const socialArabic = /^(?:(?:اهلا|أهلا|اهلين|سلام|السلام عليكم|صباح الخير|مساء الخير|شكرا|شكرًا|متشكر|ازيك|إزيك|عامل ايه|عامل إيه|انت مين|أنت مين)[!؟.\\s]*)$/u;
+  const socialEnglish =
+    /^(?:(?:hi|hello|hey|good (?:morning|evening|afternoon)|thanks(?: a lot)?|thank you|bye|goodbye|how are you|who are you|what(?:'s| is) your name|what can you do|can you help me|tell me a joke|cheer me up|give me study motivation)[!.?\\s]*)$/i;
+  const socialArabic =
+    /^(?:(?:اهلا|أهلا|اهلين|سلام|السلام عليكم|صباح الخير|مساء الخير|شكرا|شكرًا|متشكر|ازيك|إزيك|عامل ايه|عامل إيه|انت مين|أنت مين)[!؟.\\s]*)$/u;
   return socialEnglish.test(input.trim()) || socialArabic.test(input.trim());
 }
 

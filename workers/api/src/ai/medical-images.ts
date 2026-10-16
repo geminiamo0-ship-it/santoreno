@@ -35,8 +35,16 @@ export interface ImageHydrationDiagnostics {
 }
 
 export function emptyImageHydrationDiagnostics(evidenceCount: number): ImageHydrationDiagnostics {
-  return { evidenceCount, recognizedSourcePaths: 0, articleReads: 0, articleObjectsFound: 0,
-    validArticles: 0, articlesWithImages: 0, unreadableArticles: 0, imageCandidates: 0 };
+  return {
+    evidenceCount,
+    recognizedSourcePaths: 0,
+    articleReads: 0,
+    articleObjectsFound: 0,
+    validArticles: 0,
+    articlesWithImages: 0,
+    unreadableArticles: 0,
+    imageCandidates: 0,
+  };
 }
 
 function approvedUrl(value: string): string | null {

@@ -79,6 +79,6 @@ describe("staging Granite Micro medical query rewriter", () => {
     expect(await rewriteMedicalSearchQuery(ai, "management", "management")).toBe("management");
     const oversized = "aortic stenosis " + "patient ".repeat(180);
     expect(await rewriteMedicalSearchQuery(ai, oversized, oversized)).toBe(oversized);
-    expect(calls).toBe(1);
+    expect(calls).toBe(0);
   });
 });

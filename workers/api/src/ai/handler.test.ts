@@ -263,9 +263,12 @@ describe("grounded AI handler", () => {
     env.SANTO_ENV = "staging";
     env.SANTO_QWEN_ROUTING_V1 = "true";
     retrieval.route = vi.fn(async () => ({
-      intent: "clarify" as const, question: "Do you mean diagnosis or treatment?"
+      intent: "clarify" as const,
+      question: "Do you mean diagnosis or treatment?",
     }));
-    retrieval.retrieve = vi.fn(async () => { throw new Error("retrieval must wait for clarification"); });
+    retrieval.retrieve = vi.fn(async () => {
+      throw new Error("retrieval must wait for clarification");
+    });
     const save = vi.fn(async () => undefined);
     const response = await handler({ save })(request(token, "clarify-1", "ttt?"), env);
     expect(response.status).toBe(200);

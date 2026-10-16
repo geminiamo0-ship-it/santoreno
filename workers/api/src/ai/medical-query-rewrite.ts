@@ -200,7 +200,8 @@ function acceptedClarification(output: unknown): string | null {
     /[\r\n{}<>]/.test(question) ||
     /https?:\/\/|\[\[|SANTO_REF_|(?:source|citation|guideline):/i.test(question) ||
     !/[?؟]$/.test(question)
-  ) return null;
+  )
+    return null;
   return question;
 }
 

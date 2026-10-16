@@ -136,8 +136,12 @@ describe("Luna original medical article images", () => {
   });
 
   it("combines lazy HTML images with section image metadata without duplicating original figures", async () => {
-    const html = '<h2>Diagnosis</h2><img data-src="' + MEDIA +
-      'doppler.png" alt="Doppler study"><img src="' + MEDIA + 'valve.png" alt="Valve">';
+    const html =
+      '<h2>Diagnosis</h2><img data-src="' +
+      MEDIA +
+      'doppler.png" alt="Doppler study"><img src="' +
+      MEDIA +
+      'valve.png" alt="Valve">';
     const original = bucket(html);
     const merged: R2BucketLike = {
       ...original,
@@ -145,17 +149,22 @@ describe("Luna original medical article images", () => {
         const object = await original.get(key);
         if (!object) return null;
         const article = JSON.parse(await object.text()) as {
-          sections: Array<{images: Array<{src:string;alt:string}>}>;
+          sections: Array<{ images: Array<{ src: string; alt: string }> }>;
         };
-        article.sections[0]!.images.push({src: MEDIA + "doppler.png", alt:"Doppler"});
-        article.sections[0]!.images.push({src: MEDIA + "additional.png", alt:"Extra section figure"});
-        article.sections[0]!.images.push({src: "https://evil.example/img.png", alt:"Unsafe"});
-        return {text: async () => JSON.stringify(article)};
+        article.sections[0]!.images.push({ src: MEDIA + "doppler.png", alt: "Doppler" });
+        article.sections[0]!.images.push({
+          src: MEDIA + "additional.png",
+          alt: "Extra section figure",
+        });
+        article.sections[0]!.images.push({ src: "https://evil.example/img.png", alt: "Unsafe" });
+        return { text: async () => JSON.stringify(article) };
       },
     };
     const results = await loadMedicalImages(merged, evidence);
     expect(results.map((item) => item.src)).toEqual([
-      MEDIA + "doppler.png", MEDIA + "valve.png", MEDIA + "additional.png"
+      MEDIA + "doppler.png",
+      MEDIA + "valve.png",
+      MEDIA + "additional.png",
     ]);
     expect(results[0]!.alt).toBe("Doppler study");
     expect(results.every((item) => item.sourceId === "amboss:chunk-123")).toBe(true);

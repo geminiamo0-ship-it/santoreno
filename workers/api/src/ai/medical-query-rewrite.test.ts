@@ -28,10 +28,12 @@ describe("staging Qwen3 medical query rewriter", () => {
     const ai: WorkersAiLike = {
       run: async () => {
         calls++;
-        return { response: JSON.stringify({
-          intent: "CLARIFY",
-          question: "Do you mean treatment or diagnosis, and for which disease?",
-        }) };
+        return {
+          response: JSON.stringify({
+            intent: "CLARIFY",
+            question: "Do you mean treatment or diagnosis, and for which disease?",
+          }),
+        };
       },
     };
     expect(await routeMedicalRequest(ai, "ttt?", "ttt?")).toEqual({
@@ -48,7 +50,8 @@ describe("staging Qwen3 medical query rewriter", () => {
       }),
     };
     expect(await routeMedicalRequest(ai, "العلاج؟", "العلاج؟")).toEqual({
-      intent: "clarify", question: "تقصد علاج أي مرض بالتحديد؟",
+      intent: "clarify",
+      question: "تقصد علاج أي مرض بالتحديد؟",
     });
     const unsafe: WorkersAiLike = {
       run: async () => ({
@@ -59,7 +62,8 @@ describe("staging Qwen3 medical query rewriter", () => {
       }),
     };
     expect(await routeMedicalRequest(unsafe, "ttt", "ttt")).toEqual({
-      intent: "medical", searchQuery: "ttt",
+      intent: "medical",
+      searchQuery: "ttt",
     });
     const notQuestion: WorkersAiLike = {
       run: async () => ({
@@ -67,7 +71,8 @@ describe("staging Qwen3 medical query rewriter", () => {
       }),
     };
     expect(await routeMedicalRequest(notQuestion, "?", "?")).toEqual({
-      intent: "medical", searchQuery: "?",
+      intent: "medical",
+      searchQuery: "?",
     });
   });
 

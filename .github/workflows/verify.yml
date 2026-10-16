@@ -136,6 +136,11 @@ jobs:
         if: steps.workspace.outputs.exists == 'true'
         run: pnpm install --frozen-lockfile
 
+      - name: Temporary MeSH pilot formatter diagnostics
+        run: |
+          pnpm exec prettier --write scripts/medical-query-expansion-readonly-ab.mjs workers/api/src/ai/medical-query-expansion.ts workers/api/src/ai/retrieval.test.ts
+          git diff -- scripts/medical-query-expansion-readonly-ab.mjs workers/api/src/ai/medical-query-expansion.ts workers/api/src/ai/retrieval.test.ts
+
       - name: Lint
         if: steps.workspace.outputs.exists == 'true'
         run: pnpm lint

@@ -36,6 +36,8 @@ jobs:
             workers/api/src/ai/medical-query-rewrite.test.ts \
             workers/api/src/ai/medical-ranking.ts \
             workers/api/src/ai/medical-ranking.test.ts \
+            workers/api/src/ai/plain-luna.test.ts \
+            workers/api/src/ai/handler.test.ts \
             workers/api/src/ai/retrieval.ts \
             workers/api/src/ai/retrieval.test.ts \
             workers/api/src/ai/plain-luna.ts \

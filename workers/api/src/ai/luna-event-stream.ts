@@ -127,6 +127,8 @@ export async function collectLunaEventStream(
   let bytes = 0;
   let observedOutputTokens: number | undefined;
   let completionTextReceived = false;
+  const streamReadStartedAt = performance.now();
+  let firstProviderDeltaSeen = false;
 
   function receive(frame: string): void {
     const data = frame
@@ -161,6 +163,13 @@ export async function collectLunaEventStream(
       );
     }
     if (value.type === "response.output_text.delta" && typeof value.delta === "string") {
+      if (!firstProviderDeltaSeen && value.delta.length > 0) {
+        firstProviderDeltaSeen = true;
+        // Only timing; no student text, source ids or private images in logs.
+        console.info("santo_provider_first_delta_after_headers_ms", {
+          milliseconds: Math.round(performance.now() - streamReadStartedAt),
+        });
+      }
       generated += value.delta;
       if (generated.length > LUNA_MAX_GENERATED_CHARS) {
         throw new GroundedAiError(502, "MODEL_RESPONSE_INVALID", "Provider output exceeds limit");

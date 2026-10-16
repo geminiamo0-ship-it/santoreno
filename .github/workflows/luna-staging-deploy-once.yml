@@ -1,0 +1,73 @@
+name: Santo Staging Verified Deploy Once
+
+on:
+  push:
+    branches:
+      - feat/luna-rich-sources-images-20261016
+    paths:
+      - .github/workflows/luna-staging-deploy-once.yml
+
+permissions:
+  contents: read
+  checks: read
+  issues: write
+
+concurrency:
+  group: santo-pilot-staging-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy-staging:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      MERGED_STAGING_SHA: 9495046808c9a68010a2b1dee64ce1a01578464f
+      WORKER_URL: https://santo-api-staging.geminiamo0.workers.dev
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 9495046808c9a68010a2b1dee64ce1a01578464f
+      - name: Verify exact staging merge is already green
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$MERGED_STAGING_SHA"
+          checks="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${MERGED_STAGING_SHA}/check-runs")"
+          for name in repository-policy code-quality; do
+            echo "$checks" | jq -e --arg name "$name" \
+              'any(.check_runs[]; .name == $name and .conclusion == "success")'
+          done
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - name: Deploy ONLY the existing staging Worker and keep existing secrets
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+          test -n "$CLOUDFLARE_API_TOKEN"
+          cd workers/api
+          pnpm exec wrangler deploy --env staging --keep-vars
+      - name: Protected staging smoke test
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --retry 10 --retry-delay 3 --retry-all-errors --fail --silent --show-error \
+            "$WORKER_URL/health" | jq -e '.service == "santo-api" and .status == "ok"'
+          code="$(curl --retry 5 --retry-delay 2 --silent --show-error \
+            --output /dev/null --write-out '%{http_code}' \
+            -X POST "$WORKER_URL/v1/ai/query" \
+            -H 'content-type: application/json' \
+            --data '{"query":"Explain heart failure","idempotency_key":"staging-image-upgrade-no-auth"}')"
+          test "$code" = 401
+          echo "Staging health 200 and unauthenticated AI 401; Production untouched."
+      - name: Report staging deployment result on PR 137
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          gh pr comment 137 --body "Santo staging-only deployment: ${JOB_STATUS}. Source merge: ${MERGED_STAGING_SHA}. Action: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}. No Production deployment."

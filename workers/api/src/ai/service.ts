@@ -149,11 +149,11 @@ export class GroundedAiService {
           stage: "qwen_route",
           milliseconds: Math.round(performance.now() - routeStartedAt),
         });
-      if (route?.intent === "chat") {
-        // Same Qwen inference provides the final short social answer; no Luna
-        // or medical retrieval, but the original reservation and completion
-        // still pass through the authoritative quota and ConversationDO.
-        answer = route.answer;
+      if (route?.intent === "chat" || route?.intent === "clarify") {
+        // The same Qwen inference provides social replies and clarifications.
+        // Neither may fabricate library citations. Preserve the original
+        // quota, identity, idempotency and ConversationDO completion lifecycle.
+        answer = route.intent === "clarify" ? route.question : route.answer;
         citations = [];
         responseMode = "general";
         outputChars = answer.length;

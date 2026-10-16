@@ -61,14 +61,9 @@ for (const test of tests) {
   const payload = await response.json();
   if (payload.success === false) throw new Error("Workers AI inference rejected");
   const result = payload.result;
-  if (typeof result !== "object" || result === null || typeof result.response !== "string" || result.response.length === 0) {
-    console.log("Granite output shape (synthetic test only): " + JSON.stringify({
-      outerKeys: Object.keys(payload),
-      resultKeys: result && typeof result === "object" ? Object.keys(result) : [],
-      resultSample: JSON.stringify(result).slice(0, 600),
-    }));
-  }
-  const answer = String(result?.response ?? "");
+  const answer = String(
+    result?.choices?.[0]?.message?.content ?? result?.response ?? "",
+  );
   const passes = test.required.every((term) => term.test(answer)) &&
     test.forbidden.every((term) => !term.test(answer));
   console.log(test.name + " | matched clinical intent: " + passes +

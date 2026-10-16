@@ -8,6 +8,7 @@ name: Professor Teaching Staging Deploy
 # Issue #131: resolve short medical follow-ups to latest completed explicit clinical topic.
 # Issue #135: cancelled MeSH, one bounded Granite Micro medical query rewrite on staging.
 # PR #137: original HTML image metadata for Luna; deploy only after exact-head Verify and no production changes.
+# PR #139: fixes high-priority Luna image marker contract and adds privacy-safe stage diagnostics.
 # Explicit post-PR #137 staging-only deploy with verified exact SHA and observable action outcome.
 # Updated Luna native long-answer parser rollout.
 # Ordinary main commits do not redeploy staging; manual reruns remain possible.
@@ -23,7 +24,6 @@ on:
 permissions:
   contents: read
   checks: read
-  issues: write
 
 concurrency:
   group: santo-pilot-staging-deploy
@@ -107,11 +107,3 @@ jobs:
             echo '- Health, console and unauthenticated access: passed'
             echo '- Real sourced medical-answer quality remains unverified until licensed corpus evaluation'
           } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Record exact Staging deployment result on approved PR
-        if: always()
-        shell: bash
-        env:
-          RESULT: ${{ job.status }}
-        run: |
-          gh pr comment 137 --body "Santo Staging rollout: **${RESULT}**, commit \`${GITHUB_SHA}\`. GitHub Actions: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}. If failed, deployment or smoke is NOT verified. Production was not targeted."

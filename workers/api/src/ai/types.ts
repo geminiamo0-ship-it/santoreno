@@ -13,10 +13,14 @@ export interface RetrievedEvidence {
 export interface RetrievalRequest {
   query: string;
   libraryId: string | null;
+  /** Validated single-Qwen medical search query; avoids calling Qwen twice. */
+  preparedQuery?: string;
 }
 
 export interface RetrievalPort {
   retrieve(request: RetrievalRequest): Promise<RetrievedEvidence[]>;
+  /** Optional staging-only Qwen route; all other adapters remain unchanged. */
+  route?(request: RetrievalRequest): Promise<import("./medical-query-rewrite").MedicalRoute>;
 }
 
 export interface GroundedModelDraft {

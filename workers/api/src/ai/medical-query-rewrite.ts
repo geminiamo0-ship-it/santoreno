@@ -4,7 +4,7 @@ const QUERY_MODEL = "@cf/qwen/qwen3-30b-a3b-fp8";
 const QUERY_MAX_TOKENS = 512;
 const FOLLOW_UP_MARKER = "\nFollow-up question:\n";
 const MAX_FOCUSED_CHARS = 850;
-// Bounded by the outer 15s retrieval deadline; leave time for AI Search.
+// Keep medical rewriting bounded; routing uses a faster 4s timeout.
 const REWRITE_TIMEOUT_MS = 8000;
 const PROMPT =
   "You are a medical-search query normalizer. Translate Arabic medical questions into precise English; repair spelling, expand clear abbreviations, and keep the latest disease, management/diagnosis intent, negation, severity, population and timing. For follow-ups use ONLY the supplied resolved topic. Never introduce unrelated diagnoses or treatments. Output ONE compact English search query (prefer under 25 words), no explanation, list, tags, or JSON. /no_think";
@@ -138,5 +138,110 @@ export async function rewriteMedicalSearchQuery(
     return focusedQuery;
   } finally {
     if (timeout !== undefined) clearTimeout(timeout);
+  }
+}
+
+/** One Qwen inference classifies a student turn and normalizes medical search.
+ * The generated CHAT answer is only accepted for short, unambiguous social
+ * turns. All questionable output fails closed to medical retrieval. */
+export type MedicalRoute =
+  { intent: "medical"; searchQuery: string } | { intent: "chat"; answer: string };
+
+const ROUTE_PROMPT =
+  "You are the medical education assistant Santo's request router. Use the latest student question and its clinical topic context. " +
+  "Classify CHAT only for genuinely nonclinical small-talk (greetings, thanks, who are you, short casual conversation). " +
+  "If the student asks any medical question, follow-up, symptoms, diagnosis, drugs, treatment, medical education, " +
+  "or you are uncertain, classify MEDICAL. For MEDICAL, produce one precise English medical search query " +
+  "preserving severity, negation, timing and the resolved disease topic. Translate Arabic, fix typos and expand clear abbreviations. " +
+  "For CHAT, answer as Santo warmly and briefly in the user's language without medical claims, citations or source links. " +
+  'Output STRICT one-line JSON: {"intent":"MEDICAL","search_query":"..."} OR {"intent":"CHAT","answer":"..."}. ' +
+  "No explanations, no Markdown fences, no extra keys. /no_think";
+
+function modelOutput(raw: unknown): string | null {
+  if (!raw || typeof raw !== "object") return null;
+  const response = raw as Record<string, unknown>;
+  if (typeof response.response === "string") return response.response;
+  const choice = Array.isArray(response.choices) ? response.choices[0] : undefined;
+  const record = choice && typeof choice === "object" ? (choice as Record<string, unknown>) : null;
+  const message =
+    record?.message && typeof record.message === "object"
+      ? (record.message as Record<string, unknown>)
+      : null;
+  return typeof message?.content === "string" ? message.content : null;
+}
+
+function latestStudentMessage(original: string): string {
+  const marker = original.lastIndexOf(FOLLOW_UP_MARKER);
+  return (marker >= 0 ? original.slice(marker + FOLLOW_UP_MARKER.length) : original).trim();
+}
+
+function clearlyNonClinical(input: string): boolean {
+  if (!input || input.length > 180) return false;
+  // Permit only explicitly social turns, never the broad inverse of a disease
+  // dictionary (which could miss clinical terms or another language).
+  const socialEnglish =
+    /^(?:(?:hi|hello|hey|good (?:morning|evening|afternoon)|thanks(?: a lot)?|thank you|bye|goodbye|how are you|who are you|what(?:'s| is) your name|what can you do|can you help me|tell me a joke|cheer me up|give me study motivation)[!.?\\s]*)$/i;
+  const socialArabic =
+    /^(?:(?:اهلا|أهلا|اهلين|سلام|السلام عليكم|صباح الخير|مساء الخير|شكرا|شكرًا|متشكر|ازيك|إزيك|عامل ايه|عامل إيه|انت مين|أنت مين)[!؟.\\s]*)$/u;
+  return socialEnglish.test(input.trim()) || socialArabic.test(input.trim());
+}
+
+export async function routeMedicalRequest(
+  ai: WorkersAiLike | undefined,
+  originalRequest: string,
+  focusedQuery: string,
+): Promise<MedicalRoute> {
+  const fallback: MedicalRoute = { intent: "medical", searchQuery: focusedQuery };
+  if (!ai || focusedQuery.length > MAX_FOCUSED_CHARS || !focusedQuery.trim()) return fallback;
+  const latest = latestStudentMessage(originalRequest);
+  const input = [
+    "Latest student question: " + latest.slice(0, 600),
+    "Resolved medical topic and intent: " + focusedQuery.slice(0, MAX_FOCUSED_CHARS),
+    "Prior medical context exists: " + originalRequest.includes(FOLLOW_UP_MARKER),
+  ].join("\n");
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const raw = await Promise.race([
+      ai.run(QUERY_MODEL, {
+        messages: [
+          { role: "system", content: ROUTE_PROMPT },
+          { role: "user", content: input },
+        ],
+        max_tokens: QUERY_MAX_TOKENS,
+        temperature: 0,
+        top_p: 0.8,
+        stream: false,
+      }),
+      new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(() => reject(new Error("ROUTER_TIMEOUT")), 4000);
+      }),
+    ]);
+    const output = modelOutput(raw)
+      ?.replace(/^<think>[\s\S]*?<\/think>\s*/i, "")
+      .trim();
+    if (!output || output.length > 850) return fallback;
+    const parsed: unknown = JSON.parse(output);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return fallback;
+    const result = parsed as Record<string, unknown>;
+    if (result.intent === "MEDICAL")
+      return {
+        intent: "medical",
+        searchQuery: acceptMedicalRewrite(focusedQuery, result.search_query) ?? focusedQuery,
+      };
+    if (
+      result.intent === "CHAT" &&
+      typeof result.answer === "string" &&
+      result.answer.trim().length > 0 &&
+      result.answer.length <= 350 &&
+      clearlyNonClinical(latest) &&
+      !originalRequest.includes(FOLLOW_UP_MARKER) &&
+      !/https?:|\[\[|SANTO_REF_|(?:source|citation|guideline):/i.test(result.answer)
+    )
+      return { intent: "chat", answer: result.answer.trim() };
+    return fallback;
+  } catch {
+    return fallback;
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
   }
 }

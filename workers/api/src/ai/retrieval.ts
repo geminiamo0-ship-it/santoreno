@@ -9,7 +9,7 @@ import type { RetrievalPort, RetrievalRequest, RetrievedEvidence } from "./types
 import { focusedSearchQuery } from "./source-relevance";
 import { rankMedicalCandidates, type RankedCandidate } from "./medical-ranking";
 import type { WorkersAiLike } from "../runtime/bindings";
-import { rewriteMedicalSearchQuery } from "./medical-query-rewrite";
+import { rewriteMedicalSearchQuery, routeMedicalRequest } from "./medical-query-rewrite";
 
 const LIBRARIES = ["amboss", "usmle", "passmedicine", "pastest", "one-examination"] as const;
 const MAX_RESULTS = 5;
@@ -174,8 +174,19 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
     private readonly medicalRetrievalV2 = false,
     private readonly medicalQueryRewriteV1 = false,
     private readonly smallQueryModel?: WorkersAiLike,
+    private readonly intentRoutingV1 = false,
   ) {
     this.catalog = catalog ?? new AiSearchNamespaceLibraryCatalog(namespace);
+  }
+
+  async route(request: RetrievalRequest) {
+    if (!this.intentRoutingV1)
+      return { intent: "medical" as const, searchQuery: focusedSearchQuery(request.query) };
+    return routeMedicalRequest(
+      this.smallQueryModel,
+      request.query,
+      focusedSearchQuery(request.query),
+    );
   }
 
   async retrieve(request: RetrievalRequest): Promise<RetrievedEvidence[]> {
@@ -184,12 +195,17 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
     }
 
     try {
-      const selectedLibraries = selectLibraries(await this.catalog.list(), request.libraryId);
+      // Begin catalog lookup before the model rewrite to overlap both network calls.
+      const catalogPromise = this.catalog.list();
       const currentTopicQuery = focusedSearchQuery(request.query);
+      const queryPromise = request.preparedQuery
+        ? Promise.resolve(request.preparedQuery)
+        : this.medicalRetrievalV2 && this.medicalQueryRewriteV1
+          ? rewriteMedicalSearchQuery(this.smallQueryModel, request.query, currentTopicQuery)
+          : Promise.resolve(currentTopicQuery);
+      const [catalog, searchQuery] = await Promise.all([catalogPromise, queryPromise]);
+      const selectedLibraries = selectLibraries(catalog, request.libraryId);
       if (this.medicalRetrievalV2) {
-        const searchQuery = this.medicalQueryRewriteV1
-          ? await rewriteMedicalSearchQuery(this.smallQueryModel, request.query, currentTopicQuery)
-          : currentTopicQuery;
         return await this.retrieveMedicalV2(currentTopicQuery, selectedLibraries, searchQuery);
       }
       // Query each index concurrently. Asking a single global top-5 search

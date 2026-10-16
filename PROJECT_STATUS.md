@@ -6,6 +6,15 @@
 >
 > **Rule:** GitHub code, issues, PRs, commits, and Actions are the source of truth. Update this file whenever meaningful work completes, a gate passes/fails, architecture changes, or the active issue changes.
 
+### Staging-only Luna runtime speed candidate — 16 Oct 2026 (pending CI and real browser evidence)
+
+- User explicitly froze all five existing AI Search indexes; **no re-indexing, embedding changes, chunking changes, metadata migrations or new R2 release writes**.
+- Staging feature flag `SANTO_QWEN_ROUTING_V1` uses the **existing** `@cf/qwen/qwen3-30b-a3b-fp8` inference (512 token ceiling) to classify short social CHAT and rewrite MEDICAL queries in **one** request. Clearly nonmedical CHAT replies come from Qwen without Luna/AI Search; conservative checks and ambiguous/clinical/follow-up turns always take MEDICAL retrieval, preserving server-side quota, citation integrity and ConversationDO persistence.
+- For MEDICAL, an accepted prepared query bypasses a duplicate rewriter request; catalog and legacy query preparation run concurrently where relevant. Five permitted libraries and native reranking remain unchanged; no retrieval rounds/timeout policy changes.
+- Staging original-article R2 image metadata hydration uses `Promise.all` for up to five validated articles, with a bounded five-minute per-isolate cache keyed by R2 binding and article key, and request-specific source IDs reapplied after cache lookup. Prompt uses at most 15 clinical-image candidates per turn, preserving diverse valid sources without changing actual R2 content or authorized image lookup rules.
+- Privacy-safe timing stages record Qwen route, retrieval, image hydration, Luna time-to-first-delta and Luna total generation. No user medical text, source IDs, tokens, URL paths, or secrets are logged.
+- **Pending:** exact-head lint/format/typecheck/test/build checks, careful review of any clinical misclassification, live Staging deployment proof, authenticated Royal Bank first-token timing. No measured 1s/5s latency claim; production unchanged. Royal Bank token/session caching is a separate security-sensitive optimization and must not bypass authentication or entitlement checks.
+
 ### Qwen3 medical query normalization replacement — PR #141 (Staging candidate; 16 Oct 2026)
 
 - Requested: replace Granite Micro with `@cf/qwen/qwen3-30b-a3b-fp8` **on Santo Staging only**; raise `max_tokens` from 64 to **512 as a ceiling**, retaining a strict 220-character English-search-query validation rule and no second model call.

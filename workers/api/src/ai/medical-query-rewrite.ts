@@ -59,7 +59,7 @@ const IGNORED = new Set([
   "patient",
 ]);
 
-export function acceptMedicalRewrite(focused: string, output: unknown): string | null {
+export function acceptMedicalRewrite(_focused: string, output: unknown): string | null {
   if (typeof output !== "string") return null;
   const candidate = output.trim();
   if (

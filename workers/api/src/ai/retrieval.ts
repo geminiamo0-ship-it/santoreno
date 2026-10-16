@@ -8,6 +8,7 @@ import {
 import type { RetrievalPort, RetrievalRequest, RetrievedEvidence } from "./types";
 import { focusedSearchQuery, matchesSearchSubject } from "./source-relevance";
 import { rankMedicalCandidates, type RankedCandidate } from "./medical-ranking";
+import { expandMedicalSearchQuery } from "./medical-query-expansion";
 
 const LIBRARIES = ["amboss", "usmle", "passmedicine", "pastest", "one-examination"] as const;
 const MAX_RESULTS = 5;
@@ -170,6 +171,7 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
     private readonly namespace: AiSearchNamespaceLike | undefined,
     catalog?: LibraryCatalogPort,
     private readonly medicalRetrievalV2 = false,
+    private readonly medicalQueryExpansionV1 = false,
   ) {
     this.catalog = catalog ?? new AiSearchNamespaceLibraryCatalog(namespace);
   }
@@ -183,7 +185,15 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
       const selectedLibraries = selectLibraries(await this.catalog.list(), request.libraryId);
       const currentTopicQuery = focusedSearchQuery(request.query);
       if (this.medicalRetrievalV2) {
-        return await this.retrieveMedicalV2(currentTopicQuery, selectedLibraries);
+        const plan = this.medicalQueryExpansionV1
+          ? expandMedicalSearchQuery(currentTopicQuery)
+          : { query: currentTopicQuery, expanded: false };
+        return await this.retrieveMedicalV2(
+          currentTopicQuery,
+          selectedLibraries,
+          plan.query,
+          plan.expanded,
+        );
       }
       // Query each index concurrently. Asking a single global top-5 search
       // routinely hides smaller libraries, even when their evidence is relevant.
@@ -229,6 +239,8 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
   private async retrieveMedicalV2(
     query: string,
     libraries: readonly LibraryCatalogEntry[],
+    searchQuery: string,
+    queryExpanded: boolean,
   ): Promise<RetrievedEvidence[]> {
     const searchStage = async (
       maxResults: number,
@@ -237,7 +249,7 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
       const batches = await Promise.all(
         libraries.map(async (library) => {
           const response = await this.namespace!.search({
-            query,
+            query: searchQuery,
             ai_search_options: {
               instance_ids: [library.instanceId],
               retrieval: {
@@ -246,6 +258,7 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
                 max_num_results: maxResults,
                 return_on_failure: true,
                 fusion_method: "rrf",
+                ...(queryExpanded ? { keyword_match_mode: "or" } : {}),
               },
               reranking: {
                 enabled: true,

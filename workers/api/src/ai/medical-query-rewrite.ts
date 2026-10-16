@@ -89,7 +89,18 @@ export async function rewriteMedicalSearchQuery(
       }),
     ]);
     const data = result && typeof result === "object" ? (result as Record<string, unknown>) : null;
-    return acceptMedicalRewrite(focusedQuery, data?.response) ?? focusedQuery;
+    const choices = Array.isArray(data?.choices) ? data.choices : [];
+    const first = choices[0];
+    const message =
+      first && typeof first === "object"
+        ? (first as Record<string, unknown>).message
+        : null;
+    const content =
+      message && typeof message === "object"
+        ? (message as Record<string, unknown>).content
+        : null;
+    const rewritten = typeof data?.response === "string" ? data.response : content;
+    return acceptMedicalRewrite(focusedQuery, rewritten) ?? focusedQuery;
   } catch {
     return focusedQuery;
   } finally {

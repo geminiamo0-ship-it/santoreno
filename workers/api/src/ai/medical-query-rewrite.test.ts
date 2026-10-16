@@ -54,9 +54,9 @@ describe("staging Qwen3 medical query rewriter", () => {
         choices: [{ message: { content: "<think>\n\n</think>\naortic stenosis diagnosis" } }],
       }),
     };
-    expect(await rewriteMedicalSearchQuery(ai, "تشخيص ضيق الصمام الأورطي", "تشخيص ضيق الصمام الأورطي")).toBe(
-      "aortic stenosis diagnosis",
-    );
+    expect(
+      await rewriteMedicalSearchQuery(ai, "تشخيص ضيق الصمام الأورطي", "تشخيص ضيق الصمام الأورطي"),
+    ).toBe("aortic stenosis diagnosis");
   });
 
   it("falls back on model outage or syntactically invalid output", async () => {

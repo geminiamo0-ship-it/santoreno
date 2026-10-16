@@ -129,9 +129,10 @@ export async function rewriteMedicalSearchQuery(
       message && typeof message === "object" ? (message as Record<string, unknown>).content : null;
     const rewritten = typeof data?.response === "string" ? data.response : content;
     // Qwen3 may wrap a no-thinking response in an empty <think> block.
-    const normalized = typeof rewritten === "string"
-      ? rewritten.replace(/^<think>[\s\S]*?<\/think>\s*/i, "").trim()
-      : rewritten;
+    const normalized =
+      typeof rewritten === "string"
+        ? rewritten.replace(/^<think>[\s\S]*?<\/think>\s*/i, "").trim()
+        : rewritten;
     return acceptMedicalRewrite(focusedQuery, normalized) ?? focusedQuery;
   } catch {
     return focusedQuery;

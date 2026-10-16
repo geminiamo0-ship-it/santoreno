@@ -318,12 +318,52 @@ export async function loadMedicalImages(
   }));
 }
 
-export function medicalImagePrompt(images: readonly MedicalImageCandidate[]): string {
+/** Keep prompt image context small; preserve at least one figure from each
+ * article/source before filling the remainder with query-relevant candidates. */
+export function selectMedicalImagesForPrompt(
+  images: readonly MedicalImageCandidate[],
+  query: string,
+  limit = 15,
+): MedicalImageCandidate[] {
+  if (images.length <= limit) return [...images];
+  const words = new Set(
+    (query.toLowerCase().match(/[\\p{L}\\p{N}]{3,}/gu) ?? [])
+      .filter((word) => !["what", "about", "explain", "please", "study"].includes(word)),
+  );
+  const scores = images.map((image, index) => ({
+    image,
+    index,
+    score: [...words].filter((word) =>
+      [image.caption, image.alt, image.section, image.articleTitle]
+        .join(" ").toLowerCase().includes(word),
+    ).length,
+  }));
+  scores.sort((a, b) => b.score - a.score || a.index - b.index);
+  const picked = new Set<string>();
+  const chosen: typeof scores = [];
+  for (const candidate of scores) {
+    if (picked.has(candidate.image.sourceId)) continue;
+    chosen.push(candidate);
+    picked.add(candidate.image.sourceId);
+    if (chosen.length >= limit) break;
+  }
+  for (const candidate of scores) {
+    if (chosen.length >= limit) break;
+    if (!chosen.includes(candidate)) chosen.push(candidate);
+  }
+  return chosen.sort((a, b) => a.index - b.index).map(({ image }) => image);
+}
+
+export function medicalImagePrompt(
+  images: readonly MedicalImageCandidate[],
+  query = "",
+): string {
   if (!images.length) return "";
+  const selected = selectMedicalImagesForPrompt(images, query);
   return (
     "\nAVAILABLE_ORIGINAL_ARTICLE_IMAGES:\n" +
     JSON.stringify(
-      images.map((image) => ({
+      selected.map((image) => ({
         image_id: image.id,
         source_id: image.sourceId,
         original_html_id: image.originalId,

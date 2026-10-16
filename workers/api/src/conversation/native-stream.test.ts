@@ -33,7 +33,9 @@ function events(
 describe("native provisional conversation SSE (staging only)", () => {
   it("sends the first provisional SSE event before the verified reply is ready", async () => {
     let finish!: () => void;
-    const waiting = new Promise<void>((resolve) => { finish = resolve; });
+    const waiting = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
     const stream = streamProvisionalConversationAnswer(async (emit) => {
       emit("First");
       await waiting; // Simulates a provider that keeps generating.

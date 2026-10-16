@@ -25,22 +25,38 @@ describe("native Luna Responses SSE collector", () => {
     const encoder = new TextEncoder();
     let controller!: ReadableStreamDefaultController<Uint8Array>;
     let observed!: (value: string) => void;
-    const firstWord = new Promise<string>((resolve) => { observed = resolve; });
+    const firstWord = new Promise<string>((resolve) => {
+      observed = resolve;
+    });
     const native = new ReadableStream<Uint8Array>({
-      start(value) { controller = value; },
+      start(value) {
+        controller = value;
+      },
     });
     let finished = false;
-    const processing = collectLunaEventStream(native, (draft) => { observed(draft); }, "plain")
-      .then((value) => { finished = true; return value; });
-    controller.enqueue(encoder.encode(
-      'data: {"type":"response.output_text.delta","delta":"First"}' + "\n\n",
-    ));
+    const processing = collectLunaEventStream(
+      native,
+      (draft) => {
+        observed(draft);
+      },
+      "plain",
+    ).then((value) => {
+      finished = true;
+      return value;
+    });
+    controller.enqueue(
+      encoder.encode('data: {"type":"response.output_text.delta","delta":"First"}' + "\n\n"),
+    );
     expect(await firstWord).toBe("First");
     expect(finished).toBe(false);
-    controller.enqueue(encoder.encode(
-      'data: {"type":"response.output_text.delta","delta":" word"}' + "\n\n" +
-      'data: {"type":"response.completed","response":{"status":"completed"}}' + "\n\n",
-    ));
+    controller.enqueue(
+      encoder.encode(
+        'data: {"type":"response.output_text.delta","delta":" word"}' +
+          "\n\n" +
+          'data: {"type":"response.completed","response":{"status":"completed"}}' +
+          "\n\n",
+      ),
+    );
     controller.close();
     await expect(processing).resolves.toBe("First word");
   });
@@ -158,10 +174,16 @@ describe("native Luna Responses SSE collector", () => {
     );
     let progressCount = 0;
     let latestDraft = "";
-    await expect(collectLunaEventStream(stream, (draft) => {
-      progressCount++;
-      latestDraft = draft;
-    }, "plain")).resolves.toBe(full);
+    await expect(
+      collectLunaEventStream(
+        stream,
+        (draft) => {
+          progressCount++;
+          latestDraft = draft;
+        },
+        "plain",
+      ),
+    ).resolves.toBe(full);
     expect(latestDraft).toBe(full);
     expect(progressCount).toBe(chunks.length);
   });

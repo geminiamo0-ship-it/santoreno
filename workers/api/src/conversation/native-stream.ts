@@ -40,7 +40,11 @@ export function streamProvisionalConversationAnswer(
           const result = await work((text) => {
             if (canceled || text === lastText) return;
             if (++count > 12_000 || text.length > 120_000) {
-              throw new GroundedAiError(502, "MODEL_RESPONSE_INVALID", "Draft stream limit exceeded");
+              throw new GroundedAiError(
+                502,
+                "MODEL_RESPONSE_INVALID",
+                "Draft stream limit exceeded",
+              );
             }
             if (!firstDraftRecorded && text.length > 0) {
               firstDraftRecorded = true;

@@ -16,7 +16,13 @@ export const LUNA_PLAIN_TEXT_INSTRUCTIONS =
   "citation markers [[1]] through [[5]] for the corresponding real excerpt, not for unrelated " +
   "background knowledge. When evidence is supplied include at least one supported citation. " +
   "When no evidence is supplied, use none. Never output technical labels SANTO_REF_*, " +
-  "source hashes, invented citations, JSON wrappers, or code fences. Finish the answer in complete sentences.";
+  "source hashes, invented citations, JSON wrappers, or code fences. " +
+  "Exception: if AVAILABLE_ORIGINAL_ARTICLE_IMAGES is supplied, exact [[IMG_001]]-style " +
+  "markers from its image_id list are ALLOWED and ENCOURAGED inline in your Markdown explanation. " +
+  "These are safe image-placement requests to Santo, NOT forbidden machine/source identifiers. " +
+  "Use as many genuinely relevant source illustrations as improve understanding; write each image " +
+  "marker on its own line after the corresponding explanation. Never invent image IDs or URLs. " +
+  "When the available list is empty, do not emit image markers. Finish complete sentences.";
 
 function scrubMachineIds(text: string, ids: readonly string[]): string {
   let safe = text;

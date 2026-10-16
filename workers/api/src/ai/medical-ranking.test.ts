@@ -59,7 +59,10 @@ describe("Medical Retrieval v2 cross-library ranking", () => {
         9,
       ),
     ];
-    expect(rankMedicalCandidates("FMF", candidates).map((x) => x.sourceId)).toEqual(["amboss:valve", "amboss:fmf"]);
+    expect(rankMedicalCandidates("FMF", candidates).map((x) => x.sourceId)).toEqual([
+      "amboss:valve",
+      "amboss:fmf",
+    ]);
   });
 
   it("caps repeated chunks from one article and never manufactures identifiers", () => {

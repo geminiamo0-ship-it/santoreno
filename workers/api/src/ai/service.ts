@@ -149,12 +149,14 @@ export class GroundedAiService {
       if (evidence.length === 0) groundingMode = "general";
       // Resolve article image metadata from the same original R2 articles
       // selected by native search, BEFORE Luna generates its response.
-      const originalImages = groundingMode === "santo" && this.richImagesEnabled && this.articleBucket
-        ? await loadMedicalImages(this.articleBucket, evidence)
-        : [];
+      const originalImages =
+        groundingMode === "santo" && this.richImagesEnabled && this.articleBucket
+          ? await loadMedicalImages(this.articleBucket, evidence)
+          : [];
       const answerFormat = this.markdownOutput ? "markdown" : "json";
       const sourcedPrompt =
-        buildGroundedPrompt(input.query, evidence, answerFormat) + medicalImagePrompt(originalImages);
+        buildGroundedPrompt(input.query, evidence, answerFormat) +
+        medicalImagePrompt(originalImages);
       let draft = await withAiDeadline(
         () =>
           this.model.generate(
@@ -212,11 +214,19 @@ export class GroundedAiService {
       // Source cards are granted solely for explicit Luna citations or
       // original-article images Luna chose in the response.
       if (this.markdownOutput && usedSources.length === 0) responseMode = "general";
-      if (this.markdownOutput && draft.sourcePresentation === "none" &&
-          images.sourceIds.length === 0) responseMode = "general";
+      if (
+        this.markdownOutput &&
+        draft.sourcePresentation === "none" &&
+        images.sourceIds.length === 0
+      )
+        responseMode = "general";
       if (responseMode === "general") {
         if (draft.citationIds.length !== 0) {
-          throw new GroundedAiError(502, "CITATION_INVALID", "General medical answer cannot cite Santo");
+          throw new GroundedAiError(
+            502,
+            "CITATION_INVALID",
+            "General medical answer cannot cite Santo",
+          );
         }
         citations = [];
       } else {

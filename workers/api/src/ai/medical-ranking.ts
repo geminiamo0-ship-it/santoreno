@@ -18,9 +18,12 @@ export function rankMedicalCandidates(
   const usedIds = new Set<string>();
   const usedArticles = new Set<string>();
   return [...candidates]
-    .sort((a, b) => a.position - b.position ||
-      a.evidence.instanceId.localeCompare(b.evidence.instanceId) ||
-      a.evidence.sourceId.localeCompare(b.evidence.sourceId))
+    .sort(
+      (a, b) =>
+        a.position - b.position ||
+        a.evidence.instanceId.localeCompare(b.evidence.instanceId) ||
+        a.evidence.sourceId.localeCompare(b.evidence.sourceId),
+    )
     .filter(({ evidence }) => {
       const article = evidence.instanceId + ":" + evidence.itemKey;
       if (usedIds.has(evidence.sourceId) || usedArticles.has(article)) return false;

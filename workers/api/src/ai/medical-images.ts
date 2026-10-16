@@ -24,9 +24,16 @@ const MAX_ARTICLES = 5;
 function approvedUrl(value: string): string | null {
   try {
     const url = new URL(value);
-    if (url.protocol !== "https:" || url.hostname !== MEDIA_HOST || url.username ||
-        url.password || url.search || url.hash ||
-        !/^\/offline_media\/[A-Za-z0-9_%+.-]+\.(?:png|jpg|jpeg|webp|gif)$/i.test(url.pathname)) return null;
+    if (
+      url.protocol !== "https:" ||
+      url.hostname !== MEDIA_HOST ||
+      url.username ||
+      url.password ||
+      url.search ||
+      url.hash ||
+      !/^\/offline_media\/[A-Za-z0-9_%+.-]+\.(?:png|jpg|jpeg|webp|gif)$/i.test(url.pathname)
+    )
+      return null;
     return url.href;
   } catch {
     return null;
@@ -34,20 +41,38 @@ function approvedUrl(value: string): string | null {
 }
 
 function entities(value: string): string {
-  return value.replace(/&(?:amp|lt|gt|quot|apos|nbsp|#(\d+)|#x([0-9a-f]+));/gi, (full, dec, hex) => {
-    if (dec || hex) {
-      const n = parseInt(dec || hex, hex ? 16 : 10);
-      return n >= 32 && n <= 0x10ffff ? String.fromCodePoint(n) : " ";
-    }
-    return ({ "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"',
-      "&apos;": "'", "&nbsp;": " " } as Record<string, string>)[full.toLowerCase()] ?? full;
-  });
+  return value.replace(
+    /&(?:amp|lt|gt|quot|apos|nbsp|#(\d+)|#x([0-9a-f]+));/gi,
+    (full, dec, hex) => {
+      if (dec || hex) {
+        const n = parseInt(dec || hex, hex ? 16 : 10);
+        return n >= 32 && n <= 0x10ffff ? String.fromCodePoint(n) : " ";
+      }
+      return (
+        (
+          {
+            "&amp;": "&",
+            "&lt;": "<",
+            "&gt;": ">",
+            "&quot;": '"',
+            "&apos;": "'",
+            "&nbsp;": " ",
+          } as Record<string, string>
+        )[full.toLowerCase()] ?? full
+      );
+    },
+  );
 }
 
 function plain(html: string): string {
-  return entities(html.replace(/<script\b[\s\S]*?<\/script>/gi, " ")
-    .replace(/<style\b[\s\S]*?<\/style>/gi, " ")
-    .replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim());
+  return entities(
+    html
+      .replace(/<script\b[\s\S]*?<\/script>/gi, " ")
+      .replace(/<style\b[\s\S]*?<\/style>/gi, " ")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim(),
+  );
 }
 
 function attr(tag: string, name: string): string {
@@ -59,9 +84,9 @@ function attr(tag: string, name: string): string {
 function nearby(html: string, direction: "before" | "after"): string {
   const blocks = html
     .split(/<\/(?:p|div|li|figcaption|h[1-6]|tr)>|<br\s*\/?>/i)
-    .map(plain).filter((text) => text.length > 8);
-  return (direction === "before" ? blocks.slice(-2) : blocks.slice(0, 2))
-    .join(" ").slice(0, 340);
+    .map(plain)
+    .filter((text) => text.length > 8);
+  return (direction === "before" ? blocks.slice(-2) : blocks.slice(0, 2)).join(" ").slice(0, 340);
 }
 
 function nearbyHeading(htmlBefore: string, fallback: string): string {
@@ -69,7 +94,10 @@ function nearbyHeading(htmlBefore: string, fallback: string): string {
   return plain(headings.at(-1)?.[1] ?? "").slice(0, 160) || fallback;
 }
 
-function extractHtmlImages(article: LibraryArticle, sourceId: string): Omit<MedicalImageCandidate, "id">[] {
+function extractHtmlImages(
+  article: LibraryArticle,
+  sourceId: string,
+): Omit<MedicalImageCandidate, "id">[] {
   const html = article.contentHtml ?? "";
   if (!html) return [];
   const matches = [...html.matchAll(/<img\b[^>]*>/gi)];
@@ -86,8 +114,8 @@ function extractHtmlImages(article: LibraryArticle, sourceId: string): Omit<Medi
     // Only a caption inside the same original figure may describe this image.
     const figureStart = beforeHtml.lastIndexOf("<figure");
     const figureEnd = afterHtml.indexOf("</figure>");
-    const insideFigure = figureStart >= 0 && figureEnd >= 0 &&
-      beforeHtml.lastIndexOf("</figure>") < figureStart;
+    const insideFigure =
+      figureStart >= 0 && figureEnd >= 0 && beforeHtml.lastIndexOf("</figure>") < figureStart;
     const captionHtml = insideFigure
       ? (/<figcaption\b[^>]*>([\s\S]*?)<\/figcaption>/i.exec(
           beforeHtml.slice(figureStart) + tag + afterHtml.slice(0, figureEnd),
@@ -96,9 +124,13 @@ function extractHtmlImages(article: LibraryArticle, sourceId: string): Omit<Medi
     const alt = attr(tag, "alt").slice(0, 250);
     const caption = (plain(captionHtml) || attr(tag, "title")).slice(0, 300);
     output.push({
-      sourceId, src, articleTitle: article.title, section: nearbyHeading(beforeHtml, article.title),
+      sourceId,
+      src,
+      articleTitle: article.title,
+      section: nearbyHeading(beforeHtml, article.title),
       originalId: (attr(tag, "id") || attr(tag, "data-image-id") || null)?.slice(0, 100) ?? null,
-      alt, caption,
+      alt,
+      caption,
       before: caption ? "" : nearby(beforeHtml, "before"),
       after: caption ? "" : nearby(afterHtml, "after"),
     });
@@ -106,7 +138,10 @@ function extractHtmlImages(article: LibraryArticle, sourceId: string): Omit<Medi
   return output;
 }
 
-function extractSectionImages(article: LibraryArticle, sourceId: string): Omit<MedicalImageCandidate, "id">[] {
+function extractSectionImages(
+  article: LibraryArticle,
+  sourceId: string,
+): Omit<MedicalImageCandidate, "id">[] {
   const images: Omit<MedicalImageCandidate, "id">[] = [];
   const seen = new Set<string>();
   for (const section of article.sections) {
@@ -115,9 +150,15 @@ function extractSectionImages(article: LibraryArticle, sourceId: string): Omit<M
       if (!src || seen.has(src)) continue;
       seen.add(src);
       images.push({
-        sourceId, src, articleTitle: article.title, section: section.heading,
-        originalId: null, alt: image.alt, caption: "",
-        before: section.text.slice(0, 340), after: "",
+        sourceId,
+        src,
+        articleTitle: article.title,
+        section: section.heading,
+        originalId: null,
+        alt: image.alt,
+        caption: "",
+        before: section.text.slice(0, 340),
+        after: "",
       });
     }
   }
@@ -157,11 +198,17 @@ export async function loadMedicalImages(
       if (!object) continue;
       const raw: unknown = JSON.parse(await object.text());
       const validated = LibraryArticleSchema.safeParse(raw);
-      if (!validated.success || validated.data.libraryId !== item.libraryId ||
-          validated.data.articleId !== parsed[2]) continue;
+      if (
+        !validated.success ||
+        validated.data.libraryId !== item.libraryId ||
+        validated.data.articleId !== parsed[2]
+      )
+        continue;
       const article = await originalHtml(validated.data);
       const candidates = extractHtmlImages(article, item.sourceId);
-      for (const image of candidates.length ? candidates : extractSectionImages(article, item.sourceId)) {
+      for (const image of candidates.length
+        ? candidates
+        : extractSectionImages(article, item.sourceId)) {
         if (seenUrls.has(image.src)) continue;
         seenUrls.add(image.src);
         found.push(image);
@@ -173,33 +220,42 @@ export async function loadMedicalImages(
     if (found.length >= MAX_IMAGES) break;
   }
   return found.map((image, index) => ({
-    ...image, id: "IMG_" + String(index + 1).padStart(3, "0"),
+    ...image,
+    id: "IMG_" + String(index + 1).padStart(3, "0"),
   }));
 }
 
 export function medicalImagePrompt(images: readonly MedicalImageCandidate[]): string {
   if (!images.length) return "";
-  return "\nAVAILABLE_ORIGINAL_ARTICLE_IMAGES:\n" +
-    JSON.stringify(images.map((image) => ({
-      image_id: image.id,
-      source_id: image.sourceId,
-      original_html_id: image.originalId,
-      src: image.src,
-      article: image.articleTitle,
-      section: image.section,
-      alt: image.alt,
-      caption: image.caption || null,
-      ...(image.caption ? {} : { context_before: image.before, context_after: image.after }),
-    }))) +
+  return (
+    "\nAVAILABLE_ORIGINAL_ARTICLE_IMAGES:\n" +
+    JSON.stringify(
+      images.map((image) => ({
+        image_id: image.id,
+        source_id: image.sourceId,
+        original_html_id: image.originalId,
+        src: image.src,
+        article: image.articleTitle,
+        section: image.section,
+        alt: image.alt,
+        caption: image.caption || null,
+        ...(image.caption ? {} : { context_before: image.before, context_after: image.after }),
+      })),
+    ) +
     "\nUse as many clinically relevant figures as improve the teaching, placed inline beside their corresponding explanations. " +
     "To request a figure, write ONLY its exact [[IMG_001]]-style image_id on a standalone line. " +
     "Never invent image IDs or URLs, never cite an image as evidence for an unsupported clinical claim, " +
     "and exclude unrelated, decorative and duplicate pictures. Each image must correspond to the question " +
-    "and the actual passage; cite its source when discussing the figure. Original URLs are rendered by Santo, not you.";
+    "and the actual passage; cite its source when discussing the figure. Original URLs are rendered by Santo, not you."
+  );
 }
 
 function markdownLabel(value: string): string {
-  return value.replace(/[\[\]()\r\n<>]/g, " ").replace(/\s+/g, " ").trim().slice(0, 230);
+  return value
+    .replace(/[\[\]()\r\n<>]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 230);
 }
 
 /** Only server-fetched image identities become Markdown. Model-authored URLs
@@ -219,9 +275,21 @@ export function renderMedicalImageMarkers(
       if (!image || usedImages.has(id)) return "";
       usedImages.add(id);
       usedSources.add(image.sourceId);
-      const caption = markdownLabel(image.caption || image.alt || image.section || "Medical figure");
-      return "\n\n![" + caption + "](" + image.src + ")\n\n" +
-        "*Source: " + markdownLabel(image.articleTitle) + " — " + markdownLabel(image.section) + "*\n\n";
+      const caption = markdownLabel(
+        image.caption || image.alt || image.section || "Medical figure",
+      );
+      return (
+        "\n\n![" +
+        caption +
+        "](" +
+        image.src +
+        ")\n\n" +
+        "*Source: " +
+        markdownLabel(image.articleTitle) +
+        " — " +
+        markdownLabel(image.section) +
+        "*\n\n"
+      );
     }),
     sourceIds: [...usedSources],
   };

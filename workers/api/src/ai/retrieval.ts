@@ -213,8 +213,7 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
           });
           // Do not force one result per library: a high semantic score can
           // still be for a DIFFERENT disease from a previous discussion.
-          return evidenceFromSearch(search, [entry])
-            .slice(0, 1);
+          return evidenceFromSearch(search, [entry]).slice(0, 1);
         }),
       );
       return results.flat().slice(0, MAX_RESULTS);

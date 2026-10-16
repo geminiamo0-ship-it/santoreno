@@ -37,7 +37,9 @@ describe("staging Granite Micro medical query rewriter", () => {
   });
 
   it("accepts Arabic translation and typo repair despite changed original tokens", () => {
-    expect(acceptMedicalRewrite("علاج ضيق الصمام الأورطي", "aortic stenosis management")).toBe("aortic stenosis management");
+    expect(acceptMedicalRewrite("علاج ضيق الصمام الأورطي", "aortic stenosis management")).toBe(
+      "aortic stenosis management",
+    );
     expect(acceptMedicalRewrite("aortic stnosis", "aortic stenosis")).toBe("aortic stenosis");
     expect(acceptMedicalRewrite("aortic stenosis", "query: aortic stenosis")).toBe(null);
     expect(acceptMedicalRewrite("aortic stenosis", "aortic stenosis\nFMF")).toBe(null);
@@ -46,7 +48,11 @@ describe("staging Granite Micro medical query rewriter", () => {
 
   it("falls back on model outage or syntactically invalid output", async () => {
     const focused = "management and treatment of aortic stenosis";
-    const failed: WorkersAiLike = { run: async () => { throw new Error("429"); } };
+    const failed: WorkersAiLike = {
+      run: async () => {
+        throw new Error("429");
+      },
+    };
     const malformed: WorkersAiLike = { run: async () => ({ response: "query: aortic stenosis" }) };
     expect(await rewriteMedicalSearchQuery(failed, "management", focused)).toBe(focused);
     expect(await rewriteMedicalSearchQuery(malformed, "management", focused)).toBe(focused);

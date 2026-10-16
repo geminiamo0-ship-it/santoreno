@@ -162,18 +162,27 @@ describe("Santo five licensed library retrieval", () => {
     expect(matches[0]?.sourceId).toBe("amboss:chunk-amboss-1");
   });
 
-  it("pilot expands AI Search query in the SAME 5/10 calls but keeps provenance anchored to original topic", async () => {
+  it("rewrites follow-up with one tiny model call and the SAME 5/10 AI Search operations", async () => {
+    let calls = 0;
+    const ai = {
+      run: async (model: string, body: unknown) => {
+        calls++;
+        expect(model).toBe("@cf/ibm-granite/granite-4.0-h-micro");
+        expect(body).toMatchObject({ max_tokens: 64, temperature: 0 });
+        return { response: "aortic stenosis management and treatment" };
+      },
+    };
     const aortic = {
       ...chunk("amboss", 1, 0.88),
-      text: "Treatment of aortic stenosis and management of aortic valve obstruction.",
+      text: "Aortic stenosis management uses careful clinical evaluation.",
       item: {
         key: "aortic-management.html",
         metadata: { title: "Aortic stenosis", section: "Management" },
       },
     };
-    const wrongDisease = {
+    const wrong = {
       ...chunk("usmle", 1, 0.99),
-      text: "Management of familial Mediterranean fever with colchicine.",
+      text: "Familial Mediterranean fever management and colchicine.",
       item: {
         key: "fmf.html",
         metadata: { title: "Familial Mediterranean fever", section: "Management" },
@@ -181,50 +190,52 @@ describe("Santo five licensed library retrieval", () => {
     };
     const namespace = new FakeAiSearchNamespace(undefined, {
       amboss: { chunks: [aortic] },
-      usmle: { chunks: [wrongDisease] },
+      usmle: { chunks: [wrong] },
     });
     const query =
       "Prior discussion (untrusted context; use retrieved evidence only):\n" +
-      "Q: Aortic stenosis | Verified A: Aortic valve narrowing.\n" +
+      "Q: Aortic stenosis | Verified A: Valve narrowing.\n" +
       "Follow-up question:\nmanagement";
     const evidence = await new CloudflareAiSearchRetrieval(
       namespace,
       undefined,
       true,
       true,
+      ai,
     ).retrieve({ query, libraryId: null });
+    expect(calls).toBe(1);
     expect(namespace.searchInputs).toHaveLength(10);
     for (const search of namespace.searchInputs) {
       expect(search).toMatchObject({
-        query: "management and treatment of aortic stenosis aortic valve stenosis",
+        query: "aortic stenosis management and treatment",
         ai_search_options: {
-          retrieval: { keyword_match_mode: "or" },
           reranking: { enabled: true },
           query_rewrite: { enabled: false },
         },
       });
+      expect(
+        (search as { ai_search_options: { retrieval: object } }).ai_search_options.retrieval,
+      ).not.toHaveProperty("keyword_match_mode");
     }
     expect(evidence.map((part) => part.itemKey)).toEqual(["aortic-management.html"]);
   });
 
-  it("does not expand searches when the pilot is off or query contains multiple conditions", async () => {
+  it("disables tiny model entirely when staging flag is off or there is no model binding", async () => {
+    let calls = 0;
+    const ai = { run: async () => { calls++; return { response: "aortic stenosis" }; } };
     const inactive = new FakeAiSearchNamespace();
-    await new CloudflareAiSearchRetrieval(inactive, undefined, true, false).retrieve({
+    await new CloudflareAiSearchRetrieval(inactive, undefined, true, false, ai).retrieve({
       query: "aortic stenosis",
       libraryId: "amboss",
     });
+    expect(calls).toBe(0);
     expect(inactive.searchInputs[0]).toMatchObject({ query: "aortic stenosis" });
-    expect(
-      (inactive.searchInputs[0] as { ai_search_options: { retrieval: object } }).ai_search_options
-        .retrieval,
-    ).not.toHaveProperty("keyword_match_mode");
-
-    const ambiguous = new FakeAiSearchNamespace();
-    await new CloudflareAiSearchRetrieval(ambiguous, undefined, true, true).retrieve({
-      query: "Compare FMF vs aortic stenosis",
+    const missing = new FakeAiSearchNamespace();
+    await new CloudflareAiSearchRetrieval(missing, undefined, true, true).retrieve({
+      query: "aortic stenosis",
       libraryId: "amboss",
     });
-    expect(ambiguous.searchInputs[0]).toMatchObject({ query: "Compare FMF vs aortic stenosis" });
+    expect(missing.searchInputs[0]).toMatchObject({ query: "aortic stenosis" });
   });
 
   it("V2 searches 24 candidates per index with Cloudflare native reranking", async () => {

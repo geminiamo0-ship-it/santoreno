@@ -1,0 +1,50 @@
+name: Format Qwen3 Staging Candidate
+
+on:
+  push:
+    branches:
+      - feat/qwen3-medical-query-512-staging-20261016
+    paths:
+      - workers/api/src/ai/medical-query-rewrite.ts
+      - workers/api/src/ai/medical-query-rewrite.test.ts
+      - scripts/qwen3-query-rewrite-smoke.mjs
+      - .github/workflows/qwen3-query-rewrite-smoke.yml
+      - .github/workflows/qwen3-query-format.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: qwen3-staging-format
+  cancel-in-progress: false
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: |
+          pnpm exec prettier --write \
+            workers/api/src/ai/medical-query-rewrite.ts \
+            workers/api/src/ai/medical-query-rewrite.test.ts \
+            scripts/qwen3-query-rewrite-smoke.mjs \
+            .github/workflows/qwen3-query-rewrite-smoke.yml \
+            .github/workflows/qwen3-query-format.yml
+      - name: Save formatter changes only to isolated candidate branch
+        run: |
+          set -euo pipefail
+          if ! git diff --quiet; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add workers/api/src/ai/medical-query-rewrite.ts workers/api/src/ai/medical-query-rewrite.test.ts scripts/qwen3-query-rewrite-smoke.mjs .github/workflows/qwen3-query-rewrite-smoke.yml .github/workflows/qwen3-query-format.yml
+            git commit -m "style(staging): format Qwen3 query rewrite"
+            git push origin HEAD:feat/qwen3-medical-query-512-staging-20261016
+          fi

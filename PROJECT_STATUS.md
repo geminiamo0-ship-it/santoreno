@@ -6,6 +6,13 @@
 >
 > **Rule:** GitHub code, issues, PRs, commits, and Actions are the source of truth. Update this file whenever meaningful work completes, a gate passes/fails, architecture changes, or the active issue changes.
 
+### Qwen3 medical query normalization replacement — PR #141 (Staging candidate; 16 Oct 2026)
+
+- Requested: replace Granite Micro with `@cf/qwen/qwen3-30b-a3b-fp8` **on Santo Staging only**; raise `max_tokens` from 64 to **512 as a ceiling**, retaining a strict 220-character English-search-query validation rule and no second model call.
+- Non-thinking `/no_think` prompt; Qwen3 `temperature=0.4`, `top_p=0.8`. Bound rewrite to 8 seconds within the existing 15-second retrieval deadline; on timeout, invalid output, or provider error, fall back to the original focused query.
+- PR adds synthetic unit coverage and a five-case live Cloudflare Workers AI smoke covering Arabic, misspelling, medical follow-up, topic switch and severe asymptomatic qualifications. Do not claim live pass or Staging deployment before verifying their actual CI results.
+- Luna, source attribution, R2 media, user quota/authentication and Production settings remain unchanged. The previous Granite section below is preserved as historical implementation context.
+
 ### Low-cost Granite Micro contextual search rewrite (Issue #135) — 16 October 2026
 
 - User cancelled the MeSH dictionary expansion pilot (#133); its runtime module, tests, A/B smoke and CI workflow are removed, and `SANTO_MEDICAL_QUERY_EXPANSION_V1` is removed from staging.

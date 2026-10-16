@@ -162,13 +162,13 @@ describe("Santo five licensed library retrieval", () => {
     expect(matches[0]?.sourceId).toBe("amboss:chunk-amboss-1");
   });
 
-  it("rewrites follow-up with one tiny model call and the SAME 5/10 AI Search operations", async () => {
+  it("rewrites follow-up with one Qwen3 model call and the SAME 5/10 AI Search operations", async () => {
     let calls = 0;
     const ai = {
       run: async (model: string, body: unknown) => {
         calls++;
-        expect(model).toBe("@cf/ibm-granite/granite-4.0-h-micro");
-        expect(body).toMatchObject({ max_tokens: 64, temperature: 0 });
+        expect(model).toBe("@cf/qwen/qwen3-30b-a3b-fp8");
+        expect(body).toMatchObject({ max_tokens: 512, temperature: 0.4, top_p: 0.8 });
         return { response: "aortic stenosis management and treatment" };
       },
     };
@@ -220,7 +220,7 @@ describe("Santo five licensed library retrieval", () => {
     expect(evidence.map((part) => part.itemKey)).toEqual(["aortic-management.html", "fmf.html"]);
   });
 
-  it("disables tiny model entirely when staging flag is off or there is no model binding", async () => {
+  it("disables query normalizer entirely when staging flag is off or there is no model binding", async () => {
     let calls = 0;
     const ai = {
       run: async () => {

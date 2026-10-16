@@ -1,11 +1,13 @@
 import type { WorkersAiLike } from "../runtime/bindings";
 
-const GRANITE_MODEL = "@cf/ibm-granite/granite-4.0-h-micro";
+const QUERY_MODEL = "@cf/qwen/qwen3-30b-a3b-fp8";
+const QUERY_MAX_TOKENS = 512;
 const FOLLOW_UP_MARKER = "\nFollow-up question:\n";
 const MAX_FOCUSED_CHARS = 850;
-const REWRITE_TIMEOUT_MS = 3500;
+// Bounded by the outer 15s retrieval deadline; leave time for AI Search.
+const REWRITE_TIMEOUT_MS = 8000;
 const PROMPT =
-  "Rewrite the latest medical question into ONE concise English library search query using the resolved topic for follow-ups; preserve diagnosis, intent, negation and clinical qualifiers, never add unrelated diseases or treatments, and output ONLY the query.";
+  "You are a medical-search query normalizer. Translate Arabic medical questions into precise English; repair spelling, expand clear abbreviations, and keep the latest disease, management/diagnosis intent, negation, severity, population and timing. For follow-ups use ONLY the supplied resolved topic. Never introduce unrelated diagnoses or treatments. Output ONE compact English search query (prefer under 25 words), no explanation, list, tags, or JSON. /no_think";
 
 function words(text: string): string[] {
   return text.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
@@ -76,7 +78,7 @@ export function acceptMedicalRewrite(_focused: string, output: unknown): string 
 }
 
 /**
- * One *small*, isolated Workers AI inference before Cloudflare's unchanged
+ * One isolated multilingual Workers AI inference before Cloudflare's unchanged
  * 5/10 operations. Never uses Verified A text; never feeds this model's
  * output to citations or Luna as evidence. Timeout/invalid/unconfigured ->
  * deterministic focused query. No retry, no second paid rewrite.
@@ -104,13 +106,14 @@ export async function rewriteMedicalSearchQuery(
   let timeout: ReturnType<typeof setTimeout> | undefined;
   try {
     const result = await Promise.race([
-      ai.run(GRANITE_MODEL, {
+      ai.run(QUERY_MODEL, {
         messages: [
           { role: "system", content: PROMPT },
           { role: "user", content: input },
         ],
-        max_tokens: 64,
-        temperature: 0,
+        max_tokens: QUERY_MAX_TOKENS,
+        temperature: 0.4,
+        top_p: 0.8,
         stream: false,
       }),
       new Promise<never>((_resolve, reject) => {
@@ -125,7 +128,12 @@ export async function rewriteMedicalSearchQuery(
     const content =
       message && typeof message === "object" ? (message as Record<string, unknown>).content : null;
     const rewritten = typeof data?.response === "string" ? data.response : content;
-    return acceptMedicalRewrite(focusedQuery, rewritten) ?? focusedQuery;
+    // Qwen3 may wrap a no-thinking response in an empty <think> block.
+    const normalized =
+      typeof rewritten === "string"
+        ? rewritten.replace(/^<think>[\s\S]*?<\/think>\s*/i, "").trim()
+        : rewritten;
+    return acceptMedicalRewrite(focusedQuery, normalized) ?? focusedQuery;
   } catch {
     return focusedQuery;
   } finally {

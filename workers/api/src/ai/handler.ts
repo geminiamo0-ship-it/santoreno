@@ -129,6 +129,8 @@ export function createGroundedAiHandler(dependencies: GroundedAiHandlerDependenc
           env.SANTO_LUNA_PREVIEW === "true" &&
           env.SANTO_SINGLE_PASS_GENERATION_V1 === "true" &&
           env.SANTO_PLAIN_TEXT_LUNA_V1 === "true",
+        env.SANTO_ENV === "staging" && env.SANTO_LUNA_RICH_IMAGES_V1 === "true",
+        env.CONTENT_BUCKET,
       ).query(session, parsed.data, request.signal, onProvisionalAnswer);
 
       const validated = GroundedAiQueryResponseSchema.parse(response);

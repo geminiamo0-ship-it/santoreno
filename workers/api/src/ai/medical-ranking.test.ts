@@ -26,7 +26,7 @@ function candidate(
 }
 
 describe("Medical Retrieval v2 cross-library ranking", () => {
-  it("prefers an actual pathophysiology section over a higher-ranked generic complication", () => {
+  it("preserves Cloudflare reranker priority without lexical overrides", () => {
     const candidates = [
       candidate(
         "unrelated-heart-failure",
@@ -44,11 +44,11 @@ describe("Medical Retrieval v2 cross-library ranking", () => {
       ),
     ];
     expect(rankMedicalCandidates("Aortic stenosis mechanism", candidates)[0]?.sourceId).toBe(
-      "amboss:mechanism",
+      "amboss:unrelated-heart-failure",
     );
   });
 
-  it("never treats a high-score aortic-valve result as an FMF source", () => {
+  it("does not apply a disease-word hard gate after native reranking", () => {
     const candidates = [
       candidate("valve", "Aortic stenosis", "TAVR", "Aortic stenosis diagnosis", 0),
       candidate(
@@ -59,7 +59,10 @@ describe("Medical Retrieval v2 cross-library ranking", () => {
         9,
       ),
     ];
-    expect(rankMedicalCandidates("FMF", candidates).map((x) => x.sourceId)).toEqual(["amboss:fmf"]);
+    expect(rankMedicalCandidates("FMF", candidates).map((x) => x.sourceId)).toEqual([
+      "amboss:valve",
+      "amboss:fmf",
+    ]);
   });
 
   it("caps repeated chunks from one article and never manufactures identifiers", () => {
@@ -74,7 +77,7 @@ describe("Medical Retrieval v2 cross-library ranking", () => {
       ),
     );
     const ranked = rankMedicalCandidates("Aortic stenosis mechanism", candidates);
-    expect(ranked).toHaveLength(2);
+    expect(ranked).toHaveLength(1);
     expect(ranked.every((x) => candidates.some((a) => a.evidence.sourceId === x.sourceId))).toBe(
       true,
     );

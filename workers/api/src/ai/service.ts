@@ -6,6 +6,8 @@ import { QuotaServiceError } from "../quota/service";
 import type { QuotaService } from "../quota/types";
 import type { SourceSnapshotWriter } from "../sources/store";
 import { validateGroundedCitations } from "./citations";
+import { loadMedicalImages, medicalImagePrompt, renderMedicalImageMarkers } from "./medical-images";
+import type { R2BucketLike } from "../runtime/bindings";
 import { AI_STAGE_TIMEOUTS, withAiDeadline } from "./deadline";
 import { GroundedAiError } from "./errors";
 import { buildGeneralMedicalPrompt, buildGroundedPrompt } from "./prompt";
@@ -70,6 +72,8 @@ export class GroundedAiService {
     private readonly generalFallbackEnabled = false,
     private readonly singlePassGeneration = false,
     private readonly markdownOutput = false,
+    private readonly richImagesEnabled = false,
+    private readonly articleBucket?: R2BucketLike,
   ) {}
 
   async query(
@@ -120,7 +124,6 @@ export class GroundedAiService {
     let answer: string;
     let citations: GroundedAiQueryResponse["citations"];
     let responseMode: "santo" | "general" = "santo";
-    let citationMode: "related" | undefined;
     let retrievedSourceCount = 0;
     let validCitationCount = 0;
     let outputChars = 0;
@@ -143,13 +146,22 @@ export class GroundedAiService {
         );
       }
       if (evidence.length === 0) groundingMode = "general";
+      // Resolve article image metadata from the same original R2 articles
+      // selected by native search, BEFORE Luna generates its response.
+      const originalImages =
+        groundingMode === "santo" && this.richImagesEnabled && this.articleBucket
+          ? await loadMedicalImages(this.articleBucket, evidence)
+          : [];
       const answerFormat = this.markdownOutput ? "markdown" : "json";
+      const sourcedPrompt =
+        buildGroundedPrompt(input.query, evidence, answerFormat) +
+        medicalImagePrompt(originalImages);
       let draft = await withAiDeadline(
         () =>
           this.model.generate(
             groundingMode === "general"
               ? buildGeneralMedicalPrompt(input.query, answerFormat)
-              : buildGroundedPrompt(input.query, evidence, answerFormat),
+              : sourcedPrompt,
             onProvisionalAnswer,
             groundingMode === "general" ? [] : evidence.map((item) => item.sourceId),
           ),
@@ -188,16 +200,26 @@ export class GroundedAiService {
         );
       }
 
-      answer = draft.answer;
+      // Only requested image IDs are expanded to canonical R2 URLs by Santo;
+      // Luna cannot author a media URL or add arbitrary article figures.
+      const images = this.richImagesEnabled
+        ? renderMedicalImageMarkers(draft.answer, originalImages)
+        : { answer: draft.answer, sourceIds: [] as string[] };
+      answer = images.answer;
       outputChars = answer.length;
       responseMode = groundingMode;
-      // A complete Luna clarification/social answer has no medical claim to
-      // cite. Never attach unrelated retrieval passages to it.
-      if (this.markdownOutput && draft.sourcePresentation === "none") {
+      const usedSources = [...new Set([...draft.citationIds, ...images.sourceIds])];
+      // No more automatic "Related Library Sources" from unused retrieval.
+      // Source cards are granted solely for explicit Luna citations or
+      // original-article images Luna chose in the response.
+      if (this.markdownOutput && usedSources.length === 0) responseMode = "general";
+      if (
+        this.markdownOutput &&
+        draft.sourcePresentation === "none" &&
+        images.sourceIds.length === 0
+      )
         responseMode = "general";
-      }
       if (responseMode === "general") {
-        // A provider-supplied citation in general mode is never trusted.
         if (draft.citationIds.length !== 0) {
           throw new GroundedAiError(
             502,
@@ -207,15 +229,7 @@ export class GroundedAiService {
         }
         citations = [];
       } else {
-        // Missing/invalid model markers do not erase a completed teaching answer.
-        // Only existing retrieved evidence is included, as a separately labeled
-        // related-article list rather than invented inline provenance.
-        const selected =
-          this.markdownOutput && draft.sourcePresentation === "related"
-            ? { ...draft, citationIds: evidence.slice(0, 5).map((item) => item.sourceId) }
-            : draft;
-        citations = validateGroundedCitations(selected, evidence);
-        if (selected !== draft) citationMode = "related";
+        citations = validateGroundedCitations({ ...draft, citationIds: usedSources }, evidence);
       }
       validCitationCount = citations.length;
       if (this.sourceStore && responseMode === "santo") {
@@ -310,7 +324,7 @@ export class GroundedAiService {
       retrievedSourceCount,
       validCitationCount,
       outputChars,
-      sourcePresentation: citationMode ?? "inline",
+      sourcePresentation: "inline",
     });
 
     return {
@@ -318,7 +332,6 @@ export class GroundedAiService {
       messageId,
       answer,
       citations,
-      ...(citationMode ? { citationMode } : {}),
       ...(responseMode === "general" ? { groundingMode: "general" as const } : {}),
       usage: {
         unitsCharged: 1,

@@ -31,7 +31,9 @@ function scrubMachineIds(text: string, ids: readonly string[]): string {
 
 /** Drafts are explicitly unverified. Suppress partial citations while streaming. */
 export function previewPlainLuna(text: string, sourceIds: readonly string[]): string {
-  const withoutFullCitations = text.replace(/\[\[\d{1,2}\]\]/g, "");
+  // Streaming drafts cannot display arbitrary model-authored image URLs.
+  const withoutModelUrls = text.replace(/!\[[^\]\n]{0,250}\]\([^\)\n]{1,900}\)/g, "");
+  const withoutFullCitations = withoutModelUrls.replace(/\[\[(?:\d{1,2}|IMG_\d{0,3})\]\]/g, "");
   const withoutPartial = withoutFullCitations.replace(/\[\[(?:\d{0,2})?$/g, "");
   return scrubMachineIds(withoutPartial, sourceIds).replace(
     /\[?SANTO_(?:R(?:E(?:F(?:_\d*)?)?)?)?$/g,
@@ -82,6 +84,7 @@ export function parsePlainLunaAnswer(
   const used: string[] = [];
   const found = new Set<string>();
   let answer = text.replace(/\[\[([^\]\n]{0,24})\]\]/g, (_whole, token: string) => {
+    if (/^IMG_\d{3}$/.test(token)) return _whole;
     if (!/^[1-9]\d?$/.test(token)) return "";
     const source = allowed[Number(token) - 1];
     if (!source) return "";

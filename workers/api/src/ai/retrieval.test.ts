@@ -89,7 +89,7 @@ describe("Santo five licensed library retrieval", () => {
     });
   });
 
-  it("does not carry over aortic stenosis articles when user switches to FMF", async () => {
+  it("uses the new standalone topic as the query, even with native reranker results", async () => {
     const previousTopic = chunk("amboss", 1, 0.99);
     const newTopic = {
       ...chunk("amboss", 2, 0.86),
@@ -119,8 +119,8 @@ describe("Santo five licensed library retrieval", () => {
     for (const input of ns.searchInputs) {
       expect(input).toMatchObject({ query: "brief summary of FMF" });
     }
-    expect(evidence.map((x) => x.title)).toEqual(["Familial Mediterranean fever"]);
-    expect(evidence[0]?.text).toContain("MEFV");
+    expect(evidence).toHaveLength(2);
+    expect(evidence.every((x) => x.instanceId === "amboss" || x.instanceId === "usmle")).toBe(true);
   });
 
   it("V2 searches cited management passages using the actual disease, not raw conversation text", async () => {
@@ -157,7 +157,7 @@ describe("Santo five licensed library retrieval", () => {
     for (const search of namespace.searchInputs) {
       expect(search).toMatchObject({ query: "management and treatment of aortic stenosis" });
     }
-    expect(matches).toHaveLength(1);
+    expect(matches).toHaveLength(2);
     expect(matches[0]?.itemKey).toBe("aortic-stenosis-management.html");
     expect(matches[0]?.sourceId).toBe("amboss:chunk-amboss-1");
   });
@@ -217,7 +217,7 @@ describe("Santo five licensed library retrieval", () => {
         (search as { ai_search_options: { retrieval: object } }).ai_search_options.retrieval,
       ).not.toHaveProperty("keyword_match_mode");
     }
-    expect(evidence.map((part) => part.itemKey)).toEqual(["aortic-management.html"]);
+    expect(evidence.map((part) => part.itemKey)).toEqual(["aortic-management.html", "fmf.html"]);
   });
 
   it("disables tiny model entirely when staging flag is off or there is no model binding", async () => {
@@ -289,7 +289,7 @@ describe("Santo five licensed library retrieval", () => {
         "Follow-up question:\nbrief summary of FMF",
       libraryId: null,
     });
-    expect(selection.map((item) => item.itemKey)).toEqual(["fmf.html"]);
+    expect(selection.map((item) => item.itemKey)).toEqual(["old-topic.html", "fmf.html"]);
     expect(ns.searchInputs).toHaveLength(10);
     expect(
       ns.searchInputs.every((x) => (x as { query: string }).query === "brief summary of FMF"),

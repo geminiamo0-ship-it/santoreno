@@ -56,6 +56,19 @@ describe("staging single-pass plain-Luna citation contract", () => {
     });
   });
 
+  it("preserves only scoped original-image markers for the server to resolve", () => {
+    const answer = parsePlainLunaAnswer("Valve anatomy [[IMG_001]] [[1]].", [sourceA]);
+    expect(answer.answer).toContain("[[IMG_001]]");
+    expect(answer.answer).toContain("[1]");
+    expect(answer.citationIds).toEqual([sourceA]);
+    const preview = previewPlainLuna(
+      "Valve anatomy [[IMG_001]] ![bad](https://bad.invalid/a.png)",
+      [sourceA],
+    );
+    expect(preview).not.toContain("IMG_001");
+    expect(preview).not.toContain("bad.invalid");
+  });
+
   it("keeps Luna clarifications and social answers free of random source citations", () => {
     const clarification = "What condition do you mean by management? Please name the disease.";
     expect(parsePlainLunaAnswer(clarification, [sourceA])).toEqual({

@@ -177,19 +177,11 @@ function latestStudentMessage(original: string): string {
 
 function clearlyNonClinical(input: string): boolean {
   if (!input || input.length > 180) return false;
-  // Medical education stays source-grounded even if Qwen misclassifies it.
-  if (
-    /\b(?:treat(?:ment)?|manage(?:ment)?|diagnos(?:e|is|tic)|syndrome|disease|symptom|pain|fever|diabet(?:es|ic)|heart|cancer|drug|aspirin|dose|st[e]?nosis|pathophys|surgery|medical|medicine|patient|test|exam|therapy|what about|how does)\b/i.test(
-      input,
-    )
-  )
-    return false;
-  if (
-    /[\u0600-\u06ff]/u.test(input) &&
-    /(?:علاج|دواء|مرض|الم|ألم|اعراض|أعراض|تشخيص|طب|سرطان|سكر|قلب|حمى|حرارة)/u.test(input)
-  )
-    return false;
-  return true;
+  // Permit only explicitly social turns, never the broad inverse of a disease
+  // dictionary (which could miss clinical terms or another language).
+  const socialEnglish = /^(?:(?:hi|hello|hey|good (?:morning|evening|afternoon)|thanks(?: a lot)?|thank you|bye|goodbye|how are you|who are you|what(?:'s| is) your name|what can you do|can you help me|tell me a joke|cheer me up|give me study motivation)[!.?\\s]*)$/i;
+  const socialArabic = /^(?:(?:اهلا|أهلا|اهلين|سلام|السلام عليكم|صباح الخير|مساء الخير|شكرا|شكرًا|متشكر|ازيك|إزيك|عامل ايه|عامل إيه|انت مين|أنت مين)[!؟.\\s]*)$/u;
+  return socialEnglish.test(input.trim()) || socialArabic.test(input.trim());
 }
 
 export async function routeMedicalRequest(

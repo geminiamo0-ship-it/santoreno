@@ -178,7 +178,7 @@ function latestStudentMessage(original: string): string {
 function clearlyNonClinical(input: string): boolean {
   if (!input || input.length > 180) return false;
   // Medical education stays source-grounded even if Qwen misclassifies it.
-  if (/\\b(?:treat(?:ment)?|manage(?:ment)?|diagnos(?:e|is|tic)|syndrome|disease|symptom|pain|fever|diabet(?:es|ic)|heart|cancer|drug|aspirin|dose|st[e]?nosis|pathophys|surgery|medical|medicine|patient|test|exam|therapy|what about|how does)\\b/i.test(input)) return false;
+  if (/\b(?:treat(?:ment)?|manage(?:ment)?|diagnos(?:e|is|tic)|syndrome|disease|symptom|pain|fever|diabet(?:es|ic)|heart|cancer|drug|aspirin|dose|st[e]?nosis|pathophys|surgery|medical|medicine|patient|test|exam|therapy|what about|how does)\b/i.test(input)) return false;
   if (/[\u0600-\u06ff]/u.test(input) &&
     /(?:علاج|دواء|مرض|الم|ألم|اعراض|أعراض|تشخيص|طب|سرطان|سكر|قلب|حمى|حرارة)/u.test(input)) return false;
   return true;
@@ -196,7 +196,7 @@ export async function routeMedicalRequest(
     "Latest student question: " + latest.slice(0, 600),
     "Resolved medical topic and intent: " + focusedQuery.slice(0, MAX_FOCUSED_CHARS),
     "Prior medical context exists: " + originalRequest.includes(FOLLOW_UP_MARKER),
-  ].join("\\n");
+  ].join("\n");
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     const raw = await Promise.race([
@@ -214,7 +214,7 @@ export async function routeMedicalRequest(
         timer = setTimeout(() => reject(new Error("ROUTER_TIMEOUT")), 4000);
       }),
     ]);
-    const output = modelOutput(raw)?.replace(/^<think>[\\s\\S]*?<\\/think>\\s*/i, "").trim();
+    const output = modelOutput(raw)?.replace(/^<think>[\s\S]*?<\/think>\s*/i, "").trim();
     if (!output || output.length > 850) return fallback;
     const parsed: unknown = JSON.parse(output);
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return fallback;
@@ -231,7 +231,7 @@ export async function routeMedicalRequest(
       result.answer.length <= 350 &&
       clearlyNonClinical(latest) &&
       !originalRequest.includes(FOLLOW_UP_MARKER) &&
-      !/https?:|\\[\\[|SANTO_REF_|(?:source|citation|guideline):/i.test(result.answer)
+      !/https?:|\[\[|SANTO_REF_|(?:source|citation|guideline):/i.test(result.answer)
     ) return { intent: "chat", answer: result.answer.trim() };
     return fallback;
   } catch {

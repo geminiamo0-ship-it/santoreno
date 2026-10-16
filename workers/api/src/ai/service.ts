@@ -6,7 +6,7 @@ import { QuotaServiceError } from "../quota/service";
 import type { QuotaService } from "../quota/types";
 import type { SourceSnapshotWriter } from "../sources/store";
 import { validateGroundedCitations } from "./citations";
-import { loadMedicalImages, medicalImagePrompt, renderMedicalImageMarkers } from "./medical-images";
+import { emptyImageHydrationDiagnostics, loadMedicalImages, medicalImagePrompt, renderMedicalImageMarkers } from "./medical-images";
 import type { R2BucketLike } from "../runtime/bindings";
 import { AI_STAGE_TIMEOUTS, withAiDeadline } from "./deadline";
 import { GroundedAiError } from "./errors";
@@ -148,10 +148,19 @@ export class GroundedAiService {
       if (evidence.length === 0) groundingMode = "general";
       // Resolve article image metadata from the same original R2 articles
       // selected by native search, BEFORE Luna generates its response.
+      const imageDiagnostics = this.richImagesEnabled
+        ? emptyImageHydrationDiagnostics(evidence.length)
+        : undefined;
       const originalImages =
         groundingMode === "santo" && this.richImagesEnabled && this.articleBucket
-          ? await loadMedicalImages(this.articleBucket, evidence)
+          ? await loadMedicalImages(this.articleBucket, evidence, imageDiagnostics)
           : [];
+      if (imageDiagnostics) {
+        console.info("santo_luna_image_pipeline", {
+          phase: "before_model", requestId,
+          ...imageDiagnostics, promptIncludesImages: originalImages.length > 0,
+        });
+      }
       const answerFormat = this.markdownOutput ? "markdown" : "json";
       const sourcedPrompt =
         buildGroundedPrompt(input.query, evidence, answerFormat) +
@@ -206,6 +215,15 @@ export class GroundedAiService {
         ? renderMedicalImageMarkers(draft.answer, originalImages)
         : { answer: draft.answer, sourceIds: [] as string[] };
       answer = images.answer;
+      if (imageDiagnostics) {
+        // Counts refer to actual server-expanded R2 images, not untrusted
+        // model-provided Markdown. Do not log prompt, excerpts or URLs.
+        const selectedImageCount = (answer.match(/!\[[^\]\n]*\]\(https:\/\/pub-2a81f2cb19cc4473a3d076e657af6121\.r2\.dev\/offline_media\//g) ?? []).length;
+        console.info("santo_luna_image_pipeline", {
+          phase: "after_model", requestId, offeredImageCount: originalImages.length,
+          selectedImageCount,
+        });
+      }
       outputChars = answer.length;
       responseMode = groundingMode;
       const usedSources = [...new Set([...draft.citationIds, ...images.sourceIds])];

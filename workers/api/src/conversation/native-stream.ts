@@ -22,6 +22,8 @@ export function streamProvisionalConversationAnswer(
   let canceled = false;
   let lastText = "";
   let count = 0;
+  const startedAt = performance.now();
+  let firstDraftRecorded = false;
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
       const send = (event: ConversationProgressEvent): void => {
@@ -36,7 +38,20 @@ export function streamProvisionalConversationAnswer(
       void (async () => {
         try {
           const result = await work((text) => {
-            if (canceled || text === lastText || ++count > 4000) return;
+            if (canceled || text === lastText) return;
+            if (++count > 12_000 || text.length > 120_000) {
+              throw new GroundedAiError(
+                502,
+                "MODEL_RESPONSE_INVALID",
+                "Draft stream limit exceeded",
+              );
+            }
+            if (!firstDraftRecorded && text.length > 0) {
+              firstDraftRecorded = true;
+              console.info("santo_first_draft_delta_ms", {
+                milliseconds: Math.round(performance.now() - startedAt),
+              });
+            }
             const previous = lastText;
             lastText = text;
             if (draftFormat === "delta" && text.startsWith(previous) && previous.length > 0) {

@@ -31,6 +31,35 @@ function events(
 }
 
 describe("native provisional conversation SSE (staging only)", () => {
+  it("sends the first provisional SSE event before the verified reply is ready", async () => {
+    let finish!: () => void;
+    const waiting = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    const stream = streamProvisionalConversationAnswer(async (emit) => {
+      emit("First");
+      await waiting; // Simulates a provider that keeps generating.
+      emit("First word");
+      return answer; // Persistence/citations are finished ONLY here.
+    }, "delta");
+    const reader = stream.body!.getReader();
+    const first = await reader.read();
+    const block = new TextDecoder().decode(first.value);
+    expect(block).toContain('"type":"draft"');
+    expect(block).toContain('"text":"First"');
+    expect(block).not.toContain('"type":"complete"');
+    finish();
+    const rest: Uint8Array[] = [];
+    while (true) {
+      const result = await reader.read();
+      if (result.done) break;
+      rest.push(result.value);
+    }
+    const remainingText = rest.map((chunk) => new TextDecoder().decode(chunk)).join("");
+    expect(remainingText).toContain('"type":"draft_delta"');
+    expect(remainingText).toContain('"type":"complete"');
+  });
+
   it("emits provisional text before source-verified persisted completion", async () => {
     const persist = vi.fn(async () => undefined);
     const stream = streamProvisionalConversationAnswer(async (emit) => {
@@ -68,7 +97,7 @@ describe("native provisional conversation SSE (staging only)", () => {
     expect(frames).toEqual([{ type: "error", code: "SANTO_UNAVAILABLE" }]);
   });
 
-  it("streams 12k characters in compact deltas without exceeding the Royal client 300KB budget", async () => {
+  it("streams 12k characters in true deltas without a fake replay", async () => {
     const final = "a".repeat(12000);
     const stream = streamProvisionalConversationAnswer(async (emit) => {
       // Simulates provider emitting very small cumulative tokens.

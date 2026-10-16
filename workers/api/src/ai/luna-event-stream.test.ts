@@ -21,6 +21,46 @@ function sse(events: unknown[], split = 24): ReadableStream<Uint8Array> {
 }
 
 describe("native Luna Responses SSE collector", () => {
+  it("delivers first model word before response.completed or a second word exists", async () => {
+    const encoder = new TextEncoder();
+    let controller!: ReadableStreamDefaultController<Uint8Array>;
+    let observed!: (value: string) => void;
+    const firstWord = new Promise<string>((resolve) => {
+      observed = resolve;
+    });
+    const native = new ReadableStream<Uint8Array>({
+      start(value) {
+        controller = value;
+      },
+    });
+    let finished = false;
+    const processing = collectLunaEventStream(
+      native,
+      (draft) => {
+        observed(draft);
+      },
+      "plain",
+    ).then((value) => {
+      finished = true;
+      return value;
+    });
+    controller.enqueue(
+      encoder.encode('data: {"type":"response.output_text.delta","delta":"First"}' + "\n\n"),
+    );
+    expect(await firstWord).toBe("First");
+    expect(finished).toBe(false);
+    controller.enqueue(
+      encoder.encode(
+        'data: {"type":"response.output_text.delta","delta":" word"}' +
+          "\n\n" +
+          'data: {"type":"response.completed","response":{"status":"completed"}}' +
+          "\n\n",
+      ),
+    );
+    controller.close();
+    await expect(processing).resolves.toBe("First word");
+  });
+
   it("shows only a plain answer draft as providers emit chunks, then returns full JSON", async () => {
     const output = '{"answer":"Atrial flutter 🫀: sawtooth waves","citation_ids":["s1"]}';
     const events = [
@@ -122,7 +162,7 @@ describe("native Luna Responses SSE collector", () => {
     }
   });
 
-  it("preserves long Luna teaching over the previous SSE byte/character limits with batched previews", async () => {
+  it("preserves long Luna teaching over the previous SSE byte/character limits without delayed previews", async () => {
     const full = "A".repeat(70_000);
     const chunks = Array.from({ length: Math.ceil(full.length / 16) }, (_, index) => ({
       type: "response.output_text.delta",
@@ -132,11 +172,20 @@ describe("native Luna Responses SSE collector", () => {
       [...chunks, { type: "response.completed", response: { status: "completed" } }],
       4096,
     );
-    const progress = vi.fn();
-    await expect(collectLunaEventStream(stream, progress, "plain")).resolves.toBe(full);
-    expect(progress.mock.calls.at(-1)?.[0]).toBe(full);
-    expect(progress.mock.calls.length).toBeLessThan(1000);
-    expect(progress.mock.calls.length).toBeGreaterThan(20);
+    let progressCount = 0;
+    let latestDraft = "";
+    await expect(
+      collectLunaEventStream(
+        stream,
+        (draft) => {
+          progressCount++;
+          latestDraft = draft;
+        },
+        "plain",
+      ),
+    ).resolves.toBe(full);
+    expect(latestDraft).toBe(full);
+    expect(progressCount).toBe(chunks.length);
   });
 
   it("still refuses provider SSE exceeding the bounded 10k-token text budget", async () => {

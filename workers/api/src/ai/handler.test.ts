@@ -292,7 +292,7 @@ describe("grounded AI handler", () => {
     expect(prompt).toContain("citation_ids");
   });
 
-  it("keeps a completed Luna answer with genuine browseable related source snapshots", async () => {
+  it("keeps completed Luna teaching without pretending retrieved articles were used", async () => {
     env.SANTO_ENV = "staging";
     env.SANTO_LUNA_PREVIEW = "true";
     env.SANTO_SINGLE_PASS_GENERATION_V1 = "true";
@@ -306,11 +306,11 @@ describe("grounded AI handler", () => {
     const response = await handler({ save })(request(token), env);
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({
-      citationMode: "related",
-      citations: [{ sourceId: SOURCE_ID, title: "Electrolytes", page: 12 }],
+      groundingMode: "general",
+      citations: [],
       usage: { unitsCharged: 1 },
     });
-    expect(save).toHaveBeenCalledTimes(1);
+    expect(save).not.toHaveBeenCalled();
     expect(model.generate).toHaveBeenCalledTimes(1);
     expect(quota.finalizeCalls).toBe(1);
   });

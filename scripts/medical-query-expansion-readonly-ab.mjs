@@ -85,28 +85,51 @@ let callCount = 0;
 for (const test of trials) {
   for (const expanded of [false, true]) {
     const results = await Promise.all(
-      instances.map((instance) => search(instance, expanded ? test.expanded : test.original, expanded)),
+      instances.map((instance) =>
+        search(instance, expanded ? test.expanded : test.original, expanded),
+      ),
     );
     callCount += results.length;
-    const totals = results.map((result) => report(result.chunks, test)).reduce(
-      (sum, current) => ({
-        returned: sum.returned + current.returned,
-        relevantTop3: sum.relevantTop3 + current.relevantTop3,
-        relevantAll: sum.relevantAll + current.relevantAll,
-        wrongTopic: sum.wrongTopic + current.wrongTopic,
-      }),
-      { returned: 0, relevantTop3: 0, relevantAll: 0, wrongTopic: 0 },
+    const totals = results
+      .map((result) => report(result.chunks, test))
+      .reduce(
+        (sum, current) => ({
+          returned: sum.returned + current.returned,
+          relevantTop3: sum.relevantTop3 + current.relevantTop3,
+          relevantAll: sum.relevantAll + current.relevantAll,
+          wrongTopic: sum.wrongTopic + current.wrongTopic,
+        }),
+        { returned: 0, relevantTop3: 0, relevantAll: 0, wrongTopic: 0 },
+      );
+    const mean = Math.round(
+      results.reduce((sum, value) => sum + value.durationMs, 0) / results.length,
     );
-    const mean = Math.round(results.reduce((sum, value) => sum + value.durationMs, 0) / results.length);
     lines.push(
-      "| " + test.label + " | " + (expanded ? "MeSH expansion" : "baseline") +
-      " | " + totals.returned + " | " + totals.relevantTop3 +
-      " | " + totals.relevantAll + " | " + totals.wrongTopic +
-      " | " + mean + "ms |",
+      "| " +
+        test.label +
+        " | " +
+        (expanded ? "MeSH expansion" : "baseline") +
+        " | " +
+        totals.returned +
+        " | " +
+        totals.relevantTop3 +
+        " | " +
+        totals.relevantAll +
+        " | " +
+        totals.wrongTopic +
+        " | " +
+        mean +
+        "ms |",
     );
   }
 }
-lines.push("", "Cloudflare AI Search calls in this A/B test: " + callCount + ". Zero Luna calls. No index changes or licensed text printed. A real clinical gold set is still required.", "");
+lines.push(
+  "",
+  "Cloudflare AI Search calls in this A/B test: " +
+    callCount +
+    ". Zero Luna calls. No index changes or licensed text printed. A real clinical gold set is still required.",
+  "",
+);
 const output = lines.join("\n");
 process.stdout.write(output);
 if (process.env.GITHUB_STEP_SUMMARY) await appendFile(process.env.GITHUB_STEP_SUMMARY, output);

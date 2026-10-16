@@ -237,6 +237,44 @@ describe("grounded AI handler", () => {
     });
   }
 
+  it("answers unambiguous CHAT from Qwen without invoking Luna, retrieval or source snapshots", async () => {
+    env.SANTO_ENV = "staging";
+    env.SANTO_QWEN_ROUTING_V1 = "true";
+    retrieval.route = vi.fn(async () => ({ intent: "chat" as const, answer: "Hello from Qwen!" }));
+    retrieval.retrieve = vi.fn(async () => { throw new Error("medical retrieval must not run"); });
+    const save = vi.fn(async () => undefined);
+    const response = await handler({ save })(request(token, "social-1", "Hi"), env);
+    expect(response.status).toBe(200);
+    const payload = await response.json();
+    expect(payload.answer).toBe("Hello from Qwen!");
+    expect(payload.citations).toEqual([]);
+    expect(payload.groundingMode).toBe("general");
+    expect(quota.reserveCalls).toBe(1);
+    expect(quota.finalizeCalls).toBe(1);
+    expect(quota.releaseCalls).toBe(0);
+    expect(retrieval.retrieve).not.toHaveBeenCalled();
+    expect(model.generate).not.toHaveBeenCalled();
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  it("uses Qwen's prepared MEDICAL query without a second rewrite and preserves citation verification", async () => {
+    env.SANTO_ENV = "staging";
+    env.SANTO_QWEN_ROUTING_V1 = "true";
+    retrieval.route = vi.fn(async () => ({
+      intent: "medical" as const, searchQuery: "aortic stenosis diagnosis",
+    }));
+    const response = await handler()(request(token, "medical-1", "تشخيص ضيق الصمام"), env);
+    expect(response.status).toBe(200);
+    expect(retrieval.route).toHaveBeenCalledTimes(1);
+    expect(retrieval.retrieve).toHaveBeenCalledWith({
+      query: "تشخيص ضيق الصمام", libraryId: null, preparedQuery: "aortic stenosis diagnosis",
+    });
+    expect(model.generate).toHaveBeenCalledTimes(1);
+    const payload = await response.json();
+    expect(payload.citations).toHaveLength(1);
+    expect(quota.finalizeCalls).toBe(1);
+  });
+
   it("passes one consistent sourced Markdown contract to staging Luna", async () => {
     env.SANTO_ENV = "staging";
     env.SANTO_LUNA_PREVIEW = "true";

@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { WorkersAiLike } from "../runtime/bindings";
 import { acceptMedicalRewrite, rewriteMedicalSearchQuery } from "./medical-query-rewrite";
 
-describe("staging Granite Micro medical query rewriter", () => {
+describe("staging Qwen3 medical query rewriter", () => {
   it("makes exactly one small model call, preserving the old topic for a short follow-up", async () => {
     const calls: Array<{ model: string; input: unknown }> = [];
     const ai: WorkersAiLike = {
@@ -25,15 +25,17 @@ describe("staging Granite Micro medical query rewriter", () => {
     );
     expect(rewritten).toBe("aortic stenosis management and treatment");
     expect(calls).toHaveLength(1);
-    expect(calls[0]?.model).toBe("@cf/ibm-granite/granite-4.0-h-micro");
+    expect(calls[0]?.model).toBe("@cf/qwen/qwen3-30b-a3b-fp8");
     expect(calls[0]?.input).toMatchObject({
-      max_tokens: 64,
-      temperature: 0,
+      max_tokens: 512,
+      temperature: 0.4,
+      top_p: 0.8,
       stream: false,
     });
     const inputText = JSON.stringify(calls[0]?.input);
     expect(inputText).toContain("Latest student question: management");
     expect(inputText).not.toContain("unrelated past answer");
+    expect(inputText).toContain("/no_think");
   });
 
   it("accepts Arabic translation and typo repair despite changed original tokens", () => {
@@ -44,6 +46,17 @@ describe("staging Granite Micro medical query rewriter", () => {
     expect(acceptMedicalRewrite("aortic stenosis", "query: aortic stenosis")).toBe(null);
     expect(acceptMedicalRewrite("aortic stenosis", "aortic stenosis\nFMF")).toBe(null);
     expect(acceptMedicalRewrite("ضيق الصمام", "ضيق الصمام")).toBe(null);
+  });
+
+  it("accepts a Qwen3 response with empty thinking tags", async () => {
+    const ai: WorkersAiLike = {
+      run: async () => ({
+        choices: [{ message: { content: "<think>\n\n</think>\naortic stenosis diagnosis" } }],
+      }),
+    };
+    expect(await rewriteMedicalSearchQuery(ai, "تشخيص ضيق الصمام الأورطي", "تشخيص ضيق الصمام الأورطي")).toBe(
+      "aortic stenosis diagnosis",
+    );
   });
 
   it("falls back on model outage or syntactically invalid output", async () => {

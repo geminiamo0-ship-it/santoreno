@@ -32,8 +32,10 @@ const tests = [
 for (const test of tests) {
   const started = Date.now();
   const response = await fetch(
-    "https://api.cloudflare.com/client/v4/accounts/" + encodeURIComponent(account) +
-      "/ai/run/" + model,
+    "https://api.cloudflare.com/client/v4/accounts/" +
+      encodeURIComponent(account) +
+      "/ai/run/" +
+      model,
     {
       method: "POST",
       headers: {
@@ -46,8 +48,10 @@ for (const test of tests) {
           {
             role: "user",
             content:
-              "Latest student question: " + test.student +
-              "\nResolved medical topic and clinical intent: " + test.focused,
+              "Latest student question: " +
+              test.student +
+              "\nResolved medical topic and clinical intent: " +
+              test.focused,
           },
         ],
         temperature: 0,
@@ -61,14 +65,21 @@ for (const test of tests) {
   const payload = await response.json();
   if (payload.success === false) throw new Error("Workers AI inference rejected");
   const result = payload.result;
-  const answer = String(
-    result?.choices?.[0]?.message?.content ?? result?.response ?? "",
-  );
-  const passes = test.required.every((term) => term.test(answer)) &&
+  const answer = String(result?.choices?.[0]?.message?.content ?? result?.response ?? "");
+  const passes =
+    test.required.every((term) => term.test(answer)) &&
     test.forbidden.every((term) => !term.test(answer));
-  console.log(test.name + " | matched clinical intent: " + passes +
-    " | latency: " + (Date.now() - started) + "ms" +
-    " | length: " + answer.length + " characters");
+  console.log(
+    test.name +
+      " | matched clinical intent: " +
+      passes +
+      " | latency: " +
+      (Date.now() - started) +
+      "ms" +
+      " | length: " +
+      answer.length +
+      " characters",
+  );
   if (!passes) throw new Error("Granite query failed clinical anchor smoke: " + test.name);
 }
 console.log("Granite small-model smoke passed (three queries; no student data or citations).");

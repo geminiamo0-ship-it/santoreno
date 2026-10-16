@@ -222,7 +222,12 @@ describe("Santo five licensed library retrieval", () => {
 
   it("disables tiny model entirely when staging flag is off or there is no model binding", async () => {
     let calls = 0;
-    const ai = { run: async () => { calls++; return { response: "aortic stenosis" }; } };
+    const ai = {
+      run: async () => {
+        calls++;
+        return { response: "aortic stenosis" };
+      },
+    };
     const inactive = new FakeAiSearchNamespace();
     await new CloudflareAiSearchRetrieval(inactive, undefined, true, false, ai).retrieve({
       query: "aortic stenosis",

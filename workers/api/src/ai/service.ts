@@ -209,7 +209,7 @@ export class GroundedAiService {
       const answerFormat = this.markdownOutput ? "markdown" : "json";
       const sourcedPrompt =
         buildGroundedPrompt(input.query, evidence, answerFormat) +
-        medicalImagePrompt(originalImages);
+        medicalImagePrompt(originalImages, input.query);
       const modelStartedAt = performance.now();
       let firstModelDeltaRecorded = false;
       const progress = onProvisionalAnswer

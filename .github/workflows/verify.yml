@@ -136,11 +136,6 @@ jobs:
         if: steps.workspace.outputs.exists == 'true'
         run: pnpm install --frozen-lockfile
 
-      - name: Temporary Granite formatter diagnostics
-        run: |
-          pnpm exec prettier --write scripts/granite-query-rewrite-smoke.mjs workers/api/src/ai/medical-query-rewrite.test.ts workers/api/src/ai/medical-query-rewrite.ts workers/api/src/ai/retrieval.test.ts
-          git diff -- scripts/granite-query-rewrite-smoke.mjs workers/api/src/ai/medical-query-rewrite.test.ts workers/api/src/ai/medical-query-rewrite.ts workers/api/src/ai/retrieval.test.ts
-
       - name: Lint
         if: steps.workspace.outputs.exists == 'true'
         run: pnpm lint

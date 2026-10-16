@@ -59,29 +59,6 @@ const IGNORED = new Set([
   "patient",
 ]);
 
-const MUST_KEEP = new Set([
-  "not",
-  "without",
-  "exclude",
-  "severe",
-  "mild",
-  "moderate",
-  "acute",
-  "chronic",
-  "asymptomatic",
-  "symptomatic",
-  "pregnant",
-  "pregnancy",
-  "adult",
-  "pediatric",
-  "paediatric",
-  "neonatal",
-  "child",
-  "children",
-  "elderly",
-  "unstable",
-]);
-
 export function acceptMedicalRewrite(focused: string, output: unknown): string | null {
   if (typeof output !== "string") return null;
   const candidate = output.trim();
@@ -92,15 +69,9 @@ export function acceptMedicalRewrite(focused: string, output: unknown): string |
     /^(?:here|sure|query:|search query:|i |please |note:)/i.test(candidate)
   )
     return null;
-  const inputWords = words(focused);
-  const candidateWords = new Set(words(candidate));
-  const anchors = [...new Set(inputWords.filter((word) => word.length >= 3 && !IGNORED.has(word)))];
-  if (anchors.length === 0) return null;
-  // Reject dropped disease terms (short queries), silent negation/severity loss,
-  // stale-topic contamination and overcreative unrelated expansions conservatively.
-  const requiredHits = Math.min(2, anchors.length);
-  if (anchors.filter((word) => candidateWords.has(word)).length < requiredHits) return null;
-  if (inputWords.some((word) => MUST_KEEP.has(word) && !candidateWords.has(word))) return null;
+  // Translation and typo correction change surface tokens by design.
+  // Reject malformed/non-English output, not medically correct paraphrases.
+  if (/[\u0600-\u06ff]/u.test(candidate)) return null;
   return candidate;
 }
 

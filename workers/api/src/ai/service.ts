@@ -79,6 +79,7 @@ export class GroundedAiService {
     private readonly markdownOutput = false,
     private readonly richImagesEnabled = false,
     private readonly articleBucket?: R2BucketLike,
+    private readonly intentRoutingEnabled = false,
   ) {}
 
   async query(
@@ -133,12 +134,44 @@ export class GroundedAiService {
     let validCitationCount = 0;
     let outputChars = 0;
     try {
+      const routeStartedAt = performance.now();
+      const route = this.intentRoutingEnabled && libraryId === null && this.retrieval.route
+        ? await withAiDeadline(
+            () => this.retrieval.route!({ query: input.query, libraryId }),
+            signal,
+            this.timeouts.retrievalMs,
+            "SEARCH_TIMEOUT",
+          )
+        : undefined;
+      if (route) console.info("santo_runtime_stage_ms", {
+        stage: "qwen_route",
+        milliseconds: Math.round(performance.now() - routeStartedAt),
+      });
+      if (route?.intent === "chat") {
+        // Same Qwen inference provides the final short social answer; no Luna
+        // or medical retrieval, but the original reservation and completion
+        // still pass through the authoritative quota and ConversationDO.
+        answer = route.answer;
+        citations = [];
+        responseMode = "general";
+        outputChars = answer.length;
+        onProvisionalAnswer?.(answer);
+      } else {
+      const retrievalStartedAt = performance.now();
       const evidence = await withAiDeadline(
-        () => this.retrieval.retrieve({ query: input.query, libraryId }),
+        () => this.retrieval.retrieve({
+          query: input.query,
+          libraryId,
+          ...(route?.intent === "medical" ? { preparedQuery: route.searchQuery } : {}),
+        }),
         signal,
         this.timeouts.retrievalMs,
         "SEARCH_TIMEOUT",
       );
+      console.info("santo_runtime_stage_ms", {
+        stage: "retrieval",
+        milliseconds: Math.round(performance.now() - retrievalStartedAt),
+      });
       retrievedSourceCount = evidence.length;
       // A genuinely empty result is different from SEARCH_FAILED / SEARCH_TIMEOUT:
       // infrastructure outages still fail closed, never silently become "general".
@@ -156,10 +189,15 @@ export class GroundedAiService {
       const imageDiagnostics = this.richImagesEnabled
         ? emptyImageHydrationDiagnostics(evidence.length)
         : undefined;
+      const imagesStartedAt = performance.now();
       const originalImages =
         groundingMode === "santo" && this.richImagesEnabled && this.articleBucket
           ? await loadMedicalImages(this.articleBucket, evidence, imageDiagnostics)
           : [];
+      if (imageDiagnostics) console.info("santo_runtime_stage_ms", {
+        stage: "image_hydration",
+        milliseconds: Math.round(performance.now() - imagesStartedAt),
+      });
       if (imageDiagnostics) {
         console.info("santo_luna_image_pipeline", {
           phase: "before_model",
@@ -172,19 +210,38 @@ export class GroundedAiService {
       const sourcedPrompt =
         buildGroundedPrompt(input.query, evidence, answerFormat) +
         medicalImagePrompt(originalImages);
+      const modelStartedAt = performance.now();
+      let firstModelDeltaRecorded = false;
+      const progress = onProvisionalAnswer
+        ? (text: string) => {
+            if (text && !firstModelDeltaRecorded) {
+              firstModelDeltaRecorded = true;
+              console.info("santo_runtime_stage_ms", {
+                stage: "luna_first_delta",
+                milliseconds: Math.round(performance.now() - modelStartedAt),
+              });
+            }
+            onProvisionalAnswer(text);
+          }
+        : undefined;
       let draft = await withAiDeadline(
         () =>
           this.model.generate(
             groundingMode === "general"
               ? buildGeneralMedicalPrompt(input.query, answerFormat)
               : sourcedPrompt,
-            onProvisionalAnswer,
+            progress,
             groundingMode === "general" ? [] : evidence.map((item) => item.sourceId),
           ),
         signal,
         this.timeouts.modelMs,
         "MODEL_TIMEOUT",
       );
+
+      console.info("santo_runtime_stage_ms", {
+        stage: "luna_generation",
+        milliseconds: Math.round(performance.now() - modelStartedAt),
+      });
 
       // Legacy fallback can create a SECOND paid generation after a complete
       // grounded model response. The staging single-pass cost policy disables
@@ -301,6 +358,7 @@ export class GroundedAiService {
           );
         }
       }
+      } // End grounded medical retrieval branch; CHAT skips Luna/R2/AI Search.
     } catch (error) {
       if (!alreadyFinalized) {
         await this.releaseAfterFailure(session, quotaIdempotencyKey, error);

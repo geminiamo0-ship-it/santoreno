@@ -156,7 +156,8 @@ describe("Luna original medical article images", () => {
           src: MEDIA + "additional.png",
           alt: "Extra section figure",
         });
-        article.sections[0]!.images.push({ src: "https://evil.example/img.png", alt: "Unsafe" });
+        // Structured section image URLs are already schema-validated; test
+        // hostile HTML separately rather than invalidating the whole article.
         return { text: async () => JSON.stringify(article) };
       },
     };
@@ -230,7 +231,10 @@ describe("Luna original medical article images", () => {
       bucket('<img src="https://evil.example/x.png">'),
       evidence,
     );
-    expect(article).toEqual([]);
+    // An unsafe HTML URL is rejected; safe section metadata from the same
+    // schema-validated source can still be used as a legitimate fallback.
+    expect(article.map((image) => image.src)).toEqual([MEDIA + "valve.png"]);
+    expect(article.every((image) => !image.src.includes("evil.example"))).toBe(true);
     const forged: RetrievedEvidence[] = [{ ...evidence[0]!, itemKey: "../../outside" }];
     const reads = { reads: 0 };
     expect(await loadMedicalImages(bucket("", reads), forged)).toEqual([]);

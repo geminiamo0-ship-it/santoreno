@@ -122,7 +122,7 @@ describe("native Luna Responses SSE collector", () => {
     }
   });
 
-  it("preserves long Luna teaching over the previous SSE byte/character limits with batched previews", async () => {
+  it("preserves long Luna teaching over the previous SSE byte/character limits without delayed previews", async () => {
     const full = "A".repeat(70_000);
     const chunks = Array.from({ length: Math.ceil(full.length / 16) }, (_, index) => ({
       type: "response.output_text.delta",
@@ -135,8 +135,7 @@ describe("native Luna Responses SSE collector", () => {
     const progress = vi.fn();
     await expect(collectLunaEventStream(stream, progress, "plain")).resolves.toBe(full);
     expect(progress.mock.calls.at(-1)?.[0]).toBe(full);
-    expect(progress.mock.calls.length).toBeLessThan(1000);
-    expect(progress.mock.calls.length).toBeGreaterThan(20);
+    expect(progress.mock.calls.length).toBe(chunks.length);
   });
 
   it("still refuses provider SSE exceeding the bounded 10k-token text budget", async () => {

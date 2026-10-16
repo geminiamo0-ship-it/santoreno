@@ -69,6 +69,8 @@ SANTO_GENERAL_MEDICAL_FALLBACK = "true"
 SANTO_MEDICAL_RETRIEVAL_V2 = "true"
 # Staging-only Qwen3 30B-A3B medical search query normalizer (512 max output tokens); no MeSH dictionary.
 SANTO_MEDICAL_QUERY_REWRITE_V1 = "true"
+# Qwen classifies CHAT vs MEDICAL and rewrites the medical query in one call.
+SANTO_QWEN_ROUTING_V1 = "true"
 SANTO_LUNA_RICH_IMAGES_V1 = "true"
 SANTO_AI_SEARCH_INSTANCE_IDS = "amboss,usmle,passmedicine,pastest,one-examination-isolated"
 SANTO_LIBRARY_READER_V1 = "true"

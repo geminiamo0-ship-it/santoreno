@@ -204,54 +204,113 @@ async function originalHtml(article: LibraryArticle): Promise<LibraryArticle> {
   }
 }
 
-/** Fetch original R2 articles before generation, de-duplicating repeated chunks
- * and resolving only the five server-allowlisted retrieval citations. */
+/** Worker-isolate cache of small, already-validated image metadata, scoped by R2
+ * binding identity. No persistent writes, no changes to the existing indexes.
+ * Cache success only (never missing/corrupt articles), with a short TTL. */
+type CachedImages = Omit<MedicalImageCandidate, "id" | "sourceId">[];
+type CachedArticle = { images: CachedImages; expiresAt: number };
+const IMAGE_CACHE_TTL_MS = 300_000;
+const IMAGE_CACHE_MAX_ENTRIES = 128;
+const imageCache = new WeakMap<R2BucketLike, Map<string, CachedArticle>>();
+const inFlightImages = new WeakMap<R2BucketLike, Map<string, Promise<CachedImages | null>>>();
+
+async function articleImages(
+  bucket: R2BucketLike,
+  key: string,
+  libraryId: string,
+  articleId: string,
+  diagnostics?: ImageHydrationDiagnostics,
+): Promise<CachedImages | null> {
+  const cached = imageCache.get(bucket)?.get(key);
+  if (cached && cached.expiresAt > Date.now()) return cached.images;
+  let pending = inFlightImages.get(bucket);
+  if (!pending) {
+    pending = new Map();
+    inFlightImages.set(bucket, pending);
+  }
+  const prior = pending.get(key);
+  if (prior) return prior;
+  const task = (async (): Promise<CachedImages | null> => {
+    if (diagnostics) diagnostics.articleReads++;
+    try {
+      const object = await bucket.get(key);
+      if (!object) return null;
+      if (diagnostics) diagnostics.articleObjectsFound++;
+      const raw: unknown = JSON.parse(await object.text());
+      const validated = LibraryArticleSchema.safeParse(raw);
+      if (
+        !validated.success ||
+        validated.data.libraryId !== libraryId ||
+        validated.data.articleId !== articleId
+      ) return null;
+      if (diagnostics) diagnostics.validArticles++;
+      const article = await originalHtml(validated.data);
+      const extracted = article.contentHtml
+        ? extractHtmlImages(article, "")
+        : extractSectionImages(article, "");
+      const images = extracted.map(({ sourceId: _sourceId, ...rest }) => rest);
+      let entries = imageCache.get(bucket);
+      if (!entries) {
+        entries = new Map();
+        imageCache.set(bucket, entries);
+      }
+      if (entries.size >= IMAGE_CACHE_MAX_ENTRIES) {
+        const oldest = entries.keys().next().value;
+        if (oldest !== undefined) entries.delete(oldest);
+      }
+      entries.set(key, { images, expiresAt: Date.now() + IMAGE_CACHE_TTL_MS });
+      return images;
+    } catch {
+      if (diagnostics) diagnostics.unreadableArticles++;
+      return null;
+    }
+  })();
+  pending.set(key, task);
+  try {
+    return await task;
+  } finally {
+    pending.delete(key);
+  }
+}
+
+/** Fetch at most five allowlisted R2 articles in parallel. Restore original
+ * evidence order when merging; a slower first article must not lose its images.
+ * Cached entries are global licensed metadata only, not user/tenant content. */
 export async function loadMedicalImages(
   bucket: R2BucketLike,
   evidence: readonly RetrievedEvidence[],
   diagnostics?: ImageHydrationDiagnostics,
 ): Promise<MedicalImageCandidate[]> {
   const articles = new Set<string>();
-  const found: Omit<MedicalImageCandidate, "id">[] = [];
-  const seenUrls = new Set<string>();
+  const chosen: Array<{ key: string; libraryId: string; articleId: string; sourceId: string }> = [];
   for (const item of evidence) {
     const parsed = SEARCH_KEY.exec(item.itemKey);
     if (!parsed || parsed[1] !== item.libraryId) continue;
     if (diagnostics) diagnostics.recognizedSourcePaths++;
-    const key = "medical-articles/v1/" + parsed[1] + "/" + parsed[2] + ".json";
+    const libraryId = parsed[1]!;
+    const articleId = parsed[2]!;
+    const key = "medical-articles/v1/" + libraryId + "/" + articleId + ".json";
     if (articles.has(key) || articles.size >= MAX_ARTICLES) continue;
     articles.add(key);
-    if (diagnostics) diagnostics.articleReads++;
-    try {
-      const object = await bucket.get(key);
-      if (!object) continue;
-      if (diagnostics) diagnostics.articleObjectsFound++;
-      const raw: unknown = JSON.parse(await object.text());
-      const validated = LibraryArticleSchema.safeParse(raw);
-      if (
-        !validated.success ||
-        validated.data.libraryId !== item.libraryId ||
-        validated.data.articleId !== parsed[2]
-      )
-        continue;
-      if (diagnostics) diagnostics.validArticles++;
-      const article = await originalHtml(validated.data);
-      const candidates = article.contentHtml
-        ? extractHtmlImages(article, item.sourceId)
-        : extractSectionImages(article, item.sourceId);
-      if (diagnostics && candidates.length > 0) diagnostics.articlesWithImages++;
-      for (const image of candidates) {
-        if (seenUrls.has(image.src)) continue;
-        seenUrls.add(image.src);
-        found.push(image);
-        if (found.length >= MAX_IMAGES) break;
-      }
-    } catch {
-      if (diagnostics) diagnostics.unreadableArticles++;
-      // Image hydration is optional: a failure must not erase the medical answer.
-    }
-    if (found.length >= MAX_IMAGES) break;
+    chosen.push({ key, libraryId, articleId, sourceId: item.sourceId });
   }
+  const results = await Promise.all(
+    chosen.map(async ({ key, libraryId, articleId }) =>
+      articleImages(bucket, key, libraryId, articleId, diagnostics),
+    ),
+  );
+  const found: Omit<MedicalImageCandidate, "id">[] = [];
+  const seenUrls = new Set<string>();
+  results.forEach((images, position) => {
+    if (!images?.length) return;
+    if (diagnostics) diagnostics.articlesWithImages++;
+    const sourceId = chosen[position]!.sourceId;
+    for (const image of images) {
+      if (seenUrls.has(image.src) || found.length >= MAX_IMAGES) continue;
+      seenUrls.add(image.src);
+      found.push({ ...image, sourceId });
+    }
+  });
   if (diagnostics) diagnostics.imageCandidates = found.length;
   return found.map((image, index) => ({
     ...image,

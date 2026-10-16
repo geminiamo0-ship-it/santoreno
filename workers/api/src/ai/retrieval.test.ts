@@ -215,8 +215,8 @@ describe("Santo five licensed library retrieval", () => {
     });
     expect(inactive.searchInputs[0]).toMatchObject({ query: "aortic stenosis" });
     expect(
-      (inactive.searchInputs[0] as { ai_search_options: { retrieval: object } })
-        .ai_search_options.retrieval,
+      (inactive.searchInputs[0] as { ai_search_options: { retrieval: object } }).ai_search_options
+        .retrieval,
     ).not.toHaveProperty("keyword_match_mode");
 
     const ambiguous = new FakeAiSearchNamespace();

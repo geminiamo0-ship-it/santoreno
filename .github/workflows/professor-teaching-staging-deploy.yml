@@ -10,6 +10,7 @@ name: Professor Teaching Staging Deploy
 # PR #137: original HTML image metadata for Luna; deploy only after exact-head Verify and no production changes.
 # PR #139: fixes high-priority Luna image marker contract and adds privacy-safe stage diagnostics.
 # PR #141: stage Qwen3 30B-A3B 512-token English medical query normalizer after exact-head Verify and live Qwen smoke.
+# PR #144: Qwen CLARIFY and expanded verified original Luna images; deploy staging only after exact-head Verify.
 # PR #143: verified staging-only runtime optimization (no reindex); deploy after same-SHA Verify.
 # Explicit post-PR #137 staging-only deploy with verified exact SHA and observable action outcome.
 # Updated Luna native long-answer parser rollout.

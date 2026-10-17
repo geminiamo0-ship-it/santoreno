@@ -393,7 +393,7 @@ export function medicalImagePrompt(images: readonly MedicalImageCandidate[], que
     "To request a figure, write ONLY its exact [[IMG_001]]-style image_id on a standalone line. " +
     "Never invent image IDs or URLs, never cite an image as evidence for an unsupported clinical claim, " +
     "and exclude unrelated, decorative and duplicate pictures. Each image must correspond to the question " +
-    "and the actual passage; cite its source when discussing the figure. Original URLs are rendered by Santo, not you."
+    "and the actual passage. Cite verified medical LIBRARY passages for clinical claims; gallery attribution is NOT a clinical citation. Original URLs are rendered by Santo, not you."
   );
 }
 
@@ -421,7 +421,7 @@ export function renderMedicalImageMarkers(
       const image = allowed.get(id);
       if (!image || usedImages.has(id)) return "";
       usedImages.add(id);
-      usedSources.add(image.sourceId);
+      if (image.sourceId) usedSources.add(image.sourceId);
       const caption = markdownLabel(
         image.caption || image.alt || image.section || "Medical figure",
       );

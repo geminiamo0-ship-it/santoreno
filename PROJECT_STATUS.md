@@ -1,5 +1,14 @@
 # Santo Project Status — Living Handoff
 
+### Medical gallery sixth search — staging candidate (17 Oct 2026; deployment pending)
+
+- Owner provided a SHA-pinned Google Drive ZIP with 3,295 unique JSON image search records; the ZIP is read by an isolated GitHub Action, never committed to the public repository. SHA-256 `fa469888c75cec9880bc0af2b2423115ff848d9b74d72563b310f09db0e2e2e5`.
+- Staging-only GitHub Action provisions `santo-medical-images` in namespace `default` with text-only `@cf/qwen/qwen3-embedding-0.6b`, uploads 3,295 individual documents to built-in AI Search storage, waits for full indexing, runs three sample queries, writes the image URL manifest to `santo-content-staging/gallery/v1/santo_image_manifest.json`, verifies readback, then deploys the Staging Worker.
+- The five preexisting clinical indexes, their release data, source permissions, R2 originals, and production bindings are unchanged. A staging-only flag `SANTO_GALLERY_IMAGES_V1` enables independent parallel image search using the existing Qwen normalized query; image failures/4s timeout do not block clinical citations or answer generation.
+- Validated server-side image identities are injected into Luna's existing image marker renderer, but gallery figures have no clinical `sourceId` and NEVER become fabricated trusted citations. Strict allowlisted `offline_media` domain remains in force.
+- GitHub Verify, full indexing, Worker deploy, live signed-in image QA, latency and browser rendering **NOT YET VERIFIED** at candidate preparation time. Treat status as pending until evidence from Actions appears. All changes intentionally STAGING only.
+
+
 > **Repository:** `geminiamo0-ship-it/santoreno`
 > **Product:** Santo
 > **Purpose:** First file a new developer, coding agent, or AI assistant should read before changing the repository.

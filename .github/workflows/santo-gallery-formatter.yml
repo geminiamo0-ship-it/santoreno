@@ -21,7 +21,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Format candidate only
         run: |
-          pnpm exec prettier --write .github/workflows/santo-medical-gallery-staging.yml PROJECT_STATUS.md workers/api/src/ai/handler.ts workers/api/src/ai/image-gallery.ts workers/api/src/ai/image-gallery.test.ts workers/api/src/ai/service.ts
+          pnpm exec prettier --write .github/workflows/santo-medical-gallery-staging.yml PROJECT_STATUS.md workers/api/src/ai/handler.ts workers/api/src/ai/image-gallery.ts workers/api/src/ai/image-gallery.test.ts workers/api/src/ai/service.ts workers/api/src/ai/retrieval.ts workers/api/src/ai/retrieval.test.ts
           pnpm exec prettier --write .github/workflows/santo-gallery-readonly-diagnostic.yml .github/workflows/santo-gallery-scoped-repair.yml .github/workflows/santo-gallery-finalize-staging.yml
           for file in santo-gallery-readonly-diagnostic.yml santo-gallery-scoped-repair.yml santo-gallery-finalize-staging.yml; do
             echo "BEGIN_FORMATTED_${file}"
@@ -39,10 +39,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if ! git diff --quiet; then
+          git add PROJECT_STATUS.md workers/api/src/ai/handler.ts workers/api/src/ai/image-gallery.ts workers/api/src/ai/image-gallery.test.ts workers/api/src/ai/service.ts workers/api/src/ai/retrieval.ts workers/api/src/ai/retrieval.test.ts
+          if ! git diff --cached --quiet; then
             git config user.name 'github-actions[bot]'
             git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-            git add PROJECT_STATUS.md workers/api/src/ai/handler.ts workers/api/src/ai/image-gallery.ts workers/api/src/ai/image-gallery.test.ts workers/api/src/ai/service.ts
             git commit -m 'style(staging): format sixth gallery search candidate'
             git push origin HEAD:feat/santo-gallery-sixth-search-staging-20261017
           fi

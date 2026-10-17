@@ -165,14 +165,18 @@ export class GroundedAiService {
         const retrievalStartedAt = performance.now();
         // Sixth image search starts beside the five text searches using the
         // SAME Qwen-normalized query; bounded failures never block clinical RAG.
-        const galleryPromise = this.imageGallery && libraryId === null && this.richImagesEnabled
-          ? withAiDeadline(
-              () => this.imageGallery!.retrieve(
-                route?.intent === "medical" ? route.searchQuery : input.query,
-              ),
-              signal, 4_000, "SEARCH_TIMEOUT",
-            ).catch(() => [])
-          : Promise.resolve([]);
+        const galleryPromise =
+          this.imageGallery && libraryId === null && this.richImagesEnabled
+            ? withAiDeadline(
+                () =>
+                  this.imageGallery!.retrieve(
+                    route?.intent === "medical" ? route.searchQuery : input.query,
+                  ),
+                signal,
+                4_000,
+                "SEARCH_TIMEOUT",
+              ).catch(() => [])
+            : Promise.resolve([]);
         const evidence = await withAiDeadline(
           () =>
             this.retrieval.retrieve({
@@ -231,7 +235,8 @@ export class GroundedAiService {
           ...galleryImages,
         ];
         console.info("santo_luna_image_pipeline", {
-          phase: "gallery_retrieval", requestId,
+          phase: "gallery_retrieval",
+          requestId,
           galleryImageCount: galleryImages.length,
         });
         const answerFormat = this.markdownOutput ? "markdown" : "json";

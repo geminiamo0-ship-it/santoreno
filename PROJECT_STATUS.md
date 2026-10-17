@@ -8,7 +8,6 @@
 - Validated server-side image identities are injected into Luna's existing image marker renderer, but gallery figures have no clinical `sourceId` and NEVER become fabricated trusted citations. Strict allowlisted `offline_media` domain remains in force.
 - GitHub Verify, full indexing, Worker deploy, live signed-in image QA, latency and browser rendering **NOT YET VERIFIED** at candidate preparation time. Treat status as pending until evidence from Actions appears. All changes intentionally STAGING only.
 
-
 > **Repository:** `geminiamo0-ship-it/santoreno`
 > **Product:** Santo
 > **Purpose:** First file a new developer, coding agent, or AI assistant should read before changing the repository.

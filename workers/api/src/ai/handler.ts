@@ -137,9 +137,10 @@ export function createGroundedAiHandler(dependencies: GroundedAiHandlerDependenc
         env.SANTO_ENV === "staging" && env.SANTO_QWEN_ROUTING_V1 === "true",
         env.SANTO_ENV === "staging" &&
           env.SANTO_GALLERY_IMAGES_V1 === "true" &&
-          env.AI_SEARCH && env.CONTENT_BUCKET
-            ? new CloudflareGalleryImageRetrieval(env.AI_SEARCH, env.CONTENT_BUCKET)
-            : undefined,
+          env.AI_SEARCH &&
+          env.CONTENT_BUCKET
+          ? new CloudflareGalleryImageRetrieval(env.AI_SEARCH, env.CONTENT_BUCKET)
+          : undefined,
       ).query(session, parsed.data, request.signal, onProvisionalAnswer);
 
       const validated = GroundedAiQueryResponseSchema.parse(response);

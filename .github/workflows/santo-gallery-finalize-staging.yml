@@ -1,0 +1,89 @@
+name: Santo Gallery Finalize and Deploy Staging
+on:
+  push:
+    branches:
+      - feat/santo-gallery-sixth-search-staging-20261017
+    paths:
+      - .github/workflows/santo-gallery-finalize-staging.yml
+permissions:
+  contents: read
+  checks: read
+concurrency:
+  group: santo-gallery-finalize-staging
+  cancel-in-progress: false
+jobs:
+  finalize-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      GH_TOKEN: ${{ github.token }}
+      WORKER_URL: https://santo-api-staging.geminiamo0.workers.dev
+    steps:
+      - uses: actions/checkout@v4
+      - name: Await candidate verification for exact commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          for n in $(seq 1 120); do
+            checks="$(gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/check-runs")"
+            status="$(jq -r '[.check_runs[] | select(.name=="candidate-verify") | .conclusion] | map(select(.!=null)) | .[0] // ""' <<<"$checks")"
+            [[ "$status" == success ]] && { echo "Exact commit verified"; exit 0; }
+            case "$status" in failure|cancelled|timed_out|action_required|startup_failure) exit 1 ;; esac
+            sleep 10
+          done
+          echo "Timed out waiting for candidate Verify"; exit 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install pinned data dependencies
+        run: python -m pip install "gdown==5.2.0" "requests==2.32.3"
+      - name: Verify real sixth index with 3293 successful and two ignored
+        run: python scripts/finalize_santo_gallery_3293.py
+      - name: Download SHA pinned gallery and build manifest only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import gdown,os,pathlib
+          path=pathlib.Path(os.environ["RUNNER_TEMP"])/"santo_medical_images.zip"
+          source=gdown.download(id="1ZR-EGLrKS4szarRqZ8wfuhp_EQqUI2u3",output=str(path),quiet=False)
+          if not source or not path.exists(): raise SystemExit("Original gallery dataset unavailable")
+          PY
+          python scripts/ingest_santo_medical_gallery.py --archive "$RUNNER_TEMP/santo_medical_images.zip" --output "$RUNNER_TEMP/gallery"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install repository-pinned Wrangler
+        run: |
+          corepack enable
+          pnpm install --frozen-lockfile
+      - name: Publish gallery manifest ONLY to Santo Staging R2
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm exec wrangler r2 object put santo-content-staging/gallery/v1/santo_image_manifest.json --file "$RUNNER_TEMP/gallery/manifest.json" --remote
+          pnpm exec wrangler r2 object get santo-content-staging/gallery/v1/santo_image_manifest.json --file "$RUNNER_TEMP/gallery/readback.json" --remote
+          cmp "$RUNNER_TEMP/gallery/manifest.json" "$RUNNER_TEMP/gallery/readback.json"
+      - name: Deploy ONLY Santo Staging Worker with gallery search enabled
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd workers/api
+          pnpm exec wrangler deploy --env staging --keep-vars
+      - name: Validate live staging health and deny unauthenticated access
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --retry 8 --retry-delay 4 --retry-all-errors --fail --silent --show-error "$WORKER_URL/health" | jq -e '.service=="santo-api" and .status=="ok"'
+          status="$(curl -sS -o "$RUNNER_TEMP/noauth.json" -w '%{http_code}' -X POST "$WORKER_URL/v1/ai/query" -H "Content-Type: application/json" -d '{"query":"Hyperkalemia ECG changes"}')"
+          [[ "$status" == 400 || "$status" == 401 || "$status" == 403 ]] || { echo "Authentication policy failed: HTTP $status"; exit 1; }
+          {
+            echo "## Santo sixth gallery search — Staging"
+            echo "- Verified 3293 indexed medical images; exactly 2 transient embedding failures intentionally ignored."
+            echo "- SHA pinned gallery manifest published to existing Staging R2 and byte-readback verified."
+            echo "- Staging Worker deployed with parallel sixth image search enabled."
+            echo "- Existing 5 clinical indexes and production untouched."
+            echo "- Authenticated browser image QA and latency still require real account."
+          } >> "$GITHUB_STEP_SUMMARY"

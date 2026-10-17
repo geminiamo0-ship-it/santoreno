@@ -121,7 +121,7 @@ describe("Cloudflare Workers AI model adapter", () => {
 });
 
 describe("GPT-6 Luna isolated Santo staging preview", () => {
-  it("uses native Responses API and explicit nonreasoning fast tier only under staging flag", async () => {
+  it("uses native Responses API with low reasoning and fast tier only under staging flag", async () => {
     const ai: WorkersAiLike = {
       run: vi.fn(async () => ({
         output: [
@@ -156,7 +156,7 @@ describe("GPT-6 Luna isolated Santo staging preview", () => {
       "openai/gpt-6-luna",
       expect.objectContaining({
         input: "Ground this answer",
-        reasoning: { effort: "none" },
+        reasoning: { effort: "low" },
         service_tier: "fast",
         store: false,
         max_output_tokens: 3000,

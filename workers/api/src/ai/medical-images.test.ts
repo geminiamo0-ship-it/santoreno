@@ -133,6 +133,8 @@ describe("Luna original medical article images", () => {
     expect(prompt.match(/"image_id":/g)).toHaveLength(30);
     expect(prompt).not.toContain(MEDIA + "44.png"); // Original URLs stay server-side
     expect(prompt).toContain("Illustrations are a PRIORITY");
+    expect(prompt).toContain("genuinely match the CURRENT question");
+    expect(prompt).toContain("use none if no illustration adds reliable teaching value");
   });
 
   it("combines lazy HTML images with section image metadata without duplicating original figures", async () => {

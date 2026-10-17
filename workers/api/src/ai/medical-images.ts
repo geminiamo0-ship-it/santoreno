@@ -388,8 +388,8 @@ export function medicalImagePrompt(images: readonly MedicalImageCandidate[], que
             }),
       })),
     ) +
-    "\nIllustrations are a PRIORITY teaching resource. When images genuinely match the question, actively use as MANY distinct, complementary original source figures as are useful (often several across multiple sections rather than just one or two). " +
-    "Position each relevant figure beside the matching clinical explanation and use multiple figures when each shows different anatomy, mechanism, findings or management. " +
+    "\nIllustrations are a PRIORITY teaching resource only when they genuinely match the CURRENT question, its source section and the explanation. Prefer exact anatomy, mechanism or diagnostic figures over broad generic images; use none if no illustration adds reliable teaching value. " +
+    "Position each relevant figure beside the matching clinical explanation; use multiple figures only when they convey distinct anatomy, mechanism, findings or management rather than repeating the same idea. " +
     "To request a figure, write ONLY its exact [[IMG_001]]-style image_id on a standalone line. " +
     "Never invent image IDs or URLs, never cite an image as evidence for an unsupported clinical claim, " +
     "and exclude unrelated, decorative and duplicate pictures. Each image must correspond to the question " +

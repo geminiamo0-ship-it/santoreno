@@ -1,5 +1,15 @@
 # Santo Project Status — Living Handoff
 
+### Santo sixth image index — ONE merged AI Search call: deployed and live verified (17 Oct 2026)
+
+- **Verified Staging Worker deployment:** [Action #39070116851](https://github.com/geminiamo0-ship-it/santoreno/actions/runs/39070116851) success on commit `42ef04de62627f1f0b77f87f58e4b7d95f619d95`. The Worker uses the original one-namespace-call mode, now with the **five medical indexes PLUS `santo-medical-images`** in the same `instance_ids` list.
+- **Independent live Cloudflare validation:** [Action #39070266803](https://github.com/geminiamo0-ship-it/santoreno/actions/runs/39070266803) success on `Hyperkalemia ECG peaked T waves` via exactly **one POST** to the namespace Search API. Returned 23 chunks: `amboss=2`, `usmle=4`, `passmedicine=7`, `pastest=7`, `one-examination-isolated=0`, `santo-medical-images=3`. All six IDs were queried even if one yielded 0 results. No extra image search calls, extra Qwen calls, or additional rounds.
+- **Strict split of returned data:** trusted clinical evidence is accepted ONLY from the existing five; gallery results are image IDs resolved against the allowlisted R2 URL manifest and supplied as **illustrations only**, never as clinical citations. Explicit per-library filter retains its original narrow scope.
+- The current image instance has 3,293 indexed documents; 2 known embedding-timeout documents were intentionally excluded from the success gate at owner request. Original five instances and production unchanged.
+- **Unverified:** authenticated Royal Bank Preview → Santo → Luna final answer rendering, actual image selection rate, p95 retrieval/first-token latency; live Cloudflare merged search smoke does not cover a signed-in full round trip.
+- **Important durability gate:** the new code is deployed to Staging from the feature branch but is **not merged** into `release/santo-medical-rich-prod-candidate-20261014`; subsequent deploys from that older staging branch could replace the feature. Create a normal PR from `feat/santo-gallery-sixth-search-staging-20261017` to the long-lived staging branch before the next routine staging deployment. Production remains disabled.
+
+
 ### Sixth medical-image search — Staging deployed (17 Oct 2026)
 
 - **LIVE on Santo Staging Worker**, deployed from feature commit `9efeb83d71459523107d7de96894892c2a9a601b` (NOT merged to the long-lived staging branch). GitHub Action [39069040381](https://github.com/geminiamo0-ship-it/santoreno/actions/runs/39069040381) **success**, including exact-head Verify, live Cloudflare image-only search smoke, R2 manifest upload/readback, staging Worker deploy, health check and unauthenticated API-deny smoke.

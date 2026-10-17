@@ -1,0 +1,80 @@
+name: Luna Staging Candidate Verify
+
+on:
+  push:
+    branches:
+      - feat/luna-rich-sources-images-20261016
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: luna-staging-candidate-verify
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - name: Format staging-only change
+        run: |
+          pnpm exec prettier --write \
+            workers/api/src/ai/medical-images.ts \
+            workers/api/src/ai/medical-images.test.ts \
+            workers/api/src/ai/medical-query-rewrite.ts \
+            workers/api/src/ai/medical-query-rewrite.test.ts \
+            workers/api/src/ai/medical-ranking.ts \
+            workers/api/src/ai/medical-ranking.test.ts \
+            workers/api/src/ai/plain-luna.test.ts \
+            workers/api/src/ai/handler.test.ts \
+            workers/api/src/ai/retrieval.ts \
+            workers/api/src/ai/retrieval.test.ts \
+            workers/api/src/ai/plain-luna.ts \
+            workers/api/src/ai/service.ts \
+            workers/api/src/ai/handler.ts \
+            workers/api/src/runtime/bindings.ts \
+            .github/workflows/luna-staging-candidate-verify.yml
+      - name: Persist formatting in isolated branch only
+        if: github.ref == 'refs/heads/feat/luna-rich-sources-images-20261016'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! git diff --quiet; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add workers/api/src/ai .github/workflows/luna-staging-candidate-verify.yml workers/api/src/runtime/bindings.ts
+            git commit -m "style(staging): prettier-format Luna sources and image pipeline"
+            git push origin HEAD:feat/luna-rich-sources-images-20261016
+          fi
+      - id: lint
+        run: pnpm lint
+      - id: typecheck
+        run: pnpm typecheck
+      - id: test
+        run: pnpm test
+      - id: build
+        run: pnpm build
+      - id: smoke
+        run: pnpm smoke
+      - name: Post exact run outcome on Santo staging PR
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LINT: ${{ steps.lint.outcome }}
+          TYPES: ${{ steps.typecheck.outcome }}
+          TESTS: ${{ steps.test.outcome }}
+          BUILD: ${{ steps.build.outcome }}
+          SMOKE: ${{ steps.smoke.outcome }}
+        run: |
+          gh pr comment 137 --body "Staging-only candidate CI: lint=${LINT}, typecheck=${TYPES}, test=${TESTS}, build=${BUILD}, smoke=${SMOKE}. Logs: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}. This workflow never deploys Production."

@@ -633,4 +633,257 @@ export const widgetStyles = css`
       border-radius: 0;
     }
   }
+
+  /* Original article HTML: preserve table/list semantics inside Lit Shadow DOM. */
+  .article-original-html {
+    font-size: 13px;
+    line-height: 1.7;
+    color: #26343e;
+    overflow-wrap: anywhere;
+  }
+  .article-original-html h1,
+  .article-original-html h2,
+  .article-original-html h3,
+  .article-original-html h4 {
+    color: #233445;
+    line-height: 1.4;
+    margin: 18px 0 9px;
+  }
+  .article-original-html :is(ul, ol) {
+    display: block;
+    padding-inline-start: 26px;
+    margin: 10px 0 15px;
+  }
+  .article-original-html ul {
+    list-style: disc outside;
+  }
+  .article-original-html ol {
+    list-style: decimal outside;
+  }
+  .article-original-html li {
+    display: list-item;
+    margin: 4px 0;
+  }
+  .article-original-html p {
+    margin: 9px 0;
+    white-space: normal;
+  }
+  .article-original-html a,
+  .article-original-html :is(.api, .dictionary, .linksuggest, .lamp-trigger) {
+    color: #2364a3;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    cursor: pointer;
+  }
+  .article-original-html :is(.api, .dictionary, .linksuggest, .lamp-trigger):focus-visible {
+    outline: 3px solid #af8954;
+  }
+  .article-original-html table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    margin: 14px 0;
+    overflow-wrap: anywhere;
+  }
+  .article-original-html :is(th, td) {
+    border: 1px solid #d9e0e5;
+    padding: 9px 11px;
+    vertical-align: top;
+    text-align: start;
+  }
+  .article-original-html th {
+    background: #eaf1f7;
+    font-weight: 700;
+  }
+  .article-original-html tr:nth-child(even) td {
+    background: #f8fafc;
+  }
+  .article-original-html img {
+    display: inline-block;
+    margin: 8px auto;
+    max-width: 100%;
+    max-height: 430px;
+    object-fit: contain;
+    height: auto;
+    border-radius: 7px;
+    cursor: zoom-in;
+  }
+  .article-original-html :is(td, th) img {
+    max-width: min(100%, 300px);
+  }
+  .article-original-html figure {
+    margin: 15px 0;
+  }
+  .article-original-html figcaption {
+    color: #5e7280;
+    font-size: 11px;
+    text-align: center;
+  }
+  .article-original-html blockquote {
+    border-inline-start: 3px solid #b88a32;
+    background: #fff8eb;
+    margin: 15px 0;
+    padding: 10px 14px;
+  }
+  .article-original-html .lamp-content {
+    display: none;
+  }
+  .article-original-html .santo-amboss-card {
+    display: block;
+    background: #fff;
+    border: 1px solid #d9e5f0;
+    border-radius: 11px;
+    margin: 13px 0;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgb(38 69 100 / 5%);
+  }
+  .santo-amboss-card > summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 11px 15px;
+    background: #edf4fa;
+    color: #264764;
+    cursor: pointer;
+    font-weight: 700;
+    list-style: none;
+  }
+  .santo-amboss-card > summary::-webkit-details-marker {
+    display: none;
+  }
+  .santo-amboss-card > summary:after {
+    content: "⌄";
+  }
+  .santo-amboss-card:not([open]) > summary:after {
+    content: "›";
+  }
+  .santo-amboss-card > summary h2 {
+    font: inherit;
+    color: inherit;
+    margin: 0;
+  }
+  .santo-amboss-card-body {
+    padding: 13px 16px;
+  }
+  .article-original-html .reader-highlight {
+    outline: 3px solid #c49032;
+    background-color: #fff2cc;
+    border-radius: 6px;
+    scroll-margin-top: 30px;
+  }
+  .reader-popover {
+    position: absolute;
+    z-index: 3;
+    bottom: 14px;
+    left: 14px;
+    right: 14px;
+    max-height: 42%;
+    overflow: auto;
+    border-radius: 12px;
+    border: 1px solid #e1d3bc;
+    background: #fffdf8;
+    box-shadow: 0 11px 44px rgb(0 0 0 / 25%);
+    padding: 18px;
+  }
+  .reader-popover > strong {
+    display: block;
+    padding-inline-end: 32px;
+    margin-bottom: 9px;
+  }
+  .reader-lightbox {
+    position: absolute;
+    z-index: 4;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    background: rgb(9 16 22 / 94%);
+    color: white;
+    padding: 55px 20px 25px;
+    gap: 12px;
+  }
+  .reader-lightbox img {
+    max-width: 100%;
+    max-height: 85%;
+    object-fit: contain;
+  }
+  .reader-lightbox span {
+    max-width: 90%;
+    font-size: 12px;
+    text-align: center;
+  }
+  .lightbox-close {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    width: 44px;
+    height: 44px;
+    font-size: 25px;
+    color: white;
+    border: 1px solid rgb(255 255 255 / 35%);
+    background: #293341;
+    border-radius: 10px;
+  }
+  @media (max-width: 540px) {
+    .reader-body {
+      padding: 14px 15px 60px;
+    }
+    .reader-popover {
+      left: 7px;
+      right: 7px;
+      bottom: 7px;
+      max-height: 60%;
+    }
+  }
+
+  .answer-verified-images {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+    gap: 12px;
+    margin: 15px 0;
+  }
+  .answer-medical-figure {
+    min-width: 0;
+    border-radius: 10px;
+    border: 1px solid #e0d6c7;
+    margin: 0;
+    overflow: hidden;
+    background: #fff;
+  }
+  .figure-image {
+    display: grid;
+    place-items: center;
+    width: 100%;
+    min-height: 100px;
+    padding: 9px;
+    border: 0;
+    background: #f5f7f8;
+    cursor: zoom-in;
+  }
+  .figure-image img {
+    max-width: 100%;
+    max-height: 270px;
+    height: auto;
+    object-fit: contain;
+    border-radius: 5px;
+  }
+  .answer-medical-figure figcaption {
+    padding: 9px 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 5px;
+    color: #546271;
+    font-size: 11px;
+    line-height: 1.5;
+  }
+  .figure-source {
+    color: #75521c;
+    background: none;
+    border: 0;
+    text-decoration: underline;
+    padding: 0;
+    font-size: 11px;
+  }
 `;

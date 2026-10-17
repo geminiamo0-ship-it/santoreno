@@ -1,0 +1,27 @@
+name: Santo Production Route Response Diagnosis
+on:
+  push:
+    branches: [release/santo-medical-rich-prod-candidate-20261014]
+    paths: [.github/workflows/santo-route-response-diagnosis-once.yml]
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    env:
+      URL: https://santo-api.geminiamo0.workers.dev
+    steps:
+      - name: Probe anonymous endpoint status and structured error code only
+        shell: bash
+        run: |
+          set -euo pipefail
+          for path in /health /v1/libraries /v1/libraries/amboss/articles /v1/ai/query /v1/sources/article; do
+            if [[ "$path" == "/v1/sources/article" ]]; then
+              code="$(curl -sS -X POST -H 'Content-Type: application/json' -d '{}' -o "$RUNNER_TEMP/body.json" -w '%{http_code}' "$URL$path")"
+            else
+              code="$(curl -sS -o "$RUNNER_TEMP/body.json" -w '%{http_code}' "$URL$path")"
+            fi
+            error="$(jq -r 'if type == "object" then (.error // .code // .message // "none") else "non-json" end' "$RUNNER_TEMP/body.json" 2>/dev/null || echo non-json)"
+            echo "SANTO_PROD_ROUTE $path HTTP=$code RESPONSE_CODE=$error"
+          done

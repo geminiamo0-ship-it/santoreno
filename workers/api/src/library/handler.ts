@@ -21,17 +21,22 @@ function error(code: string, status: number): Response {
 const HEADERS = { "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff" };
 export function createLibraryReaderHandler(deps: LibraryReaderDependencies = {}) {
   return async (request: Request, env: SantoBindings): Promise<Response> => {
-    if (env.SANTO_ENV !== "staging" || env.SANTO_LIBRARY_READER_V1 !== "true") {
+    if (
+      (env.SANTO_ENV !== "staging" && env.SANTO_ENV !== "production") ||
+      env.SANTO_LIBRARY_READER_V1 !== "true"
+    ) {
       return error("LIBRARY_NOT_FOUND", 404);
     }
     const url = new URL(request.url);
     const path = url.pathname;
     const catalog = path === "/v1/libraries";
     const citation = path === "/v1/sources/article";
+    const imageBatch = path === "/v1/sources/article-images/batch";
     const listed = /^\/v1\/libraries\/([^/]+)\/articles$/.exec(path);
     const detail = /^\/v1\/libraries\/([^/]+)\/articles\/([^/]+)$/.exec(path);
-    if (!catalog && !citation && !listed && !detail) return error("LIBRARY_NOT_FOUND", 404);
-    if (citation ? request.method !== "POST" : request.method !== "GET") {
+    if (!catalog && !citation && !imageBatch && !listed && !detail)
+      return error("LIBRARY_NOT_FOUND", 404);
+    if (citation || imageBatch ? request.method !== "POST" : request.method !== "GET") {
       return error("METHOD_NOT_ALLOWED", 405);
     }
     try {
@@ -63,6 +68,11 @@ export function createLibraryReaderHandler(deps: LibraryReaderDependencies = {})
           : null;
       if (!service) throw new LibraryReaderError(503, "LIBRARY_UNAVAILABLE");
       if (catalog) return Response.json(await service.catalog(), { headers: HEADERS });
+      if (imageBatch)
+        return Response.json(
+          await service.batchImages(session, await request.json().catch(() => null)),
+          { headers: HEADERS },
+        );
       if (citation)
         return Response.json(
           await service.fromCitation(session, await request.json().catch(() => null)),

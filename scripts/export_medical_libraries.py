@@ -4,15 +4,16 @@ No network access, public publishing, source code copies or private credentials.
 Usage: python scripts/export_medical_libraries.py --db all_libraries.sqlite --out ./export
 """
 import argparse
+import base64
+import gzip
 import html
 from html.parser import HTMLParser
 import json
 from pathlib import Path
 import re
 import sqlite3
-from urllib.parse import quote, unquote
 
-MEDIA = "https://pub-2a81f2cb19cc4473a3d076e657af6121.r2.dev"
+from medical_article_html import MEDIA, media_url, sanitize_medical_html
 LIB = {
     "amboss": "amboss", "usmle": "usmle", "1exam_notes": "one-examination",
     "passmedicine": "passmedicine", "pm_diagrams": "passmedicine",
@@ -21,17 +22,6 @@ LIB = {
 }
 NAME = {"amboss": "AMBOSS", "usmle": "USMLE", "one-examination": "One Examination",
         "passmedicine": "PassMedicine", "pastest": "Pastest"}
-
-def media_url(value):
-    src = html.unescape(value or "").strip().lstrip("/")
-    if not src.startswith("offline_media/") or any(x in src for x in ("?", "#", "\\", "\x00")):
-        return None
-    filename = unquote(src.removeprefix("offline_media/"))
-    if not re.fullmatch(r"[A-Za-z0-9_.+ -]{1,180}", filename) or ".." in filename:
-        return None
-    if Path(filename).suffix.lower() not in (".png", ".jpg", ".jpeg", ".webp", ".gif"):
-        return None
-    return MEDIA + "/offline_media/" + quote(filename, safe=".-_+")
 
 class TextSections(HTMLParser):
     """Never forward HTML, scripts, svg, interactive frames or embedded code."""
@@ -114,6 +104,7 @@ def main(db_path,out_path,limit):
             article_id=re.sub("[^a-z0-9-]","-",f'{table.removeprefix("library_").replace("_","-")}-{ident}'.lower())[:90]
             title=" ".join((name or "Untitled").split())[:500]
             category=" ".join((category or "").split())[:300]
+            rich_html=sanitize_medical_html(raw or "")
             parsed=TextSections();parsed.feed(raw or "")
             sections=[]
             for part in parsed.finish():
@@ -122,7 +113,20 @@ def main(db_path,out_path,limit):
                     sections.append({"id":sid,**section})
             if len(sections)>300:raise ValueError(f"Too many sections in {article_id}")
             article={"schemaVersion":1,"libraryId":library,"articleId":article_id,
-                     "title":title,"category":category,"source":source,"sections":sections}
+                     "title":title,"category":category,"source":source,"sections":sections,
+                     }
+            # Keep every article, including the 19 jumbo AMBOSS HTML pages.
+            # A 1.5M-character plain field is preferred; GZIP+base64 is a
+            # backward-compatible alternative that preserves the whole markup.
+            if len(rich_html) <= 1_500_000:
+                article["contentHtml"] = rich_html
+            if "contentHtml" not in article or len(json.dumps(article, ensure_ascii=False).encode("utf-8")) > 2_000_000:
+                article.pop("contentHtml", None)
+                article["contentHtmlGzipBase64"] = base64.b64encode(
+                    gzip.compress(rich_html.encode("utf-8"), compresslevel=6)
+                ).decode("ascii")
+                article["contentHtmlDecodedLength"] = len(rich_html)
+
             target=out/f"medical-articles/v1/{library}/{article_id}.json"
             save(target,article)
             if target.stat().st_size>2_000_000:raise ValueError(f"Article too large: {article_id}")

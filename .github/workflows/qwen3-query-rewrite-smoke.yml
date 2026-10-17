@@ -1,0 +1,36 @@
+name: Qwen3 Medical Query Rewrite Live Smoke
+
+on:
+  pull_request:
+    branches:
+      - release/santo-medical-rich-prod-candidate-20261014
+    paths:
+      - scripts/qwen3-query-rewrite-smoke.mjs
+      - workers/api/src/ai/medical-query-rewrite.ts
+      - .github/workflows/qwen3-query-rewrite-smoke.yml
+  push:
+    branches:
+      - release/santo-medical-rich-prod-candidate-20261014
+    paths:
+      - scripts/qwen3-query-rewrite-smoke.mjs
+      - workers/api/src/ai/medical-query-rewrite.ts
+      - .github/workflows/qwen3-query-rewrite-smoke.yml
+
+permissions:
+  contents: read
+
+jobs:
+  qwen3-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --check scripts/qwen3-query-rewrite-smoke.mjs
+      - name: Five safe synthetic questions through actual Cloudflare Qwen3 Workers AI
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: node scripts/qwen3-query-rewrite-smoke.mjs

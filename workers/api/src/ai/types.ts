@@ -13,19 +13,29 @@ export interface RetrievedEvidence {
 export interface RetrievalRequest {
   query: string;
   libraryId: string | null;
+  /** Validated single-Qwen medical search query; avoids calling Qwen twice. */
+  preparedQuery?: string;
 }
 
 export interface RetrievalPort {
   retrieve(request: RetrievalRequest): Promise<RetrievedEvidence[]>;
+  /** Optional staging-only Qwen route; all other adapters remain unchanged. */
+  route?(request: RetrievalRequest): Promise<import("./medical-query-rewrite").MedicalRoute>;
 }
 
 export interface GroundedModelDraft {
   answer: string;
   citationIds: string[];
+  /** Staging Markdown: no inline citation is implied by related library sources. */
+  sourcePresentation?: "related" | "none";
 }
 
 export interface ModelPort {
-  generate(prompt: string): Promise<GroundedModelDraft>;
+  generate(
+    prompt: string,
+    onProvisionalAnswer?: (text: string) => void,
+    allowedCitationIds?: readonly string[],
+  ): Promise<GroundedModelDraft>;
 }
 
 export interface AiTelemetryEvent {
@@ -35,6 +45,12 @@ export interface AiTelemetryEvent {
   status: "success" | "failure";
   latencyMs: number;
   errorCode: string | null;
+  failureStage?: string;
+  responseFormat?: "json" | "markdown";
+  retrievedSourceCount?: number;
+  validCitationCount?: number;
+  outputChars?: number;
+  sourcePresentation?: "inline" | "related";
 }
 
 export interface AiTelemetryPort {

@@ -1,0 +1,33 @@
+name: One-Time Production Workflow Format
+on:
+  push:
+    branches: [release/santo-medical-rich-prod-candidate-20261014]
+    paths: [.github/workflows/format-production-workflows-once.yml]
+permissions:
+  contents: write
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: release/santo-medical-rich-prod-candidate-20261014
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec prettier --write .github/workflows/santo-prod-index-secret-audit-once.yml .github/workflows/santo-production-launch-once.yml
+      - name: Commit format without changing runtime behavior
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/workflows/santo-prod-index-secret-audit-once.yml .github/workflows/santo-production-launch-once.yml
+          if ! git diff --cached --quiet; then
+            git commit -m "style(prod): format production release workflows"
+            git push origin HEAD:release/santo-medical-rich-prod-candidate-20261014
+          fi

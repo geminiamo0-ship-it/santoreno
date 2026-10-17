@@ -7,8 +7,14 @@ import {
   LibraryArticleListResponseSchema,
   SourceArticleRequestSchema,
   SourceArticleResponseSchema,
+  BatchSourceImagesRequestSchema,
+  BatchSourceImagesResponseSchema,
 } from "@santo/contracts/library-reader";
-import type { LibraryArticle, SourceArticleResponse } from "@santo/contracts/library-reader";
+import type {
+  LibraryArticle,
+  SourceArticleResponse,
+  BatchSourceImagesResponse,
+} from "@santo/contracts/library-reader";
 import { GroundedAiLibraryIdSchema } from "@santo/contracts/ai";
 import type { R2BucketLike } from "../runtime/bindings";
 import { R2VerifiedSourceStore } from "../sources/store";
@@ -108,6 +114,72 @@ export class LibraryReaderService {
     }
     return parsed.data;
   }
+  /**
+   * Authorize one message snapshot once, then fetch up to five original articles
+   * concurrently. Only image metadata is returned. No unverified source ID,
+   * tenant, URL or article selector from the browser is ever trusted.
+   */
+  async batchImages(
+    session: SessionContextResponse,
+    raw: unknown,
+  ): Promise<BatchSourceImagesResponse> {
+    const request = BatchSourceImagesRequestSchema.safeParse(raw);
+    if (!request.success) throw new LibraryReaderError(400, "INVALID_LIBRARY_REQUEST");
+    const messageId = request.data.messageId;
+    const sources = await this.snapshots.load({ ...session, messageId });
+    const selected = request.data.sourceIds
+      .map((id) => {
+        const source = sources.find((item) => item.sourceId === id);
+        if (!source) throw new LibraryReaderError(404, "LIBRARY_NOT_FOUND");
+        const match = ITEM_KEY.exec(source.itemKey);
+        if (!match || match[1] !== source.libraryId) return null;
+        return { sourceId: id, libraryId: match[1]!, articleId: match[2]!, sectionId: match[3]! };
+      })
+      .filter((item): item is NonNullable<typeof item> => item !== null);
+
+    // A single cited article may contribute multiple cited sections. Fetch it
+    // only once and preserve the explicit highlighted section for each citation.
+    const articles = new Map<string, Promise<LibraryArticle>>();
+    const items = await Promise.all(
+      selected.map(async (entry) => {
+        const key = entry.libraryId + "/" + entry.articleId;
+        let articlePromise = articles.get(key);
+        if (!articlePromise) {
+          articlePromise = this.article(entry.libraryId, entry.articleId);
+          articles.set(key, articlePromise);
+        }
+        try {
+          const article = await articlePromise;
+          const cited = article.sections.find((section) => section.id === entry.sectionId);
+          if (!cited) return null;
+          const ordered = [cited, ...article.sections.filter((section) => section.id !== cited.id)];
+          let count = 0;
+          const sections: BatchSourceImagesResponse["items"][number]["sections"] = [];
+          for (const section of ordered) {
+            if (count >= 24 || sections.length >= 24) break;
+            if (!section.images.length) continue;
+            const images = section.images.slice(0, 24 - count);
+            sections.push({
+              heading: section.heading,
+              citedSection: section.id === cited.id,
+              images,
+            });
+            count += images.length;
+          }
+          return { sourceId: entry.sourceId, articleTitle: article.title, sections };
+        } catch (error) {
+          // Missing/unimported article objects are not fabricated; another
+          // verified citation may still have useful pictures.
+          if (error instanceof LibraryReaderError && error.status === 404) return null;
+          throw error;
+        }
+      }),
+    );
+    return BatchSourceImagesResponseSchema.parse({
+      items: items.filter((item): item is NonNullable<typeof item> => item !== null),
+    });
+  }
+
   /** Citation link is derived exclusively from the validated historical source snapshot. */
   async fromCitation(
     session: SessionContextResponse,

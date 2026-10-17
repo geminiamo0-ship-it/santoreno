@@ -237,6 +237,249 @@ describe("grounded AI handler", () => {
     });
   }
 
+  it("answers unambiguous CHAT from Qwen without invoking Luna, retrieval or source snapshots", async () => {
+    env.SANTO_ENV = "staging";
+    env.SANTO_QWEN_ROUTING_V1 = "true";
+    retrieval.route = vi.fn(async () => ({ intent: "chat" as const, answer: "Hello from Qwen!" }));
+    retrieval.retrieve = vi.fn(async () => {
+      throw new Error("medical retrieval must not run");
+    });
+    const save = vi.fn(async () => undefined);
+    const response = await handler({ save })(request(token, "social-1", "Hi"), env);
+    expect(response.status).toBe(200);
+    const payload = await response.json();
+    expect(payload.answer).toBe("Hello from Qwen!");
+    expect(payload.citations).toEqual([]);
+    expect(payload.groundingMode).toBe("general");
+    expect(quota.reserveCalls).toBe(1);
+    expect(quota.finalizeCalls).toBe(1);
+    expect(quota.releaseCalls).toBe(0);
+    expect(retrieval.retrieve).not.toHaveBeenCalled();
+    expect(model.generate).not.toHaveBeenCalled();
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  it("persistently finalizes a Qwen CLARIFY question without Luna or medical retrieval", async () => {
+    env.SANTO_ENV = "staging";
+    env.SANTO_QWEN_ROUTING_V1 = "true";
+    retrieval.route = vi.fn(async () => ({
+      intent: "clarify" as const,
+      question: "Do you mean diagnosis or treatment?",
+    }));
+    retrieval.retrieve = vi.fn(async () => {
+      throw new Error("retrieval must wait for clarification");
+    });
+    const save = vi.fn(async () => undefined);
+    const response = await handler({ save })(request(token, "clarify-1", "ttt?"), env);
+    expect(response.status).toBe(200);
+    const payload = await response.json();
+    expect(payload.answer).toBe("Do you mean diagnosis or treatment?");
+    expect(payload.citations).toEqual([]);
+    expect(payload.groundingMode).toBe("general");
+    expect(quota.reserveCalls).toBe(1);
+    expect(quota.finalizeCalls).toBe(1);
+    expect(retrieval.retrieve).not.toHaveBeenCalled();
+    expect(model.generate).not.toHaveBeenCalled();
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  it("uses Qwen's prepared MEDICAL query without a second rewrite and preserves citation verification", async () => {
+    env.SANTO_ENV = "staging";
+    env.SANTO_QWEN_ROUTING_V1 = "true";
+    retrieval.route = vi.fn(async () => ({
+      intent: "medical" as const,
+      searchQuery: "aortic stenosis diagnosis",
+    }));
+    const response = await handler()(request(token, "medical-1", "تشخيص ضيق الصمام"), env);
+    expect(response.status).toBe(200);
+    expect(retrieval.route).toHaveBeenCalledTimes(1);
+    expect(retrieval.retrieve).toHaveBeenCalledWith({
+      query: "تشخيص ضيق الصمام",
+      libraryId: null,
+      preparedQuery: "aortic stenosis diagnosis",
+    });
+    expect(model.generate).toHaveBeenCalledTimes(1);
+    const payload = await response.json();
+    expect(payload.citations).toHaveLength(1);
+    expect(quota.finalizeCalls).toBe(1);
+  });
+
+  it("passes one consistent sourced Markdown contract to staging Luna", async () => {
+    env.SANTO_ENV = "staging";
+    env.SANTO_LUNA_PREVIEW = "true";
+    env.SANTO_SINGLE_PASS_GENERATION_V1 = "true";
+    env.SANTO_PLAIN_TEXT_LUNA_V1 = "true";
+    model.generate = vi.fn(async () => ({
+      answer: "The provided medical evidence supports this answer.",
+      citationIds: [SOURCE_ID],
+    }));
+    const response = await handler()(request(token), env);
+    expect(response.status).toBe(200);
+    expect(model.generate).toHaveBeenCalledTimes(1);
+    const prompt = vi.mocked(model.generate).mock.calls[0]?.[0] as string;
+    expect(prompt).toContain("OUTPUT CONTRACT: Write the teaching response directly in Markdown");
+    expect(prompt).toContain("using [[N]]");
+    expect(prompt).not.toContain("Return JSON only");
+    expect(prompt).not.toContain("citation_ids");
+    expect(quota.finalizeCalls).toBe(1);
+  });
+
+  it("sends real source HTML figure metadata to Luna and renders selected image IDs inline", async () => {
+    env.SANTO_ENV = "staging";
+    env.SANTO_LUNA_PREVIEW = "true";
+    env.SANTO_SINGLE_PASS_GENERATION_V1 = "true";
+    env.SANTO_PLAIN_TEXT_LUNA_V1 = "true";
+    env.SANTO_LUNA_RICH_IMAGES_V1 = "true";
+    const media = "https://pub-2a81f2cb19cc4473a3d076e657af6121.r2.dev/offline_media/valve.png";
+    const sourceId = "amboss:chunk-valve";
+    const article = {
+      schemaVersion: 1,
+      libraryId: "amboss",
+      articleId: "aortic-stenosis",
+      title: "Aortic stenosis",
+      category: "Cardiology",
+      source: "AMBOSS",
+      sections: [
+        {
+          id: "s-0001",
+          heading: "Diagnosis",
+          text: "Doppler measures valve gradients",
+          images: [{ src: media, alt: "Aortic valve Doppler" }],
+        },
+      ],
+      contentHtml:
+        '<h2>Diagnosis</h2><figure><img id="echo-7" src="' +
+        media +
+        '" alt="Doppler"><figcaption>Continuous wave Doppler across stenotic valve</figcaption></figure>',
+    };
+    const get = vi.fn(async (key: string) =>
+      key === "medical-articles/v1/amboss/aortic-stenosis.json"
+        ? { text: async () => JSON.stringify(article) }
+        : null,
+    );
+    env.CONTENT_BUCKET = { get, put: async () => undefined, delete: async () => undefined };
+    retrieval.retrieve = vi.fn(async () => [
+      {
+        sourceId,
+        libraryId: "amboss",
+        instanceId: "amboss",
+        itemKey: "medical-search/v1/amboss/aortic-stenosis/s-0001.md",
+        title: "Aortic stenosis",
+        section: "Diagnosis",
+        text: "Doppler echocardiography",
+        page: null,
+        score: 0.94,
+      },
+    ]);
+    model.generate = vi.fn(async () => ({
+      answer: "## Diagnosis\nDoppler confirms valve obstruction [[1]].\n\n[[IMG_001]]",
+      citationIds: [sourceId],
+    }));
+    const save = vi.fn(async () => undefined);
+    const output = await handler({ save })(
+      request(token, "valve-image", "Aortic stenosis echo"),
+      env,
+    );
+    expect(output.status).toBe(200);
+    const body = await output.json();
+    expect(body.answer).toContain(
+      "![Continuous wave Doppler across stenotic valve](" + media + ")",
+    );
+    expect(body.answer).toContain("Source: Aortic stenosis — Diagnosis");
+    expect(body.answer).not.toContain("[[IMG_001]]");
+    expect(body.citations).toMatchObject([{ sourceId }]);
+    expect(get).toHaveBeenCalledWith("medical-articles/v1/amboss/aortic-stenosis.json");
+    expect(model.generate).toHaveBeenCalledTimes(1);
+    const prompt = vi.mocked(model.generate).mock.calls[0]![0] as string;
+    expect(prompt).toContain("AVAILABLE_ORIGINAL_ARTICLE_IMAGES");
+    expect(prompt).toContain("Continuous wave Doppler across stenotic valve");
+    expect(prompt).toContain("echo-7");
+    expect(prompt).toContain("IMG_001");
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(quota.finalizeCalls).toBe(1);
+  });
+
+  it("passes an uncited Markdown contract to staging when retrieval is empty", async () => {
+    env.SANTO_ENV = "staging";
+    env.SANTO_LUNA_PREVIEW = "true";
+    env.SANTO_SINGLE_PASS_GENERATION_V1 = "true";
+    env.SANTO_PLAIN_TEXT_LUNA_V1 = "true";
+    env.SANTO_GENERAL_MEDICAL_FALLBACK = "true";
+    retrieval.retrieve = vi.fn(async () => []);
+    model.generate = vi.fn(async () => ({
+      answer: "General medical education without library citations.",
+      citationIds: [],
+    }));
+    const response = await handler()(request(token), env);
+    expect(response.status).toBe(200);
+    expect(model.generate).toHaveBeenCalledTimes(1);
+    const prompt = vi.mocked(model.generate).mock.calls[0]?.[0] as string;
+    expect(prompt).toContain("Write the medical education answer directly in Markdown");
+    expect(prompt).not.toContain("Return exactly valid JSON");
+    expect(prompt).not.toContain("citation_ids");
+    expect(quota.finalizeCalls).toBe(1);
+  });
+
+  it("preserves the JSON contract for non-Luna production models", async () => {
+    env.SANTO_ENV = "production";
+    env.SANTO_PLAIN_TEXT_LUNA_V1 = "true";
+    model.generate = vi.fn(async () => ({
+      answer: "Clinical answer supported by the source.",
+      citationIds: [SOURCE_ID],
+    }));
+    const response = await handler()(request(token), env);
+    expect(response.status).toBe(200);
+    const prompt = vi.mocked(model.generate).mock.calls[0]?.[0] as string;
+    expect(prompt).toContain("Return JSON only");
+    expect(prompt).toContain("citation_ids");
+  });
+
+  it("keeps completed Luna teaching without pretending retrieved articles were used", async () => {
+    env.SANTO_ENV = "staging";
+    env.SANTO_LUNA_PREVIEW = "true";
+    env.SANTO_SINGLE_PASS_GENERATION_V1 = "true";
+    env.SANTO_PLAIN_TEXT_LUNA_V1 = "true";
+    model.generate = vi.fn(async () => ({
+      answer: "Aortic stenosis can require valve replacement.",
+      citationIds: [],
+      sourcePresentation: "related" as const,
+    }));
+    const save = vi.fn(async () => undefined);
+    const response = await handler({ save })(request(token), env);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      groundingMode: "general",
+      citations: [],
+      usage: { unitsCharged: 1 },
+    });
+    expect(save).not.toHaveBeenCalled();
+    expect(model.generate).toHaveBeenCalledTimes(1);
+    expect(quota.finalizeCalls).toBe(1);
+  });
+
+  it("lets Luna clarify without falsely attaching medical articles", async () => {
+    env.SANTO_ENV = "staging";
+    env.SANTO_LUNA_PREVIEW = "true";
+    env.SANTO_SINGLE_PASS_GENERATION_V1 = "true";
+    env.SANTO_PLAIN_TEXT_LUNA_V1 = "true";
+    model.generate = vi.fn(async () => ({
+      answer: "What condition do you mean?",
+      citationIds: [],
+      sourcePresentation: "none" as const,
+    }));
+    const save = vi.fn(async () => undefined);
+    const response = await handler({ save })(request(token), env);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      groundingMode: "general",
+      citations: [],
+      usage: { unitsCharged: 1 },
+    });
+    expect(save).not.toHaveBeenCalled();
+    expect(model.generate).toHaveBeenCalledTimes(1);
+    expect(quota.finalizeCalls).toBe(1);
+  });
+
   it("saves only verified citation metadata before finalizing quota", async () => {
     const save = vi.fn(async () => undefined);
     const response = await handler({ save })(request(token), env);
@@ -380,6 +623,56 @@ describe("grounded AI handler", () => {
     });
     expect(model.generate).toHaveBeenCalledTimes(2);
     expect(quota.finalizeCalls).toBe(1);
+  });
+
+  it("staging cost guard makes no second paid model call after an insufficient-evidence response", async () => {
+    env.SANTO_ENV = "staging";
+    env.SANTO_SINGLE_PASS_GENERATION_V1 = "true";
+    env.SANTO_GENERAL_MEDICAL_FALLBACK = "true";
+    model.generate = vi.fn(async () => ({
+      answer: "INSUFFICIENT_EVIDENCE",
+      citationIds: [],
+    }));
+    const response = await handler()(request(token), env);
+    expect(response.status).toBe(422);
+    expect(await response.json()).toEqual({ error: "INSUFFICIENT_EVIDENCE" });
+    expect(model.generate).toHaveBeenCalledTimes(1);
+    expect(quota.finalizeCalls).toBe(0);
+    expect(quota.releaseCalls).toBe(1);
+    expect(quota.used).toBe(0);
+  });
+
+  it("staging cost guard still answers with one general-model request when retrieval is empty", async () => {
+    env.SANTO_ENV = "staging";
+    env.SANTO_SINGLE_PASS_GENERATION_V1 = "true";
+    env.SANTO_GENERAL_MEDICAL_FALLBACK = "true";
+    retrieval.retrieve = vi.fn(async () => []);
+    model.generate = vi.fn(async () => ({
+      answer: "A safe, explicitly uncited medical teaching answer.",
+      citationIds: [],
+    }));
+    const response = await handler()(request(token), env);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      groundingMode: "general",
+      citations: [],
+      usage: { unitsCharged: 1 },
+    });
+    expect(model.generate).toHaveBeenCalledTimes(1);
+    expect(quota.finalizeCalls).toBe(1);
+  });
+
+  it("production never enables staging-only cost guard even if the variable is supplied", async () => {
+    env.SANTO_ENV = "production";
+    env.SANTO_SINGLE_PASS_GENERATION_V1 = "true";
+    env.SANTO_GENERAL_MEDICAL_FALLBACK = "true";
+    model.generate = vi
+      .fn()
+      .mockResolvedValueOnce({ answer: "INSUFFICIENT_EVIDENCE", citationIds: [] })
+      .mockResolvedValueOnce({ answer: "Legacy production general response", citationIds: [] });
+    const response = await handler()(request(token), env);
+    expect(response.status).toBe(200);
+    expect(model.generate).toHaveBeenCalledTimes(2);
   });
 
   it("never turns retrieval outages into uncited medical assertions", async () => {

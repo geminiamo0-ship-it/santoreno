@@ -1,0 +1,78 @@
+name: Santo Gallery Index Provision Staging
+on:
+  push:
+    branches:
+      - feat/santo-gallery-sixth-search-staging-20261017
+    paths:
+      - .github/workflows/santo-gallery-index-provision-staging.yml
+permissions:
+  contents: read
+  checks: read
+concurrency:
+  group: santo-gallery-index-provision-staging
+  cancel-in-progress: false
+jobs:
+  index-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 70
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify exact feature SHA passed candidate checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 150); do
+            checks="$(gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/check-runs")"
+            status="$(jq -r '[.check_runs[] | select(.name=="candidate-verify") | .conclusion] | map(select(.!=null)) | .[0] // ""' <<<"$checks")"
+            [[ "$status" == success ]] && { echo 'Gallery candidate CI passed'; exit 0; }
+            case "$status" in failure|cancelled|timed_out|action_required|startup_failure) exit 1;; esac
+            sleep 10
+          done
+          echo 'Gallery candidate Verify timed out'; exit 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install pinned downloader and HTTP library
+        run: python -m pip install 'gdown==5.2.0' 'requests==2.32.3'
+      - name: Download original ZIP from owner Drive and SHA-check
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import gdown,os,pathlib
+          path=pathlib.Path(os.environ['RUNNER_TEMP'])/'santo_medical_images.zip'
+          done=gdown.download(id='1ZR-EGLrKS4szarRqZ8wfuhp_EQqUI2u3',output=str(path),quiet=False)
+          if not done or not path.exists(): raise SystemExit('Original dataset ZIP unavailable')
+          PY
+          echo 'fa469888c75cec9880bc0af2b2423115ff848d9b74d72563b310f09db0e2e2e5  '"$RUNNER_TEMP"'/santo_medical_images.zip' | sha256sum --check
+      - name: Index exactly 3295 image text records in isolated sixth instance
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/ingest_santo_medical_gallery.py --archive "$RUNNER_TEMP/santo_medical_images.zip" --output "$RUNNER_TEMP/santo-gallery" --execute
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pinned Wrangler
+        run: |
+          corepack enable
+          pnpm install --frozen-lockfile
+      - name: Persist image manifest to Staging R2 and verify byte readback
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm exec wrangler r2 object put santo-content-staging/gallery/v1/santo_image_manifest.json --file "$RUNNER_TEMP/santo-gallery/manifest.json" --remote
+          pnpm exec wrangler r2 object get santo-content-staging/gallery/v1/santo_image_manifest.json --file "$RUNNER_TEMP/santo-gallery/readback.json" --remote
+          cmp "$RUNNER_TEMP/santo-gallery/manifest.json" "$RUNNER_TEMP/santo-gallery/readback.json"
+          {
+            echo '## Medical gallery index, staging only'
+            echo '- Exact source archive verified: 3295 individual JSON documents.'
+            echo '- New isolated AI Search instance: santo-medical-images.'
+            echo '- Index stats and clinical image retrieval smokes passed.'
+            echo '- Gallery-only manifest written to Staging R2.'
+            echo '- No Worker deployed; no existing five clinical indexes touched.'
+          } >> "$GITHUB_STEP_SUMMARY"

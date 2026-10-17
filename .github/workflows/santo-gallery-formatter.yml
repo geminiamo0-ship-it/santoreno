@@ -19,23 +19,10 @@ jobs:
           node-version: 22
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
-      - name: Format candidate only
+      - name: Format status and retained gallery code
         run: |
-          pnpm exec prettier --write .github/workflows/santo-medical-gallery-staging.yml PROJECT_STATUS.md workers/api/src/ai/handler.ts workers/api/src/ai/image-gallery.ts workers/api/src/ai/image-gallery.test.ts workers/api/src/ai/service.ts workers/api/src/ai/retrieval.ts workers/api/src/ai/retrieval.test.ts
-          pnpm exec prettier --write .github/workflows/santo-gallery-readonly-diagnostic.yml .github/workflows/santo-gallery-scoped-repair.yml .github/workflows/santo-gallery-finalize-staging.yml
-          for file in santo-gallery-readonly-diagnostic.yml santo-gallery-scoped-repair.yml santo-gallery-finalize-staging.yml; do
-            echo "BEGIN_FORMATTED_${file}"
-            cat ".github/workflows/$file"
-            echo "END_FORMATTED_${file}"
-          done
-          pnpm exec prettier --write .github/workflows/santo-gallery-index-provision-staging.yml
-          echo "BEGIN_FORMATTED_INDEX_YAML"
-          cat .github/workflows/santo-gallery-index-provision-staging.yml
-          echo "END_FORMATTED_INDEX_YAML"
-          echo "BEGIN_FORMATTED_STAGING_YAML"
-          cat .github/workflows/santo-medical-gallery-staging.yml
-          echo "END_FORMATTED_STAGING_YAML"
-      - name: Commit format to feature branch only
+          pnpm exec prettier --write PROJECT_STATUS.md workers/api/src/ai/handler.ts workers/api/src/ai/image-gallery.ts workers/api/src/ai/image-gallery.test.ts workers/api/src/ai/service.ts workers/api/src/ai/retrieval.ts workers/api/src/ai/retrieval.test.ts
+      - name: Commit formatting only to gallery feature branch
         shell: bash
         run: |
           set -euo pipefail
@@ -43,6 +30,6 @@ jobs:
           if ! git diff --cached --quiet; then
             git config user.name 'github-actions[bot]'
             git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-            git commit -m 'style(staging): format sixth gallery search candidate'
+            git commit -m 'style(staging): format sixth image search and project handoff'
             git push origin HEAD:feat/santo-gallery-sixth-search-staging-20261017
           fi

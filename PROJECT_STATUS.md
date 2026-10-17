@@ -6,11 +6,11 @@
 >
 > **Rule:** GitHub code, issues, PRs, commits, and Actions are the source of truth. Update this file whenever meaningful work completes, a gate passes/fails, architecture changes, or the active issue changes.
 
-### Luna 3,000 output-token cap — Staging candidate (17 Oct 2026, Issue #148)
+### Luna 3,000 output-token cap — Staging deployed (17 Oct 2026, Issue #148)
 
 - User requested to test a **3,000 output-token ceiling** for GPT-6 Luna on Santo Staging. The provider `max_output_tokens` limits generated output **only**, not total input+output tokens or AI Gateway request usage. It includes citation markers, image markers and structured response envelope.
 - Update only the `CloudflareLunaModel` Staging-only code constant from 10,000 to 3,000 and both Markdown/JSON instructions to favor complete, concise clinical answers before the limit. Preserve single-pass, source validation/images, Qwen rewrite and single-request medical RAG, quota/ConversationDO and all existing indexes/R2. Legacy production Workers AI `maxTokens: 5000` remains unchanged.
-- **Status:** candidate isolated in PR for exact-head Verify, post-merge Verify and Staging Worker deployment. Authenticated long-answer completeness, first-token latency and billable input/output-token costs remain unverified pending real Staging review. Rollback by reverting cap to 10,000.
+- **Verified Staging deployment:** PR #149 merged as `8486ff9d169c2bcf520a23e9511dbe15928798bb`; exact-head Verify `39054274210`, post-merge Verify and independent Granite/importer checks all passed. Cloudflare Staging Worker deployed successfully in [run 39054345078](https://github.com/geminiamo0-ship-it/santoreno/actions/runs/39054345078), including health and unauthenticated 401 deny smoke. Production and content indexes unchanged. Authenticated long-answer completeness, citation/image quality, first-token latency and actual billable input/output-token costs remain **unverified** pending real Staging review. Rollback by reverting cap to 10,000.
 
 ### Single-request multi-instance AI Search — Staging deployed (17 Oct 2026, Issue #145)
 

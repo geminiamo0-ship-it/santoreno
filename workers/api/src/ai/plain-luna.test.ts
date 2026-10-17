@@ -132,7 +132,8 @@ describe("staging single-pass plain-Luna citation contract", () => {
     };
     expect(payload.text).toBeUndefined();
     expect(payload.stream).toBe(true);
-    expect(payload.max_output_tokens).toBe(10_000);
+    expect(payload.max_output_tokens).toBe(3_000);
+    expect(payload.instructions).toContain("3,000 output tokens");
     expect(payload.instructions).toContain("Respond in readable Markdown, never JSON");
     expect(payload.instructions).toContain("AVAILABLE_ORIGINAL_ARTICLE_IMAGES");
     expect(payload.instructions).toContain("safe image-placement requests");

@@ -16,6 +16,8 @@ const MAX_RESULTS = 5;
 const PER_LIBRARY_CANDIDATES = 3;
 const V2_PER_LIBRARY_CANDIDATES = 24;
 const V2_EXPANDED_CANDIDATES = 40;
+// Single namespace request: return a broad Cloudflare-ranked pool, then send only five original articles to Luna.
+const MERGED_SEARCH_CANDIDATES = 25;
 const MATCH_THRESHOLD = 0.4;
 const MAX_CHUNK_CHARS = 5000;
 
@@ -175,6 +177,7 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
     private readonly medicalQueryRewriteV1 = false,
     private readonly smallQueryModel?: WorkersAiLike,
     private readonly intentRoutingV1 = false,
+    private readonly singleMultiInstanceSearchV1 = false,
   ) {
     this.catalog = catalog ?? new AiSearchNamespaceLibraryCatalog(namespace);
   }
@@ -206,7 +209,9 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
       const [catalog, searchQuery] = await Promise.all([catalogPromise, queryPromise]);
       const selectedLibraries = selectLibraries(catalog, request.libraryId);
       if (this.medicalRetrievalV2) {
-        return await this.retrieveMedicalV2(currentTopicQuery, selectedLibraries, searchQuery);
+        return this.singleMultiInstanceSearchV1
+          ? await this.retrieveSingleMultiInstance(currentTopicQuery, selectedLibraries, searchQuery)
+          : await this.retrieveMedicalV2(currentTopicQuery, selectedLibraries, searchQuery);
       }
       // Query each index concurrently. Asking a single global top-5 search
       // routinely hides smaller libraries, even when their evidence is relevant.
@@ -239,6 +244,44 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
       }
       throw new GroundedAiError(502, "SEARCH_FAILED", "AI Search request failed");
     }
+  }
+
+  /**
+   * Staging opt-in: one Cloudflare namespace search, across the exact allowed indexes.
+   * Do not retry, fan out, or treat partial per-index failures as empty evidence.
+   * Cloudflare owns the merged reranking order; retain real source identities and
+   * choose up to five distinct original articles for the unchanged Luna prompt.
+   */
+  private async retrieveSingleMultiInstance(
+    query: string,
+    libraries: readonly LibraryCatalogEntry[],
+    searchQuery: string,
+  ): Promise<RetrievedEvidence[]> {
+    const response = await this.namespace!.search({
+      query: searchQuery,
+      ai_search_options: {
+        instance_ids: libraries.map((library) => library.instanceId),
+        retrieval: {
+          retrieval_type: "hybrid",
+          match_threshold: MATCH_THRESHOLD,
+          max_num_results: MERGED_SEARCH_CANDIDATES,
+          return_on_failure: true,
+          fusion_method: "rrf",
+        },
+        reranking: {
+          enabled: true,
+          model: "@cf/baai/bge-reranker-base",
+        },
+        query_rewrite: { enabled: false },
+      },
+    });
+    const result = asRecord(response);
+    if (Array.isArray(result?.errors) && result.errors.length > 0) {
+      throw new GroundedAiError(502, "SEARCH_FAILED", "Multi-instance search partially failed");
+    }
+    const candidates = evidenceFromSearch(response, libraries, MERGED_SEARCH_CANDIDATES)
+      .map((evidence, position) => ({ evidence, position }));
+    return rankMedicalCandidates(query, candidates, MAX_RESULTS);
   }
 
   /**

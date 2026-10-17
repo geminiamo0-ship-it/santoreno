@@ -87,7 +87,7 @@ describe("deterministic grounded prompt builder", () => {
       expect(prompt).toContain(
         "cause → physiological effect → observable finding → clinical significance",
       );
-      expect(prompt).toContain("do not force the same six-part outline");
+      expect(prompt).toContain("Do not force the same six-part outline");
       expect(prompt).toContain("do not carry previous-topic citations, mechanisms, or images");
       expect(prompt).toContain("keep sourced claims and general teaching distinguishable");
       expect(prompt).toContain("A trivial factual question can be answered briefly");

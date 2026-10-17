@@ -17,8 +17,20 @@ export interface RetrievalRequest {
   preparedQuery?: string;
 }
 
+export interface GallerySearchHit {
+  imageId: string;
+  score: number;
+}
+
+export interface CombinedSearchResult {
+  evidence: RetrievedEvidence[];
+  galleryHits: GallerySearchHit[];
+}
+
 export interface RetrievalPort {
   retrieve(request: RetrievalRequest): Promise<RetrievedEvidence[]>;
+  /** One Cloudflare namespace request with five evidence indexes and image index. */
+  retrieveWithGallery?(request: RetrievalRequest): Promise<CombinedSearchResult>;
   /** Optional staging-only Qwen route; all other adapters remain unchanged. */
   route?(request: RetrievalRequest): Promise<import("./medical-query-rewrite").MedicalRoute>;
 }

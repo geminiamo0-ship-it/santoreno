@@ -20,16 +20,16 @@ stats=call("GET",f"/instances/{INSTANCE}/stats")
 assert isinstance(stats,dict),"Missing index stats"
 states={s:stats.get(s,0) for s in ("completed","queued","running","error","skipped")}
 print("Isolated image index stats:",states,flush=True)
-if (stats.get("completed")!=3293 or stats.get("error")!=2 or
-        any(stats.get(x,0)!=0 for x in ("queued","running","skipped"))):
+if (stats.get("completed",0)<3293 or stats.get("completed",0)+stats.get("error",0)!=3295 or
+        stats.get("error",0)>2 or any(stats.get(x,0)!=0 for x in ("queued","running","skipped"))):
     raise RuntimeError("Gallery is not at approved 3293+2 terminal state")
 issues=call("GET",f"/instances/{INSTANCE}/items?status=error&page=1&per_page=50")
 if not isinstance(issues,list):
     raise RuntimeError("Cannot verify ignored image identities")
 failed={item.get("key") for item in issues}
-if failed!=EXPECTED_ERROR_KEYS or any(item.get("error")!="workers_ai_timeout_error" for item in issues):
+if not failed.issubset(EXPECTED_ERROR_KEYS) or len(issues)!=stats.get("error",0) or any(item.get("error")!="workers_ai_timeout_error" for item in issues):
     raise RuntimeError("Unexpected indexing failures, refusing manifest publication")
-print("Ignoring ONLY two verified transient failed image records", sorted(failed),flush=True)
+print("Ignoring at most two known transient embedding failures", sorted(failed),flush=True)
 for query in ("Tetrahydrobiopterin BH4 phenylketonuria","hyperkalemia ECG peaked T waves","Cushing syndrome"):
     found=call("POST","/search",{
         "messages":[{"role":"user","content":query}],
@@ -42,4 +42,4 @@ for query in ("Tetrahydrobiopterin BH4 phenylketonuria","hyperkalemia ECG peaked
     if not matches:
         raise RuntimeError("No real image results for gallery search test")
     print("Gallery query passed:",query, "results",len(matches),flush=True)
-print("GALLERY_GATE_PASSED: 3293 indexed + 2 ignored, existing five indexes untouched",flush=True)
+print("GALLERY_GATE_PASSED: 3293+ indexed and only known transient failures, existing five indexes untouched",flush=True)

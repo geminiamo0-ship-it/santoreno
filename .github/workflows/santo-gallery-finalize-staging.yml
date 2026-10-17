@@ -64,8 +64,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          pnpm exec wrangler r2 object put santo-content-staging/gallery/v1/santo_image_manifest.json --file "$RUNNER_TEMP/gallery/manifest.json" --remote
-          pnpm exec wrangler r2 object get santo-content-staging/gallery/v1/santo_image_manifest.json --file "$RUNNER_TEMP/gallery/readback.json" --remote
+          pnpm --dir workers/api exec wrangler r2 object put santo-content-staging/gallery/v1/santo_image_manifest.json --file "$RUNNER_TEMP/gallery/manifest.json" --remote
+          pnpm --dir workers/api exec wrangler r2 object get santo-content-staging/gallery/v1/santo_image_manifest.json --file "$RUNNER_TEMP/gallery/readback.json" --remote
           cmp "$RUNNER_TEMP/gallery/manifest.json" "$RUNNER_TEMP/gallery/readback.json"
       - name: Deploy ONLY Santo Staging Worker with gallery search enabled
         shell: bash

@@ -22,6 +22,9 @@ jobs:
       - name: Format candidate only
         run: |
           pnpm exec prettier --write .github/workflows/santo-medical-gallery-staging.yml PROJECT_STATUS.md workers/api/src/ai/handler.ts workers/api/src/ai/image-gallery.ts workers/api/src/ai/image-gallery.test.ts workers/api/src/ai/service.ts
+          echo "BEGIN_FORMATTED_STAGING_YAML"
+          cat .github/workflows/santo-medical-gallery-staging.yml
+          echo "END_FORMATTED_STAGING_YAML"
       - name: Commit format to feature branch only
         shell: bash
         run: |
@@ -29,7 +32,7 @@ jobs:
           if ! git diff --quiet; then
             git config user.name 'github-actions[bot]'
             git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-            git add .github/workflows/santo-medical-gallery-staging.yml PROJECT_STATUS.md workers/api/src/ai/handler.ts workers/api/src/ai/image-gallery.ts workers/api/src/ai/image-gallery.test.ts workers/api/src/ai/service.ts
+            git add PROJECT_STATUS.md workers/api/src/ai/handler.ts workers/api/src/ai/image-gallery.ts workers/api/src/ai/image-gallery.test.ts workers/api/src/ai/service.ts
             git commit -m 'style(staging): format sixth gallery search candidate'
             git push origin HEAD:feat/santo-gallery-sixth-search-staging-20261017
           fi

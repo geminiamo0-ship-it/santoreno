@@ -25,6 +25,7 @@ const V2_EXPANDED_CANDIDATES = 40;
 // Single namespace request: return a broad Cloudflare-ranked pool, then send only five original articles to Luna.
 const MERGED_SEARCH_CANDIDATES = 25;
 const WITH_GALLERY_MERGED_CANDIDATES = 45;
+// Sixth index participates in the SAME Cloudflare namespace-level search call.
 const IMAGE_SEARCH_INSTANCE = "santo-medical-images";
 const MATCH_THRESHOLD = 0.4;
 const MAX_CHUNK_CHARS = 5000;

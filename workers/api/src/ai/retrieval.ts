@@ -5,7 +5,7 @@ import {
   type LibraryCatalogEntry,
   type LibraryCatalogPort,
 } from "./library-catalog";
-import type { RetrievalPort, RetrievalRequest, RetrievedEvidence } from "./types";
+import type { CombinedSearchResult, GallerySearchHit, RetrievalPort, RetrievalRequest, RetrievedEvidence } from "./types";
 import { focusedSearchQuery } from "./source-relevance";
 import { rankMedicalCandidates, type RankedCandidate } from "./medical-ranking";
 import type { WorkersAiLike } from "../runtime/bindings";
@@ -18,6 +18,8 @@ const V2_PER_LIBRARY_CANDIDATES = 24;
 const V2_EXPANDED_CANDIDATES = 40;
 // Single namespace request: return a broad Cloudflare-ranked pool, then send only five original articles to Luna.
 const MERGED_SEARCH_CANDIDATES = 25;
+const WITH_GALLERY_MERGED_CANDIDATES = 45;
+const IMAGE_SEARCH_INSTANCE = "santo-medical-images";
 const MATCH_THRESHOLD = 0.4;
 const MAX_CHUNK_CHARS = 5000;
 
@@ -193,6 +195,17 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
   }
 
   async retrieve(request: RetrievalRequest): Promise<RetrievedEvidence[]> {
+    return (await this.retrieveInternal(request, false)).evidence;
+  }
+
+  async retrieveWithGallery(request: RetrievalRequest): Promise<CombinedSearchResult> {
+    return this.retrieveInternal(request, true);
+  }
+
+  private async retrieveInternal(
+    request: RetrievalRequest,
+    includeGallery: boolean,
+  ): Promise<CombinedSearchResult> {
     if (!this.namespace) {
       throw new GroundedAiError(503, "AI_NOT_CONFIGURED", "AI Search binding is required");
     }
@@ -209,13 +222,17 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
       const [catalog, searchQuery] = await Promise.all([catalogPromise, queryPromise]);
       const selectedLibraries = selectLibraries(catalog, request.libraryId);
       if (this.medicalRetrievalV2) {
-        return this.singleMultiInstanceSearchV1
-          ? await this.retrieveSingleMultiInstance(
-              currentTopicQuery,
-              selectedLibraries,
-              searchQuery,
-            )
-          : await this.retrieveMedicalV2(currentTopicQuery, selectedLibraries, searchQuery);
+        if (this.singleMultiInstanceSearchV1)
+          return this.retrieveSingleMultiInstance(
+            currentTopicQuery,
+            selectedLibraries,
+            searchQuery,
+            includeGallery && request.libraryId === null,
+          );
+        return {
+          evidence: await this.retrieveMedicalV2(currentTopicQuery, selectedLibraries, searchQuery),
+          galleryHits: [],
+        };
       }
       // Query each index concurrently. Asking a single global top-5 search
       // routinely hides smaller libraries, even when their evidence is relevant.
@@ -241,7 +258,7 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
           return evidenceFromSearch(search, [entry]).slice(0, 1);
         }),
       );
-      return results.flat().slice(0, MAX_RESULTS);
+      return { evidence: results.flat().slice(0, MAX_RESULTS), galleryHits: [] };
     } catch (error) {
       if (error instanceof GroundedAiError) {
         throw error;
@@ -260,15 +277,21 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
     query: string,
     libraries: readonly LibraryCatalogEntry[],
     searchQuery: string,
-  ): Promise<RetrievedEvidence[]> {
+    includeGallery = false,
+  ): Promise<CombinedSearchResult> {
     const response = await this.namespace!.search({
       query: searchQuery,
       ai_search_options: {
-        instance_ids: libraries.map((library) => library.instanceId),
+        instance_ids: [
+          ...libraries.map((library) => library.instanceId),
+          ...(includeGallery ? [IMAGE_SEARCH_INSTANCE] : []),
+        ],
         retrieval: {
           retrieval_type: "hybrid",
           match_threshold: MATCH_THRESHOLD,
-          max_num_results: MERGED_SEARCH_CANDIDATES,
+          max_num_results: includeGallery
+            ? WITH_GALLERY_MERGED_CANDIDATES
+            : MERGED_SEARCH_CANDIDATES,
           return_on_failure: true,
           fusion_method: "rrf",
         },
@@ -283,10 +306,32 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
     if (Array.isArray(result?.errors) && result.errors.length > 0) {
       throw new GroundedAiError(502, "SEARCH_FAILED", "Multi-instance search partially failed");
     }
-    const candidates = evidenceFromSearch(response, libraries, MERGED_SEARCH_CANDIDATES).map(
-      (evidence, position) => ({ evidence, position }),
-    );
-    return rankMedicalCandidates(query, candidates, MAX_RESULTS);
+    const candidates = evidenceFromSearch(
+      response,
+      libraries,
+      includeGallery ? WITH_GALLERY_MERGED_CANDIDATES : MERGED_SEARCH_CANDIDATES,
+    ).map((evidence, position) => ({ evidence, position }));
+    const galleryHits: GallerySearchHit[] = [];
+    if (includeGallery && Array.isArray(result?.chunks)) {
+      const seen = new Set<string>();
+      for (const raw of result.chunks) {
+        const row = asRecord(raw);
+        if (stringField(row, "instance_id") !== IMAGE_SEARCH_INSTANCE) continue;
+        const item = asRecord(row?.item);
+        const key = stringField(item, "key");
+        const score = numberField(row, "score");
+        const image = key ? /(?:^|\\/)(img_\\d{6})\\.json$/.exec(key) : null;
+        if (!image || score === null || score < MATCH_THRESHOLD) continue;
+        const imageId = image[1]!;
+        if (seen.has(imageId)) continue;
+        seen.add(imageId);
+        galleryHits.push({ imageId, score });
+      }
+    }
+    return {
+      evidence: rankMedicalCandidates(query, candidates, MAX_RESULTS),
+      galleryHits,
+    };
   }
 
   /**

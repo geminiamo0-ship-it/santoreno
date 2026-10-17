@@ -1,0 +1,97 @@
+name: Santo Private Protein Absorption Raw Search Diagnostic
+on:
+  push:
+    branches:
+      - diag/protein-absorption-raw-20261018
+    paths:
+      - .github/workflows/santo-protein-absorption-private-diagnostic.yml
+permissions:
+  contents: read
+concurrency:
+  group: santo-protein-absorption-private-diagnostic
+  cancel-in-progress: false
+jobs:
+  diagnostic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install HTTP client
+        run: python -m pip install "requests==2.32.3"
+      - name: ONE diagnostic namespace search and capture unmodified raw response privately
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/protein-absorption"
+          python - <<'PY'
+          import os,json,pathlib,hashlib,datetime,requests
+          root=pathlib.Path(os.environ["RUNNER_TEMP"])/"protein-absorption"
+          ids=["amboss","usmle","passmedicine","pastest","one-examination-isolated","santo-medical-images"]
+          query="protein absorption"
+          payload={"query":query,"ai_search_options":{
+             "instance_ids":ids,
+             "retrieval":{"retrieval_type":"hybrid","match_threshold":0.4,
+                "max_num_results":45,"return_on_failure":True,"fusion_method":"rrf"},
+             "reranking":{"enabled":True,"model":"@cf/baai/bge-reranker-base"},
+             "query_rewrite":{"enabled":False}}}
+          url="https://api.cloudflare.com/client/v4/accounts/"+os.environ["CLOUDFLARE_ACCOUNT_ID"]+"/ai-search/namespaces/default/search"
+          response=requests.post(url,json=payload,headers={"Authorization":"Bearer "+os.environ["CLOUDFLARE_API_TOKEN"]},timeout=120)
+          if not response.ok: raise SystemExit("Cloudflare search HTTP "+str(response.status_code))
+          data=response.json()
+          if data.get("success") is False: raise SystemExit("Cloudflare search returned unsuccessful response")
+          result=data.get("result") or {}
+          chunks=result.get("chunks")
+          if not isinstance(chunks,list): raise SystemExit("Cloudflare search had no chunks array")
+          # Preserve raw HTTP response bytes (no source transformation/redaction).
+          raw=root/"raw-namespace-response.json"
+          raw.write_bytes(response.content)
+          (root/"request-payload.json").write_text(json.dumps(payload,indent=2),encoding="utf-8")
+          report={"kind":"DIAGNOSTIC_REPLAY_NOT_HISTORICAL","query":query,
+            "at_utc":datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "namespace":"default","response_sha256":hashlib.sha256(response.content).hexdigest(),
+            "returned":len(chunks),"results":[]}
+          for i,item in enumerate(chunks,1):
+            meta=item if isinstance(item,dict) else {}
+            doc=meta.get("item") if isinstance(meta.get("item"),dict) else {}
+            key=doc.get("key") if isinstance(doc.get("key"),str) else ""
+            report["results"].append({"rank":i,"instance_id":meta.get("instance_id"),
+              "score":meta.get("score"),"chunk_id":meta.get("id"),
+              "item_key_sha256":hashlib.sha256(key.encode()).hexdigest() if key else None})
+          (root/"score-summary.json").write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding="utf-8")
+          print("This is a NEW diagnostic replay of the literal query; NOT original student's rewritten historical request.")
+          print("Cloudflare raw response contains",len(chunks),"chunks. Raw source text is NOT in public workflow logs.")
+          for result in report["results"]:
+            print("rank",result["rank"],"index",result["instance_id"],"score",result["score"])
+          print("raw-response-sha256:",report["response_sha256"])
+          PY
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install repository-pinned Wrangler
+        run: |
+          corepack enable
+          pnpm install --frozen-lockfile
+      - name: Save complete raw search data only in private Santo Staging R2
+        shell: bash
+        run: |
+          set -euo pipefail
+          key="diagnostics/protein-absorption/$GITHUB_RUN_ID"
+          for filename in raw-namespace-response.json request-payload.json score-summary.json; do
+            pnpm --dir workers/api exec wrangler r2 object put "santo-content-staging/$key/$filename" --file "$RUNNER_TEMP/protein-absorption/$filename" --remote
+            pnpm --dir workers/api exec wrangler r2 object get "santo-content-staging/$key/$filename" --file "$RUNNER_TEMP/roundtrip-$filename" --remote
+            cmp "$RUNNER_TEMP/protein-absorption/$filename" "$RUNNER_TEMP/roundtrip-$filename"
+          done
+          {
+            echo "## Private diagnostic replay — protein absorption"
+            echo "This is a NEW search of literal protein absorption, NOT original historical request or original Qwen rewrite."
+            echo "Raw complete search HTTP response is saved ONLY in the PRIVATE staging R2 bucket:"
+            echo '  `santo-content-staging/'"$key"'/raw-namespace-response.json`'
+            echo "Request payload and all scored hits are in neighboring request-payload.json and score-summary.json."
+            echo "No source text committed to GitHub or printed in public workflow logs."
+          } >> "$GITHUB_STEP_SUMMARY"

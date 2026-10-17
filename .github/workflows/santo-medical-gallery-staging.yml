@@ -93,4 +93,3 @@ jobs:
             echo '- Manifest stored under gallery/v1 in santo-content-staging.'
             echo '- Staging deploy health/auth-deny passed. Signed-in E2E still pending.'
           } >> "$GITHUB_STEP_SUMMARY"
-2026-10-17T18:54:35.1563177

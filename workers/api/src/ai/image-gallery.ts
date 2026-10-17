@@ -7,7 +7,6 @@ export interface GalleryImageRetriever {
   hydrate(hits: readonly GallerySearchHit[]): Promise<MedicalImageCandidate[]>;
 }
 
-const GALLERY_ID = "santo-medical-images";
 const MANIFEST_KEY = "gallery/v1/santo_image_manifest.json";
 const IMAGE_HOST = "pub-2a81f2cb19cc4473a3d076e657af6121.r2.dev";
 const CACHE_TTL_MS = 5 * 60 * 1000;

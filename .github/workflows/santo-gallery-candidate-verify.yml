@@ -1,0 +1,34 @@
+name: Santo Gallery Candidate Verify
+on:
+  push:
+    branches:
+      - feat/santo-gallery-sixth-search-staging-20261017
+    paths:
+      - .github/workflows/santo-gallery-candidate-verify.yml
+permissions:
+  contents: read
+jobs:
+  candidate-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install repository-pinned dependencies
+        run: |
+          corepack enable
+          pnpm install --frozen-lockfile
+      - name: Static analysis
+        run: |
+          pnpm lint
+          pnpm typecheck
+      - name: Unit tests
+        run: pnpm test
+      - name: Build and smoke
+        run: |
+          pnpm build
+          pnpm smoke
+      - name: Gallery ingestion source syntax
+        run: python -m py_compile scripts/ingest_santo_medical_gallery.py

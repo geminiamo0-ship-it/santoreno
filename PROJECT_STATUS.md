@@ -1,5 +1,14 @@
 # Santo Project Status — Living Handoff
 
+### Sixth medical-image search — Staging deployed (17 Oct 2026)
+
+- **LIVE on Santo Staging Worker**, deployed from feature commit `9efeb83d71459523107d7de96894892c2a9a601b` (NOT merged to the long-lived staging branch). GitHub Action [39069040381](https://github.com/geminiamo0-ship-it/santoreno/actions/runs/39069040381) **success**, including exact-head Verify, live Cloudflare image-only search smoke, R2 manifest upload/readback, staging Worker deploy, health check and unauthenticated API-deny smoke.
+- Cloudflare instance `santo-medical-images` (AI Search namespace `default`) is text hybrid: **3293 fully indexed image JSON documents**, exactly **2 transient Workers AI timeout errors** (`img_000412.json`, `img_000416.json`) intentionally ignored per owner request; queued/running=0. No regeneration or reindexing of the five original libraries.
+- URL manifest `santo-content-staging/gallery/v1/santo_image_manifest.json` successfully uploaded, retrieved, and compared byte-for-byte; originals stay at the owner's `pub-2a81f2cb19cc4473a3d076e657af6121.r2.dev/offline_media/` domain.
+- Staging Worker now has `SANTO_GALLERY_IMAGES_V1=true` and includes a separately bounded parallel sixth gallery lookup. Gallery figures are not medical claims/citations. **Authenticated real-user browser images, chosen-gallery-marker frequency, and first-token latency remain untested**.
+- **Durability follow-up:** Code remains on `feat/santo-gallery-sixth-search-staging-20261017`; GitHub PR creation via the current tool was blocked. Merge it to `release/santo-medical-rich-prod-candidate-20261014` with normal review to prevent a future long-lived staging-branch deploy from reverting the feature. Production remains unchanged.
+
+
 ### Medical gallery sixth search — staging candidate (17 Oct 2026; deployment pending)
 
 - Owner provided a SHA-pinned Google Drive ZIP with 3,295 unique JSON image search records; the ZIP is read by an isolated GitHub Action, never committed to the public repository. SHA-256 `fa469888c75cec9880bc0af2b2423115ff848d9b74d72563b310f09db0e2e2e5`.

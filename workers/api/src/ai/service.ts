@@ -11,12 +11,14 @@ import {
   loadMedicalImages,
   medicalImagePrompt,
   renderMedicalImageMarkers,
+  selectMedicalImagesForPrompt,
 } from "./medical-images";
 import type { R2BucketLike } from "../runtime/bindings";
 import { AI_STAGE_TIMEOUTS, withAiDeadline } from "./deadline";
 import { GroundedAiError } from "./errors";
 import { buildGeneralMedicalPrompt, buildGroundedPrompt } from "./prompt";
 import type { AiTelemetryEvent, AiTelemetryPort, ModelPort, RetrievalPort } from "./types";
+import type { GalleryImageRetriever } from "./image-gallery";
 
 function quotaDenial(reason: string | null): GroundedAiError {
   switch (reason) {
@@ -80,6 +82,7 @@ export class GroundedAiService {
     private readonly richImagesEnabled = false,
     private readonly articleBucket?: R2BucketLike,
     private readonly intentRoutingEnabled = false,
+    private readonly imageGallery?: GalleryImageRetriever,
   ) {}
 
   async query(
@@ -160,6 +163,16 @@ export class GroundedAiService {
         onProvisionalAnswer?.(answer);
       } else {
         const retrievalStartedAt = performance.now();
+        // Sixth image search starts beside the five text searches using the
+        // SAME Qwen-normalized query; bounded failures never block clinical RAG.
+        const galleryPromise = this.imageGallery && libraryId === null && this.richImagesEnabled
+          ? withAiDeadline(
+              () => this.imageGallery!.retrieve(
+                route?.intent === "medical" ? route.searchQuery : input.query,
+              ),
+              signal, 4_000, "SEARCH_TIMEOUT",
+            ).catch(() => [])
+          : Promise.resolve([]);
         const evidence = await withAiDeadline(
           () =>
             this.retrieval.retrieve({
@@ -210,10 +223,21 @@ export class GroundedAiService {
             promptIncludesImages: originalImages.length > 0,
           });
         }
+        const galleryImages = groundingMode === "santo" ? await galleryPromise : [];
+        // Preserve strong article figures and reserve room for visual search.
+        // Original article IDs IMG_001..IMG_080 never collide with IMG_081+.
+        const availableImages = [
+          ...selectMedicalImagesForPrompt(originalImages, input.query, 22),
+          ...galleryImages,
+        ];
+        console.info("santo_luna_image_pipeline", {
+          phase: "gallery_retrieval", requestId,
+          galleryImageCount: galleryImages.length,
+        });
         const answerFormat = this.markdownOutput ? "markdown" : "json";
         const sourcedPrompt =
           buildGroundedPrompt(input.query, evidence, answerFormat) +
-          medicalImagePrompt(originalImages, input.query);
+          medicalImagePrompt(availableImages, input.query);
         const modelStartedAt = performance.now();
         let firstModelDeltaRecorded = false;
         const progress = onProvisionalAnswer
@@ -280,7 +304,7 @@ export class GroundedAiService {
         // Only requested image IDs are expanded to canonical R2 URLs by Santo;
         // Luna cannot author a media URL or add arbitrary article figures.
         const images = this.richImagesEnabled
-          ? renderMedicalImageMarkers(draft.answer, originalImages)
+          ? renderMedicalImageMarkers(draft.answer, availableImages)
           : { answer: draft.answer, sourceIds: [] as string[] };
         answer = images.answer;
         if (imageDiagnostics) {
@@ -294,7 +318,7 @@ export class GroundedAiService {
           console.info("santo_luna_image_pipeline", {
             phase: "after_model",
             requestId,
-            offeredImageCount: originalImages.length,
+            offeredImageCount: availableImages.length,
             selectedImageCount,
           });
         }

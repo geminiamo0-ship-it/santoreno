@@ -101,8 +101,13 @@ export class CloudflareGalleryImageRetrieval implements GalleryImageRetriever {
     const selected: MedicalImageCandidate[] = [];
     // Keep merged AI Search ranking order; drop missing manifest identities.
     for (const hit of hits) {
-      if (!/^img_\d{6}$/.test(hit.imageId) || seen.has(hit.imageId) ||
-          !Number.isFinite(hit.score) || hit.score < 0.4) continue;
+      if (
+        !/^img_\d{6}$/.test(hit.imageId) ||
+        seen.has(hit.imageId) ||
+        !Number.isFinite(hit.score) ||
+        hit.score < 0.4
+      )
+        continue;
       seen.add(hit.imageId);
       const item = manifest[hit.imageId];
       if (!item) continue;

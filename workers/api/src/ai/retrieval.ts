@@ -5,7 +5,13 @@ import {
   type LibraryCatalogEntry,
   type LibraryCatalogPort,
 } from "./library-catalog";
-import type { CombinedSearchResult, GallerySearchHit, RetrievalPort, RetrievalRequest, RetrievedEvidence } from "./types";
+import type {
+  CombinedSearchResult,
+  GallerySearchHit,
+  RetrievalPort,
+  RetrievalRequest,
+  RetrievedEvidence,
+} from "./types";
 import { focusedSearchQuery } from "./source-relevance";
 import { rankMedicalCandidates, type RankedCandidate } from "./medical-ranking";
 import type { WorkersAiLike } from "../runtime/bindings";

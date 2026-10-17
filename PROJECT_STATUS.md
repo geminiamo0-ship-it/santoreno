@@ -8,7 +8,6 @@
 - Staging Worker now has `SANTO_GALLERY_IMAGES_V1=true` and includes a separately bounded parallel sixth gallery lookup. Gallery figures are not medical claims/citations. **Authenticated real-user browser images, chosen-gallery-marker frequency, and first-token latency remain untested**.
 - **Durability follow-up:** Code remains on `feat/santo-gallery-sixth-search-staging-20261017`; GitHub PR creation via the current tool was blocked. Merge it to `release/santo-medical-rich-prod-candidate-20261014` with normal review to prevent a future long-lived staging-branch deploy from reverting the feature. Production remains unchanged.
 
-
 ### Medical gallery sixth search — staging candidate (17 Oct 2026; deployment pending)
 
 - Owner provided a SHA-pinned Google Drive ZIP with 3,295 unique JSON image search records; the ZIP is read by an isolated GitHub Action, never committed to the public repository. SHA-256 `fa469888c75cec9880bc0af2b2423115ff848d9b74d72563b310f09db0e2e2e5`.

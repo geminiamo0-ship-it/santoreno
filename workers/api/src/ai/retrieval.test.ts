@@ -478,26 +478,58 @@ describe("Santo five licensed library retrieval", () => {
         __merged: {
           chunks: [
             chunk("amboss", 1, 0.96),
-            { id: "image-chunk-1", text: "Tall peaked T waves on ECG", score: 0.95,
-              instance_id: "santo-medical-images", item: { key: "img_000258.json" } },
+            {
+              id: "image-chunk-1",
+              text: "Tall peaked T waves on ECG",
+              score: 0.95,
+              instance_id: "santo-medical-images",
+              item: { key: "img_000258.json" },
+            },
             chunk("usmle", 1, 0.91),
-            { id: "image-chunk-2", text: "Hyperkalemia illustration", score: 0.88,
-              instance_id: "santo-medical-images", item: { key: "img_000258.json" } },
-            { id: "other", text: "untrusted foreign", score: 0.99,
-              instance_id: "foreign", item: { key: "unknown.json" } },
-            { id: "image-low", text: "irrelevant", score: 0.2,
-              instance_id: "santo-medical-images", item: { key: "img_000416.json" } },
-            { id: "image-bad", text: "bad path", score: 0.99,
-              instance_id: "santo-medical-images", item: { key: "fake-image.json" } },
+            {
+              id: "image-chunk-2",
+              text: "Hyperkalemia illustration",
+              score: 0.88,
+              instance_id: "santo-medical-images",
+              item: { key: "img_000258.json" },
+            },
+            {
+              id: "other",
+              text: "untrusted foreign",
+              score: 0.99,
+              instance_id: "foreign",
+              item: { key: "unknown.json" },
+            },
+            {
+              id: "image-low",
+              text: "irrelevant",
+              score: 0.2,
+              instance_id: "santo-medical-images",
+              item: { key: "img_000416.json" },
+            },
+            {
+              id: "image-bad",
+              text: "bad path",
+              score: 0.99,
+              instance_id: "santo-medical-images",
+              item: { key: "fake-image.json" },
+            },
           ],
         },
       },
     );
     const retrieval = new CloudflareAiSearchRetrieval(
-      namespace, undefined, true, false, undefined, false, true,
+      namespace,
+      undefined,
+      true,
+      false,
+      undefined,
+      false,
+      true,
     );
     const output = await retrieval.retrieveWithGallery({
-      query: "What ECG changes occur with hyperkalemia?", libraryId: null,
+      query: "What ECG changes occur with hyperkalemia?",
+      libraryId: null,
       preparedQuery: "hyperkalemia ECG changes peaked T waves",
     });
     expect(namespace.searchInputs).toHaveLength(1);
@@ -520,10 +552,17 @@ describe("Santo five licensed library retrieval", () => {
       "one-examination-isolated": { chunks: [chunk("one-examination")] },
     });
     const retrieval = new CloudflareAiSearchRetrieval(
-      namespace, undefined, true, false, undefined, false, true,
+      namespace,
+      undefined,
+      true,
+      false,
+      undefined,
+      false,
+      true,
     );
     const result = await retrieval.retrieveWithGallery({
-      query: "ECG", libraryId: "one-examination",
+      query: "ECG",
+      libraryId: "one-examination",
     });
     expect(result.galleryHits).toEqual([]);
     expect(result.evidence).toHaveLength(1);

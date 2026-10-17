@@ -827,13 +827,3 @@ deferred until after this Pilot. Never expose server credentials to browsers.
 ## 10. Repository administration note
 
 Branch protection/ruleset configuration remains an authorized-admin follow-up under Issue #10 because the connected GitHub integration cannot write that repository setting.
-
-
-### Luna teaching and cited image dedup — scoped Staging change (18 October 2026)
-
-- Owner approved all teaching refinements except previously excluded item #6, plus low reasoning and Royal inline/fallback image dedup. No search, R2/index, quota, tenant, provider, or output-cap changes.
-- Implementation branch: `feat/luna-approved-teaching-low-reasoning-20261018` targets ONLY `release/santo-medical-rich-prod-candidate-20261014`. Keep `main`/Production untouched.
-- Staging GPT-6 Luna changes `reasoning.effort: none → low`, preserving `service_tier: fast`, `store: false`, `max_output_tokens: 3000`, verified `[[N]]` citations, `[[IMG_NNN]]` backend URL expansion, and single-pass quota/idempotency paths.
-- Prompt guidance now emphasizes adaptive depth, question-first and mechanism-first teaching, source/general-knowledge attribution boundaries, new-topic separation, and clinically relevant original images without forced quantity. Existing Cloudflare AI Search candidate selection and original-HTML R2 image hydration are unchanged.
-- Companion Royal Bank branch `fix/santo-cited-image-dedup-20261018` removes duplicate fallback figures only when the final answer already includes the same approved R2 image URL; intact fallback for source-verified images when no inline figure is shown.
-- CI, staged browser/clinical quality evaluation and any merge/deploy remain release gates; do not treat commit-only changes as live verified behavior.

@@ -141,7 +141,9 @@ describe("staging single-pass plain-Luna citation contract", () => {
     expect(payload.instructions).toContain("mini-chapter");
     expect(payload.instructions).toContain("never attribute unsupported background facts");
     expect(payload.instructions).toContain("An explicitly new medical topic");
-    expect(payload.instructions).toContain("Prefer a few distinct, clinically relevant original figures");
+    expect(payload.instructions).toContain(
+      "Prefer a few distinct, clinically relevant original figures",
+    );
     expect(payload.input).toContain("SANTO_REF_1");
     expect(payload.input).toContain("Cite a supported statement as [[N]]");
     expect(payload.input).not.toContain("citation_ids");

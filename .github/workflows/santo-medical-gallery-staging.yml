@@ -1,0 +1,95 @@
+name: Santo Gallery Sixth Search Staging
+on:
+  push:
+    branches: [release/santo-medical-rich-prod-candidate-20261014]
+    paths: [.github/workflows/santo-medical-gallery-staging.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+  checks: read
+concurrency:
+  group: santo-image-gallery-staging
+  cancel-in-progress: false
+jobs:
+  index-and-deploy:
+    if: github.ref == 'refs/heads/release/santo-medical-rich-prod-candidate-20261014'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      GH_TOKEN: ${{ github.token }}
+      SOURCE_DRIVE_ID: '1ZR-EGLrKS4szarRqZ8wfuhp_EQqUI2u3'
+      SOURCE_SHA256: 'fa469888c75cec9880bc0af2b2423115ff848d9b74d72563b310f09db0e2e2e5'
+      WORKER_URL: 'https://santo-api-staging.geminiamo0.workers.dev'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require exact staging Verify before external writes
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 120); do
+            checks="$(gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/check-runs")"
+            policy="$(jq -r '[.check_runs[] | select(.name=="repository-policy") | .conclusion] | map(select(.!=null)) | .[0] // ""' <<<"$checks")"
+            quality="$(jq -r '[.check_runs[] | select(.name=="code-quality") | .conclusion] | map(select(.!=null)) | .[0] // ""' <<<"$checks")"
+            if [[ "$policy" == success && "$quality" == success ]]; then break; fi
+            case "$policy:$quality" in *failure*|*cancelled*|*timed_out*) exit 1;; esac
+            [[ "$attempt" -lt 120 ]] || { echo "Verify not ready"; exit 1; }
+            sleep 10
+          done
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install downloader and HTTP client
+        run: python -m pip install 'gdown==5.2.0' 'requests==2.32.3'
+      - name: Download exact SHA-pinned Drive ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import gdown, os, pathlib
+          dst=pathlib.Path(os.environ['RUNNER_TEMP'])/'santo_medical_images.zip'
+          path=gdown.download(id=os.environ['SOURCE_DRIVE_ID'],output=str(dst),quiet=False)
+          if not path or not dst.exists(): raise SystemExit('Owner Drive source unavailable')
+          print('ZIP bytes:',dst.stat().st_size)
+          PY
+          echo "$SOURCE_SHA256  $RUNNER_TEMP/santo_medical_images.zip" | sha256sum --check --status
+      - name: Validate and ingest 3295 gallery documents into image-only instance
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/ingest_santo_medical_gallery.py --archive "$RUNNER_TEMP/santo_medical_images.zip" --output "$RUNNER_TEMP/santo-gallery" --execute
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pinned Wrangler
+        run: |
+          corepack enable
+          pnpm install --frozen-lockfile
+      - name: Upload manifest only to existing staging R2 and verify SHA round trip
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm exec wrangler r2 object put santo-content-staging/gallery/v1/santo_image_manifest.json --file "$RUNNER_TEMP/santo-gallery/manifest.json" --remote
+          pnpm exec wrangler r2 object get santo-content-staging/gallery/v1/santo_image_manifest.json --file "$RUNNER_TEMP/santo-gallery/readback.json" --remote
+          cmp "$RUNNER_TEMP/santo-gallery/manifest.json" "$RUNNER_TEMP/santo-gallery/readback.json"
+      - name: Deploy Santo STAGING only after image index + manifest smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd workers/api
+          pnpm exec wrangler deploy --env staging --keep-vars
+      - name: Staging health and auth-deny smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error "$WORKER_URL/health" | jq -e '.service=="santo-api" and .status=="ok"'
+          status="$(curl -sS -o "$RUNNER_TEMP/unauth.json" -w '%{http_code}' -X POST "$WORKER_URL/v1/ai/query" -H 'Content-Type: application/json' -d '{"query":"ECG hyperkalemia"}')"
+          [[ "$status" == "400" || "$status" == "401" || "$status" == "403" ]] || { echo "Auth smoke failed HTTP $status"; exit 1; }
+          {
+            echo '## Sixth gallery search — Staging'
+            echo '- 3295 index documents; pinned original ZIP and ingestion QA passed.'
+            echo '- Gallery-only instance; five medical text libraries unchanged.'
+            echo '- Manifest stored under gallery/v1 in santo-content-staging.'
+            echo '- Staging deploy health/auth-deny passed. Signed-in E2E still pending.'
+          } >> "$GITHUB_STEP_SUMMARY"

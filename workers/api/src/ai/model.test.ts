@@ -159,7 +159,7 @@ describe("GPT-6 Luna isolated Santo staging preview", () => {
         reasoning: { effort: "none" },
         service_tier: "fast",
         store: false,
-        max_output_tokens: LUNA_MAX_OUTPUT_TOKENS,
+        max_output_tokens: 3000,
         text: expect.objectContaining({
           format: expect.objectContaining({ type: "json_schema", strict: true }),
         }),
@@ -445,7 +445,7 @@ describe("strict server-bound citation schema regression", () => {
     );
   });
 
-  it("uses the enlarged Luna output ceiling with one provider call and fully closed JSON", async () => {
+  it("caps Staging Luna at 3000 output tokens with one provider call and fully closed JSON", async () => {
     const ai: WorkersAiLike = {
       run: vi.fn(async () => ({
         output_text:
@@ -458,13 +458,14 @@ describe("strict server-bound citation schema regression", () => {
     expect(ai.run).toHaveBeenCalledWith(
       "openai/gpt-6-luna",
       expect.objectContaining({
-        max_output_tokens: LUNA_MAX_OUTPUT_TOKENS,
+        max_output_tokens: 3000,
         text: { format: expect.objectContaining({ type: "json_schema", strict: true }) },
         instructions: expect.stringContaining(LUNA_STAGING_COMPLETION_BUDGET),
       }),
     );
-    expect(LUNA_MAX_OUTPUT_TOKENS).toBe(10_000);
+    expect(LUNA_MAX_OUTPUT_TOKENS).toBe(3000);
     expect(GROUNDED_MODEL_POLICY.maxTokens).toBe(5_000);
+    expect(LUNA_STAGING_COMPLETION_BUDGET).toContain("3,000 output-token budget");
     expect(LUNA_STAGING_COMPLETION_BUDGET).toContain("finalize the JSON immediately");
     expect(LUNA_STAGING_COMPLETION_BUDGET).toContain("citation_ids");
   });

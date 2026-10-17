@@ -22,6 +22,12 @@ jobs:
       - name: Format candidate only
         run: |
           pnpm exec prettier --write .github/workflows/santo-medical-gallery-staging.yml PROJECT_STATUS.md workers/api/src/ai/handler.ts workers/api/src/ai/image-gallery.ts workers/api/src/ai/image-gallery.test.ts workers/api/src/ai/service.ts
+          pnpm exec prettier --write .github/workflows/santo-gallery-readonly-diagnostic.yml .github/workflows/santo-gallery-scoped-repair.yml .github/workflows/santo-gallery-finalize-staging.yml
+          for file in santo-gallery-readonly-diagnostic.yml santo-gallery-scoped-repair.yml santo-gallery-finalize-staging.yml; do
+            echo "BEGIN_FORMATTED_${file}"
+            cat ".github/workflows/$file"
+            echo "END_FORMATTED_${file}"
+          done
           pnpm exec prettier --write .github/workflows/santo-gallery-index-provision-staging.yml
           echo "BEGIN_FORMATTED_INDEX_YAML"
           cat .github/workflows/santo-gallery-index-provision-staging.yml

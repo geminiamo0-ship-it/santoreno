@@ -471,6 +471,107 @@ describe("Santo five licensed library retrieval", () => {
     });
   });
 
+  it("ONE merged AI Search call returns medical sources and sixth-index image IDs separately", async () => {
+    const namespace = new FakeAiSearchNamespace(
+      { result: [...catalogItems, { id: "santo-medical-images" }, { id: "foreign" }] },
+      {
+        __merged: {
+          chunks: [
+            chunk("amboss", 1, 0.96),
+            {
+              id: "image-chunk-1",
+              text: "Tall peaked T waves on ECG",
+              score: 0.95,
+              instance_id: "santo-medical-images",
+              item: { key: "img_000258.json" },
+            },
+            chunk("usmle", 1, 0.91),
+            {
+              id: "image-chunk-2",
+              text: "Hyperkalemia illustration",
+              score: 0.88,
+              instance_id: "santo-medical-images",
+              item: { key: "img_000258.json" },
+            },
+            {
+              id: "other",
+              text: "untrusted foreign",
+              score: 0.99,
+              instance_id: "foreign",
+              item: { key: "unknown.json" },
+            },
+            {
+              id: "image-low",
+              text: "irrelevant",
+              score: 0.2,
+              instance_id: "santo-medical-images",
+              item: { key: "img_000416.json" },
+            },
+            {
+              id: "image-bad",
+              text: "bad path",
+              score: 0.99,
+              instance_id: "santo-medical-images",
+              item: { key: "fake-image.json" },
+            },
+          ],
+        },
+      },
+    );
+    const retrieval = new CloudflareAiSearchRetrieval(
+      namespace,
+      undefined,
+      true,
+      false,
+      undefined,
+      false,
+      true,
+    );
+    const output = await retrieval.retrieveWithGallery({
+      query: "What ECG changes occur with hyperkalemia?",
+      libraryId: null,
+      preparedQuery: "hyperkalemia ECG changes peaked T waves",
+    });
+    expect(namespace.searchInputs).toHaveLength(1);
+    expect(namespace.searchInputs[0]).toMatchObject({
+      query: "hyperkalemia ECG changes peaked T waves",
+      ai_search_options: {
+        instance_ids: [...expectedIds.map(instanceFor), "santo-medical-images"],
+        retrieval: { retrieval_type: "hybrid", max_num_results: 45 },
+        reranking: { enabled: true, model: "@cf/baai/bge-reranker-base" },
+        query_rewrite: { enabled: false },
+      },
+    });
+    expect(output.evidence.map((x) => x.libraryId)).toEqual(["amboss", "usmle"]);
+    expect(output.evidence.every((e) => e.instanceId !== "santo-medical-images")).toBe(true);
+    expect(output.galleryHits).toEqual([{ imageId: "img_000258", score: 0.95 }]);
+  });
+
+  it("one-call gallery mode cannot broaden an explicit library filter", async () => {
+    const namespace = new FakeAiSearchNamespace(undefined, {
+      "one-examination-isolated": { chunks: [chunk("one-examination")] },
+    });
+    const retrieval = new CloudflareAiSearchRetrieval(
+      namespace,
+      undefined,
+      true,
+      false,
+      undefined,
+      false,
+      true,
+    );
+    const result = await retrieval.retrieveWithGallery({
+      query: "ECG",
+      libraryId: "one-examination",
+    });
+    expect(result.galleryHits).toEqual([]);
+    expect(result.evidence).toHaveLength(1);
+    expect(namespace.searchInputs).toHaveLength(1);
+    expect(namespace.searchInputs[0]).toMatchObject({
+      ai_search_options: { instance_ids: ["one-examination-isolated"] },
+    });
+  });
+
   it("single search retains Qwen's prepared medical query without a second model call", async () => {
     let qwenCalls = 0;
     const ai = {

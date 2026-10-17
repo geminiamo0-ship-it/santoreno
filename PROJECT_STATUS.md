@@ -9,7 +9,6 @@
 - **Unverified:** authenticated Royal Bank Preview → Santo → Luna final answer rendering, actual image selection rate, p95 retrieval/first-token latency; live Cloudflare merged search smoke does not cover a signed-in full round trip.
 - **Important durability gate:** the new code is deployed to Staging from the feature branch but is **not merged** into `release/santo-medical-rich-prod-candidate-20261014`; subsequent deploys from that older staging branch could replace the feature. Create a normal PR from `feat/santo-gallery-sixth-search-staging-20261017` to the long-lived staging branch before the next routine staging deployment. Production remains disabled.
 
-
 ### Sixth medical-image search — Staging deployed (17 Oct 2026)
 
 - **LIVE on Santo Staging Worker**, deployed from feature commit `9efeb83d71459523107d7de96894892c2a9a601b` (NOT merged to the long-lived staging branch). GitHub Action [39069040381](https://github.com/geminiamo0-ship-it/santoreno/actions/runs/39069040381) **success**, including exact-head Verify, live Cloudflare image-only search smoke, R2 manifest upload/readback, staging Worker deploy, health check and unauthenticated API-deny smoke.

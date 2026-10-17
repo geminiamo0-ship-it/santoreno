@@ -6,6 +6,14 @@
 >
 > **Rule:** GitHub code, issues, PRs, commits, and Actions are the source of truth. Update this file whenever meaningful work completes, a gate passes/fails, architecture changes, or the active issue changes.
 
+### Single-request multi-instance AI Search — Staging candidate (17 Oct 2026, Issue #145)
+
+- User-approved cost/complexity trial: replace the Staging Medical Retrieval V2 per-library fan-out (5 initial + up to 5 conditional searches) with **exactly one** namespace-level AI Search request across all five existing authorized instances. Explicit single-library filters still use one authorized instance; missing catalog mappings fail closed.
+- Staging-only `SANTO_AI_SEARCH_SINGLE_REQUEST_V1=true` behind existing `SANTO_MEDICAL_RETRIEVAL_V2`. Use the current Qwen routing/query normalization once, hybrid/RRF, Cloudflare-native reranking, up to 25 merged candidates, and at most five distinct R2-backed articles for Luna. Do not fabricate missing sources, require original `instance_id` provenance, fail closed on per-instance partial errors; **no second search pass**. The previous 5/10-search V2 remains rollback when flag disabled.
+- Luna, 10k output budget, citations and verified source snapshots, medical images, quota, idempotency, ConversationDO context, and full existing R2/index/production data are unchanged. No re-index, ingestion, storage edits, or Production rollout.
+- **Status:** implementation and regression tests committed to isolated staging feature branch; exact-head Verify, independent review, staging deployment/health-auth smoke, and authenticated clinical quality/cost/latency evaluation are required before describing the new runtime as live. Cloudflare multi-instance **billable query unit count remains unconfirmed**; one API invocation is not a promise of one billed operation.
+- References: Issue #145, #123 and ADR 0002.
+
 ### Qwen clarification and richer Luna figure usage — Staging deployed and verified (16 Oct 2026)
 
 - Keep `@cf/qwen/qwen3-30b-a3b-fp8` as the **single** small inference per turn. A third structured `CLARIFY` route asks one concise, language-matched question when the student's request is genuinely uninterpretable or missing essential information. Valid medical questions, broad diseases, and resolvable follow-ups remain MEDICAL and preserve sourced Luna teaching. Provider failure/invalid content defaults to the existing medical route.

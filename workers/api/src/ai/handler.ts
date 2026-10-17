@@ -78,6 +78,7 @@ export function createGroundedAiHandler(dependencies: GroundedAiHandlerDependenc
         env.SANTO_ENV === "staging" && env.SANTO_MEDICAL_QUERY_REWRITE_V1 === "true",
         env.AI,
         env.SANTO_ENV === "staging" && env.SANTO_QWEN_ROUTING_V1 === "true",
+        env.SANTO_ENV === "staging" && env.SANTO_AI_SEARCH_SINGLE_REQUEST_V1 === "true",
       );
     });
   const modelFactory = dependencies.modelFactory ?? createGroundedModel;

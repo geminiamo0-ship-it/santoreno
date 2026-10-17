@@ -36,7 +36,12 @@ class FakeAiSearchNamespace implements AiSearchNamespaceLike {
   search(input: unknown): Promise<unknown> {
     this.searchInputs.push(input);
     const value = input as { ai_search_options: { instance_ids: string[] } };
-    const id = value.ai_search_options.instance_ids[0]!;
+    const ids = value.ai_search_options.instance_ids;
+    // Cloudflare merges and ranks chunks from the whole namespace request.
+    if (ids.length > 1 && Object.prototype.hasOwnProperty.call(this.results, "__merged")) {
+      return Promise.resolve(this.results["__merged"]);
+    }
+    const id = ids[0]!;
     return Promise.resolve(this.results[id] ?? { chunks: [] });
   }
 }
@@ -419,5 +424,153 @@ describe("Santo five licensed library retrieval", () => {
         libraryId: null,
       }),
     ).rejects.toMatchObject({ status: 502, code: "SEARCH_FAILED" });
+  });
+  it("staging one-call V2 sends exactly five allowlisted indexes in ONE hybrid namespace request", async () => {
+    const source = [
+      chunk("amboss", 1, 0.97),
+      chunk("amboss", 2, 0.94), // same original article: must not appear twice
+      chunk("usmle", 1, 0.93),
+      chunk("passmedicine", 1, 0.92),
+      chunk("pastest", 1, 0.91),
+      chunk("one-examination", 1, 0.88),
+    ];
+    const namespace = new FakeAiSearchNamespace(
+      { result: [...catalogItems, { id: "unrelated-customer" }] },
+      { __merged: { chunks: source } },
+    );
+    const retrieval = new CloudflareAiSearchRetrieval(
+      namespace,
+      undefined,
+      true,
+      false,
+      undefined,
+      false,
+      true,
+    );
+    const retrieved = await retrieval.retrieve({ query: "heart failure", libraryId: null });
+    expect(namespace.searchInputs).toHaveLength(1);
+    expect(namespace.searchInputs[0]).toMatchObject({
+      query: "heart failure",
+      ai_search_options: {
+        instance_ids: expectedIds.map(instanceFor),
+        retrieval: {
+          retrieval_type: "hybrid",
+          fusion_method: "rrf",
+          match_threshold: 0.4,
+          max_num_results: 25,
+        },
+        reranking: { enabled: true, model: "@cf/baai/bge-reranker-base" },
+        query_rewrite: { enabled: false },
+      },
+    });
+    expect(retrieved.map((e) => e.libraryId)).toEqual(expectedIds);
+    expect(new Set(retrieved.map((e) => e.itemKey)).size).toBe(5);
+    expect(retrieved.at(-1)).toMatchObject({
+      sourceId: "one-examination-isolated:chunk-one-examination-1",
+      libraryId: "one-examination",
+    });
+  });
+
+  it("single search retains Qwen's prepared medical query without a second model call", async () => {
+    let qwenCalls = 0;
+    const ai = {
+      run: async () => {
+        qwenCalls++;
+        return { response: "ignored" };
+      },
+    };
+    const namespace = new FakeAiSearchNamespace(undefined, {
+      __merged: { chunks: [chunk("amboss")] },
+    });
+    const retrieval = new CloudflareAiSearchRetrieval(
+      namespace,
+      undefined,
+      true,
+      true,
+      ai,
+      true,
+      true,
+    );
+    const found = await retrieval.retrieve({
+      query: "Follow-up question: management",
+      preparedQuery: "aortic stenosis management",
+      libraryId: null,
+    });
+    expect(qwenCalls).toBe(0);
+    expect(namespace.searchInputs).toHaveLength(1);
+    expect(namespace.searchInputs[0]).toMatchObject({ query: "aortic stenosis management" });
+    expect(found.map((e) => e.libraryId)).toEqual(["amboss"]);
+  });
+
+  it("single search respects an explicit library filter without broadening", async () => {
+    const namespace = new FakeAiSearchNamespace(undefined, {
+      "one-examination-isolated": { chunks: [chunk("one-examination")] },
+    });
+    const retrieval = new CloudflareAiSearchRetrieval(
+      namespace,
+      undefined,
+      true,
+      false,
+      undefined,
+      false,
+      true,
+    );
+    const found = await retrieval.retrieve({
+      query: "sodium",
+      libraryId: "one-examination",
+    });
+    expect(namespace.searchInputs).toHaveLength(1);
+    expect(namespace.searchInputs[0]).toMatchObject({
+      ai_search_options: { instance_ids: ["one-examination-isolated"] },
+    });
+    expect(found.map((e) => e.libraryId)).toEqual(["one-examination"]);
+    await expect(
+      retrieval.retrieve({ query: "sodium", libraryId: "foreign" }),
+    ).rejects.toMatchObject({ code: "INVALID_LIBRARY_FILTER" });
+    expect(namespace.searchInputs).toHaveLength(1);
+  });
+
+  it("single search never retries on empty or low-quality merged results", async () => {
+    const namespace = new FakeAiSearchNamespace(undefined, {
+      __merged: {
+        chunks: [
+          chunk("amboss", 1, 0.1),
+          { ...chunk("usmle"), instance_id: "foreign-project" },
+          { ...chunk("pastest"), item: { metadata: { title: "missing original key" } } },
+        ],
+      },
+    });
+    const retrieval = new CloudflareAiSearchRetrieval(
+      namespace,
+      undefined,
+      true,
+      false,
+      undefined,
+      false,
+      true,
+    );
+    expect(await retrieval.retrieve({ query: "test", libraryId: null })).toEqual([]);
+    expect(namespace.searchInputs).toHaveLength(1);
+  });
+
+  it("single search rejects partial Cloudflare instance failures and malformed output", async () => {
+    const partial = new FakeAiSearchNamespace(undefined, {
+      __merged: {
+        chunks: [chunk("amboss")],
+        errors: [{ instance_id: "pastest", message: "Index unavailable" }],
+      },
+    });
+    const malformed = new FakeAiSearchNamespace(undefined, { __merged: { broken: true } });
+    const make = (ns: FakeAiSearchNamespace) =>
+      new CloudflareAiSearchRetrieval(ns, undefined, true, false, undefined, false, true);
+    await expect(make(partial).retrieve({ query: "test", libraryId: null })).rejects.toMatchObject({
+      status: 502,
+      code: "SEARCH_FAILED",
+    });
+    await expect(
+      make(malformed).retrieve({ query: "test", libraryId: null }),
+    ).rejects.toMatchObject({ status: 502, code: "SEARCH_FAILED" });
+    expect(partial.searchInputs).toHaveLength(1);
+    expect(malformed.searchInputs).toHaveLength(1);
   });
 });

@@ -3,8 +3,6 @@ on:
   push:
     branches:
       - feat/santo-gallery-sixth-search-staging-20261017
-    paths:
-      - .github/workflows/santo-gallery-candidate-verify.yml
 permissions:
   contents: read
 jobs:

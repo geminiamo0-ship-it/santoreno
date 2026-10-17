@@ -163,31 +163,34 @@ export class GroundedAiService {
         onProvisionalAnswer?.(answer);
       } else {
         const retrievalStartedAt = performance.now();
-        // Sixth image search starts beside the five text searches using the
-        // SAME Qwen-normalized query; bounded failures never block clinical RAG.
-        const galleryPromise =
-          this.imageGallery && libraryId === null && this.richImagesEnabled
-            ? withAiDeadline(
-                () =>
-                  this.imageGallery!.retrieve(
-                    route?.intent === "medical" ? route.searchQuery : input.query,
-                  ),
+        // One AI Search namespace request covers all six indexes.
+        // Medical evidence and gallery IDs are split from that SAME result.
+        const retrievalRequest = {
+          query: input.query,
+          libraryId,
+          ...(route?.intent === "medical" ? { preparedQuery: route.searchQuery } : {}),
+        };
+        const combinedSearch =
+          this.imageGallery &&
+          libraryId === null &&
+          this.richImagesEnabled &&
+          this.retrieval.retrieveWithGallery
+            ? await withAiDeadline(
+                () => this.retrieval.retrieveWithGallery!(retrievalRequest),
                 signal,
-                4_000,
+                this.timeouts.retrievalMs,
                 "SEARCH_TIMEOUT",
-              ).catch(() => [])
-            : Promise.resolve([]);
-        const evidence = await withAiDeadline(
-          () =>
-            this.retrieval.retrieve({
-              query: input.query,
-              libraryId,
-              ...(route?.intent === "medical" ? { preparedQuery: route.searchQuery } : {}),
-            }),
-          signal,
-          this.timeouts.retrievalMs,
-          "SEARCH_TIMEOUT",
-        );
+              )
+            : {
+                evidence: await withAiDeadline(
+                  () => this.retrieval.retrieve(retrievalRequest),
+                  signal,
+                  this.timeouts.retrievalMs,
+                  "SEARCH_TIMEOUT",
+                ),
+                galleryHits: [],
+              };
+        const evidence = combinedSearch.evidence;
         console.info("santo_runtime_stage_ms", {
           stage: "retrieval",
           milliseconds: Math.round(performance.now() - retrievalStartedAt),
@@ -227,7 +230,15 @@ export class GroundedAiService {
             promptIncludesImages: originalImages.length > 0,
           });
         }
-        const galleryImages = groundingMode === "santo" ? await galleryPromise : [];
+        const galleryImages =
+          groundingMode === "santo" && this.imageGallery && combinedSearch.galleryHits.length
+            ? await withAiDeadline(
+                () => this.imageGallery!.hydrate(combinedSearch.galleryHits),
+                signal,
+                4_000,
+                "SEARCH_TIMEOUT",
+              ).catch(() => [])
+            : [];
         // Preserve strong article figures and reserve room for visual search.
         // Original article IDs IMG_001..IMG_080 never collide with IMG_081+.
         const availableImages = [

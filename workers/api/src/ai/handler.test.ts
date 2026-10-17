@@ -399,6 +399,116 @@ describe("grounded AI handler", () => {
     expect(quota.finalizeCalls).toBe(1);
   });
 
+  it("hydrates source-verified article and gallery images concurrently without changing citations or IDs", async () => {
+    env.SANTO_ENV = "staging";
+    env.SANTO_LUNA_PREVIEW = "true";
+    env.SANTO_SINGLE_PASS_GENERATION_V1 = "true";
+    env.SANTO_PLAIN_TEXT_LUNA_V1 = "true";
+    env.SANTO_LUNA_RICH_IMAGES_V1 = "true";
+    env.SANTO_GALLERY_IMAGES_V1 = "true";
+    env.SANTO_AI_SEARCH_SINGLE_REQUEST_V1 = "true";
+
+    const media = "https://pub-2a81f2cb19cc4473a3d076e657af6121.r2.dev/offline_media/";
+    const sourceId = "amboss:chunk-parallel";
+    const articleKey = "medical-articles/v1/amboss/aortic-stenosis.json";
+    const manifestKey = "gallery/v1/santo_image_manifest.json";
+    const article = {
+      schemaVersion: 1,
+      libraryId: "amboss",
+      articleId: "aortic-stenosis",
+      title: "Aortic stenosis",
+      category: "Cardiology",
+      source: "AMBOSS",
+      sections: [
+        {
+          id: "s-0001",
+          heading: "Diagnosis",
+          text: "Doppler determines valve gradients",
+          images: [{ src: media + "valve.webp", alt: "Doppler valve" }],
+        },
+      ],
+      contentHtml: "",
+    };
+    const gallery = {
+      img_000001: {
+        image_url: media + "ecg.webp",
+        title: "Aortic stenosis ECG",
+        visual_caption: "ECG finding",
+        primary_system: "Cardiology",
+        source_name: "Medical image gallery",
+      },
+    };
+    let releaseArticle!: () => void;
+    let releaseGallery!: () => void;
+    const articleGate = new Promise<void>((resolve) => {
+      releaseArticle = resolve;
+    });
+    const galleryGate = new Promise<void>((resolve) => {
+      releaseGallery = resolve;
+    });
+    const reads: string[] = [];
+    env.CONTENT_BUCKET = {
+      get: vi.fn(async (key: string) => {
+        reads.push(key);
+        if (key === articleKey) {
+          await articleGate;
+          return { text: async () => JSON.stringify(article) };
+        }
+        if (key === manifestKey) {
+          await galleryGate;
+          return { text: async () => JSON.stringify(gallery) };
+        }
+        return null;
+      }),
+      put: async () => undefined,
+      delete: async () => undefined,
+    };
+    retrieval.retrieveWithGallery = vi.fn(async () => ({
+      evidence: [{
+        sourceId,
+        libraryId: "amboss",
+        instanceId: "amboss",
+        itemKey: "medical-search/v1/amboss/aortic-stenosis/s-0001.md",
+        title: "Aortic stenosis",
+        section: "Diagnosis",
+        text: "Doppler imaging is used in diagnosis.",
+        page: null,
+        score: 0.96,
+      }],
+      galleryHits: [{ imageId: "img_000001", score: 0.89 }],
+    }));
+    model.generate = vi.fn(async () => ({
+      answer: "## Diagnosis\nDoppler [[1]].\n\n[[IMG_001]]\n\n[[IMG_081]]",
+      citationIds: [sourceId],
+    }));
+
+    const running = handler()(request(token, "parallel-figures", "Aortic stenosis ECG"), env);
+    try {
+      await vi.waitFor(() => expect(reads).toContain(articleKey));
+      // Both requests must start BEFORE either R2 operation is unblocked.
+      await vi.waitFor(() => expect(reads).toContain(manifestKey), { timeout: 600 });
+    } finally {
+      releaseArticle();
+      releaseGallery();
+    }
+
+    const response = await running;
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.answer).toContain(media + "valve.webp");
+    expect(body.answer).toContain(media + "ecg.webp");
+    expect(body.answer).not.toContain("[[IMG_001]]");
+    expect(body.answer).not.toContain("[[IMG_081]]");
+    expect(body.citations).toMatchObject([{ sourceId }]);
+    expect(retrieval.retrieveWithGallery).toHaveBeenCalledTimes(1);
+    expect(retrieval.retrieve).not.toHaveBeenCalled();
+    expect(model.generate).toHaveBeenCalledTimes(1);
+    const prompt = vi.mocked(model.generate).mock.calls[0]![0] as string;
+    expect(prompt).toContain("IMG_001");
+    expect(prompt).toContain("IMG_081");
+    expect(quota.finalizeCalls).toBe(1);
+  });
+
   it("passes an uncited Markdown contract to staging when retrieval is empty", async () => {
     env.SANTO_ENV = "staging";
     env.SANTO_LUNA_PREVIEW = "true";

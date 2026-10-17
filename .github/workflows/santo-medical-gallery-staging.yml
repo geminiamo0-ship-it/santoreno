@@ -19,9 +19,9 @@ jobs:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       GH_TOKEN: ${{ github.token }}
-      SOURCE_DRIVE_ID: '1ZR-EGLrKS4szarRqZ8wfuhp_EQqUI2u3'
-      SOURCE_SHA256: 'fa469888c75cec9880bc0af2b2423115ff848d9b74d72563b310f09db0e2e2e5'
-      WORKER_URL: 'https://santo-api-staging.geminiamo0.workers.dev'
+      SOURCE_DRIVE_ID: "1ZR-EGLrKS4szarRqZ8wfuhp_EQqUI2u3"
+      SOURCE_SHA256: "fa469888c75cec9880bc0af2b2423115ff848d9b74d72563b310f09db0e2e2e5"
+      WORKER_URL: "https://santo-api-staging.geminiamo0.workers.dev"
     steps:
       - uses: actions/checkout@v4
       - name: Require exact staging Verify before external writes
@@ -39,7 +39,7 @@ jobs:
           done
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: "3.12"
       - name: Install downloader and HTTP client
         run: python -m pip install 'gdown==5.2.0' 'requests==2.32.3'
       - name: Download exact SHA-pinned Drive ZIP
@@ -61,7 +61,7 @@ jobs:
           python scripts/ingest_santo_medical_gallery.py --archive "$RUNNER_TEMP/santo_medical_images.zip" --output "$RUNNER_TEMP/santo-gallery" --execute
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: "22"
       - name: Install pinned Wrangler
         run: |
           corepack enable
@@ -93,3 +93,4 @@ jobs:
             echo '- Manifest stored under gallery/v1 in santo-content-staging.'
             echo '- Staging deploy health/auth-deny passed. Signed-in E2E still pending.'
           } >> "$GITHUB_STEP_SUMMARY"
+2026-10-17T18:54:35.1563177

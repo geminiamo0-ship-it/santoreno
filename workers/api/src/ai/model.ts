@@ -11,15 +11,15 @@ export const GROUNDED_MODEL_POLICY = {
 } as const;
 
 /** Luna output budget is independent of the legacy production Workers AI cap. */
-export const LUNA_MAX_OUTPUT_TOKENS = 10_000;
+export const LUNA_MAX_OUTPUT_TOKENS = 3_000;
 
 /**
- * Luna may use up to 10k output tokens when the question warrants it.
+ * Staging Luna has a 3,000-token OUTPUT-only cap; prompt input is separate.
  * The JSON variant must still close its own envelope and citations within
  * that SAME response. The legacy production provider cap is unchanged.
  */
 export const LUNA_STAGING_COMPLETION_BUDGET =
-  "Completion and source integrity take priority over length. Match the depth to the learner's question: be concise for simple queries and offer substantial clinical teaching for broad, complex topics without repetitive introductions or filler. A long explanation may use much of the permitted output when useful, but it is never required to reach the limit. Reserve sufficient output for the strict JSON envelope: finish sentences and Markdown, close the answer string, include only supported allowed citation_ids, and close the JSON object. If approaching the limit, finish after a complete paragraph and finalize the JSON immediately. Do not omit relevant safety caveats or invent references.";
+  "Completion and source integrity take priority over length. Stay within the 3,000 output-token budget; it includes the whole response, citation IDs and any JSON envelope. Match depth to the learner's question: concise for simple queries, focused and substantial teaching for complex topics without filler. Prioritize the key mechanisms, diagnosis and management rather than exhaustive detail. Reserve enough room to finish sentences, close Markdown, emit only supported allowed citation_ids and close the JSON envelope. When nearing the budget, end after a complete paragraph and finalize the JSON immediately. Do not omit essential safety caveats or invent references.";
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return typeof value === "object" && value !== null && !Array.isArray(value)

@@ -1,4 +1,5 @@
 name: Santo Gallery Finalize and Deploy Staging
+# Index already contains 3293 search-ready images; skip two transient embedding errors.
 on:
   push:
     branches:

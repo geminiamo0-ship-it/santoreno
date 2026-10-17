@@ -464,17 +464,19 @@ describe("grounded AI handler", () => {
       delete: async () => undefined,
     };
     retrieval.retrieveWithGallery = vi.fn(async () => ({
-      evidence: [{
-        sourceId,
-        libraryId: "amboss",
-        instanceId: "amboss",
-        itemKey: "medical-search/v1/amboss/aortic-stenosis/s-0001.md",
-        title: "Aortic stenosis",
-        section: "Diagnosis",
-        text: "Doppler imaging is used in diagnosis.",
-        page: null,
-        score: 0.96,
-      }],
+      evidence: [
+        {
+          sourceId,
+          libraryId: "amboss",
+          instanceId: "amboss",
+          itemKey: "medical-search/v1/amboss/aortic-stenosis/s-0001.md",
+          title: "Aortic stenosis",
+          section: "Diagnosis",
+          text: "Doppler imaging is used in diagnosis.",
+          page: null,
+          score: 0.96,
+        },
+      ],
       galleryHits: [{ imageId: "img_000001", score: 0.89 }],
     }));
     model.generate = vi.fn(async () => ({

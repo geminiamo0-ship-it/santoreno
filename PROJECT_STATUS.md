@@ -7,7 +7,7 @@
 - **Strict split of returned data:** trusted clinical evidence is accepted ONLY from the existing five; gallery results are image IDs resolved against the allowlisted R2 URL manifest and supplied as **illustrations only**, never as clinical citations. Explicit per-library filter retains its original narrow scope.
 - The current image instance has 3,293 indexed documents; 2 known embedding-timeout documents were intentionally excluded from the success gate at owner request. Original five instances and production unchanged.
 - **Unverified:** authenticated Royal Bank Preview → Santo → Luna final answer rendering, actual image selection rate, p95 retrieval/first-token latency; live Cloudflare merged search smoke does not cover a signed-in full round trip.
-- **Important durability gate:** the new code is deployed to Staging from the feature branch but is **not merged** into `release/santo-medical-rich-prod-candidate-20261014`; subsequent deploys from that older staging branch could replace the feature. Create a normal PR from `feat/santo-gallery-sixth-search-staging-20261017` to the long-lived staging branch before the next routine staging deployment. Production remains disabled.
+- **Durability gate completed:** PR [#151](https://github.com/geminiamo0-ship-it/santoreno/pull/151) squash-merged into `release/santo-medical-rich-prod-candidate-20261014` at `fbb2e3362f0c39b64a36cf9a912cfb5e9b42ca25` after green checks; previous feature-branch Staging Worker remains deployed with equivalent one-call runtime code. Production remains unchanged.
 
 ### Sixth medical-image search — Staging deployed (17 Oct 2026)
 
@@ -15,7 +15,7 @@
 - Cloudflare instance `santo-medical-images` (AI Search namespace `default`) is text hybrid: **3293 fully indexed image JSON documents**, exactly **2 transient Workers AI timeout errors** (`img_000412.json`, `img_000416.json`) intentionally ignored per owner request; queued/running=0. No regeneration or reindexing of the five original libraries.
 - URL manifest `santo-content-staging/gallery/v1/santo_image_manifest.json` successfully uploaded, retrieved, and compared byte-for-byte; originals stay at the owner's `pub-2a81f2cb19cc4473a3d076e657af6121.r2.dev/offline_media/` domain.
 - Staging Worker now has `SANTO_GALLERY_IMAGES_V1=true` and includes a separately bounded parallel sixth gallery lookup. Gallery figures are not medical claims/citations. **Authenticated real-user browser images, chosen-gallery-marker frequency, and first-token latency remain untested**.
-- **Durability follow-up:** Code remains on `feat/santo-gallery-sixth-search-staging-20261017`; GitHub PR creation via the current tool was blocked. Merge it to `release/santo-medical-rich-prod-candidate-20261014` with normal review to prevent a future long-lived staging-branch deploy from reverting the feature. Production remains unchanged.
+- **Durability complete:** PR [#151](https://github.com/geminiamo0-ship-it/santoreno/pull/151) is merged into the long-lived Staging branch; production is unchanged.
 
 ### Medical gallery sixth search — staging candidate (17 Oct 2026; deployment pending)
 

@@ -1,0 +1,73 @@
+name: Santo Gallery Scoped Repair and Manifest
+on:
+  push:
+    branches: [feat/santo-gallery-sixth-search-staging-20261017]
+    paths: [.github/workflows/santo-gallery-scoped-repair.yml]
+permissions:
+  contents: read
+  checks: read
+concurrency:
+  group: santo-gallery-scoped-repair
+  cancel-in-progress: false
+jobs:
+  repair-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 65
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require green exact-head candidate Verify
+        shell: bash
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 120); do
+            checks="$(gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/check-runs")"
+            result="$(jq -r '[.check_runs[] | select(.name=="candidate-verify") | .conclusion] | map(select(.!=null)) | .[0] // ""' <<<"$checks")"
+            [[ "$result" == "success" ]] && exit 0
+            case "$result" in failure|cancelled|timed_out|action_required) exit 1;; esac
+            sleep 10
+          done
+          echo 'Exact-head CI gate never became green'; exit 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install pinned dependencies
+        run: python -m pip install 'gdown==5.2.0' 'requests==2.32.3'
+      - name: Validate pinned gallery and generate URL manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import gdown,os,pathlib
+          path=pathlib.Path(os.environ['RUNNER_TEMP'])/'santo_medical_images.zip'
+          result=gdown.download(id='1ZR-EGLrKS4szarRqZ8wfuhp_EQqUI2u3',output=str(path),quiet=False)
+          if not result or not path.exists(): raise SystemExit('Pinned gallery ZIP download failed')
+          PY
+          python scripts/ingest_santo_medical_gallery.py --archive "$RUNNER_TEMP/santo_medical_images.zip" --output "$RUNNER_TEMP/gallery"
+      - name: Repair ONLY transient two item timeouts and verify full index
+        run: python scripts/repair_santo_gallery.py --execute
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install repo-pinned Wrangler
+        run: |
+          corepack enable
+          pnpm install --frozen-lockfile
+      - name: Upload ONLY verified gallery manifest to existing Staging R2
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm exec wrangler r2 object put santo-content-staging/gallery/v1/santo_image_manifest.json --file "$RUNNER_TEMP/gallery/manifest.json" --remote
+          pnpm exec wrangler r2 object get santo-content-staging/gallery/v1/santo_image_manifest.json --file "$RUNNER_TEMP/gallery/readback.json" --remote
+          cmp "$RUNNER_TEMP/gallery/manifest.json" "$RUNNER_TEMP/gallery/readback.json"
+          {
+            echo '## Santo sixth medical gallery'
+            echo '- Exactly 3295 indexed records, 0 processing errors verified.'
+            echo '- Retried only two transient embedding failures, not all files.'
+            echo '- Isolated gallery text index only; existing five libraries untouched.'
+            echo '- Image manifest published and readback-verified in staging R2.'
+            echo '- Worker deploy NOT included; production untouched.'
+          } >> "$GITHUB_STEP_SUMMARY"

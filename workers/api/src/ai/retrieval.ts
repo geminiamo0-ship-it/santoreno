@@ -210,7 +210,11 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
       const selectedLibraries = selectLibraries(catalog, request.libraryId);
       if (this.medicalRetrievalV2) {
         return this.singleMultiInstanceSearchV1
-          ? await this.retrieveSingleMultiInstance(currentTopicQuery, selectedLibraries, searchQuery)
+          ? await this.retrieveSingleMultiInstance(
+              currentTopicQuery,
+              selectedLibraries,
+              searchQuery,
+            )
           : await this.retrieveMedicalV2(currentTopicQuery, selectedLibraries, searchQuery);
       }
       // Query each index concurrently. Asking a single global top-5 search
@@ -279,8 +283,9 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
     if (Array.isArray(result?.errors) && result.errors.length > 0) {
       throw new GroundedAiError(502, "SEARCH_FAILED", "Multi-instance search partially failed");
     }
-    const candidates = evidenceFromSearch(response, libraries, MERGED_SEARCH_CANDIDATES)
-      .map((evidence, position) => ({ evidence, position }));
+    const candidates = evidenceFromSearch(response, libraries, MERGED_SEARCH_CANDIDATES).map(
+      (evidence, position) => ({ evidence, position }),
+    );
     return rankMedicalCandidates(query, candidates, MAX_RESULTS);
   }
 

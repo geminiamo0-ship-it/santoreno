@@ -24,7 +24,7 @@ Staging only, opt into `SANTO_AI_SEARCH_SINGLE_REQUEST_V1=true` together with th
 ## Alternatives considered
 
 - **Current per-index V2 with a conditional second pass:** better opportunities for underrepresented libraries, but 5–10 API calls and variable latency.
-- **No reranker:** cheaper/simpler retrieval, but reduces relevance safeguards and was *not* part of the final approved configuration.
+- **No reranker:** cheaper/simpler retrieval, but reduces relevance safeguards and was _not_ part of the final approved configuration.
 - **Pass 25 chunks to Luna:** alters prompt size, citation limits and user-visible behavior; deferred separately.
 
 ## Consequences

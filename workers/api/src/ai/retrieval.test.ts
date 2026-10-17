@@ -439,7 +439,13 @@ describe("Santo five licensed library retrieval", () => {
       { __merged: { chunks: source } },
     );
     const retrieval = new CloudflareAiSearchRetrieval(
-      namespace, undefined, true, false, undefined, false, true,
+      namespace,
+      undefined,
+      true,
+      false,
+      undefined,
+      false,
+      true,
     );
     const retrieved = await retrieval.retrieve({ query: "heart failure", libraryId: null });
     expect(namespace.searchInputs).toHaveLength(1);
@@ -467,12 +473,23 @@ describe("Santo five licensed library retrieval", () => {
 
   it("single search retains Qwen's prepared medical query without a second model call", async () => {
     let qwenCalls = 0;
-    const ai = { run: async () => { qwenCalls++; return { response: "ignored" }; } };
+    const ai = {
+      run: async () => {
+        qwenCalls++;
+        return { response: "ignored" };
+      },
+    };
     const namespace = new FakeAiSearchNamespace(undefined, {
       __merged: { chunks: [chunk("amboss")] },
     });
     const retrieval = new CloudflareAiSearchRetrieval(
-      namespace, undefined, true, true, ai, true, true,
+      namespace,
+      undefined,
+      true,
+      true,
+      ai,
+      true,
+      true,
     );
     const found = await retrieval.retrieve({
       query: "Follow-up question: management",
@@ -490,7 +507,13 @@ describe("Santo five licensed library retrieval", () => {
       "one-examination-isolated": { chunks: [chunk("one-examination")] },
     });
     const retrieval = new CloudflareAiSearchRetrieval(
-      namespace, undefined, true, false, undefined, false, true,
+      namespace,
+      undefined,
+      true,
+      false,
+      undefined,
+      false,
+      true,
     );
     const found = await retrieval.retrieve({
       query: "sodium",
@@ -501,8 +524,9 @@ describe("Santo five licensed library retrieval", () => {
       ai_search_options: { instance_ids: ["one-examination-isolated"] },
     });
     expect(found.map((e) => e.libraryId)).toEqual(["one-examination"]);
-    await expect(retrieval.retrieve({ query: "sodium", libraryId: "foreign" }))
-      .rejects.toMatchObject({ code: "INVALID_LIBRARY_FILTER" });
+    await expect(
+      retrieval.retrieve({ query: "sodium", libraryId: "foreign" }),
+    ).rejects.toMatchObject({ code: "INVALID_LIBRARY_FILTER" });
     expect(namespace.searchInputs).toHaveLength(1);
   });
 
@@ -517,7 +541,13 @@ describe("Santo five licensed library retrieval", () => {
       },
     });
     const retrieval = new CloudflareAiSearchRetrieval(
-      namespace, undefined, true, false, undefined, false, true,
+      namespace,
+      undefined,
+      true,
+      false,
+      undefined,
+      false,
+      true,
     );
     expect(await retrieval.retrieve({ query: "test", libraryId: null })).toEqual([]);
     expect(namespace.searchInputs).toHaveLength(1);
@@ -533,12 +563,14 @@ describe("Santo five licensed library retrieval", () => {
     const malformed = new FakeAiSearchNamespace(undefined, { __merged: { broken: true } });
     const make = (ns: FakeAiSearchNamespace) =>
       new CloudflareAiSearchRetrieval(ns, undefined, true, false, undefined, false, true);
-    await expect(make(partial).retrieve({ query: "test", libraryId: null }))
-      .rejects.toMatchObject({ status: 502, code: "SEARCH_FAILED" });
-    await expect(make(malformed).retrieve({ query: "test", libraryId: null }))
-      .rejects.toMatchObject({ status: 502, code: "SEARCH_FAILED" });
+    await expect(make(partial).retrieve({ query: "test", libraryId: null })).rejects.toMatchObject({
+      status: 502,
+      code: "SEARCH_FAILED",
+    });
+    await expect(
+      make(malformed).retrieve({ query: "test", libraryId: null }),
+    ).rejects.toMatchObject({ status: 502, code: "SEARCH_FAILED" });
     expect(partial.searchInputs).toHaveLength(1);
     expect(malformed.searchInputs).toHaveLength(1);
   });
-
 });

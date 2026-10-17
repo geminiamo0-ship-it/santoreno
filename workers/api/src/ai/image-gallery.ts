@@ -1,9 +1,10 @@
-import type { AiSearchNamespaceLike, R2BucketLike } from "../runtime/bindings";
+import type { R2BucketLike } from "../runtime/bindings";
+import type { GallerySearchHit } from "./types";
 import type { MedicalImageCandidate } from "./medical-images";
 
 /** The gallery is visual teaching material, never a sixth clinical citation. */
 export interface GalleryImageRetriever {
-  retrieve(query: string): Promise<MedicalImageCandidate[]>;
+  hydrate(hits: readonly GallerySearchHit[]): Promise<MedicalImageCandidate[]>;
 }
 
 const GALLERY_ID = "santo-medical-images";
@@ -86,77 +87,41 @@ async function loadManifest(bucket: R2BucketLike): Promise<GalleryManifest> {
   }
 }
 
-function getRecord(value: unknown): Record<string, unknown> | null {
-  return value !== null && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null;
-}
-
 /**
- * Isolated sixth search runs in parallel to the five clinical indexes.
- * Returns zero on no match; caller owns bounded failure fallback.
- * Search item identifiers are NEVER taken from model-generated text.
+ * Hydrate IDs from the SAME namespace search response that supplied the
+ * five clinical evidence libraries. This class NEVER performs AI Search.
+ * Images are teaching illustrations only, not medical citation sources.
  */
 export class CloudflareGalleryImageRetrieval implements GalleryImageRetriever {
-  constructor(
-    private readonly namespace: AiSearchNamespaceLike,
-    private readonly bucket: R2BucketLike,
-  ) {}
+  constructor(private readonly bucket: R2BucketLike) {}
 
-  async retrieve(query: string): Promise<MedicalImageCandidate[]> {
-    const response = getRecord(
-      await this.namespace.search({
-        query,
-        ai_search_options: {
-          instance_ids: [GALLERY_ID],
-          retrieval: {
-            retrieval_type: "hybrid",
-            match_threshold: 0.4,
-            max_num_results: 12,
-            return_on_failure: true,
-            fusion_method: "rrf",
-          },
-          query_rewrite: { enabled: false },
-        },
-      }),
-    );
-    if (!Array.isArray(response?.chunks)) return [];
-    const ranked: { id: string; score: number }[] = [];
-    const seen = new Set<string>();
-    for (const raw of response.chunks) {
-      const chunk = getRecord(raw);
-      const item = getRecord(chunk?.item);
-      const key = item?.key;
-      const score = chunk?.score;
-      const match = typeof key === "string" ? /(?:^|\/)(img_\d{6})\.json$/.exec(key) : null;
-      if (!match || typeof score !== "number" || !Number.isFinite(score) || score < 0.4) continue;
-      if (chunk?.instance_id !== GALLERY_ID && chunk?.instance_id !== undefined) continue;
-      const id = match[1]!;
-      if (seen.has(id)) continue;
-      seen.add(id);
-      ranked.push({ id, score });
-    }
-    if (!ranked.length) return [];
-    ranked.sort((a, b) => b.score - a.score);
+  async hydrate(hits: readonly GallerySearchHit[]): Promise<MedicalImageCandidate[]> {
+    if (!hits.length) return [];
     const manifest = await loadManifest(this.bucket);
-    return ranked.slice(0, MAX_GALLERY_IMAGES).flatMap((entry, index) => {
-      const item = manifest[entry.id];
-      if (!item) return [];
-      return [
-        {
-          // Existing article-image IDs never exceed IMG_080.
-          id: "IMG_" + String(81 + index).padStart(3, "0"),
-          sourceId: "", // Gallery figures cannot become trusted medical citations.
-          src: item.image_url,
-          articleTitle: item.source_name,
-          section: item.primary_system || "Medical image gallery",
-          originalId: null,
-          alt: item.title,
-          caption: item.visual_caption,
-          before: "",
-          after: "",
-        },
-      ];
-    });
+    const seen = new Set<string>();
+    const selected: MedicalImageCandidate[] = [];
+    // Keep merged AI Search ranking order; drop missing manifest identities.
+    for (const hit of hits) {
+      if (!/^img_\d{6}$/.test(hit.imageId) || seen.has(hit.imageId) ||
+          !Number.isFinite(hit.score) || hit.score < 0.4) continue;
+      seen.add(hit.imageId);
+      const item = manifest[hit.imageId];
+      if (!item) continue;
+      selected.push({
+        // Article image IDs are IMG_001 through IMG_080.
+        id: "IMG_" + String(81 + selected.length).padStart(3, "0"),
+        sourceId: "", // Gallery pictures cannot be medical citations.
+        src: item.image_url,
+        articleTitle: item.source_name,
+        section: item.primary_system || "Medical image gallery",
+        originalId: null,
+        alt: item.title,
+        caption: item.visual_caption,
+        before: "",
+        after: "",
+      });
+      if (selected.length >= MAX_GALLERY_IMAGES) break;
+    }
+    return selected;
   }
 }

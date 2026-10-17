@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { WorkersAiLike } from "../runtime/bindings";
 import { CloudflareLunaModel, createGroundedModel } from "./model";
-import { parsePlainLunaAnswer, previewPlainLuna } from "./plain-luna";
+import { LUNA_PLAIN_TEXT_INSTRUCTIONS, parsePlainLunaAnswer, previewPlainLuna } from "./plain-luna";
 
 function sse(text: string): ReadableStream<Uint8Array> {
   const delta = { type: "response.output_text.delta", delta: text };
@@ -16,6 +16,18 @@ function sse(text: string): ReadableStream<Uint8Array> {
     },
   });
 }
+
+describe("Luna adaptive medical instruction bounds", () => {
+  it("does not force unrelated images, source attribution or context", () => {
+    expect(LUNA_PLAIN_TEXT_INSTRUCTIONS).toContain("mechanisms first");
+    expect(LUNA_PLAIN_TEXT_INSTRUCTIONS).toContain("mini-chapter");
+    expect(LUNA_PLAIN_TEXT_INSTRUCTIONS).toContain("never attribute unsupported background facts");
+    expect(LUNA_PLAIN_TEXT_INSTRUCTIONS).toContain("An explicitly new medical topic");
+    expect(LUNA_PLAIN_TEXT_INSTRUCTIONS).toContain("Prefer a few distinct, clinically relevant original figures");
+    expect(LUNA_PLAIN_TEXT_INSTRUCTIONS).toContain("use only the figures that truly contribute");
+    expect(LUNA_PLAIN_TEXT_INSTRUCTIONS).toContain("3,000 output tokens");
+  });
+});
 
 describe("staging single-pass plain-Luna citation contract", () => {
   const sourceA = "amboss:chunk-012345678900000000000001";

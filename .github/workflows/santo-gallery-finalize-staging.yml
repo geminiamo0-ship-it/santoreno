@@ -1,4 +1,5 @@
 name: Santo Gallery Finalize and Deploy Staging
+# One Cloudflare namespace-level search includes 5 evidence indexes plus image index.
 # Index already contains 3293 search-ready images; skip two transient embedding errors.
 on:
   push:

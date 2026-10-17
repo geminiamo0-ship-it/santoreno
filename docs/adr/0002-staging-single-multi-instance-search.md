@@ -1,6 +1,6 @@
 # ADR 0002 — Single namespace search for Staging medical retrieval
 
-- **Status:** Accepted for Staging trial only (pending CI and live acceptance)
+- **Status:** Deployed to Staging after successful CI; clinical and billing acceptance pending
 - **Date:** 2026-10-17
 - **Owners:** Santo engineering
 
@@ -35,7 +35,7 @@ Staging only, opt into `SANTO_AI_SEARCH_SINGLE_REQUEST_V1=true` together with th
 
 ## Verification
 
-Unit tests assert exactly one call with five allowlisted instances, filtered index, Qwen prepared query reuse, candidate and article limit, original source ID mapping, low-score/untrusted metadata rejection, failure handling and no repeat. Require exact-head Verify + post-merge Verify + Staging deploy health/auth smoke; authenticated medical-quality live acceptance remains separate.
+Unit tests assert exactly one call with five allowlisted instances, filtered index, Qwen prepared query reuse, candidate and article limit, original source ID mapping, low-score/untrusted metadata rejection, failure handling and no repeat. PR #146 passed exact-head Verify `39046489023`, post-merge Verify, and Cloudflare Staging deploy/health/unauthenticated deny smoke `39046563721` on commit `3155f2836c96fed5e6fcfc7441df13d5c9fac4ae`. Authenticated medical-quality and multi-instance billable-unit acceptance remain separate.
 
 ## References
 

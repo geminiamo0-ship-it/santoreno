@@ -1,0 +1,76 @@
+name: Deploy AMBOSS Adjacent Context — Santo Staging
+
+on:
+  push:
+    branches:
+      - feat/amboss-adjacent-anking-staging-20261019
+    paths:
+      - .github/workflows/amboss-adjacent-staging-deploy.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: santo-staging-anking-viewer-rollout
+  cancel-in-progress: false
+
+jobs:
+  verify-and-deploy:
+    if: github.repository == 'geminiamo0-ship-it/santoreno'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      WORKER_URL: https://santo-api-staging.geminiamo0.workers.dev
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@v4
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install pinned dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          corepack enable
+          pnpm install --frozen-lockfile
+      - name: Full pre-deployment verification
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm lint
+          pnpm typecheck
+          pnpm test
+          pnpm build
+          pnpm smoke
+      - name: Guard AnKing and AMBOSS staging configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'SANTO_AMBOSS_ADJACENT_R2_V1 = "true"' workers/api/wrangler.toml
+          grep -Fq 'SANTO_ANKING_CARDS_V1 = "true"' workers/api/wrangler.toml
+          grep -Fq 'SANTO_ANKING_RIGHTS_CLEARED_V1 = "true"' workers/api/wrangler.toml
+          grep -Fq 'SANTO_AI_SEARCH_SINGLE_REQUEST_V1 = "true"' workers/api/wrangler.toml
+          test -s workers/api/src/ai/amboss-adjacent.ts
+          test -n "${CLOUDFLARE_ACCOUNT_ID:-}"
+          test -n "${CLOUDFLARE_API_TOKEN:-}"
+          echo "STAGING_ONLY_GATES_PASSED"
+      - name: Deploy only Santo staging (keep secrets)
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd workers/api
+          pnpm exec wrangler deploy --env staging --keep-vars
+      - name: Live Worker health and unauthorized query protection
+        shell: bash
+        run: |
+          set -euo pipefail
+          response="$(curl --retry 10 --retry-delay 3 --retry-all-errors --fail --silent --show-error "$WORKER_URL/health")"
+          jq -e '.service == "santo-api" and .status == "ok"' <<< "$response" >/dev/null
+          code="$(curl -sS -o /dev/null -w '%{http_code}' -X POST "$WORKER_URL/v1/ai/query" -H 'content-type: application/json' --data '{"query":"aortic stenosis","idempotency_key":"amboss-adjacent-staging-unauth"}')"
+          test "$code" = "401"
+          echo "SANTO_AMBOSS_3_ADJACENT_STAGING_DEPLOYED" >> "$GITHUB_STEP_SUMMARY"
+          echo "Deployed exact commit: $GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
+          echo "Production unchanged. Authenticated source-content acceptance remains a separate gate." >> "$GITHUB_STEP_SUMMARY"

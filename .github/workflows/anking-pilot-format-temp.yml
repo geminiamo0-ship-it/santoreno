@@ -20,7 +20,11 @@ jobs:
       - name: Format targeted files
         run: |
           set -euo pipefail
-          pnpm exec prettier --write workers/api/src/ai/anking-flashcards.ts
+          pnpm exec prettier --write workers/api/src/ai/anking-flashcards.ts .github/workflows/anking-cardiology-staging-ingest.yml
+          echo 'FORMATTED_YAML_BASE64_BEGIN'
+          base64 -w0 .github/workflows/anking-cardiology-staging-ingest.yml
+          echo
+          echo 'FORMATTED_YAML_BASE64_END'
           git add workers/api/src/ai/anking-flashcards.ts
           if git diff --cached --quiet; then exit 0; fi
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"

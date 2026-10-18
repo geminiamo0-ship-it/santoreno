@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import type { RetrievedEvidence } from "./types";
-import { focusedSearchQuery, focusedUserMessageQuery, matchesSearchSubject } from "./source-relevance";
+import {
+  focusedSearchQuery,
+  focusedUserMessageQuery,
+  matchesSearchSubject,
+} from "./source-relevance";
 
 function evidence(title: string, text: string, score = 0.95): RetrievedEvidence {
   return {

@@ -191,7 +191,7 @@ const groundedResponseSchema = {
     citation_ids: {
       type: "array",
       items: { type: "string" },
-      maxItems: 5,
+      maxItems: 8,
     },
   },
   required: ["answer", "citation_ids"],
@@ -219,7 +219,7 @@ export function groundedSchemaForCitationIds(allowedCitationIds?: readonly strin
         items:
           ids.length > 0 ? { type: "string" as const, enum: ids } : { type: "string" as const },
         minItems: ids.length > 0 ? 1 : 0,
-        maxItems: ids.length > 0 ? 5 : 0,
+        maxItems: ids.length > 0 ? 8 : 0,
       },
     },
   };

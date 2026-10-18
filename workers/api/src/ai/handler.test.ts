@@ -648,6 +648,43 @@ describe("grounded AI handler", () => {
     expect(quota.finalizeCalls).toBe(1);
   });
 
+  it("completes a real eight-citation AMBOSS answer with persisted verified sources", async () => {
+    const evidence = Array.from({ length: 8 }, (_, index) => ({
+      sourceId: "amboss:r2-" + String(index).padStart(32, "0"),
+      libraryId: "amboss",
+      instanceId: "amboss",
+      itemKey:
+        "medical-search/v1/amboss/unnamed-2746/s-" + String(index + 15).padStart(4, "0") + ".md",
+      title: "Aortic valve stenosis",
+      page: null,
+      section: index === 0 ? "Treatment" : "Approach",
+      text: "Verified AMBOSS aortic stenosis teaching for section " + index,
+      score: index === 0 ? 0.91 : 0,
+    }));
+    retrieval.retrieve = vi.fn(async () => evidence);
+    model.generate = vi.fn(async () => ({
+      answer:
+        "Severity and management " +
+        evidence.map((_, index) => "[[" + (index + 1) + "]]").join(" "),
+      citationIds: evidence.map((item) => item.sourceId),
+    }));
+    const save = vi.fn(async () => undefined);
+    const response = await handler({ save })(request(token, "amboss-eight-source-fix"), env);
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.citations).toHaveLength(8);
+    expect(body.citations.map((item: { sourceId: string }) => item.sourceId)).toEqual(
+      evidence.map((item) => item.sourceId),
+    );
+    expect(save).toHaveBeenCalledOnce();
+    expect(save).toHaveBeenCalledWith(
+      expect.any(Object),
+      evidence.map((item) => expect.objectContaining({ sourceId: item.sourceId })),
+    );
+    expect(quota.used).toBe(1);
+    expect(quota.releaseCalls).toBe(0);
+  });
+
   it("saves only verified citation metadata before finalizing quota", async () => {
     const save = vi.fn(async () => undefined);
     const response = await handler({ save })(request(token), env);

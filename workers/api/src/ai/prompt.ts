@@ -2,7 +2,8 @@ import { GroundedAiError } from "./errors";
 import type { RetrievedEvidence } from "./types";
 
 const MAX_QUERY_CHARS = 4000;
-const MAX_EVIDENCE_ITEMS = 5;
+// Five ranked source passages plus at most three verified AMBOSS R2 neighbors.
+const MAX_EVIDENCE_ITEMS = 8;
 const MAX_EVIDENCE_CHARS = 3500;
 const MAX_SOURCE_ID_CHARS = 512;
 const MAX_LIBRARY_ID_CHARS = 64;

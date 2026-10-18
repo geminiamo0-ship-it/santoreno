@@ -37,7 +37,48 @@ interface NoteRecord {
 
 const MAX_NOTES = 7;
 const MAX_CARDS = 5;
-const NOTE_PREFIX = "anking/v3/cardiology/notes/";
+const SHARD_PREFIX = "anking/v3/cardiology/shards/";
+const SHARD_COUNT = 32;
+const SHARD_CACHE_MS = 5 * 60_000;
+type Shard = Record<string, NoteRecord>;
+const shardCache = new WeakMap<R2BucketLike, Map<number, { until: number; data: Shard }>>();
+const shardFlights = new WeakMap<R2BucketLike, Map<number, Promise<Shard>>>();
+
+async function loadShard(bucket: R2BucketLike, shard: number): Promise<Shard> {
+  let cache = shardCache.get(bucket);
+  if (!cache) {
+    cache = new Map();
+    shardCache.set(bucket, cache);
+  }
+  const stored = cache.get(shard);
+  if (stored && stored.until > Date.now()) return stored.data;
+  let flights = shardFlights.get(bucket);
+  if (!flights) {
+    flights = new Map();
+    shardFlights.set(bucket, flights);
+  }
+  const existing = flights.get(shard);
+  if (existing) return existing;
+  const loading = (async (): Promise<Shard> => {
+    const object = await bucket.get(`${SHARD_PREFIX}shard_${String(shard).padStart(2, "0")}.json`);
+    if (!object) return {};
+    const parsed = record(JSON.parse(await object.text()) as unknown);
+    if (!parsed) return {};
+    const checked: Shard = {};
+    for (const [key, value] of Object.entries(parsed)) {
+      if (/^note_\d{10,16}$/.test(key)) {
+        const row = record(value);
+        if (row) checked[key] = row as NoteRecord;
+      }
+    }
+    cache!.set(shard, { until: Date.now() + SHARD_CACHE_MS, data: checked });
+    return checked;
+  })();
+  flights.set(shard, loading);
+  try { return await loading; }
+  finally { flights.delete(shard); }
+}
+
 const EMPTY: AnkingSupplement = { cards: [], promptContext: "" };
 const IGNORE = new Set([
   "about",
@@ -114,9 +155,8 @@ export class R2AnkingSupplementRetriever implements AnkingSupplementRetriever {
     const notes = await Promise.all(
       unique.map(async (id) => {
         try {
-          const object = await this.bucket.get(`${NOTE_PREFIX}${id}.json`);
-          if (!object) return null;
-          return record(JSON.parse(await object.text()) as unknown);
+          const number = Number(id.slice(5));
+          return (await loadShard(this.bucket, number % SHARD_COUNT))[id] ?? null;
         } catch {
           return null;
         }

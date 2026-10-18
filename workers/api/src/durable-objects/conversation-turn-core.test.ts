@@ -210,11 +210,11 @@ describe("verified conversation turn state", () => {
       attemptId: start.attemptId,
       response: saved,
     });
-    expect(completed.response?.relatedPics).toEqual(saved.relatedPics);
-    expect(turns.begin(ask()).turn.response?.relatedPics).toEqual(saved.relatedPics);
-    expect(turns.list({ actor, conversationId }).turns[0]?.response?.relatedPics).toEqual(
-      saved.relatedPics,
-    );
+    expect(completed.response).toMatchObject({ relatedPics: saved.relatedPics });
+    expect(turns.begin(ask()).turn.response).toMatchObject({ relatedPics: saved.relatedPics });
+    expect(turns.list({ actor, conversationId }).turns[0]?.response).toMatchObject({
+      relatedPics: saved.relatedPics,
+    });
   });
 
   it("atomically starts, completes and replays the same verified response", () => {

@@ -1,0 +1,33 @@
+name: Temporary AnKing branch formatter
+on:
+  push:
+    branches:
+      - feat/anking-cardiology-suggestions-staging-20261018
+permissions:
+  contents: write
+jobs:
+  format:
+    if: github.repository == 'geminiamo0-ship-it/santoreno'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - name: Format only candidate files and commit
+        run: |
+          set -euo pipefail
+          pnpm exec prettier --write PROJECT_STATUS.md workers/api/src/ai/anking-flashcards.ts workers/api/src/ai/anking-flashcards.test.ts workers/api/src/ai/retrieval.test.ts workers/api/src/ai/service.ts
+          git add PROJECT_STATUS.md workers/api/src/ai/anking-flashcards.ts workers/api/src/ai/anking-flashcards.test.ts workers/api/src/ai/retrieval.test.ts workers/api/src/ai/service.ts
+          if git diff --cached --quiet; then
+            echo "No formatting changes"
+            exit 0
+          fi
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git commit -m "style(ai): apply Prettier to AnKing pilot"
+          git push origin HEAD:feat/anking-cardiology-suggestions-staging-20261018

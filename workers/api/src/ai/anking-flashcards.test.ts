@@ -25,7 +25,7 @@ const valid = {
 
 function source(data: unknown): R2BucketLike {
   return {
-    get: vi.fn(async () => ({ text: async () => JSON.stringify(data) })),
+    get: vi.fn(async () => ({ text: async () => JSON.stringify({ [`note_${noteId}`]: data }) })),
     put: vi.fn(async () => undefined),
     delete: vi.fn(async () => undefined),
   };

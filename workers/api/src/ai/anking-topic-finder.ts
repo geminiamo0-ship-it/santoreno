@@ -9,7 +9,9 @@ const MAX_CANDIDATES = 130;
 const PAGE_SIZE = 10;
 const INDEX_TTL_MS = 5 * 60_000;
 const STOP = new Set(
-  "a an and are be by can causes clinical common diagnosis disease does explain for from have how in is it its more most of on or please present presentation signs symptoms the their these this to treatment what when which why with about all associated features following finding facts classic medicine topic cards card flashcards show give me plus".split(" "),
+  "a an and are be by can causes clinical common diagnosis disease does explain for from have how in is it its more most of on or please present presentation signs symptoms the their these this to treatment what when which why with about all associated features following finding facts classic medicine topic cards card flashcards show give me plus".split(
+    " ",
+  ),
 );
 interface TopicIndex {
   version: number;
@@ -41,7 +43,8 @@ async function topicIndex(bucket: R2BucketLike): Promise<TopicIndex> {
       !raw.facts ||
       typeof raw.topics !== "object" ||
       typeof raw.facts !== "object"
-    ) throw new Error("INVALID_ANKING_TOPIC_INDEX");
+    )
+      throw new Error("INVALID_ANKING_TOPIC_INDEX");
     const index = raw as TopicIndex;
     cache.set(bucket, { expires: Date.now() + INDEX_TTL_MS, index });
     return index;
@@ -56,7 +59,9 @@ async function topicIndex(bucket: R2BucketLike): Promise<TopicIndex> {
 
 function terms(query: string): string[] {
   return [
-    ...new Set((query.toLowerCase().match(/[a-z][a-z0-9]{2,}/g) ?? []).filter((word) => !STOP.has(word))),
+    ...new Set(
+      (query.toLowerCase().match(/[a-z][a-z0-9]{2,}/g) ?? []).filter((word) => !STOP.has(word)),
+    ),
   ].slice(0, 16);
 }
 
@@ -64,7 +69,10 @@ function rankedNotes(index: TopicIndex, query: string): number[] {
   const tokens = terms(query);
   const score = new Map<number, number>();
   for (const token of tokens) {
-    for (const [map, weight] of [[index.topics, 5], [index.facts, 1]] as const) {
+    for (const [map, weight] of [
+      [index.topics, 5],
+      [index.facts, 1],
+    ] as const) {
       const ids = map[token];
       if (!Array.isArray(ids)) continue;
       // An unhelpfully broad tag must not swamp disease-specific matches.
@@ -74,8 +82,10 @@ function rankedNotes(index: TopicIndex, query: string): number[] {
       }
     }
   }
-  return [...score].sort((a, b) => b[1] - a[1] || a[0] - b[0])
-    .slice(0, MAX_CANDIDATES).map(([id]) => id);
+  return [...score]
+    .sort((a, b) => b[1] - a[1] || a[0] - b[0])
+    .slice(0, MAX_CANDIDATES)
+    .map(([id]) => id);
 }
 
 export interface FindMoreCardsResult {
@@ -111,7 +121,8 @@ export async function findMoreAnkingCards(
   const seen = new Set<number>();
   for (let n = 0; n < ranked.length; n++) {
     const note = shards.get(ranked[n]! % 32)?.[noteIds[n]!] as NoteRecord | undefined;
-    if (!note || note.note_id !== ranked[n] || note.rights_status !== "licensed_for_santo") continue;
+    if (!note || note.note_id !== ranked[n] || note.rights_status !== "licensed_for_santo")
+      continue;
     const backText = typeof note.medical_fact === "string" ? note.medical_fact.slice(0, 2500) : "";
     if (!backText) continue;
     if (!Array.isArray(note.cards)) continue;

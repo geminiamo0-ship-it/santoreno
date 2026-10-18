@@ -232,8 +232,9 @@ export async function routeMedicalRequest(
     report(reason);
     return fallback;
   };
-  if (!ai || focusedQuery.length > MAX_FOCUSED_CHARS || !focusedQuery.trim())
+  if (!ai || focusedQuery.length > MAX_FOCUSED_CHARS || !focusedQuery.trim()) {
     return fail("unavailable");
+  }
   const latest = latestStudentMessage(originalRequest);
   const input = [
     "Latest student question: " + latest.slice(0, 600),
@@ -271,8 +272,9 @@ export async function routeMedicalRequest(
     } catch {
       return fail("invalid_output");
     }
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
       return fail("invalid_output");
+    }
     const result = parsed as Record<string, unknown>;
     if (result.intent === "MEDICAL") {
       const query = acceptMedicalRewrite(focusedQuery, result.search_query);
@@ -287,15 +289,15 @@ export async function routeMedicalRequest(
       return { intent: "clarify", question };
     }
     if (result.intent === "CHAT") {
-      if (originalRequest.includes(FOLLOW_UP_MARKER))
-        return fail("chat_rejected_context");
+      if (originalRequest.includes(FOLLOW_UP_MARKER)) return fail("chat_rejected_context");
       if (
         typeof result.answer !== "string" ||
         !result.answer.trim() ||
         result.answer.length > 350 ||
         !clearlyNonClinical(latest) ||
         /https?:|\[\[|SANTO_REF_|(?:source|citation|guideline):/i.test(result.answer)
-      ) return fail("chat_rejected_safety");
+      )
+        return fail("chat_rejected_safety");
       report("success_chat");
       return { intent: "chat", answer: result.answer.trim() };
     }

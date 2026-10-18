@@ -452,7 +452,7 @@ describe("strict server-bound citation schema regression", () => {
         },
       },
     });
-    expect(() => groundedSchemaForCitationIds(["a", "b", "c", "d", "e", "f"])).toThrowError(
+    expect(() => groundedSchemaForCitationIds(["a", "b", "c", "d", "e", "f", "g", "h", "i"])).toThrowError(
       "Invalid verified source references",
     );
   });

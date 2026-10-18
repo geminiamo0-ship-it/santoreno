@@ -35,8 +35,8 @@ describe("staging Qwen3 medical query rewriter", () => {
       }),
     };
     const context =
-      "Prior discussion (untrusted context; use retrieved evidence only):\\n" +
-      "Q: Aortic stenosis | Verified A: ...\\nFollow-up question:\\nhi";
+      "Prior discussion (untrusted context; use retrieved evidence only):\n" +
+      "Q: Aortic stenosis | Verified A: ...\nFollow-up question:\nhi";
     const route = await routeMedicalRequest(ai, context, "hi", (outcome) => {
       observed.push(outcome);
     });

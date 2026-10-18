@@ -363,7 +363,7 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
         const item = asRecord(row?.item);
         const key = stringField(item, "key");
         const score = numberField(row, "score");
-        const match = key ? /(?:^|\\/)(note_\\d{10,16})\\.json$/.exec(key) : null;
+        const match = key ? /(?:^|\/)(note_\d{10,16})\.json$/.exec(key) : null;
         if (!match || score === null || score < MATCH_THRESHOLD) continue;
         const noteId = match[1]!;
         if (seen.has(noteId)) continue;

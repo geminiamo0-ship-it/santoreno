@@ -19,6 +19,7 @@ import { GroundedAiError } from "./errors";
 import { buildGeneralMedicalPrompt, buildGroundedPrompt } from "./prompt";
 import type { AiTelemetryEvent, AiTelemetryPort, ModelPort, RetrievalPort } from "./types";
 import type { GalleryImageRetriever } from "./image-gallery";
+import type { AnkingSupplementRetriever } from "./anking-flashcards";
 
 function quotaDenial(reason: string | null): GroundedAiError {
   switch (reason) {
@@ -83,6 +84,7 @@ export class GroundedAiService {
     private readonly articleBucket?: R2BucketLike,
     private readonly intentRoutingEnabled = false,
     private readonly imageGallery?: GalleryImageRetriever,
+    private readonly ankingSupplement?: AnkingSupplementRetriever,
   ) {}
 
   async query(
@@ -133,6 +135,7 @@ export class GroundedAiService {
     let answer: string;
     let citations: GroundedAiQueryResponse["citations"];
     let relatedPics: NonNullable<GroundedAiQueryResponse["relatedPics"]> = [];
+    let suggestedFlashcards: NonNullable<GroundedAiQueryResponse["suggestedFlashcards"]> = [];
     let responseMode: "santo" | "general" = "santo";
     let retrievedSourceCount = 0;
     let validCitationCount = 0;
@@ -245,7 +248,18 @@ export class GroundedAiService {
                 "SEARCH_TIMEOUT",
               ).catch(() => [])
             : Promise.resolve([]);
-        const [originalImages, galleryImages] = await Promise.all([
+        const ankingPromise =
+          groundingMode === "santo" &&
+          this.ankingSupplement &&
+          combinedSearch.ankingHits?.length
+            ? withAiDeadline(
+                () => this.ankingSupplement!.hydrate(combinedSearch.ankingHits!, input.query),
+                signal,
+                4_000,
+                "SEARCH_TIMEOUT",
+              ).catch(() => ({ cards: [], promptContext: "" }))
+            : Promise.resolve({ cards: [], promptContext: "" });
+        const [originalImages, galleryImages, anking] = await Promise.all([
           originalImagesPromise.then((images) => {
             if (imageDiagnostics) {
               console.info("santo_runtime_stage_ms", {
@@ -264,6 +278,7 @@ export class GroundedAiService {
             }
             return images;
           }),
+          ankingPromise,
         ]);
         if (imageDiagnostics) {
           console.info("santo_luna_image_pipeline", {
@@ -287,7 +302,9 @@ export class GroundedAiService {
         const answerFormat = this.markdownOutput ? "markdown" : "json";
         const sourcedPrompt =
           buildGroundedPrompt(input.query, evidence, answerFormat) +
-          medicalImagePrompt(availableImages, input.query);
+          medicalImagePrompt(availableImages, input.query) +
+          anking.promptContext;
+        suggestedFlashcards = anking.cards;
         console.info("santo_runtime_stage_ms", {
           stage: "pre_model",
           milliseconds: Math.round(performance.now() - routeStartedAt),
@@ -518,6 +535,7 @@ export class GroundedAiService {
       answer,
       citations,
       ...(relatedPics.length ? { relatedPics } : {}),
+      ...(responseMode === "santo" && suggestedFlashcards.length ? { suggestedFlashcards } : {}),
       ...(responseMode === "general" ? { groundingMode: "general" as const } : {}),
       usage: {
         unitsCharged: 1,

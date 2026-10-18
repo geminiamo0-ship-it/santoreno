@@ -1,0 +1,26 @@
+name: Cancel Duplicate Full AnKing Upload
+on:
+  push:
+    branches:
+      - feat/anking-cardiology-suggestions-staging-20261018
+    paths:
+      - .github/workflows/anking-cancel-duplicate-once.yml
+permissions:
+  contents: read
+  actions: write
+jobs:
+  cancel-duplicate:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Preserve the original upload; cancel only its queued duplicate
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo 'Preserving owner-approved original upload #39140939785'
+          gh api -X POST "repos/${GITHUB_REPOSITORY}/actions/runs/39141157442/cancel" || {
+            echo 'GitHub cancellation API refused; duplicate remains queued'
+            exit 1
+          }
+          echo 'Duplicate canceled to avoid repeating billable indexing'

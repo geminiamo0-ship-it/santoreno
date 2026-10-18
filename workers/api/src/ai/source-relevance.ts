@@ -125,6 +125,9 @@ export function focusedUserMessageQuery(messages: readonly string[]): string {
       const intent = followUpIntent(current);
       return intent ? `${intent} of ${topic}` : topic;
     }
+    // Do not skip a different medical question that could introduce a NEW
+    // disease (e.g. "What causes amyloidosis?") and mis-anchor on old FMF.
+    if (!BARE_FOLLOW_UP.test(messages[i] ?? "")) return current;
   }
   return current;
 }

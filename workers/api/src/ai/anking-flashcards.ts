@@ -172,16 +172,18 @@ export class R2AnkingSupplementRetriever implements AnkingSupplementRetriever {
     for (let i = 0; i < unique.length; i++) {
       const note = notes[i] as NoteRecord | null;
       if (!note || note.note_id !== Number(unique[i]!.slice(5))) continue;
-      // Both explicit rights clearance and medical review are required per record.
-      if (note.rights_status !== "licensed_for_santo" || note.review_status !== "approved")
-        continue;
+      // Owner-cleared original Anki IDs may be suggested as flashcard navigation.
+      // Unreviewed facts must NEVER enter Luna's clinical explanation prompt.
+      if (note.rights_status !== "licensed_for_santo") continue;
       const medicalFact =
         typeof note.medical_fact === "string" ? note.medical_fact.slice(0, 420) : "";
       const pearl =
         typeof note.clinical_pearl === "string" ? note.clinical_pearl.slice(0, 220) : "";
       const topic = typeof note.topic === "string" ? note.topic.slice(0, 120) : "AnKing high-yield";
       if (!medicalFact || overlap(queryTerms, `${topic} ${medicalFact}`) === 0) continue;
-      facts.push(`- ${topic}: ${medicalFact}${pearl ? "; " + pearl : ""}`);
+      if (note.review_status === "approved") {
+        facts.push(`- ${topic}: ${medicalFact}${pearl ? "; " + pearl : ""}`);
+      }
       if (!Array.isArray(note.cards)) continue;
       for (const item of note.cards as unknown[]) {
         const card = parseCard(item);
@@ -198,10 +200,11 @@ export class R2AnkingSupplementRetriever implements AnkingSupplementRetriever {
     // Never tell Luna the raw card IDs; the backend adds them after generation.
     return {
       cards: selected,
-      promptContext:
-        "\nEXAM_MEMORY_ADJUNCTS (not independent medical citations):\n" +
-        facts.slice(0, MAX_NOTES).join("\n").slice(0, 1800) +
-        "\nUse these only as exam-recall context when consistent with the five cited clinical libraries; current diagnosis and treatment guidance comes from those verified sources. Do not cite these adjuncts or invent Anki IDs.\n",
+      promptContext: facts.length
+        ? "\nEXAM_MEMORY_ADJUNCTS (not independent medical citations):\n" +
+          facts.slice(0, MAX_NOTES).join("\n").slice(0, 1800) +
+          "\nUse these only as exam-recall context when consistent with the five cited clinical libraries; current diagnosis and treatment guidance comes from those verified sources. Do not cite these adjuncts or invent Anki IDs.\n"
+        : "",
     };
   }
 }

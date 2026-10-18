@@ -3,8 +3,6 @@ on:
   push:
     branches:
       - feat/anking-card-data-viewer-20261018
-    paths:
-      - .github/workflows/anking-viewer-verify.yml
 permissions:
   contents: read
 jobs:

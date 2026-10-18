@@ -23,8 +23,8 @@ DRIVE_FILE_ID = "1sr_XbG5KFC8hFuNXf23WKCthyFYWk4ls"
 SOURCE_SHA256 = "3e75c1629a74423f012556ff0b52c87703ce12812cfa35b195f3bf57dcebfb25"
 TOTAL_SOURCE_NOTES = 30521
 TOTAL_SOURCE_CARDS = 36941
-ELIGIBLE_NOTES = 30489
-ELIGIBLE_CARDS = 36908
+ELIGIBLE_NOTES = 30477
+ELIGIBLE_CARDS = 36896
 SHARDS = 128
 INSTANCE = "santo-anking-step-v12"
 R2_PREFIX = "anking/v12/full/shards/"
@@ -66,6 +66,8 @@ def eligible(note: dict, document: dict) -> str | None:
         len(note.get("clean_fact_text", "")) < 25
     ):
         return "note_creation_instructions"
+    if re.search(r"\[sound:|<img\b|Photo credit:", document.get("search_text", ""), re.I):
+        return "media_or_credit_markup"
     if len(document.get("search_text", "")) < 70:
         return "low_content"
     if not any(str(card.get("cloze_preview") or "").strip() for card in note.get("cards", [])):

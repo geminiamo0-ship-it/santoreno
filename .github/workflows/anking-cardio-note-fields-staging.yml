@@ -1,0 +1,107 @@
+name: Backfill Cardiology Text Notes on Staging R2
+
+on:
+  push:
+    branches:
+      - feat/anking-card-data-viewer-20261018
+    paths:
+      - .github/workflows/anking-cardio-note-fields-staging.yml
+
+permissions:
+  contents: read
+  checks: read
+
+concurrency:
+  group: santo-staging-cardiology-note-fields-backfill
+  cancel-in-progress: false
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Require passing branch contract verification
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 120); do
+            checks="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/check-runs")"
+            quality="$(jq -r '[.check_runs[] | select(.name=="verify") | .conclusion] | map(select(. != null)) | .[0] // ""' <<<"$checks")"
+            if [[ "$quality" == "success" ]]; then break; fi
+            if [[ "$quality" == "failure" || "$quality" == "cancelled" ]]; then
+              echo "Code gate failed; no R2 writes"; exit 1
+            fi
+            if [[ "$attempt" == "120" ]]; then echo "Code gate pending; no R2 writes"; exit 1; fi
+            sleep 10
+          done
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Verify owner-licensed original archive SHA
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install requests==2.32.3
+          python scripts/ingest_anking_cardiology_staging.py --download --archive /tmp/cardio-v3.zip --output /tmp/cardio-source-validation
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install Wrangler from Santo workspace
+        shell: bash
+        run: |
+          corepack enable
+          pnpm install --frozen-lockfile
+
+      - name: Read exactly the existing 32 Staging R2 objects
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${CLOUDFLARE_ACCOUNT_ID:-}"
+          test -n "${CLOUDFLARE_API_TOKEN:-}"
+          mkdir -p /tmp/old-cardiology-shards
+          for i in $(seq -w 0 31); do
+            pnpm --dir workers/api exec wrangler r2 object get "santo-content-staging/anking/v3/cardiology/shards/shard_${i}.json" --file "/tmp/old-cardiology-shards/shard_${i}.json" --remote
+          done
+
+      - name: Compare original CIDs and stage upgraded text shards locally first
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/backfill_anking_cardio_note_fields.py --archive /tmp/cardio-v3.zip --existing /tmp/old-cardiology-shards --output /tmp/new-cardiology-shards
+          python - <<'PY'
+          import json
+          r=json.load(open('/tmp/new-cardiology-shards/validation.json'))
+          assert (r['original_notes'],r['original_cids'],r['shards']) == (4151,5156,32)
+          assert r['rights_status_preserved'] and r['review_status_preserved'] and not r['index_rebuilt']
+          PY
+
+      - name: Back up all 32 originals to a private R2 prefix before modifications
+        shell: bash
+        run: |
+          set -euo pipefail
+          for i in $(seq -w 0 31); do
+            pnpm --dir workers/api exec wrangler r2 object put "santo-content-staging/anking/v3/cardiology/backups/pre-note-fields-20261018/shard_${i}.json" --file "/tmp/old-cardiology-shards/shard_${i}.json" --remote
+          done
+
+      - name: Upgrade the 32 existing private Cardiology metadata shards only
+        shell: bash
+        run: |
+          set -euo pipefail
+          for i in $(seq -w 0 31); do
+            pnpm --dir workers/api exec wrangler r2 object put "santo-content-staging/anking/v3/cardiology/shards/shard_${i}.json" --file "/tmp/new-cardiology-shards/shard_${i}.json" --remote
+          done
+          for i in $(seq -w 0 31); do
+            pnpm --dir workers/api exec wrangler r2 object get "santo-content-staging/anking/v3/cardiology/shards/shard_${i}.json" --file "/tmp/readback_${i}.json" --remote
+            cmp "/tmp/readback_${i}.json" "/tmp/new-cardiology-shards/shard_${i}.json"
+          done
+          echo 'CARDIOLOGY_STAGING_NOTE_FIELDS_BACKFILLED'

@@ -827,11 +827,3 @@ deferred until after this Pilot. Never expose server credentials to browsers.
 ## 10. Repository administration note
 
 Branch protection/ruleset configuration remains an authorized-admin follow-up under Issue #10 because the connected GitHub integration cannot write that repository setting.
-
-
-### Staging Qwen routing observability — 18 October 2026
-
-- User saw a GPT-6 Luna reply to `hi` and no Qwen events in their AI Gateway view. Qwen uses the Workers AI binding `AI.run` and is **not routed through that Gateway**; the Staging deploy log verifies `SANTO_QWEN_ROUTING_V1=true` but cannot prove any one Qwen call succeeded.
-- Add request-correlated `santo_qwen_route_outcome` to Cloudflare Worker logs. Capture only `requestId`, a fixed outcome label and milliseconds; never log student inputs, context, model text, medical sources or credentials.
-- Outcomes distinguish success, JSON/validation failure, rejected social classification, provider error, unavailable routing and 4-second timeout. **No extra inference, API contract, gating, fallback, charge, or Qwen/Luna behavior change.**
-- Tests cover social greeting, contextual rejection, malformed output, provider fallback and safe per-request diagnostic. Stage deployment and real routing traces remain acceptance gates.

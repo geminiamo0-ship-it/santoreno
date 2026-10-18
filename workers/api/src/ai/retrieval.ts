@@ -29,7 +29,7 @@ const WITH_GALLERY_MERGED_CANDIDATES = 45;
 // Sixth index participates in the SAME Cloudflare namespace-level search call.
 const IMAGE_SEARCH_INSTANCE = "santo-medical-images";
 // Separate licensed educational exam-memory index; never clinical citation evidence.
-const ANKING_SEARCH_INSTANCE = "santo-anking-cardiology";
+const ANKING_SEARCH_INSTANCE = "santo-anking-step-v12";
 const WITH_ANKING_MERGED_CANDIDATES = 60;
 const MATCH_THRESHOLD = 0.4;
 const MAX_CHUNK_CHARS = 5000;

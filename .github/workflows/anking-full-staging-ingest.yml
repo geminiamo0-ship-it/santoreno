@@ -1,0 +1,88 @@
+name: AnKing Full Step v12 Isolated Staging Ingest
+
+on:
+  push:
+    branches:
+      - feat/anking-cardiology-suggestions-staging-20261018
+    paths:
+      - .github/workflows/anking-full-staging-ingest.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: santo-anking-full-step-v12-ingest
+  cancel-in-progress: false
+
+jobs:
+  full-anking-ingest:
+    if: github.repository == 'geminiamo0-ship-it/santoreno'
+    runs-on: ubuntu-latest
+    timeout-minutes: 345
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install pinned HTTP client
+        run: python -m pip install requests==2.32.3
+
+      - name: Download and validate exact full AnKing v12 snapshot WITHOUT cloud writes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/ingest_anking_full_staging.py --archive /tmp/santo-anking-full.zip --output /tmp/santo-anking-full --download
+          test "$(find /tmp/santo-anking-full/items -maxdepth 1 -type f -name 'note_*.json' | wc -l)" -eq 30477
+          test "$(find /tmp/santo-anking-full/shards -maxdepth 1 -type f -name 'shard_*.json' | wc -l)" -eq 128
+          python - <<'PY'
+          import json
+          report=json.load(open('/tmp/santo-anking-full/validation.json'))
+          assert (report['original_notes'], report['original_cards']) == (30521, 36941)
+          assert (report['indexable_notes'], report['indexable_cards']) == (30477, 36896)
+          assert report['uploaded_images'] == 0
+          print('Full AnKing owner-licensed source verified; no media in text/index')
+          PY
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install pinned Cloudflare Wrangler in Santo worker package
+        run: |
+          corepack enable
+          pnpm install --frozen-lockfile
+
+      - name: Upload only the 128 private original-CID shards to staging R2
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${CLOUDFLARE_ACCOUNT_ID:-}"
+          test -n "${CLOUDFLARE_API_TOKEN:-}"
+          for i in $(seq -w 0 127); do
+            pnpm --dir workers/api exec wrangler r2 object put "santo-content-staging/anking/v12/full/shards/shard_${i}.json" --file "/tmp/santo-anking-full/shards/shard_${i}.json" --remote
+          done
+          pnpm --dir workers/api exec wrangler r2 object get "santo-content-staging/anking/v12/full/shards/shard_000.json" --file /tmp/anking-first-shard-readback.json --remote
+          cmp /tmp/anking-first-shard-readback.json /tmp/santo-anking-full/shards/shard_000.json
+          pnpm --dir workers/api exec wrangler r2 object get "santo-content-staging/anking/v12/full/shards/shard_127.json" --file /tmp/anking-last-shard-readback.json --remote
+          cmp /tmp/anking-last-shard-readback.json /tmp/santo-anking-full/shards/shard_127.json
+          echo 'All private full AnKing R2 shards written. Both edge readbacks match.'
+
+      - name: Submit the 30477 educational note documents to isolated AI Search
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/ingest_anking_full_staging.py --archive /tmp/santo-anking-full.zip --output /tmp/santo-anking-full --execute
+          {
+            echo '## Full AnKing v12 staging upload complete'
+            echo '- 30,477 eligible medical-note documents, 36,896 original card IDs'
+            echo '- 128 private R2 shards, byte-tested first and last'
+            echo '- Excluded 44 non-clinical/unusable notes; 0 AnKing images or audio uploaded'
+            echo '- New isolated search instance: santo-anking-step-v12; legacy cardio index unchanged'
+            echo '- Remaining step: wait for AI Search indexing, inspect errors and run read-only seven-index smoke'
+            echo '- Only staging resources changed; medical facts remain expert-review-gated'
+          } >> "$GITHUB_STEP_SUMMARY"

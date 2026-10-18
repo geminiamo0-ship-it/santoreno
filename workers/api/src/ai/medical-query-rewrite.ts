@@ -319,7 +319,9 @@ export async function routeMedicalRequest(
         result.answer.length > 350
       )
         return fail("chat_rejected_invalid_answer");
-      if (/https?:|\[\[|SANTO_REF_|(?:source|citation|guideline):/i.test(result.answer))
+      if (
+        /https?:|\[\[|SANTO_REF_|(?:source|citation|guideline):/i.test(result.answer)
+      )
         return fail("chat_rejected_forbidden_answer");
       report("success_chat");
       return { intent: "chat", answer: result.answer.trim() };

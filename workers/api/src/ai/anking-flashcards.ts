@@ -75,8 +75,11 @@ async function loadShard(bucket: R2BucketLike, shard: number): Promise<Shard> {
     return checked;
   })();
   flights.set(shard, loading);
-  try { return await loading; }
-  finally { flights.delete(shard); }
+  try {
+    return await loading;
+  } finally {
+    flights.delete(shard);
+  }
 }
 
 const EMPTY: AnkingSupplement = { cards: [], promptContext: "" };

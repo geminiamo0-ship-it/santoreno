@@ -8,8 +8,7 @@ import type {
 
 // A search section is one independent R2 object, not a neighboring chunk in
 // the same AI Search item. Only approved AMBOSS keys may be expanded.
-const AMBOSS_SECTION_KEY =
-  /^medical-search\/v1\/amboss\/[a-zA-Z0-9_-]+\/s-(\d{4})\.md$/;
+const AMBOSS_SECTION_KEY = /^medical-search\/v1\/amboss\/[a-zA-Z0-9_-]+\/s-(\d{4})\.md$/;
 const ADJACENT_FILES = 3;
 const MAX_TOTAL_EVIDENCE = 8;
 const MAX_SECTION_CHARS = 3500;

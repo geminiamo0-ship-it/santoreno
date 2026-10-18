@@ -67,6 +67,53 @@ describe("staging Qwen3 medical query rewriter", () => {
     expect(outcomes).toEqual(["provider_error", "unavailable"]);
   });
 
+  it("accepts social replies in an existing conversation using only the last five user turns", async () => {
+    let inputText = "";
+    const ai: WorkersAiLike = {
+      run: async (_model, input) => {
+        const messages = (input as { messages: Array<{ content: string }> }).messages;
+        inputText = messages[1]!.content;
+        return { response: JSON.stringify({ intent: "CHAT", answer: "Hi!" }) };
+      },
+    };
+    const history = [
+      "old user message, dropped",
+      "Explain aortic stenosis",
+      "What about management?",
+      "Explain FMF",
+      "What about treatment?",
+      "hi",
+    ];
+    const context = "Prior discussion (untrusted context; use retrieved evidence only):\\n" +
+      "Verified A: PRIVATE_LUNA_ANSWER\\nFollow-up question:\\nhi";
+    const result = await routeMedicalRequest(ai, context, "hi", undefined, history);
+    expect(result).toEqual({ intent: "chat", answer: "Hi!" });
+    expect(inputText).toContain("Explain aortic stenosis");
+    expect(inputText).toContain("CURRENT USER MESSAGE: hi");
+    expect(inputText).not.toContain("old user message, dropped");
+    expect(inputText).not.toContain("PRIVATE_LUNA_ANSWER");
+    expect(inputText).not.toContain("Verified A:");
+  });
+
+  it("provides user context to one Qwen medical call, never assistant answers", async () => {
+    let inputText = "";
+    const ai: WorkersAiLike = {
+      run: async (_model, input) => {
+        inputText = (input as { messages: Array<{ content: string }> }).messages[1]!.content;
+        return { response: JSON.stringify({ intent: "MEDICAL", search_query: "FMF management" }) };
+      },
+    };
+    const result = await routeMedicalRequest(
+      ai, "Verified A: WRONG_PRIOR_TREATMENT", "management of fmf",
+      undefined, ["aortic stenosis", "FMF", "treatment?"],
+    );
+    expect(result).toEqual({ intent: "medical", searchQuery: "FMF management" });
+    expect(inputText).toContain("aortic stenosis");
+    expect(inputText).toContain("FMF");
+    expect(inputText).toContain("CURRENT USER MESSAGE: treatment?");
+    expect(inputText).not.toContain("WRONG_PRIOR_TREATMENT");
+  });
+
   it("uses one Qwen call for a short CHAT reply, without retrieval or Luna", async () => {
     let calls = 0;
     const ai: WorkersAiLike = {

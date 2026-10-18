@@ -48,8 +48,8 @@ export class ConversationAskService {
     const attemptId = started.attemptId;
     if (!attemptId) throw new ConversationServiceError(503, "CONVERSATION_UNAVAILABLE");
 
-    // Every user message, including greetings and clarifications, must be
-    // answered by Luna. Do not substitute deterministic canned responses.
+    // Routing happens inside the AI service: Qwen may answer nonclinical social
+    // turns, while Luna owns medical explanations and citations.
 
     // Pinning context in the DO ensures retries always address the same evidence request.
     const context = started.context.slice(0, 1200);

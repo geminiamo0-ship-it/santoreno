@@ -674,4 +674,85 @@ describe("Santo five licensed library retrieval", () => {
     expect(partial.searchInputs).toHaveLength(1);
     expect(malformed.searchInputs).toHaveLength(1);
   });
+  it("optional seventh AnKing instance uses same call but never becomes medical citation", async () => {
+    const namespace = new FakeAiSearchNamespace(undefined, {
+      __merged: {
+        chunks: [
+          chunk("amboss", 1, 0.95),
+          {
+            id: "anking-chunk-1",
+            text: "Aortic stenosis causes systolic crescendo-decrescendo murmur",
+            score: 0.91,
+            instance_id: "santo-anking-cardiology",
+            item: { key: "note_1471558916902.json", metadata: { title: "Aortic stenosis" } },
+          },
+          {
+            id: "anking-duplicate",
+            text: "Duplicate of the same note",
+            score: 0.86,
+            instance_id: "santo-anking-cardiology",
+            item: { key: "note_1471558916902.json" },
+          },
+          {
+            id: "anking-traversal",
+            text: "Adversarial key",
+            score: 0.99,
+            instance_id: "santo-anking-cardiology",
+            item: { key: "../../secrets.json" },
+          },
+        ],
+      },
+    });
+    const retrieval = new CloudflareAiSearchRetrieval(
+      namespace,
+      undefined,
+      true,
+      false,
+      undefined,
+      false,
+      true,
+      true,
+    );
+    const result = await retrieval.retrieveWithGallery({
+      query: "aortic stenosis",
+      libraryId: null,
+    });
+    expect(namespace.searchInputs).toHaveLength(1);
+    expect(namespace.searchInputs[0]).toMatchObject({
+      ai_search_options: {
+        instance_ids: [
+          ...expectedIds.map(instanceFor),
+          "santo-medical-images",
+          "santo-anking-cardiology",
+        ],
+        retrieval: { max_num_results: 60 },
+      },
+    });
+    expect(result.evidence).toHaveLength(1);
+    expect(result.evidence[0]?.libraryId).toBe("amboss");
+    expect(result.ankingHits).toEqual([{ noteId: "note_1471558916902", score: 0.91 }]);
+    expect(result.galleryHits).toEqual([]);
+  });
+
+  it("explicit clinical library filter never adds AnKing, even when opt-in enabled", async () => {
+    const namespace = new FakeAiSearchNamespace(undefined, {
+      "amboss": { chunks: [chunk("amboss")] },
+    });
+    const retrieval = new CloudflareAiSearchRetrieval(
+      namespace,
+      undefined,
+      true,
+      false,
+      undefined,
+      false,
+      true,
+      true,
+    );
+    await retrieval.retrieve({ query: "aortic stenosis", libraryId: "amboss" });
+    expect(namespace.searchInputs).toHaveLength(1);
+    expect(namespace.searchInputs[0]).toMatchObject({
+      ai_search_options: { instance_ids: ["amboss"] },
+    });
+  });
+
 });

@@ -160,7 +160,7 @@ function studyNoteFields(note: NoteRecord): Array<{ label: string; value: string
     if (typeof value !== "string") return;
     const text = value.trim();
     if (!text || text.length > 2000 || !label.trim() || label.length > 80) return;
-    if (/<(?:script|iframe|img|svg)\\b|\\[sound:/i.test(text)) return;
+    if (/<(?:script|iframe|img|svg)\b|\[sound:/i.test(text)) return;
     const key = text.toLocaleLowerCase();
     if (seen.has(key) || fields.length >= 12) return;
     seen.add(key);

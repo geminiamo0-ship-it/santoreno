@@ -153,7 +153,7 @@ export function parseCard(raw: unknown): GroundedAiSuggestedFlashcard | null {
  */
 export function studyNoteFields(note: NoteRecord): Array<{ label: string; value: string }> {
   const pearl = typeof note.clinical_pearl === "string" ? note.clinical_pearl.trim() : "";
-  if (!pearl || pearl.length > 3000 || /<(?:script|iframe|img|svg)\\b|\\[sound:/i.test(pearl)) return [];
+  if (!pearl || pearl.length > 3000 || /<(?:script|iframe|img|svg)\b|\[sound:/i.test(pearl)) return [];
   return [{ label: "Clinical Pearls", value: pearl }];
 }
 

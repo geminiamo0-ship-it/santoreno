@@ -179,6 +179,8 @@ export const ConversationBeginTurnResponseSchema = z
     quotaEpoch: z.number().int().nonnegative(),
     turn: ConversationTurnSchema,
     context: z.string().max(1600),
+    /** Only authenticated user turns, including current, no assistant answers. */
+    recentUserMessages: z.array(ConversationTextSchema).max(5).optional(),
   })
   .strict();
 export type ConversationBeginTurnResponse = z.infer<typeof ConversationBeginTurnResponseSchema>;

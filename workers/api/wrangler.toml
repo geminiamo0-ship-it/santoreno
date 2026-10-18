@@ -69,6 +69,8 @@ SANTO_GENERAL_MEDICAL_FALLBACK = "true"
 SANTO_MEDICAL_RETRIEVAL_V2 = "true"
 # One namespace-level multi-instance Hybrid/RRF + native rerank search; rollback by setting false.
 SANTO_AI_SEARCH_SINGLE_REQUEST_V1 = "true"
+# Optional AMBOSS-only R2 next-three-sections; no extra AI Search. Staging rollback switch.
+SANTO_AMBOSS_ADJACENT_R2_V1 = "true"
 # Staging-only Qwen3 30B-A3B medical search query normalizer (512 max output tokens); no MeSH dictionary.
 SANTO_MEDICAL_QUERY_REWRITE_V1 = "true"
 # Qwen classifies CHAT vs MEDICAL and rewrites the medical query in one call.

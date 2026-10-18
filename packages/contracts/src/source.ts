@@ -138,7 +138,7 @@ export const VerifiedSourceSnapshotSchema = z
     externalUserId: z.string().min(1).max(255),
     messageId: z.string().uuid(),
     createdAt: z.number().int().nonnegative(),
-    sources: z.array(TrustedSourceMetadataSchema).min(1).max(5),
+    sources: z.array(TrustedSourceMetadataSchema).min(1).max(8),
   })
   .strict();
 

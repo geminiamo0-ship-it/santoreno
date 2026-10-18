@@ -827,11 +827,3 @@ deferred until after this Pilot. Never expose server credentials to browsers.
 ## 10. Repository administration note
 
 Branch protection/ruleset configuration remains an authorized-admin follow-up under Issue #10 because the connected GitHub integration cannot write that repository setting.
-
-
-### Luna Staging: Qwen last-five user-only context and latency — 18 October 2026
-
-- Approved contract: Qwen sees up to five **user messages only**, oldest to newest including current; never assistant/Luna answers, retrieval evidence, R2 articles, source cards, or the ConversationDO verified-answer summary. Last four previous user texts are capped at 300 characters, current at 1000, to bound Qwen input costs.
-- Reuse the existing authenticated, transactionally serialized `ConversationDO.begin-turn` read: query stored `role='user'` messages up to the current sequence, bounded to five. No extra DO request, database migration, model invocation, or externally trusted conversation identifier.
-- The original Luna instruction/evidence context remains unchanged; only Qwen's classification/search route gets the user-only context. A genuine independent social turn in a previous medical conversation can return CHAT directly without retrieval/Luna. Clinical follow-ups continue to use Qwen → AI Search → Luna, and the existing quota, citation, image and idempotency checks still apply.
-- Acceptance gates: exact-head CI, integrated smoke for contextual greeting/medical followup/topic switch, safe logging, Staging-only deployment and real measured route/first-token/exchange performance. Existing ~1.75s session/exchange from one DevTools capture is a potential separate optimization and must be profiled before changing auth/session controls.

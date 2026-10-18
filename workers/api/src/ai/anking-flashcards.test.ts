@@ -61,7 +61,7 @@ describe("rights-locked AnKing suggestions", () => {
     expect(result.promptContext).toContain("EXAM_MEMORY_ADJUNCTS");
     expect(result.promptContext).not.toContain(String(cardId));
     expect(bucket.get).toHaveBeenCalledWith(
-      `anking/v3/cardiology/shards/shard_${String(noteId % 32).padStart(2, "0")}.json`,
+      `anking/v12/full/shards/shard_${String(noteId % 128).padStart(3, "0")}.json`,
     );
   });
 

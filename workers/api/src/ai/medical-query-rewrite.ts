@@ -156,7 +156,9 @@ export type QwenRouteOutcome =
   | "success_clarify"
   | "invalid_output"
   | "chat_rejected_context"
-  | "chat_rejected_safety"
+  | "chat_rejected_non_social_input"
+  | "chat_rejected_invalid_answer"
+  | "chat_rejected_forbidden_answer"
   | "timeout"
   | "provider_error"
   | "unavailable";
@@ -195,7 +197,7 @@ function clearlyNonClinical(input: string): boolean {
   // Permit only explicitly social turns, never the broad inverse of a disease
   // dictionary (which could miss clinical terms or another language).
   const socialEnglish =
-    /^(?:(?:hi|hello|hey|good (?:morning|evening|afternoon)|thanks(?: a lot)?|thank you|bye|goodbye|how are you|who are you|what(?:'s| is) your name|what can you do|can you help me|tell me a joke|cheer me up|give me study motivation)[!.?\s]*)$/i;
+    /^(?:(?:(?:hi|hello|hey)(?:[\s,،]+(?:luna|santo|royal))?|good (?:morning|evening|afternoon)|thanks(?: a lot)?|thank you|bye|goodbye|how are you|who are you|what(?:'s| is) your name|what can you do|can you help me|tell me a joke|cheer me up|give me study motivation)[!.?\s]*)$/i;
   const socialArabic =
     /^(?:(?:اهلا|أهلا|اهلين|سلام|السلام عليكم|صباح الخير|مساء الخير|شكرا|شكرًا|متشكر|ازيك|إزيك|عامل ايه|عامل إيه|انت مين|أنت مين)[!؟.\s]*)$/u;
   return socialEnglish.test(input.trim()) || socialArabic.test(input.trim());
@@ -308,14 +310,21 @@ export async function routeMedicalRequest(
     if (result.intent === "CHAT") {
       if (!usingUserHistory && originalRequest.includes(FOLLOW_UP_MARKER))
         return fail("chat_rejected_context");
+      // Distinguish unsafe classification of a medical/user turn from an
+      // invalid or prohibited model reply. Never log either text.
+      if (!clearlyNonClinical(latest)) {
+        return fail("chat_rejected_non_social_input");
+      }
       if (
         typeof result.answer !== "string" ||
         !result.answer.trim() ||
-        result.answer.length > 350 ||
-        !clearlyNonClinical(latest) ||
-        /https?:|\[\[|SANTO_REF_|(?:source|citation|guideline):/i.test(result.answer)
-      )
-        return fail("chat_rejected_safety");
+        result.answer.length > 350
+      ) {
+        return fail("chat_rejected_invalid_answer");
+      }
+      if (/https?:|\[\[|SANTO_REF_|(?:source|citation|guideline):/i.test(result.answer)) {
+        return fail("chat_rejected_forbidden_answer");
+      }
       report("success_chat");
       return { intent: "chat", answer: result.answer.trim() };
     }

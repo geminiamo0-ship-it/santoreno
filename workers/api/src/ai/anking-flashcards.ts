@@ -30,6 +30,8 @@ interface NoteRecord {
   topic?: unknown;
   medical_fact?: unknown;
   clinical_pearl?: unknown;
+  supplementary_notes?: unknown;
+  additional_fields?: unknown;
   rights_status?: unknown;
   review_status?: unknown;
   cards?: unknown;
@@ -147,6 +149,35 @@ function parseCard(raw: unknown): GroundedAiSuggestedFlashcard | null {
   };
 }
 
+/** Only readable note content goes to the student; skip internal metadata and unsafe fields.
+ * AnKing V3 staging shards currently carry medical_fact/clinical_pearl.
+ * Other original text fields can be added by an R2 metadata backfill later.
+ */
+function studyNoteFields(note: NoteRecord): Array<{ label: string; value: string }> {
+  const fields: Array<{ label: string; value: string }> = [];
+  const seen = new Set<string>();
+  const push = (label: string, value: unknown) => {
+    if (typeof value !== "string") return;
+    const text = value.trim();
+    if (!text || text.length > 2000 || !label.trim() || label.length > 80) return;
+    if (/<(?:script|iframe|img|svg)\\b|\\[sound:/i.test(text)) return;
+    const key = text.toLocaleLowerCase();
+    if (seen.has(key) || fields.length >= 12) return;
+    seen.add(key);
+    fields.push({ label, value: text });
+  };
+  push("Clinical Pearl", note.clinical_pearl);
+  for (const group of [note.supplementary_notes, note.additional_fields]) {
+    const map = record(group);
+    if (!map) continue;
+    for (const [label, value] of Object.entries(map)) {
+      if (/^(?:id|card|guid|raw|tags|rights|review|source|image|media|audio|html)/i.test(label)) continue;
+      push(label, value);
+    }
+  }
+  return fields;
+}
+
 export class R2AnkingSupplementRetriever implements AnkingSupplementRetriever {
   constructor(private readonly bucket: R2BucketLike) {}
 
@@ -191,7 +222,12 @@ export class R2AnkingSupplementRetriever implements AnkingSupplementRetriever {
         // Do not expose every card in the note. Prefer the exact cloze's topic/focus.
         if (overlap(queryTerms, `${topic} ${card.preview} ${card.focus}`) === 0) continue;
         seen.add(card.cardId);
-        selected.push(card);
+        // Expose original note text on Back only; never manufacture card answers.
+        selected.push({
+          ...card,
+          backText: medicalFact.slice(0, 2500),
+          noteFields: studyNoteFields(note),
+        });
         if (selected.length >= MAX_CARDS) break;
       }
       if (selected.length >= MAX_CARDS) break;

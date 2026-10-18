@@ -82,18 +82,20 @@ describe("grounded turn billing/verification coordinator", () => {
 
   it("forwards DO-authenticated user questions to the router but not Luna answers", async () => {
     const t = harness();
-    t.begin.mockResolvedValueOnce({
-      ...(await t.begin.getMockImplementation()!()),
-      recentUserMessages: ["Aortic stenosis", "management", "hi"],
-    });
-    let observed: Record<string, unknown> | undefined;
+    const started = await t.begin.getMockImplementation()!();
+    t.begin.mockResolvedValueOnce(
+      Object.assign(started, { recentUserMessages: ["Aortic stenosis", "management", "hi"] }),
+    );
+    let observed: { query: string; recent_user_messages?: string[] } | undefined;
     const ask = new ConversationAskService(t.client, async (_token, _env, input) => {
       observed = input;
       return response;
     });
     await ask.ask(actor, conversationId, { ...body, text: "hi" }, "Bearer signed", env, signal);
     expect(observed?.recent_user_messages).toEqual(["Aortic stenosis", "management", "hi"]);
-    expect(JSON.stringify(observed?.recent_user_messages)).not.toContain("Earlier verified assistant");
+    expect(JSON.stringify(observed?.recent_user_messages)).not.toContain(
+      "Earlier verified assistant",
+    );
     expect(String(observed?.query)).toContain("Earlier verified assistant");
   });
 

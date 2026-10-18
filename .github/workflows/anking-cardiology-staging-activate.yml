@@ -1,4 +1,4 @@
-name: AnKing Cardiology Staging Activation
+name: AnKing Full v12 Staging Activation
 
 on:
   push:
@@ -34,7 +34,7 @@ jobs:
         run: |
           set -euo pipefail
           for attempt in $(seq 1 315); do
-            stats="$(curl -fsS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/ai-search/namespaces/default/instances/santo-anking-cardiology/stats")"
+            stats="$(curl -fsS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/ai-search/namespaces/default/instances/santo-anking-step-v12/stats")"
             jq -e '.success == true and (.result | type == "object")' <<< "$stats" >/dev/null
             completed="$(jq -r '.result.completed // 0' <<< "$stats")"
             queued="$(jq -r '.result.queued // 0' <<< "$stats")"
@@ -44,11 +44,11 @@ jobs:
             if (( failed > 0 )) || [[ "$degraded" == "true" ]]; then
               echo "Cloudflare reported indexing failures; staging deploy forbidden"; exit 1
             fi
-            if (( completed >= 4151 && queued == 0 && running == 0 )); then
-              echo "Cloudflare confirms all 4151 AnKing notes indexed"; break
+            if (( completed >= 30477 && queued == 0 && running == 0 )); then
+              echo "Cloudflare confirms all 30477 AnKing notes indexed"; break
             fi
             if (( attempt % 10 == 0 )); then
-              echo "Index readiness: $completed / 4151 completed; queued=$queued running=$running errors=$failed"
+              echo "Index readiness: $completed / 30477 completed; queued=$queued running=$running errors=$failed"
             fi
             if [[ "$attempt" == "315" ]]; then echo "Still indexing; do not deploy"; exit 1; fi
             sleep 60
@@ -111,8 +111,8 @@ jobs:
           test "$code" = "401"
           {
             echo '## AnKing Cardiology — STAGING ONLY'
-            echo '- R2: 32 private metadata shards; Cloudflare index: 4,151 note records'
-            echo '- 5,156 owner-confirmed stable CIDs; zero model-generated IDs'
+            echo '- R2: 128 private metadata shards; Cloudflare index: 30,477 note records'
+            echo '- 36,896 owner-confirmed stable CIDs; zero model-generated IDs'
             echo '- One combined AI Search request; five medical citation indexes remain authoritative'
             echo '- Medical-review-pending AnKing facts are NOT fed into Luna; card navigation only'
             echo '- Health/unauthenticated deny passed, clinical browser QA still required'

@@ -8,6 +8,65 @@ import {
 } from "./medical-query-rewrite";
 
 describe("staging Qwen3 medical query rewriter", () => {
+  it("records Qwen CHAT success without logging the student's text", async () => {
+    const observed: Array<{ outcome: string; milliseconds: number }> = [];
+    const ai: WorkersAiLike = {
+      run: async () => ({
+        response: JSON.stringify({ intent: "CHAT", answer: "Hi from Qwen!" }),
+      }),
+    };
+    const answer = await routeMedicalRequest(ai, "hi", "hi", (outcome, milliseconds) => {
+      observed.push({ outcome, milliseconds });
+    });
+    expect(answer).toEqual({ intent: "chat", answer: "Hi from Qwen!" });
+    expect(observed).toHaveLength(1);
+    expect(observed[0]).toMatchObject({
+      outcome: "success_chat",
+      milliseconds: expect.any(Number),
+    });
+    expect(JSON.stringify(observed)).not.toContain("Hi from Qwen!");
+  });
+
+  it("distinguishes rejected contextual chat from malformed Qwen output", async () => {
+    const observed: string[] = [];
+    const ai: WorkersAiLike = {
+      run: async () => ({
+        response: JSON.stringify({ intent: "CHAT", answer: "Hi again!" }),
+      }),
+    };
+    const context =
+      "Prior discussion (untrusted context; use retrieved evidence only):\\n" +
+      "Q: Aortic stenosis | Verified A: ...\\nFollow-up question:\\nhi";
+    const route = await routeMedicalRequest(ai, context, "hi", (outcome) => {
+      observed.push(outcome);
+    });
+    expect(route).toEqual({ intent: "medical", searchQuery: "hi" });
+    expect(observed).toEqual(["chat_rejected_context"]);
+
+    const broken: WorkersAiLike = { run: async () => ({ response: "not JSON" }) };
+    await routeMedicalRequest(broken, "hi", "hi", (outcome) => observed.push(outcome));
+    expect(observed).toEqual(["chat_rejected_context", "invalid_output"]);
+  });
+
+  it("reports Qwen provider failures and unchanged fail-safe medical route", async () => {
+    const outcomes: string[] = [];
+    const unavailable: WorkersAiLike = {
+      run: async () => {
+        throw new Error("private provider details must never be logged");
+      },
+    };
+    const fallback = await routeMedicalRequest(
+      unavailable,
+      "heart failure",
+      "heart failure",
+      (outcome) => outcomes.push(outcome),
+    );
+    expect(fallback).toEqual({ intent: "medical", searchQuery: "heart failure" });
+    expect(outcomes).toEqual(["provider_error"]);
+    await routeMedicalRequest(undefined, "hi", "hi", (outcome) => outcomes.push(outcome));
+    expect(outcomes).toEqual(["provider_error", "unavailable"]);
+  });
+
   it("uses one Qwen call for a short CHAT reply, without retrieval or Luna", async () => {
     let calls = 0;
     const ai: WorkersAiLike = {

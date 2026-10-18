@@ -26,7 +26,7 @@ for query in queries:
             "instance_ids": list(IDS),
             "retrieval": {
                 "retrieval_type": "hybrid", "match_threshold": 0.4,
-                "max_num_results": 60, "return_on_failure": True, "fusion_method": "rrf",
+                "max_num_results": 50, "return_on_failure": True, "fusion_method": "rrf",
             },
             "reranking": {"enabled": True, "model": "@cf/baai/bge-reranker-base"},
             "query_rewrite": {"enabled": False},

@@ -111,6 +111,24 @@ export function focusedSearchQuery(input: string): string {
   return intent ? `${intent} of ${subject}` : subject;
 }
 
+/** Fallback topic resolution uses only the student's last messages.
+ * Qwen itself receives those exact user-only turns, never assistant answers.
+ */
+export function focusedUserMessageQuery(messages: readonly string[]): string {
+  const current = messages.at(-1)?.trim() ?? "";
+  if (!current || (!BARE_FOLLOW_UP.test(current) && !CONTEXTUAL.test(current))) {
+    return current;
+  }
+  for (let i = messages.length - 2; i >= 0; i--) {
+    const topic = explicitSubject(messages[i] ?? "");
+    if (topic) {
+      const intent = followUpIntent(current);
+      return intent ? `${intent} of ${topic}` : topic;
+    }
+  }
+  return current;
+}
+
 /** Lexical provenance gate: score alone does not establish topic relevance. */
 const GENERIC_TERMS = new Set([
   "a",

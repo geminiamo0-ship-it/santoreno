@@ -1,11 +1,11 @@
 # Santo Project Status — Living Handoff
 
-### AMBOSS next-three R2 sections — integrated with active AnKing Staging branch (19 Oct 2026)
+### AMBOSS R2 +3 context integration — 19 Oct 2026
 
-- Owner-approved limit: one independently ranked AMBOSS search passage + **up to three** following sequential Markdown sections from its *own* private R2 article folder; no adjacent expansion for USMLE/PassMedicine/Pastest/One Examination/AnKing.
-- Implemented staging-only flag `SANTO_AMBOSS_ADJACENT_R2_V1=true`, preserved seven-instance single Cloudflare namespace search, AnKing viewer/cards/rights flags, original five ranked evidence sources, and original gallery behavior; extends Luna evidence ceiling to eight without changing five-output-citation cap or medical model quota.
-- Prior PR #170 against an earlier medical-release base passed unit CI but **was not deployed**; a user payload still showed five sources and no `s-0016` onward. This integration is based on the current AnKing viewer branch and will deploy only after fresh exact-head tests and build pass.
-- Acceptance: confirm GitHub workflow passes, staging health and 401 protection, and independently confirm authenticated Aortic stenosis evidence includes `s-0015..s-0018` where all three R2 neighbors exist. Nothing here changes Santo Production.
+- AMBOSS search passages gain up to three following R2 article sections.
+- No expansion applies to other libraries. AI Search stays one call.
+- AnKing functionality is preserved. Production is unchanged.
+- The staging deployment and live evidence check are acceptance gates.
 
 
 ### Cardiology AnKing Staging trial LIVE — 18 Oct 2026 (PR #166)

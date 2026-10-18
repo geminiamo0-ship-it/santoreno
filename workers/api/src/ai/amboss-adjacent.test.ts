@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { R2BucketLike } from "../runtime/bindings";
-import { buildGroundedPrompt } from "./prompt";
 import { AmbossAdjacentRetrieval, expandAmbossAdjacentEvidence } from "./amboss-adjacent";
+import { buildGroundedPrompt } from "./prompt";
 import type { RetrievalPort, RetrievedEvidence } from "./types";
 
 const folder = "medical-search/v1/amboss/unnamed-2746/";
@@ -26,8 +26,13 @@ const usmle: RetrievedEvidence = {
 };
 
 function section(n: number, name: string) {
-  return "# Aortic valve stenosis\n\nLibrary: AMBOSS\nCategory: Clinical correlations\nSection: " +
-    name + "\n\nClinical teaching text " + n + " about aortic stenosis.";
+  return (
+    "# Aortic valve stenosis\n\nLibrary: AMBOSS\nCategory: Clinical correlations\nSection: " +
+    name +
+    "\n\nClinical teaching text " +
+    n +
+    " about aortic stenosis."
+  );
 }
 
 function fakeBucket(keys: Record<string, string>) {
@@ -83,8 +88,18 @@ describe("AMBOSS-only adjacent R2 evidence expansion", () => {
       anchor,
       usmle,
       { ...usmle, libraryId: "pastest", sourceId: "pastest:1", itemKey: "pastest/1.md" },
-      { ...usmle, libraryId: "passmedicine", sourceId: "passmedicine:1", itemKey: "passmedicine/1.md" },
-      { ...usmle, libraryId: "one-examination", sourceId: "one-examination:1", itemKey: "one-examination/1.md" },
+      {
+        ...usmle,
+        libraryId: "passmedicine",
+        sourceId: "passmedicine:1",
+        itemKey: "passmedicine/1.md",
+      },
+      {
+        ...usmle,
+        libraryId: "one-examination",
+        sourceId: "one-examination:1",
+        itemKey: "one-examination/1.md",
+      },
     ];
     const result = await expandAmbossAdjacentEvidence(original, fakeBucket(files()).bucket);
     expect(result).toHaveLength(8);
@@ -93,7 +108,7 @@ describe("AMBOSS-only adjacent R2 evidence expansion", () => {
     expect(buildGroundedPrompt("Treatment of AS", result)).toContain("SAVR and TAVR");
   });
 
-  it("never expands a non-AMBOSS hit, untrusted R2 key, or crossing numeric boundary", async () => {
+  it("rejects other libraries, unsafe R2 keys, and the section-number boundary", async () => {
     const { bucket, reads } = fakeBucket(files());
     for (const evidence of [
       [usmle],
@@ -111,15 +126,26 @@ describe("AMBOSS-only adjacent R2 evidence expansion", () => {
     const partial = await expandAmbossAdjacentEvidence([anchor], missing.bucket);
     expect(partial).toHaveLength(2);
     expect(missing.reads).toEqual([folder + "s-0016.md", folder + "s-0017.md"]);
-    const invalid = fakeBucket({ [folder + "s-0016.md"]: section(16, "Approach").replace("AMBOSS", "USMLE") });
+    const invalid = fakeBucket({
+      [folder + "s-0016.md"]: section(16, "Approach").replace("AMBOSS", "USMLE"),
+    });
     expect(await expandAmbossAdjacentEvidence([anchor], invalid.bucket)).toEqual([anchor]);
-    const wrongArticle = fakeBucket({ [folder + "s-0016.md"]: section(16, "Approach").replace("# Aortic valve stenosis", "# Coarctation") });
+    const wrongArticle = fakeBucket({
+      [folder + "s-0016.md"]: section(16, "Approach").replace(
+        "# Aortic valve stenosis",
+        "# Coarctation",
+      ),
+    });
     expect(await expandAmbossAdjacentEvidence([anchor], wrongArticle.bucket)).toEqual([anchor]);
   });
 
   it("deduplicates already-retrieved sections without another R2 read", async () => {
     const { bucket, reads } = fakeBucket(files());
-    const originalSecond = { ...anchor, itemKey: folder + "s-0016.md", sourceId: "amboss:real-search-0016" };
+    const originalSecond = {
+      ...anchor,
+      itemKey: folder + "s-0016.md",
+      sourceId: "amboss:real-search-0016",
+    };
     const result = await expandAmbossAdjacentEvidence([anchor, usmle, originalSecond], bucket);
     expect(result).toHaveLength(5);
     expect(result[1]?.sourceId).toBe(originalSecond.sourceId);
@@ -129,7 +155,9 @@ describe("AMBOSS-only adjacent R2 evidence expansion", () => {
 
   it("gracefully retains search evidence on R2 failure", async () => {
     const bucket: Pick<R2BucketLike, "get"> = {
-      get: vi.fn(async () => { throw new Error("R2 unavailable"); }),
+      get: vi.fn(async () => {
+        throw new Error("R2 unavailable");
+      }),
     };
     expect(await expandAmbossAdjacentEvidence([anchor, usmle], bucket)).toEqual([anchor, usmle]);
   });
@@ -140,7 +168,10 @@ describe("AMBOSS-only adjacent R2 evidence expansion", () => {
       evidence: [anchor, usmle],
       galleryHits: [{ imageId: "img_000014", score: 0.9 }],
     }));
-    const route = vi.fn(async () => ({ intent: "medical" as const, searchQuery: "aortic stenosis" }));
+    const route = vi.fn(async () => ({
+      intent: "medical" as const,
+      searchQuery: "aortic stenosis",
+    }));
     const source: RetrievalPort = { retrieve: search, retrieveWithGallery: gallery, route };
     const decorated = new AmbossAdjacentRetrieval(source, fakeBucket(files()).bucket);
     const request = { query: "management", libraryId: null };
@@ -151,7 +182,10 @@ describe("AMBOSS-only adjacent R2 evidence expansion", () => {
     expect(withGallery.galleryHits).toEqual([{ imageId: "img_000014", score: 0.9 }]);
     expect(withGallery.evidence).toHaveLength(5);
     expect(gallery).toHaveBeenCalledTimes(1);
-    expect(await decorated.route!(request)).toEqual({ intent: "medical", searchQuery: "aortic stenosis" });
+    expect(await decorated.route!(request)).toEqual({
+      intent: "medical",
+      searchQuery: "aortic stenosis",
+    });
     expect(route).toHaveBeenCalledTimes(1);
   });
 });

@@ -1,13 +1,5 @@
 # Santo Project Status — Living Handoff
 
-### AMBOSS R2 +3 context integration — 19 Oct 2026
-
-- AMBOSS search passages gain up to three following R2 article sections.
-- No expansion applies to other libraries. AI Search stays one call.
-- AnKing functionality is preserved. Production is unchanged.
-- The staging deployment and live evidence check are acceptance gates.
-
-
 ### Cardiology AnKing Staging trial LIVE — 18 Oct 2026 (PR #166)
 
 - **Successfully deployed to `santo-api-staging` Worker** from commit `eadaf0742003e7ffdde9d7fa4767e21e87c20e1e` in [Action #39161122303](https://github.com/geminiamo0-ship-it/santoreno/actions/runs/39161122303) after passing [exact-head Verify](https://github.com/geminiamo0-ship-it/santoreno/actions/runs/39161126309). Worker Version ID `1784ab33-ea9b-45e8-b948-e1c254e032a5`; health and unauthenticated 401 both passed. **Production untouched.**

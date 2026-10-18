@@ -3,8 +3,9 @@ import { z } from "zod";
 import { GroundedAiLibraryIdSchema } from "./ai";
 
 /**
- * A citation ID is an opaque AI Search instance/chunk pair, not an R2 path,
- * a URL, or an identifier supplied by the model.
+ * A citation ID is an opaque, server-verified source identity: an AI Search
+ * instance/chunk pair or a deterministic private-R2 AMBOSS neighboring section.
+ * Never a user-supplied path, a public URL, or an identifier from the model.
  */
 export const TrustedSourceIdSchema = z
   .string()

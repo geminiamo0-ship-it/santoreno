@@ -38,11 +38,13 @@ describe("rights-locked AnKing suggestions", () => {
     expect(result).toEqual({ cards: [], promptContext: "" });
   });
 
-  it("does not expose content until medical review is approved", async () => {
+  it("returns licensed CID navigation but excludes unreviewed facts from Luna", async () => {
     const result = await new R2AnkingSupplementRetriever(
       source({ ...valid, review_status: "pending_expert_review" }),
     ).hydrate(hits, "aortic stenosis");
-    expect(result.cards).toEqual([]);
+    expect(result.cards).toHaveLength(1);
+    expect(result.cards[0]?.ankiQuery).toBe(`cid:${cardId}`);
+    expect(result.promptContext).toBe("");
   });
 
   it("only returns a canonical original CID from the approved R2 record", async () => {

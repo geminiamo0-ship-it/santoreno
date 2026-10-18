@@ -40,6 +40,14 @@ describe("safe topic relevance for Santo medical references", () => {
       "diagnosis of fmf",
     );
     expect(focusedUserMessageQuery(["Explain FMF", "hi"])).toBe("hi");
+    expect(
+      focusedUserMessageQuery([
+        "Explain aortic stenosis",
+        "Explain FMF",
+        "What causes amyloidosis?",
+        "And its treatment?",
+      ]),
+    ).toBe("And its treatment?");
     expect(focusedUserMessageQuery(["Explain FMF", "Explain amyloidosis"])).toBe(
       "Explain amyloidosis",
     );

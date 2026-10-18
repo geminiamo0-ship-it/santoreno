@@ -1,5 +1,15 @@
 # Santo Project Status — Living Handoff
 
+### Cardiology AnKing Staging trial LIVE — 18 Oct 2026 (PR #166)
+
+- **Successfully deployed to `santo-api-staging` Worker** from commit `eadaf0742003e7ffdde9d7fa4767e21e87c20e1e` in [Action #39161122303](https://github.com/geminiamo0-ship-it/santoreno/actions/runs/39161122303) after passing [exact-head Verify](https://github.com/geminiamo0-ship-it/santoreno/actions/runs/39161126309). Worker Version ID `1784ab33-ea9b-45e8-b948-e1c254e032a5`; health and unauthenticated 401 both passed. **Production untouched.**
+- **Cloudflare instance `santo-anking-cardiology` has 4,140 completed, 0 queued, 0 running and 11 failed embeddings**; trial uses only available documents without retrying or reindexing. Existing 32 private R2 CID shards retained.
+- Diagnosed Cloudflare HTTP 400 / code 7001 as requesting 60 results when max allowed is **50**; capped combined seven-instance retrieval at 50. One real namespace search returned 20 medical evidence passages, 5 AnKing note chunks and 1 image/gallery chunk for `aortic stenosis murmur radiates to carotids`.
+- AnKing chunks are educational suggestions only, not clinical citations. Original Card IDs are hydrated from private R2 and never invented by the model. Only individually medically approved AnKing pearls may reach the Luna prompt; pending review remains excluded.
+- Royal [Preview](https://royal-bank-2gcodh690-drmostafa5868-7427.vercel.app/santo) is READY with Suggested AnKing Flashcards UI. Authenticated live answer and CID usability must be tested with a signed-in session; the above smoke is infrastructure/retrieval only.
+- Maintain one `AI Search` namespace call and keep this experiment isolated from full `santo-anking-step-v12` index and Production.
+
+
 ### Full AnKing Step v12 — 18 Oct 2026 isolated Staging ingestion
 
 - Owner provided [full-library ZIP](https://drive.google.com/file/d/1sr_XbG5KFC8hFuNXf23WKCthyFYWk4ls/view?usp=sharing), SHA-256 `3e75c1629a74423f012556ff0b52c87703ce12812cfa35b195f3bf57dcebfb25`; source verified 30,521 notes, 36,941 real card IDs, but only 36,937 cloze-match verified; 4 reported mismatches need explicit follow-up.

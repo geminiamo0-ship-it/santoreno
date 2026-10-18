@@ -67,7 +67,7 @@ describe("staging Qwen3 medical query rewriter", () => {
     expect(outcomes).toEqual(["provider_error", "unavailable"]);
   });
 
-  it("accepts greetings addressed to Luna during old conversations, with no medical search", async () => {
+  it("accepts Luna greetings in old conversations", async () => {
     const outcomes: string[] = [];
     const qwen: WorkersAiLike = {
       run: async () => ({
@@ -85,7 +85,7 @@ describe("staging Qwen3 medical query rewriter", () => {
     expect(outcomes).toEqual(["success_chat"]);
   });
 
-  it("identifies the precise rejected CHAT guard without exposing student messages", async () => {
+  it("reports precise CHAT reject reasons without logging user text", async () => {
     const outcomes: string[] = [];
     const diagnostic = (outcome: string) => outcomes.push(outcome);
     const qwen = (answer: unknown): WorkersAiLike => ({
@@ -101,13 +101,9 @@ describe("staging Qwen3 medical query rewriter", () => {
     );
     expect(medical.intent).toBe("medical");
 
-    await routeMedicalRequest(
-      qwen("x".repeat(351)),
-      "private message",
+    await routeMedicalRequest(qwen("x".repeat(351)), "private message", "hi", diagnostic, [
       "hi",
-      diagnostic,
-      ["hi"],
-    );
+    ]);
     await routeMedicalRequest(
       qwen("See https://example.test"),
       "private message",

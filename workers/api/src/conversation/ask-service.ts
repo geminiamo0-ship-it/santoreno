@@ -117,11 +117,11 @@ async function invokeGroundedAnswer(
   bearer: string,
   env: SantoBindings,
   input: {
-        query: string;
-        idempotency_key: string;
-        library_id?: string;
-        recent_user_messages?: string[];
-      },
+    query: string;
+    idempotency_key: string;
+    library_id?: string;
+    recent_user_messages?: string[];
+  },
   signal: AbortSignal,
   onProvisionalAnswer?: (text: string) => void,
 ): Promise<GroundedAiQueryResponse> {

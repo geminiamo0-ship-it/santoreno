@@ -198,6 +198,7 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
       this.smallQueryModel,
       request.query,
       focusedSearchQuery(request.query),
+      request.onRouteDiagnostic,
     );
   }
 

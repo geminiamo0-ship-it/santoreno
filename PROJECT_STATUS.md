@@ -1,5 +1,11 @@
 # Santo Project Status — Living Handoff
 
+### AMBOSS adjacent retrieval (19 Oct 2026) — Staging implementation proposed in PR, NOT yet deployed
+
+- Issue #169 scopes three consecutive private-R2 Markdown sections following the first selected AMBOSS result; five original search results are preserved, and other libraries are never expanded.
+- Feature flag `SANTO_AMBOSS_ADJACENT_R2_V1` is enabled in the Staging candidate only, with Production unchanged. Each R2 neighboring section gets a deterministic server-owned citation identity and source key, with no extra AI Search or model call.
+- Verification gates: exact-head Verify, signed-in Aortic valve stenosis payload inspection for treatment figures and references, and explicit Staging deployment/rollback check. Do not claim live acceptance from code alone.
+
 ### Santo sixth image index — ONE merged AI Search call: deployed and live verified (17 Oct 2026)
 
 - **Verified Staging Worker deployment:** [Action #39070116851](https://github.com/geminiamo0-ship-it/santoreno/actions/runs/39070116851) success on commit `42ef04de62627f1f0b77f87f58e4b7d95f619d95`. The Worker uses the original one-namespace-call mode, now with the **five medical indexes PLUS `santo-medical-images`** in the same `instance_ids` list.

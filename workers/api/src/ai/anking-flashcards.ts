@@ -24,14 +24,12 @@ interface CardRecord {
   anki_query?: unknown;
 }
 
-interface NoteRecord {
+export interface NoteRecord {
   note_id?: unknown;
   primary_system?: unknown;
   topic?: unknown;
   medical_fact?: unknown;
   clinical_pearl?: unknown;
-  supplementary_notes?: unknown;
-  additional_fields?: unknown;
   rights_status?: unknown;
   review_status?: unknown;
   cards?: unknown;
@@ -46,7 +44,7 @@ type Shard = Record<string, NoteRecord>;
 const shardCache = new WeakMap<R2BucketLike, Map<number, { until: number; data: Shard }>>();
 const shardFlights = new WeakMap<R2BucketLike, Map<number, Promise<Shard>>>();
 
-async function loadShard(bucket: R2BucketLike, shard: number): Promise<Shard> {
+export async function loadShard(bucket: R2BucketLike, shard: number): Promise<Shard> {
   let cache = shardCache.get(bucket);
   if (!cache) {
     cache = new Map();
@@ -129,7 +127,7 @@ function overlap(query: Set<string>, text: string): number {
   return count;
 }
 
-function parseCard(raw: unknown): GroundedAiSuggestedFlashcard | null {
+export function parseCard(raw: unknown): GroundedAiSuggestedFlashcard | null {
   const c = record(raw);
   if (!c) return null;
   const id = c.card_id;
@@ -153,7 +151,7 @@ function parseCard(raw: unknown): GroundedAiSuggestedFlashcard | null {
  * AnKing V3 staging shards currently carry medical_fact/clinical_pearl.
  * The Back intentionally exposes only the original clinical pearl, not other note fields.
  */
-function studyNoteFields(note: NoteRecord): Array<{ label: string; value: string }> {
+export function studyNoteFields(note: NoteRecord): Array<{ label: string; value: string }> {
   const pearl = typeof note.clinical_pearl === "string" ? note.clinical_pearl.trim() : "";
   if (!pearl || pearl.length > 3000 || /<(?:script|iframe|img|svg)\\b|\\[sound:/i.test(pearl)) return [];
   return [{ label: "Clinical Pearls", value: pearl }];

@@ -214,7 +214,9 @@ export class R2AnkingSupplementRetriever implements AnkingSupplementRetriever {
       const topic = typeof note.topic === "string" ? note.topic.slice(0, 120) : "AnKing high-yield";
       if (!medicalFact || overlap(queryTerms, `${topic} ${medicalFact}`) === 0) continue;
       if (note.review_status === "approved") {
-        facts.push(`- ${topic}: ${medicalFact.slice(0, 420)}${pearl ? "; " + pearl.slice(0, 220) : ""}`);
+        facts.push(
+          `- ${topic}: ${medicalFact.slice(0, 420)}${pearl ? "; " + pearl.slice(0, 220) : ""}`,
+        );
       }
       if (!Array.isArray(note.cards)) continue;
       for (const item of note.cards as unknown[]) {

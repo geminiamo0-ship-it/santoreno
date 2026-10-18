@@ -120,6 +120,18 @@ describe("Cloudflare Workers AI model adapter", () => {
   });
 });
 
+describe("AMBOSS expanded evidence model source guard", () => {
+  it("accepts up to eight verified source IDs while keeping at most five output citations", () => {
+    const sourceIds = Array.from({ length: 8 }, (_, index) => "amboss:source-" + index);
+    const schema = groundedSchemaForCitationIds(sourceIds);
+    expect(schema.properties.citation_ids.items).toMatchObject({ enum: sourceIds });
+    expect(schema.properties.citation_ids.maxItems).toBe(5);
+    expect(() => groundedSchemaForCitationIds([...sourceIds, "amboss:source-9"])).toThrow(
+      "Invalid verified source references",
+    );
+  });
+});
+
 describe("GPT-6 Luna isolated Santo staging preview", () => {
   it("uses native Responses API with low reasoning and fast tier only under staging flag", async () => {
     const ai: WorkersAiLike = {

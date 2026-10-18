@@ -8,7 +8,7 @@ import requests
 
 IDS = (
     "amboss", "usmle", "passmedicine", "pastest",
-    "one-examination-isolated", "santo-medical-images", "santo-anking-cardiology"
+    "one-examination-isolated", "santo-medical-images", "santo-anking-step-v12"
 )
 endpoint = (
     f"https://api.cloudflare.com/client/v4/accounts/{os.environ['CLOUDFLARE_ACCOUNT_ID']}"
@@ -46,7 +46,7 @@ for query in queries:
     if any(x not in IDS for x in instances):
         raise RuntimeError("Returned unauthorized foreign instances")
     clinical = sum(instances.get(name, 0) for name in IDS[:5])
-    anking = instances.get("santo-anking-cardiology", 0)
+    anking = instances.get("santo-anking-step-v12", 0)
     print(f"Query: {query} — clinical={clinical}, AnKing={anking}, gallery={instances.get('santo-medical-images',0)}", flush=True)
     if clinical < 1 or anking < 1:
         raise RuntimeError("Missing necessary clinical or AnKing result: tune recall before deployment")

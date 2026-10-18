@@ -58,7 +58,7 @@ export const GroundedAiSuggestedFlashcardSchema = z
         z
           .object({
             label: z.string().min(1).max(80),
-            value: z.string().min(1).max(2000),
+            value: z.string().min(1).max(3000),
           })
           .strict(),
       )

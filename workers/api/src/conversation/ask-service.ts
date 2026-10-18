@@ -22,7 +22,7 @@ export class ConversationAskService {
     private readonly generateVerifiedAnswer: (
       bearer: string,
       env: SantoBindings,
-      input: { query: string; idempotency_key: string; library_id?: string },
+      input: { query: string; idempotency_key: string; library_id?: string; recent_user_messages?: string[] },
       signal: AbortSignal,
       onProvisionalAnswer?: (text: string) => void,
     ) => Promise<GroundedAiQueryResponse> = invokeGroundedAnswer,
@@ -75,6 +75,9 @@ export class ConversationAskService {
           query: effectiveQuery,
           idempotency_key: key,
           ...(body.libraryId ? { library_id: body.libraryId } : {}),
+          ...(started.recentUserMessages?.length
+            ? { recent_user_messages: started.recentUserMessages }
+            : {}),
         },
         signal,
         onProvisionalAnswer,
@@ -108,7 +111,7 @@ export class ConversationAskService {
 async function invokeGroundedAnswer(
   bearer: string,
   env: SantoBindings,
-  input: { query: string; idempotency_key: string; library_id?: string },
+  input: { query: string; idempotency_key: string; library_id?: string; recent_user_messages?: string[] },
   signal: AbortSignal,
   onProvisionalAnswer?: (text: string) => void,
 ): Promise<GroundedAiQueryResponse> {

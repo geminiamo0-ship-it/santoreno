@@ -281,7 +281,9 @@ describe("grounded AI handler", () => {
           milliseconds: 43,
         }),
       );
-      const events = diagnostics.mock.calls.filter(([event]) => event === "santo_qwen_route_outcome");
+      const events = diagnostics.mock.calls.filter(
+        ([event]) => event === "santo_qwen_route_outcome",
+      );
       expect(JSON.stringify(events)).not.toContain("Hello!");
       expect(quota.finalizeCalls).toBe(1);
     } finally {

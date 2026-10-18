@@ -12,7 +12,7 @@ import type {
   RetrievalRequest,
   RetrievedEvidence,
 } from "./types";
-import { focusedSearchQuery } from "./source-relevance";
+import { focusedSearchQuery, focusedUserMessageQuery } from "./source-relevance";
 import { rankMedicalCandidates, type RankedCandidate } from "./medical-ranking";
 import type { WorkersAiLike } from "../runtime/bindings";
 import { rewriteMedicalSearchQuery, routeMedicalRequest } from "./medical-query-rewrite";
@@ -192,13 +192,17 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
   }
 
   async route(request: RetrievalRequest) {
-    if (!this.intentRoutingV1)
-      return { intent: "medical" as const, searchQuery: focusedSearchQuery(request.query) };
+    const userMessages = request.recentUserMessages?.slice(-5);
+    const focused = userMessages?.length
+      ? focusedUserMessageQuery(userMessages)
+      : focusedSearchQuery(request.query);
+    if (!this.intentRoutingV1) return { intent: "medical" as const, searchQuery: focused };
     return routeMedicalRequest(
       this.smallQueryModel,
       request.query,
-      focusedSearchQuery(request.query),
+      focused,
       request.onRouteDiagnostic,
+      userMessages,
     );
   }
 

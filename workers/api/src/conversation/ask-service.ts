@@ -22,7 +22,12 @@ export class ConversationAskService {
     private readonly generateVerifiedAnswer: (
       bearer: string,
       env: SantoBindings,
-      input: { query: string; idempotency_key: string; library_id?: string },
+      input: {
+        query: string;
+        idempotency_key: string;
+        library_id?: string;
+        recent_user_messages?: string[];
+      },
       signal: AbortSignal,
       onProvisionalAnswer?: (text: string) => void,
     ) => Promise<GroundedAiQueryResponse> = invokeGroundedAnswer,
@@ -48,8 +53,8 @@ export class ConversationAskService {
     const attemptId = started.attemptId;
     if (!attemptId) throw new ConversationServiceError(503, "CONVERSATION_UNAVAILABLE");
 
-    // Every user message, including greetings and clarifications, must be
-    // answered by Luna. Do not substitute deterministic canned responses.
+    // Routing happens inside the AI service: Qwen may answer nonclinical social
+    // turns, while Luna owns medical explanations and citations.
 
     // Pinning context in the DO ensures retries always address the same evidence request.
     const context = started.context.slice(0, 1200);
@@ -75,6 +80,9 @@ export class ConversationAskService {
           query: effectiveQuery,
           idempotency_key: key,
           ...(body.libraryId ? { library_id: body.libraryId } : {}),
+          ...(started.recentUserMessages?.length
+            ? { recent_user_messages: started.recentUserMessages }
+            : {}),
         },
         signal,
         onProvisionalAnswer,
@@ -108,7 +116,12 @@ export class ConversationAskService {
 async function invokeGroundedAnswer(
   bearer: string,
   env: SantoBindings,
-  input: { query: string; idempotency_key: string; library_id?: string },
+  input: {
+    query: string;
+    idempotency_key: string;
+    library_id?: string;
+    recent_user_messages?: string[];
+  },
   signal: AbortSignal,
   onProvisionalAnswer?: (text: string) => void,
 ): Promise<GroundedAiQueryResponse> {

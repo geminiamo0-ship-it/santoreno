@@ -222,6 +222,7 @@ export async function routeMedicalRequest(
   originalRequest: string,
   focusedQuery: string,
   onDiagnostic?: (outcome: QwenRouteOutcome, milliseconds: number) => void,
+  userMessages?: readonly string[],
 ): Promise<MedicalRoute> {
   const startedAt = performance.now();
   const fallback: MedicalRoute = { intent: "medical", searchQuery: focusedQuery };
@@ -235,12 +236,28 @@ export async function routeMedicalRequest(
   if (!ai || focusedQuery.length > MAX_FOCUSED_CHARS || !focusedQuery.trim()) {
     return fail("unavailable");
   }
-  const latest = latestStudentMessage(originalRequest);
-  const input = [
+  // Prefer the authenticated ConversationDO user-only history. The legacy
+  // /v1/ai/query path continues to work without a conversation context.
+  const history = userMessages?.slice(-5) ?? [];
+  const usingUserHistory = history.length > 0;
+  const latest = usingUserHistory
+    ? history[history.length - 1]!.trim()
+    : latestStudentMessage(originalRequest);
+  let input = [
     "Latest student question: " + latest.slice(0, 600),
     "Resolved medical topic and intent: " + focusedQuery.slice(0, MAX_FOCUSED_CHARS),
     "Prior medical context exists: " + originalRequest.includes(FOLLOW_UP_MARKER),
   ].join("\n");
+  if (usingUserHistory) {
+    const previous = history
+      .slice(0, -1)
+      .map((text, index) => `${index + 1}. ${text.slice(0, 300)}`);
+    input = [
+      "Previous USER messages (oldest first):",
+      ...previous,
+      "CURRENT USER MESSAGE: " + latest.slice(0, 1000),
+    ].join("\n");
+  }
   let timer: ReturnType<typeof setTimeout> | undefined;
   let timedOut = false;
   try {
@@ -289,7 +306,8 @@ export async function routeMedicalRequest(
       return { intent: "clarify", question };
     }
     if (result.intent === "CHAT") {
-      if (originalRequest.includes(FOLLOW_UP_MARKER)) return fail("chat_rejected_context");
+      if (!usingUserHistory && originalRequest.includes(FOLLOW_UP_MARKER))
+        return fail("chat_rejected_context");
       if (
         typeof result.answer !== "string" ||
         !result.answer.trim() ||

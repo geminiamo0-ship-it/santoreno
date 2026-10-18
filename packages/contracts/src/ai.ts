@@ -13,6 +13,8 @@ export const GroundedAiQueryRequestSchema = z
     query: z.string().trim().min(1).max(4000),
     idempotency_key: z.string().trim().min(1).max(128),
     library_id: GroundedAiLibraryIdSchema.optional(),
+    /** Optional bounded router context; constructed by trusted ConversationDO on /ask. */
+    recent_user_messages: z.array(z.string().max(1000)).max(5).optional(),
   })
   .strict();
 export type GroundedAiQueryRequest = z.infer<typeof GroundedAiQueryRequestSchema>;

@@ -145,6 +145,9 @@ export class GroundedAiService {
                 this.retrieval.route!({
                   query: input.query,
                   libraryId,
+                  ...(input.recent_user_messages
+                    ? { recentUserMessages: input.recent_user_messages }
+                    : {}),
                   onRouteDiagnostic: (outcome, milliseconds) => {
                     console.info("santo_qwen_route_outcome", {
                       requestId,

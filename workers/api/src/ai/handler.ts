@@ -14,6 +14,7 @@ import { AI_STAGE_TIMEOUTS } from "./deadline";
 import { AiSearchNamespaceLibraryCatalog } from "./library-catalog";
 import { createGroundedModel } from "./model";
 import { CloudflareAiSearchRetrieval } from "./retrieval";
+import { AmbossAdjacentRetrieval } from "./amboss-adjacent";
 import { CloudflareGalleryImageRetrieval } from "./image-gallery";
 import { R2AnkingSupplementRetriever } from "./anking-flashcards";
 import { GroundedAiService } from "./service";
@@ -73,7 +74,7 @@ export function createGroundedAiHandler(dependencies: GroundedAiHandlerDependenc
           .map((id) => id.trim())
           .filter((id) => /^[a-z0-9][a-z0-9-]{0,63}$/.test(id)),
       );
-      return new CloudflareAiSearchRetrieval(
+      const retrieval = new CloudflareAiSearchRetrieval(
         env.AI_SEARCH,
         new AiSearchNamespaceLibraryCatalog(env.AI_SEARCH, allowed),
         env.SANTO_ENV === "staging" && env.SANTO_MEDICAL_RETRIEVAL_V2 === "true",
@@ -86,6 +87,11 @@ export function createGroundedAiHandler(dependencies: GroundedAiHandlerDependenc
           env.SANTO_ANKING_RIGHTS_CLEARED_V1 === "true" &&
           env.SANTO_AI_SEARCH_SINGLE_REQUEST_V1 === "true",
       );
+      return env.SANTO_ENV === "staging" &&
+        env.SANTO_AMBOSS_ADJACENT_R2_V1 === "true" &&
+        env.CONTENT_BUCKET
+        ? new AmbossAdjacentRetrieval(retrieval, env.CONTENT_BUCKET)
+        : retrieval;
     });
   const modelFactory = dependencies.modelFactory ?? createGroundedModel;
   const sourceStoreFactory =

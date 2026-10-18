@@ -35,7 +35,7 @@ export function validateGroundedCitations(
     } satisfies GroundedAiCitation;
   });
 
-  if (citations.length > 5) {
+  if (citations.length > 8) {
     throw new GroundedAiError(502, "CITATION_INVALID", "Model returned too many citations");
   }
 

@@ -207,7 +207,7 @@ const groundedResponseSchema = {
 export function groundedSchemaForCitationIds(allowedCitationIds?: readonly string[]) {
   if (allowedCitationIds === undefined) return groundedResponseSchema;
   const ids = [...new Set(allowedCitationIds)];
-  if (ids.length > 5 || ids.some((id) => !id || id.length > 512)) {
+  if (ids.length > 8 || ids.some((id) => !id || id.length > 512)) {
     throw new GroundedAiError(502, "SEARCH_FAILED", "Invalid verified source references");
   }
   return {

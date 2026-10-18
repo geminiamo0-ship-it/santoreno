@@ -210,7 +210,7 @@ function acceptedClarification(output: unknown): string | null {
     question.length < 8 ||
     question.length > 260 ||
     /[\r\n{}<>]/.test(question) ||
-        /https?:|\[\[|SANTO_REF_|(?:source|citation|guideline):/i.test(result.answer)
+    /https?:\/\/|\[\[|SANTO_REF_|(?:source|citation|guideline):/i.test(question) ||
     !/[?؟]$/.test(question)
   )
     return null;
@@ -294,7 +294,7 @@ export async function routeMedicalRequest(
         !result.answer.trim() ||
         result.answer.length > 350 ||
         !clearlyNonClinical(latest) ||
-        /https?:|\\[\\[|SANTO_REF_|(?:source|citation|guideline):/i.test(result.answer)
+        /https?:|\[\[|SANTO_REF_|(?:source|citation|guideline):/i.test(result.answer)
       ) return fail("chat_rejected_safety");
       report("success_chat");
       return { intent: "chat", answer: result.answer.trim() };

@@ -159,7 +159,7 @@ function studyNoteFields(note: NoteRecord): Array<{ label: string; value: string
   const push = (label: string, value: unknown) => {
     if (typeof value !== "string") return;
     const text = value.trim();
-    if (!text || text.length > 2000 || !label.trim() || label.length > 80) return;
+    if (!text || text.length > 3000 || !label.trim() || label.length > 80) return;
     if (/<(?:script|iframe|img|svg)\b|\[sound:/i.test(text)) return;
     const key = text.toLocaleLowerCase();
     if (seen.has(key) || fields.length >= 12) return;
@@ -208,13 +208,13 @@ export class R2AnkingSupplementRetriever implements AnkingSupplementRetriever {
       // Unreviewed facts must NEVER enter Luna's clinical explanation prompt.
       if (note.rights_status !== "licensed_for_santo") continue;
       const medicalFact =
-        typeof note.medical_fact === "string" ? note.medical_fact.slice(0, 420) : "";
+        typeof note.medical_fact === "string" ? note.medical_fact.slice(0, 2500) : "";
       const pearl =
-        typeof note.clinical_pearl === "string" ? note.clinical_pearl.slice(0, 220) : "";
+        typeof note.clinical_pearl === "string" ? note.clinical_pearl.slice(0, 3000) : "";
       const topic = typeof note.topic === "string" ? note.topic.slice(0, 120) : "AnKing high-yield";
       if (!medicalFact || overlap(queryTerms, `${topic} ${medicalFact}`) === 0) continue;
       if (note.review_status === "approved") {
-        facts.push(`- ${topic}: ${medicalFact}${pearl ? "; " + pearl : ""}`);
+        facts.push(`- ${topic}: ${medicalFact.slice(0, 420)}${pearl ? "; " + pearl.slice(0, 220) : ""}`);
       }
       if (!Array.isArray(note.cards)) continue;
       for (const item of note.cards as unknown[]) {

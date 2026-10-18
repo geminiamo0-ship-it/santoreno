@@ -312,17 +312,19 @@ export async function routeMedicalRequest(
         return fail("chat_rejected_context");
       // Distinguish unsafe classification of a medical/user turn from an
       // invalid or prohibited model reply. Never log either text.
-      if (!clearlyNonClinical(latest)) return fail("chat_rejected_non_social_input");
+      if (!clearlyNonClinical(latest)) {
+        return fail("chat_rejected_non_social_input");
+      }
       if (
         typeof result.answer !== "string" ||
         !result.answer.trim() ||
         result.answer.length > 350
-      )
+      ) {
         return fail("chat_rejected_invalid_answer");
-      if (
-        /https?:|\[\[|SANTO_REF_|(?:source|citation|guideline):/i.test(result.answer)
-      )
+      }
+      if (/https?:|\[\[|SANTO_REF_|(?:source|citation|guideline):/i.test(result.answer)) {
         return fail("chat_rejected_forbidden_answer");
+      }
       report("success_chat");
       return { intent: "chat", answer: result.answer.trim() };
     }

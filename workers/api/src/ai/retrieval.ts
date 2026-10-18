@@ -30,7 +30,7 @@ const WITH_GALLERY_MERGED_CANDIDATES = 45;
 const IMAGE_SEARCH_INSTANCE = "santo-medical-images";
 // Separate licensed educational exam-memory index; never clinical citation evidence.
 const ANKING_SEARCH_INSTANCE = "santo-anking-cardiology";
-const WITH_ANKING_MERGED_CANDIDATES = 60;
+const WITH_ANKING_MERGED_CANDIDATES = 50;
 const MATCH_THRESHOLD = 0.4;
 const MAX_CHUNK_CHARS = 5000;
 

@@ -46,13 +46,20 @@ describe("Santo grounded-versus-general response contract", () => {
       title: "Aortic valve stenosis",
       page: null,
     }));
-    expect(GroundedAiQueryResponseSchema.safeParse({
-      ...base, groundingMode: "santo", citations,
-    }).success).toBe(true);
-    expect(GroundedAiQueryResponseSchema.safeParse({
-      ...base, groundingMode: "santo",
-      citations: [...citations, { sourceId: "amboss:extra", title: "Extra", page: null }],
-    }).success).toBe(false);
+    expect(
+      GroundedAiQueryResponseSchema.safeParse({
+        ...base,
+        groundingMode: "santo",
+        citations,
+      }).success,
+    ).toBe(true);
+    expect(
+      GroundedAiQueryResponseSchema.safeParse({
+        ...base,
+        groundingMode: "santo",
+        citations: [...citations, { sourceId: "amboss:extra", title: "Extra", page: null }],
+      }).success,
+    ).toBe(false);
   });
 
   it("accepts a clearly labeled general answer with no citations", () => {

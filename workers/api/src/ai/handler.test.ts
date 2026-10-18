@@ -653,8 +653,8 @@ describe("grounded AI handler", () => {
       sourceId: "amboss:r2-" + String(index).padStart(32, "0"),
       libraryId: "amboss",
       instanceId: "amboss",
-      itemKey: "medical-search/v1/amboss/unnamed-2746/s-" +
-        String(index + 15).padStart(4, "0") + ".md",
+      itemKey:
+        "medical-search/v1/amboss/unnamed-2746/s-" + String(index + 15).padStart(4, "0") + ".md",
       title: "Aortic valve stenosis",
       page: null,
       section: index === 0 ? "Treatment" : "Approach",
@@ -663,7 +663,8 @@ describe("grounded AI handler", () => {
     }));
     retrieval.retrieve = vi.fn(async () => evidence);
     model.generate = vi.fn(async () => ({
-      answer: "Severity and management " +
+      answer:
+        "Severity and management " +
         evidence.map((_, index) => "[[" + (index + 1) + "]]").join(" "),
       citationIds: evidence.map((item) => item.sourceId),
     }));

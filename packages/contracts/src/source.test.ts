@@ -34,8 +34,8 @@ describe("trusted source contracts", () => {
       sourceId: "amboss:r2-" + String(index).padStart(32, "0"),
       libraryId: "amboss",
       instanceId: "amboss",
-      itemKey: "medical-search/v1/amboss/unnamed-2746/s-" +
-        String(index + 15).padStart(4, "0") + ".md",
+      itemKey:
+        "medical-search/v1/amboss/unnamed-2746/s-" + String(index + 15).padStart(4, "0") + ".md",
       page: null,
     }));
     const snapshot = {
@@ -46,16 +46,19 @@ describe("trusted source contracts", () => {
       sources,
     };
     expect(VerifiedSourceSnapshotSchema.safeParse(snapshot).success).toBe(true);
-    expect(VerifiedSourceSnapshotSchema.safeParse({
-      ...snapshot,
-      sources: [...sources, { ...sources[0], sourceId: "amboss:r2-other" }],
-    }).success).toBe(false);
-    expect(VerifiedSourceSnapshotSchema.safeParse({
-      ...snapshot,
-      sources: [...sources.slice(0, 7), { ...sources[7], sourceId: "usmle:forged" }],
-    }).success).toBe(false);
+    expect(
+      VerifiedSourceSnapshotSchema.safeParse({
+        ...snapshot,
+        sources: [...sources, { ...sources[0], sourceId: "amboss:r2-other" }],
+      }).success,
+    ).toBe(false);
+    expect(
+      VerifiedSourceSnapshotSchema.safeParse({
+        ...snapshot,
+        sources: [...sources.slice(0, 7), { ...sources[7], sourceId: "usmle:forged" }],
+      }).success,
+    ).toBe(false);
   });
-
 
   it("accepts stable metadata from a verified search citation", () => {
     expect(TrustedSourceMetadataSchema.parse(source)).toEqual(source);

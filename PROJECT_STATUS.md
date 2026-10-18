@@ -1,5 +1,15 @@
 # Santo Project Status — Living Handoff
 
+### Full AnKing Step v12 — 18 Oct 2026 isolated Staging ingestion
+
+- Owner provided [full-library ZIP](https://drive.google.com/file/d/1sr_XbG5KFC8hFuNXf23WKCthyFYWk4ls/view?usp=sharing), SHA-256 `3e75c1629a74423f012556ff0b52c87703ce12812cfa35b195f3bf57dcebfb25`; source verified 30,521 notes, 36,941 real card IDs, but only 36,937 cloze-match verified; 4 reported mismatches need explicit follow-up.
+- The full V12 library includes all 4,151 Cardiology V3 notes with the **same exact CIDs**. Do not index both as active Luna educational indexes.
+- Exclude 44 records from text search: 14 image-only, 13 Getting Started, 1 deck instructions, 1 note-creation instructions, 3 unusable previews, 12 audio markup. **Staging ingestion target: 30,477 note search documents and 36,896 owner-licensed CID mappings**. Original media and photos are not uploaded.
+- Full isolated index `santo-anking-step-v12` and 128 private R2 shards at `santo-content-staging/anking/v12/full/shards/`. [Full ingestion #39140939785](https://github.com/geminiamo0-ship-it/santoreno/actions/runs/39140939785) successfully advanced past SHA/source validation and first/last R2 readbacks and began submission of note documents. **AI Search indexing and staging deployment NOT yet complete**.
+- [Staging activation](https://github.com/geminiamo0-ship-it/santoreno/actions/workflows/anking-cardiology-staging-activate.yml) requires all 30,477 documents completed without error, one read-only seven-index search smoke, exact-head green checks; never deploy without passing all gates.
+- Earlier Cardiology-only instance `santo-anking-cardiology` accepted 4,151 submissions but subsequently recorded **2 Cloudflare embedding errors**, so its previous activation failed closed; it remains isolated and untouched. The new full index is separate; Cloudflare may have similar transient errors requiring surgical repair rather than duplicate all-items upload.
+- Educational original `cid:` navigation is allowed under owner-confirmed commercial text permission; `pending_expert_review` medical facts NEVER enter Luna's explanation prompt until independently approved. No AnKing audio/media are used. Royal Bank preview UI remains [PR #138](https://github.com/geminiamo0-ship-it/ROYAL-BANK/pull/138), already READY on Vercel; authenticated end-to-end answer not yet independently confirmed. Production unchanged.
+
 ### AnKing Cardiology seventh search — isolated staging rollout (18 Oct 2026; issue #164)
 
 - The owner states commercial permission for AnKing text and verifies the supported AnKing V3 Card IDs. That confirms authorization for this pilot but does not imply that every third-party image/audio right is covered. No AnKing images or audio are uploaded.

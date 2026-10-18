@@ -37,8 +37,8 @@ interface NoteRecord {
 
 const MAX_NOTES = 7;
 const MAX_CARDS = 5;
-const SHARD_PREFIX = "anking/v12/full/shards/";
-const SHARD_COUNT = 128;
+const SHARD_PREFIX = "anking/v3/cardiology/shards/";
+const SHARD_COUNT = 32;
 const SHARD_CACHE_MS = 5 * 60_000;
 type Shard = Record<string, NoteRecord>;
 const shardCache = new WeakMap<R2BucketLike, Map<number, { until: number; data: Shard }>>();
@@ -60,7 +60,7 @@ async function loadShard(bucket: R2BucketLike, shard: number): Promise<Shard> {
   const existing = flights.get(shard);
   if (existing) return existing;
   const loading = (async (): Promise<Shard> => {
-    const object = await bucket.get(`${SHARD_PREFIX}shard_${String(shard).padStart(3, "0")}.json`);
+    const object = await bucket.get(`${SHARD_PREFIX}shard_${String(shard).padStart(2, "0")}.json`);
     if (!object) return {};
     const parsed = record(JSON.parse(await object.text()) as unknown);
     if (!parsed) return {};

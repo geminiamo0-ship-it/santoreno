@@ -736,7 +736,7 @@ describe("Santo five licensed library retrieval", () => {
 
   it("explicit clinical library filter never adds AnKing, even when opt-in enabled", async () => {
     const namespace = new FakeAiSearchNamespace(undefined, {
-      "amboss": { chunks: [chunk("amboss")] },
+      amboss: { chunks: [chunk("amboss")] },
     });
     const retrieval = new CloudflareAiSearchRetrieval(
       namespace,
@@ -754,5 +754,4 @@ describe("Santo five licensed library retrieval", () => {
       ai_search_options: { instance_ids: ["amboss"] },
     });
   });
-
 });

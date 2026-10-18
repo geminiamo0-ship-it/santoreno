@@ -39,7 +39,32 @@ const MAX_NOTES = 7;
 const MAX_CARDS = 5;
 const NOTE_PREFIX = "anking/v3/cardiology/notes/";
 const EMPTY: AnkingSupplement = { cards: [], promptContext: "" };
-const IGNORE = new Set(["about", "from", "with", "have", "what", "which", "this", "that", "and", "the", "are", "for", "how", "does", "into", "when", "will", "their", "than", "give", "explain", "tell", "difference", "between"]);
+const IGNORE = new Set([
+  "about",
+  "from",
+  "with",
+  "have",
+  "what",
+  "which",
+  "this",
+  "that",
+  "and",
+  "the",
+  "are",
+  "for",
+  "how",
+  "does",
+  "into",
+  "when",
+  "will",
+  "their",
+  "than",
+  "give",
+  "explain",
+  "tell",
+  "difference",
+  "between",
+]);
 
 function record(value: unknown): Record<string, unknown> | null {
   return value !== null && typeof value === "object" && !Array.isArray(value)
@@ -66,7 +91,9 @@ function parseCard(raw: unknown): GroundedAiSuggestedFlashcard | null {
   if (c.anki_query !== `cid:${id}`) return null;
   if (typeof c.preview !== "string" || !c.preview.trim()) return null;
   if (!Array.isArray(c.target_concepts)) return null;
-  const targets = c.target_concepts.filter((v): v is string => typeof v === "string" && v.trim().length > 0);
+  const targets = c.target_concepts.filter(
+    (v): v is string => typeof v === "string" && v.trim().length > 0,
+  );
   if (targets.length === 0) return null;
   return {
     cardId: id,
@@ -103,9 +130,12 @@ export class R2AnkingSupplementRetriever implements AnkingSupplementRetriever {
       const note = notes[i] as NoteRecord | null;
       if (!note || note.note_id !== Number(unique[i]!.slice(5))) continue;
       // Both explicit rights clearance and medical review are required per record.
-      if (note.rights_status !== "licensed_for_santo" || note.review_status !== "approved") continue;
-      const medicalFact = typeof note.medical_fact === "string" ? note.medical_fact.slice(0, 420) : "";
-      const pearl = typeof note.clinical_pearl === "string" ? note.clinical_pearl.slice(0, 220) : "";
+      if (note.rights_status !== "licensed_for_santo" || note.review_status !== "approved")
+        continue;
+      const medicalFact =
+        typeof note.medical_fact === "string" ? note.medical_fact.slice(0, 420) : "";
+      const pearl =
+        typeof note.clinical_pearl === "string" ? note.clinical_pearl.slice(0, 220) : "";
       const topic = typeof note.topic === "string" ? note.topic.slice(0, 120) : "AnKing high-yield";
       if (!medicalFact || overlap(queryTerms, `${topic} ${medicalFact}`) === 0) continue;
       facts.push(`- ${topic}: ${medicalFact}${pearl ? "; " + pearl : ""}`);

@@ -249,9 +249,7 @@ export class GroundedAiService {
               ).catch(() => [])
             : Promise.resolve([]);
         const ankingPromise =
-          groundingMode === "santo" &&
-          this.ankingSupplement &&
-          combinedSearch.ankingHits?.length
+          groundingMode === "santo" && this.ankingSupplement && combinedSearch.ankingHits?.length
             ? withAiDeadline(
                 () =>
                   this.ankingSupplement!.hydrate(

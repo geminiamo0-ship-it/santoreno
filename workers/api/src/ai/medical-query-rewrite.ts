@@ -251,12 +251,12 @@ export async function routeMedicalRequest(
         ),
         "CURRENT USER MESSAGE: " + latest.slice(0, 1000),
         "Likely search topic (only user messages): " + focusedQuery.slice(0, MAX_FOCUSED_CHARS),
-      ].join("\\n")
+      ].join("\n")
     : [
         "Latest student question: " + latest.slice(0, 600),
         "Resolved medical topic and intent: " + focusedQuery.slice(0, MAX_FOCUSED_CHARS),
         "Prior medical context exists: " + originalRequest.includes(FOLLOW_UP_MARKER),
-      ].join("\\n");
+      ].join("\n");
   let timer: ReturnType<typeof setTimeout> | undefined;
   let timedOut = false;
   try {

@@ -725,7 +725,7 @@ describe("Santo five licensed library retrieval", () => {
           "santo-medical-images",
           "santo-anking-cardiology",
         ],
-        retrieval: { max_num_results: 60 },
+        retrieval: { max_num_results: 50 },
       },
     });
     expect(result.evidence).toHaveLength(1);

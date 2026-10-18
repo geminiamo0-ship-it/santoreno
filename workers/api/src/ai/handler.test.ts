@@ -676,7 +676,10 @@ describe("grounded AI handler", () => {
       evidence.map((item) => item.sourceId),
     );
     expect(save).toHaveBeenCalledOnce();
-    expect(save.mock.calls[0]?.[1]).toHaveLength(8);
+    expect(save).toHaveBeenCalledWith(
+      expect.any(Object),
+      evidence.map((item) => expect.objectContaining({ sourceId: item.sourceId })),
+    );
     expect(quota.used).toBe(1);
     expect(quota.releaseCalls).toBe(0);
   });

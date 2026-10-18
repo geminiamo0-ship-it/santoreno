@@ -102,7 +102,13 @@ describe("staging Qwen3 medical query rewriter", () => {
     expect(medical.intent).toBe("medical");
 
     await routeMedicalRequest(qwen("x".repeat(351)), "private message", "hi", diagnostic, ["hi"]);
-    await routeMedicalRequest(qwen("See https://example.test"), "private message", "hi", diagnostic, ["hi"]);
+    await routeMedicalRequest(
+      qwen("See https://example.test"),
+      "private message",
+      "hi",
+      diagnostic,
+      ["hi"],
+    );
     expect(outcomes).toEqual([
       "chat_rejected_non_social_input",
       "chat_rejected_invalid_answer",

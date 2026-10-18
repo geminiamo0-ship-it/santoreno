@@ -212,16 +212,44 @@ export class GroundedAiService {
         const imageDiagnostics = this.richImagesEnabled
           ? emptyImageHydrationDiagnostics(evidence.length)
           : undefined;
+        // R2 source hydration and gallery metadata are independent after the
+        // SAME verified retrieval. Run them concurrently: no added search call,
+        // image-source trust change or shuffled IMG_001 / IMG_081 identifiers.
         const imagesStartedAt = performance.now();
-        const originalImages =
+        const originalImagesPromise =
           groundingMode === "santo" && this.richImagesEnabled && this.articleBucket
-            ? await loadMedicalImages(this.articleBucket, evidence, imageDiagnostics)
-            : [];
-        if (imageDiagnostics)
-          console.info("santo_runtime_stage_ms", {
-            stage: "image_hydration",
-            milliseconds: Math.round(performance.now() - imagesStartedAt),
-          });
+            ? loadMedicalImages(this.articleBucket, evidence, imageDiagnostics)
+            : Promise.resolve([]);
+        const galleryStartedAt = performance.now();
+        const galleryImagesPromise =
+          groundingMode === "santo" && this.imageGallery && combinedSearch.galleryHits.length
+            ? withAiDeadline(
+                () => this.imageGallery!.hydrate(combinedSearch.galleryHits),
+                signal,
+                4_000,
+                "SEARCH_TIMEOUT",
+              ).catch(() => [])
+            : Promise.resolve([]);
+        const [originalImages, galleryImages] = await Promise.all([
+          originalImagesPromise.then((images) => {
+            if (imageDiagnostics) {
+              console.info("santo_runtime_stage_ms", {
+                stage: "image_hydration",
+                milliseconds: Math.round(performance.now() - imagesStartedAt),
+              });
+            }
+            return images;
+          }),
+          galleryImagesPromise.then((images) => {
+            if (imageDiagnostics) {
+              console.info("santo_runtime_stage_ms", {
+                stage: "gallery_hydration",
+                milliseconds: Math.round(performance.now() - galleryStartedAt),
+              });
+            }
+            return images;
+          }),
+        ]);
         if (imageDiagnostics) {
           console.info("santo_luna_image_pipeline", {
             phase: "before_model",
@@ -230,15 +258,6 @@ export class GroundedAiService {
             promptIncludesImages: originalImages.length > 0,
           });
         }
-        const galleryImages =
-          groundingMode === "santo" && this.imageGallery && combinedSearch.galleryHits.length
-            ? await withAiDeadline(
-                () => this.imageGallery!.hydrate(combinedSearch.galleryHits),
-                signal,
-                4_000,
-                "SEARCH_TIMEOUT",
-              ).catch(() => [])
-            : [];
         // Preserve strong article figures and reserve room for visual search.
         // Original article IDs IMG_001..IMG_080 never collide with IMG_081+.
         const availableImages = [
@@ -254,6 +273,10 @@ export class GroundedAiService {
         const sourcedPrompt =
           buildGroundedPrompt(input.query, evidence, answerFormat) +
           medicalImagePrompt(availableImages, input.query);
+        console.info("santo_runtime_stage_ms", {
+          stage: "pre_model",
+          milliseconds: Math.round(performance.now() - routeStartedAt),
+        });
         const modelStartedAt = performance.now();
         let firstModelDeltaRecorded = false;
         const progress = onProvisionalAnswer

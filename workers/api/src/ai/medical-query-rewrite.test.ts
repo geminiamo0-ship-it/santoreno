@@ -67,6 +67,63 @@ describe("staging Qwen3 medical query rewriter", () => {
     expect(outcomes).toEqual(["provider_error", "unavailable"]);
   });
 
+  it("accepts greetings addressed to Luna during old conversations, with no medical search", async () => {
+    const outcomes: string[] = [];
+    const qwen: WorkersAiLike = {
+      run: async () => ({
+        response: JSON.stringify({ intent: "CHAT", answer: "Hello! How can I help?" }),
+      }),
+    };
+    const answer = await routeMedicalRequest(
+      qwen,
+      "Prior discussion containing medical text from Luna",
+      "hello, Luna!",
+      (outcome) => outcomes.push(outcome),
+      ["What is aortic stenosis?", "hello, Luna!"],
+    );
+    expect(answer).toEqual({ intent: "chat", answer: "Hello! How can I help?" });
+    expect(outcomes).toEqual(["success_chat"]);
+  });
+
+  it("identifies the precise rejected CHAT guard without exposing student messages", async () => {
+    const outcomes: string[] = [];
+    const diagnostic = (outcome: string) => outcomes.push(outcome);
+    const qwen = (answer: unknown): WorkersAiLike => ({
+      run: async () => ({ response: JSON.stringify({ intent: "CHAT", answer }) }),
+    });
+    const history = ["Aortic stenosis", "What about treatment?"];
+    const medical = await routeMedicalRequest(
+      qwen("Sure!"),
+      "UNTRUSTED_LUNA_CONTENT",
+      "What about treatment?",
+      diagnostic,
+      history,
+    );
+    expect(medical.intent).toBe("medical");
+
+    await routeMedicalRequest(
+      qwen("x".repeat(351)),
+      "private message",
+      "hi",
+      diagnostic,
+      ["hi"],
+    );
+    await routeMedicalRequest(
+      qwen("See https://example.test"),
+      "private message",
+      "hi",
+      diagnostic,
+      ["hi"],
+    );
+    expect(outcomes).toEqual([
+      "chat_rejected_non_social_input",
+      "chat_rejected_invalid_answer",
+      "chat_rejected_forbidden_answer",
+    ]);
+    expect(JSON.stringify(outcomes)).not.toContain("UNTRUSTED_LUNA_CONTENT");
+    expect(JSON.stringify(outcomes)).not.toContain("private message");
+  });
+
   it("allows social chat with five user-only turns, excluding Luna answers", async () => {
     let inputText = "";
     const ai: WorkersAiLike = {

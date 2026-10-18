@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { RetrievedEvidence } from "./types";
-import { focusedSearchQuery, matchesSearchSubject } from "./source-relevance";
+import { focusedSearchQuery, focusedUserMessageQuery, matchesSearchSubject } from "./source-relevance";
 
 function evidence(title: string, text: string, score = 0.95): RetrievedEvidence {
   return {
@@ -27,6 +27,19 @@ describe("safe topic relevance for Santo medical references", () => {
     "Familial Mediterranean fever (FMF) is due to MEFV variants.",
     0.8,
   );
+
+  it("resolves prior user topics only, without assistant explanations", () => {
+    expect(focusedUserMessageQuery(["Explain aortic stenosis", "management"])).toBe(
+      "management and treatment of aortic stenosis",
+    );
+    expect(focusedUserMessageQuery(["Explain aortic stenosis", "Explain FMF", "dx"])).toBe(
+      "diagnosis of fmf",
+    );
+    expect(focusedUserMessageQuery(["Explain FMF", "hi"])).toBe("hi");
+    expect(focusedUserMessageQuery(["Explain FMF", "Explain amyloidosis"])).toBe(
+      "Explain amyloidosis",
+    );
+  });
 
   it("searches a newly named topic, not the previous completed conversation", () => {
     const withContext =

@@ -10,15 +10,21 @@ type SearchRequest = { topic: string; cursor: number; excludeCardIds: number[] }
 function parseSearchRequest(value: unknown): SearchRequest | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const raw = value as Record<string, unknown>;
-  if (Object.keys(raw).some(key => !["topic", "cursor", "excludeCardIds"].includes(key))) return null;
+  if (Object.keys(raw).some((key) => !["topic", "cursor", "excludeCardIds"].includes(key)))
+    return null;
   if (typeof raw.topic !== "string") return null;
   const topic = raw.topic.trim();
   if (topic.length < 3 || topic.length > 250) return null;
   const cursor = raw.cursor === undefined ? 0 : raw.cursor;
-  if (typeof cursor !== "number" || !Number.isSafeInteger(cursor) || cursor < 0 || cursor > 1000) return null;
+  if (typeof cursor !== "number" || !Number.isSafeInteger(cursor) || cursor < 0 || cursor > 1000)
+    return null;
   const excluded = raw.excludeCardIds === undefined ? [] : raw.excludeCardIds;
-  if (!Array.isArray(excluded) || excluded.length > 5 ||
-    excluded.some(id => typeof id !== "number" || !Number.isSafeInteger(id) || id <= 0)) return null;
+  if (
+    !Array.isArray(excluded) ||
+    excluded.length > 5 ||
+    excluded.some((id) => typeof id !== "number" || !Number.isSafeInteger(id) || id <= 0)
+  )
+    return null;
   return { topic, cursor, excludeCardIds: excluded as number[] };
 }
 const HEADERS = { "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff" };

@@ -243,13 +243,15 @@ export async function routeMedicalRequest(
   const latest = usingUserHistory
     ? history[history.length - 1]!.trim()
     : latestStudentMessage(originalRequest);
+  const previous = history
+    .slice(0, -1)
+    .map((text, index) => `${index + 1}. ${text.slice(0, 300)}`);
   const input = usingUserHistory
     ? [
         "Previous user messages (oldest first, NOT assistant answers):",
-        ...history.slice(0, -1).map((text, index) => `${index + 1}. ${text.slice(0, 300)}`),
+        ...previous,
         "CURRENT USER MESSAGE: " + latest.slice(0, 1000),
-        "Likely search topic (only user messages): " +
-          focusedQuery.slice(0, MAX_FOCUSED_CHARS),
+        "Search topic: " + focusedQuery.slice(0, MAX_FOCUSED_CHARS),
       ].join("\n")
     : [
         "Latest student question: " + latest.slice(0, 600),

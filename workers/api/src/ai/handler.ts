@@ -10,9 +10,11 @@ import { SessionError, SessionExchangeService } from "../session/service";
 import { SantoSessionTokenService, SessionTokenError } from "../session/token";
 import { D1TenantRepository, type TenantRepository } from "../tenancy/repository";
 import { GroundedAiError } from "./errors";
+import { AI_STAGE_TIMEOUTS } from "./deadline";
 import { AiSearchNamespaceLibraryCatalog } from "./library-catalog";
 import { createGroundedModel } from "./model";
 import { CloudflareAiSearchRetrieval } from "./retrieval";
+import { CloudflareGalleryImageRetrieval } from "./image-gallery";
 import { GroundedAiService } from "./service";
 import { streamValidatedGroundedAnswer } from "./stream";
 import { AnalyticsEngineAiTelemetry } from "./telemetry";
@@ -73,6 +75,11 @@ export function createGroundedAiHandler(dependencies: GroundedAiHandlerDependenc
       return new CloudflareAiSearchRetrieval(
         env.AI_SEARCH,
         new AiSearchNamespaceLibraryCatalog(env.AI_SEARCH, allowed),
+        env.SANTO_ENV === "staging" && env.SANTO_MEDICAL_RETRIEVAL_V2 === "true",
+        env.SANTO_ENV === "staging" && env.SANTO_MEDICAL_QUERY_REWRITE_V1 === "true",
+        env.AI,
+        env.SANTO_ENV === "staging" && env.SANTO_QWEN_ROUTING_V1 === "true",
+        env.SANTO_ENV === "staging" && env.SANTO_AI_SEARCH_SINGLE_REQUEST_V1 === "true",
       );
     });
   const modelFactory = dependencies.modelFactory ?? createGroundedModel;
@@ -86,6 +93,7 @@ export function createGroundedAiHandler(dependencies: GroundedAiHandlerDependenc
   return async function handleGroundedAiQuery(
     request: Request,
     env: SantoBindings,
+    onProvisionalAnswer?: (text: string) => void,
   ): Promise<Response> {
     if (request.method !== "POST") {
       return errorResponse("METHOD_NOT_ALLOWED", 405);
@@ -113,10 +121,27 @@ export function createGroundedAiHandler(dependencies: GroundedAiHandlerDependenc
         modelFactory(env),
         telemetryFactory(env),
         undefined,
-        dependencies.stageTimeouts,
+        dependencies.stageTimeouts ??
+          (env.SANTO_ENV === "staging" && env.SANTO_LUNA_PREVIEW === "true"
+            ? { ...AI_STAGE_TIMEOUTS, modelMs: 180_000 }
+            : undefined),
         sourceStoreFactory(env),
         env.SANTO_GENERAL_MEDICAL_FALLBACK === "true",
-      ).query(session, parsed.data, request.signal);
+        env.SANTO_ENV === "staging" && env.SANTO_SINGLE_PASS_GENERATION_V1 === "true",
+        env.SANTO_ENV === "staging" &&
+          env.SANTO_LUNA_PREVIEW === "true" &&
+          env.SANTO_SINGLE_PASS_GENERATION_V1 === "true" &&
+          env.SANTO_PLAIN_TEXT_LUNA_V1 === "true",
+        env.SANTO_ENV === "staging" && env.SANTO_LUNA_RICH_IMAGES_V1 === "true",
+        env.CONTENT_BUCKET,
+        env.SANTO_ENV === "staging" && env.SANTO_QWEN_ROUTING_V1 === "true",
+        env.SANTO_ENV === "staging" &&
+          env.SANTO_GALLERY_IMAGES_V1 === "true" &&
+          env.SANTO_AI_SEARCH_SINGLE_REQUEST_V1 === "true" &&
+          env.CONTENT_BUCKET
+          ? new CloudflareGalleryImageRetrieval(env.CONTENT_BUCKET)
+          : undefined,
+      ).query(session, parsed.data, request.signal, onProvisionalAnswer);
 
       const validated = GroundedAiQueryResponseSchema.parse(response);
       const accept = request.headers.get("accept") ?? "";

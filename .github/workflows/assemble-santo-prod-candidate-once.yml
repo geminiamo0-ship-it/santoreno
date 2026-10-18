@@ -1,0 +1,51 @@
+name: Assemble Santo Medical Production Candidate
+on:
+  push:
+    branches: [release/santo-medical-rich-prod-candidate-20261014]
+    paths: [.github/workflows/assemble-santo-prod-candidate-once.yml]
+permissions:
+  contents: write
+jobs:
+  assemble:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: release/santo-medical-rich-prod-candidate-20261014
+          fetch-depth: 0
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Merge only reviewed medical imports and Luna staging preview into dedicated release candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin feat/96-rich-articles-foundation feat/96-luna-professor-staging
+          git merge --no-ff -X ours -m "merge(release): latest verified original medical HTML and bounded import" origin/feat/96-rich-articles-foundation
+          git merge --no-ff -X ours -m "merge(release): bounded Luna preview and production D1 configuration" origin/feat/96-luna-professor-staging
+          grep -q "contentHtmlGzipBase64" packages/contracts/src/library-reader.ts
+          grep -q "class CloudflareLunaModel" workers/api/src/ai/model.ts
+          grep -q "database_name = \"santo-control-plane\"" workers/api/wrangler.toml
+      - name: Full release candidate verification before pushing the branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          corepack enable
+          pnpm install --frozen-lockfile
+          pnpm lint
+          pnpm typecheck
+          pnpm test
+          pnpm build
+          pnpm smoke
+          python -m unittest discover -s scripts -p 'test_medical_library_import.py'
+      - name: Publish exact verified candidate code only (no production deploy)
+        shell: bash
+        run: |
+          set -euo pipefail
+          git push origin HEAD:release/santo-medical-rich-prod-candidate-20261014
+          echo "Production candidate code assembled and tests passed: $GITHUB_SHA merged code at $(git rev-parse HEAD)" >> "$GITHUB_STEP_SUMMARY"
+          echo "No production Worker or Royal production frontend has been changed by this workflow." >> "$GITHUB_STEP_SUMMARY"

@@ -18,8 +18,16 @@ export class AnalyticsEngineAiTelemetry implements AiTelemetryPort {
           event.externalUserId,
           event.requestId,
           event.errorCode ?? "",
+          event.failureStage ?? "",
+          event.responseFormat ?? "",
+          event.sourcePresentation ?? "",
         ],
-        doubles: [event.latencyMs],
+        doubles: [
+          event.latencyMs,
+          event.retrievedSourceCount ?? 0,
+          event.validCitationCount ?? 0,
+          event.outputChars ?? 0,
+        ],
         indexes: [event.tenantId],
       });
     } catch {

@@ -6,6 +6,7 @@ from zipfile import ZipFile
 import unittest
 
 from verify_medical_library_bundle import verify_and_extract
+from medical_article_html import media_url, sanitize_medical_html
 from upload_medical_libraries_r2 import metadata_for
 from upload_medical_libraries_wrangler import collect
 
@@ -16,6 +17,41 @@ class MedicalCorpusImportTests(unittest.TestCase):
         with ZipFile(path, "w") as archive:
             archive.writestr(key, "marker")
         return path, hashlib.sha256(path.read_bytes()).hexdigest()
+
+    def test_original_html_keeps_medpark_amboss_structure_and_images(self):
+        sample = ('<h2 id="arrhythmia">ECG</h2><div class="amboss-card">'
+                  '<table><tr><th>Finding</th><td><img src="offline_media/L70427jpg.jpg" alt="ECG"></td></tr></table>'
+                  '<span class="api" data-content="dGVzdA==">Flutter</span></div>')
+        result = sanitize_medical_html(sample)
+        self.assertIn('<h2 id="arrhythmia">ECG</h2>', result)
+        self.assertIn('<table>', result)
+        self.assertIn('class="api" data-content="dGVzdA=="', result)
+        self.assertIn('src="https://pub-2a81f2cb19cc4473a3d076e657af6121.r2.dev/offline_media/L70427jpg.jpg"', result)
+        self.assertEqual(media_url("https://pub-2a81f2cb19cc4473a3d076e657af6121.r2.dev/offline_media/L70427jpg.jpg"),
+                         media_url("offline_media/L70427jpg.jpg"))
+
+    def test_html_rejects_executable_markup_and_foreign_media(self):
+        sample = ('<script>alert(1)</script><img src="https://evil.example/img.jpg">'
+                  '<img src="javascript:alert(2)" onerror="alert(3)">'
+                  '<img src="offline_media/ok.png" onload="evil()">'
+                  '<a href="javascript:alert(3)" onclick="evil()">Safe</a>'
+                  '<iframe src="https://evil.example">BAD</iframe>'
+                  '<p style="color:#c00;background-image:url(javascript:evil())">Good</p>')
+        result = sanitize_medical_html(sample)
+        for forbidden in ["alert(", "<script", "<iframe", "onload", "onerror", "onclick", "https://evil.example",
+                          "background-image", "javascript:", "BAD"]:
+            self.assertNotIn(forbidden, result)
+        self.assertIn("Good", result)
+        self.assertIn('style="color:#c00"', result)
+        self.assertIn(media_url("offline_media/ok.png"), result)
+        self.assertIsNone(media_url("https://evil.example/offline_media/file.png"))
+        self.assertIsNone(media_url("../offline_media/../secret.jpg"))
+
+    def test_large_source_html_not_silently_truncated(self):
+        from medical_article_html import sanitize_medical_html
+        source = '<p>' + 'A' * 1600000 + '</p>'
+        result = sanitize_medical_html(source)
+        self.assertEqual(result, source)
 
     def test_correct_search_metadata(self):
         self.assertEqual(

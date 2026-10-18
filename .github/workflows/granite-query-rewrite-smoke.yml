@@ -1,0 +1,36 @@
+name: Granite Micro Query Rewrite Smoke
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - scripts/granite-query-rewrite-smoke.mjs
+      - .github/workflows/granite-query-rewrite-smoke.yml
+  push:
+    branches:
+      - release/santo-medical-rich-prod-candidate-20261014
+    paths:
+      - scripts/granite-query-rewrite-smoke.mjs
+      - .github/workflows/granite-query-rewrite-smoke.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  granite-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Check syntax
+        run: node --check scripts/granite-query-rewrite-smoke.mjs
+      - name: One-call Cloudflare Granite synthetic medical rewrite smoke
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: node scripts/granite-query-rewrite-smoke.mjs

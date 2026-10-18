@@ -75,6 +75,70 @@ async function setup() {
   return { bucket, service: new LibraryReaderService(bucket) };
 }
 describe("verified source explorer and private article browser", () => {
+  it("batch reads a verified snapshot once and returns images without article text", async () => {
+    const { service, bucket } = await setup();
+    const src = "https://pub-2a81f2cb19cc4473a3d076e657af6121.r2.dev/offline_media/valve.jpg";
+    bucket.data.set(
+      articleKey,
+      JSON.stringify({
+        ...article,
+        sections: [
+          { ...article.sections[0], images: [{ src, alt: "Valve anatomy" }] },
+          {
+            ...article.sections[1],
+            images: [{ src: src.replace("valve.jpg", "pressure.jpg"), alt: "Pressure gradient" }],
+          },
+        ],
+      }),
+    );
+    let reads = 0;
+    const previousGet = bucket.get.bind(bucket);
+    bucket.get = async (key) => {
+      if (key.includes("verified-messages/")) reads++;
+      return previousGet(key);
+    };
+    const result = await service.batchImages(session, {
+      messageId,
+      sourceIds: [source.sourceId],
+    });
+    expect(reads).toBe(1);
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0]?.sections).toHaveLength(2);
+    expect(result.items[0]?.sections[0]?.citedSection).toBe(true);
+    expect(JSON.stringify(result)).not.toContain("evidence-backed teaching section");
+    expect(JSON.stringify(result)).not.toContain("itemKey");
+  });
+  it("batch rejects forged, duplicated and cross-user citations before reading article", async () => {
+    const { service } = await setup();
+    await expect(
+      service.batchImages(session, {
+        messageId,
+        sourceIds: [source.sourceId, source.sourceId],
+      }),
+    ).rejects.toMatchObject({ status: 400 });
+    await expect(
+      service.batchImages(session, {
+        messageId,
+        sourceIds: [source.sourceId, "pass-instance:forged"],
+      }),
+    ).rejects.toMatchObject({ status: 404 });
+    await expect(
+      service.batchImages(
+        { ...session, externalUserId: "unknown" },
+        {
+          messageId,
+          sourceIds: [source.sourceId],
+        },
+      ),
+    ).rejects.toMatchObject({ status: 404 });
+    await expect(service.batchImages(session, { messageId, sourceIds: [] })).rejects.toMatchObject({
+      status: 400,
+    });
+    await expect(
+      service.batchImages(session, { messageId, sourceIds: Array(6).fill(source.sourceId) }),
+    ).rejects.toMatchObject({ status: 400 });
+  });
+
   it("retrieves only server-known article ID and exact verified section", async () => {
     const { service } = await setup();
     const result = await service.fromCitation(session, { messageId, sourceId: source.sourceId });
@@ -109,6 +173,50 @@ describe("verified source explorer and private article browser", () => {
     expect((await service.list("passmedicine", "", 0)).nextCursor).toBeNull();
     await expect(service.list("passmedicine", "", 7000)).rejects.toMatchObject({ status: 400 });
   });
+  it("accepts optional backward-compatible rich-HTML article payload while keeping original sections", async () => {
+    const { service, bucket } = await setup();
+    const richer = {
+      ...article,
+      contentHtml: '<h2 id="cardiology">ACE inhibitors</h2><table><tr><td>ACE</td></tr></table>',
+    };
+    bucket.data.set(articleKey, JSON.stringify(richer));
+    expect((await service.article("passmedicine", "passmed-5683")).contentHtml).toContain(
+      "<table>",
+    );
+    expect((await service.article("passmedicine", "passmed-5683")).sections).toEqual(
+      article.sections,
+    );
+    bucket.data.set(articleKey, JSON.stringify({ ...article, contentHtml: "x".repeat(1_500_001) }));
+    await expect(service.article("passmedicine", "passmed-5683")).rejects.toMatchObject({
+      status: 502,
+    });
+  });
+  it("accepts safe compressed large HTML envelopes and rejects oversized blobs", async () => {
+    const { service, bucket } = await setup();
+    bucket.data.set(
+      articleKey,
+      JSON.stringify({
+        ...article,
+        contentHtmlGzipBase64: "H4sIAAAAAAAA",
+        contentHtmlDecodedLength: 1600000,
+      }),
+    );
+    expect((await service.article("passmedicine", "passmed-5683")).contentHtmlDecodedLength).toBe(
+      1600000,
+    );
+    bucket.data.set(
+      articleKey,
+      JSON.stringify({
+        ...article,
+        contentHtmlGzipBase64: "X".repeat(1500001),
+        contentHtmlDecodedLength: 1600000,
+      }),
+    );
+    await expect(service.article("passmedicine", "passmed-5683")).rejects.toMatchObject({
+      status: 502,
+    });
+  });
+
   it("rejects malformed, executable or oversized content, without falling back to HTML", async () => {
     const { service, bucket } = await setup();
     bucket.data.set(

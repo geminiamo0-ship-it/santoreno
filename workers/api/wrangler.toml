@@ -55,10 +55,27 @@ workers_dev = true
 
 [env.staging.vars]
 SANTO_ENV = "staging"
+SANTO_NATIVE_STREAMING_V1 = "true"
 SANTO_SESSION_TTL_SECONDS = "900"
 SANTO_AI_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
+SANTO_LUNA_PREVIEW = "true"
+# One provider response per user generation attempt; no silent paid fallback.
+SANTO_SINGLE_PASS_GENERATION_V1 = "true"
+SANTO_COMPACT_CITATION_ALIASES_V1 = "true"
+SANTO_PLAIN_TEXT_LUNA_V1 = "true"
 SANTO_COPILOT_ROUTING_V1 = "true"
 SANTO_GENERAL_MEDICAL_FALLBACK = "true"
+# Staging-only rollback switch for precision-first medical retrieval.
+SANTO_MEDICAL_RETRIEVAL_V2 = "true"
+# One namespace-level multi-instance Hybrid/RRF + native rerank search; rollback by setting false.
+SANTO_AI_SEARCH_SINGLE_REQUEST_V1 = "true"
+# Staging-only Qwen3 30B-A3B medical search query normalizer (512 max output tokens); no MeSH dictionary.
+SANTO_MEDICAL_QUERY_REWRITE_V1 = "true"
+# Qwen classifies CHAT vs MEDICAL and rewrites the medical query in one call.
+SANTO_QWEN_ROUTING_V1 = "true"
+SANTO_LUNA_RICH_IMAGES_V1 = "true"
+# Set true on staging only; the gallery deploy job verifies the sixth index first.
+SANTO_GALLERY_IMAGES_V1 = "true"
 SANTO_AI_SEARCH_INSTANCE_IDS = "amboss,usmle,passmedicine,pastest,one-examination-isolated"
 SANTO_LIBRARY_READER_V1 = "true"
 
@@ -108,10 +125,22 @@ namespace = "default"
 name = "santo-api"
 
 [env.production.vars]
-SANTO_AI_SEARCH_INSTANCE_IDS = "amboss,usmle,passmedicine,pastest,one-examination"
+SANTO_AI_SEARCH_INSTANCE_IDS = "amboss,usmle,passmedicine,pastest,one-examination-isolated"
 SANTO_ENV = "production"
 SANTO_SESSION_TTL_SECONDS = "900"
 SANTO_AI_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
+SANTO_LUNA_PREVIEW = "false"
+SANTO_COPILOT_ROUTING_V1 = "true"
+SANTO_GENERAL_MEDICAL_FALLBACK = "true"
+SANTO_LIBRARY_READER_V1 = "true"
+WORKOS_CLIENT_ID = "client_01M43DQT18PKE9N4FF3MFEAYXG"
+WORKOS_ISSUER = "https://api.workos.com/user_management/client_01M43DQT18PKE9N4FF3MFEAYXG"
+
+[[env.production.d1_databases]]
+binding = "CONTROL_DB"
+database_name = "santo-control-plane"
+database_id = "3c219fbd-b9a1-4891-9b5e-4b4396fcc41e"
+migrations_dir = "migrations"
 
 [env.production.ai]
 binding = "AI"

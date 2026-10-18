@@ -120,6 +120,12 @@ class State implements DurableObjectStorageLike {
           .slice(0, 3);
       } else if (query.includes("FROM conversation_turns ORDER BY sequence DESC")) {
         rows = [...this.turns].reverse().slice(0, 10);
+      } else if (query.includes("FROM conversation_messages WHERE role = 'user'")) {
+        rows = this.messages
+          .filter((m) => m.role === "user" && Number(m.sequence) <= Number(params[0]))
+          .sort((a, b) => Number(b.sequence) - Number(a.sequence))
+          .slice(0, 5)
+          .map((m) => ({ text: m.text }));
       } else if (query.includes("FROM conversation_messages WHERE idempotency_key")) {
         rows = this.messages.filter((m) => m.idempotency_key === params[0]);
       } else if (query.includes("FROM conversation_messages ORDER BY sequence DESC")) {
@@ -154,6 +160,63 @@ function setup() {
 }
 
 describe("verified conversation turn state", () => {
+  it("returns only the five latest user messages, never Luna answers, from begin-turn", () => {
+    const { turns } = setup();
+    const questions = [
+      "Explain aortic stenosis",
+      "What about management?",
+      "Explain FMF",
+      "Why amyloidosis?",
+      "What are complications?",
+      "hi",
+    ];
+    for (let i = 0; i < questions.length; i++) {
+      const start = turns.begin(ask(`k${i}`, questions[i]!, i));
+      expect(start.recentUserMessages?.at(-1)).toBe(questions[i]);
+      if (i < questions.length - 1) {
+        turns.complete({
+          actor,
+          conversationId,
+          idempotencyKey: `k${i}`,
+          attemptId: start.attemptId,
+          response: { ...answer, answer: "LUNA_PRIVATE_ANSWER_NOT_FOR_QWEN" },
+        });
+      }
+      if (i === questions.length - 1) {
+        expect(start.recentUserMessages).toEqual(questions.slice(-5));
+        expect(JSON.stringify(start.recentUserMessages)).not.toContain("LUNA_PRIVATE");
+      }
+    }
+  });
+
+  it("persists Related Pics with a verified answer and restores them unchanged", () => {
+    const { turns } = setup();
+    const start = turns.begin(ask());
+    const saved = {
+      ...answer,
+      relatedPics: [
+        {
+          src: "https://pub-2a81f2cb19cc4473a3d076e657af6121.r2.dev/offline_media/valve.webp",
+          alt: "Aortic valve",
+          caption: "Stenotic aortic valve",
+          sourceName: "Medical gallery",
+        },
+      ],
+    };
+    const completed = turns.complete({
+      actor,
+      conversationId,
+      idempotencyKey: "first",
+      attemptId: start.attemptId,
+      response: saved,
+    });
+    expect(completed.response).toMatchObject({ relatedPics: saved.relatedPics });
+    expect(turns.begin(ask()).turn.response).toMatchObject({ relatedPics: saved.relatedPics });
+    expect(turns.list({ actor, conversationId }).turns[0]?.response).toMatchObject({
+      relatedPics: saved.relatedPics,
+    });
+  });
+
   it("atomically starts, completes and replays the same verified response", () => {
     const { turns, base } = setup();
     const start = turns.begin(ask());

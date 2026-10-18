@@ -5,10 +5,28 @@ import {
   type LibraryCatalogEntry,
   type LibraryCatalogPort,
 } from "./library-catalog";
-import type { RetrievalPort, RetrievalRequest, RetrievedEvidence } from "./types";
+import type {
+  CombinedSearchResult,
+  GallerySearchHit,
+  RetrievalPort,
+  RetrievalRequest,
+  RetrievedEvidence,
+} from "./types";
+import { focusedSearchQuery, focusedUserMessageQuery } from "./source-relevance";
+import { rankMedicalCandidates, type RankedCandidate } from "./medical-ranking";
+import type { WorkersAiLike } from "../runtime/bindings";
+import { rewriteMedicalSearchQuery, routeMedicalRequest } from "./medical-query-rewrite";
 
-const MAX_SEARCH_INSTANCES = 10;
+const LIBRARIES = ["amboss", "usmle", "passmedicine", "pastest", "one-examination"] as const;
 const MAX_RESULTS = 5;
+const PER_LIBRARY_CANDIDATES = 3;
+const V2_PER_LIBRARY_CANDIDATES = 24;
+const V2_EXPANDED_CANDIDATES = 40;
+// Single namespace request: return a broad Cloudflare-ranked pool, then send only five original articles to Luna.
+const MERGED_SEARCH_CANDIDATES = 25;
+const WITH_GALLERY_MERGED_CANDIDATES = 45;
+// Sixth index participates in the SAME Cloudflare namespace-level search call.
+const IMAGE_SEARCH_INSTANCE = "santo-medical-images";
 const MATCH_THRESHOLD = 0.4;
 const MAX_CHUNK_CHARS = 5000;
 
@@ -62,25 +80,39 @@ function titleFromItem(item: Record<string, unknown> | null): string {
   ).slice(0, 500);
 }
 
+/**
+ * There are five fixed licensed medical libraries in this rollout. A global
+ * search always considers EXACTLY those libraries, independent of the score
+ * distribution returned by a combined namespace query.
+ */
 function selectLibraries(
   catalog: readonly LibraryCatalogEntry[],
   libraryId: string | null,
 ): readonly LibraryCatalogEntry[] {
-  if (libraryId === null) {
-    return catalog;
-  }
-
-  const selected = catalog.find((entry) => entry.id === libraryId);
-  if (!selected) {
+  const supported = new Set<string>(LIBRARIES);
+  if (libraryId !== null && !supported.has(libraryId)) {
     throw new GroundedAiError(400, "INVALID_LIBRARY_FILTER", "Unknown Santo library filter");
   }
-
-  return [selected];
+  const selected = LIBRARIES.map((id) => catalog.find((entry) => entry.id === id));
+  // Reject misconfigured/incomplete namespaces rather than silently searching
+  // an unrelated index. For an explicit filter, require that index only.
+  const required =
+    libraryId === null ? selected : [catalog.find((entry) => entry.id === libraryId)];
+  if (required.some((entry) => !entry)) {
+    throw new GroundedAiError(
+      503,
+      "SEARCH_CONFIGURATION_ERROR",
+      "Required medical library index unavailable",
+    );
+  }
+  return required as LibraryCatalogEntry[];
 }
 
 function evidenceFromSearch(
   raw: unknown,
   selectedLibraries: readonly LibraryCatalogEntry[],
+  maxResults = MAX_RESULTS,
+  minScore = MATCH_THRESHOLD,
 ): RetrievedEvidence[] {
   const root = asRecord(raw);
   const chunks = root?.chunks;
@@ -105,7 +137,15 @@ function evidenceFromSearch(
     const instanceId = stringField(chunk, "instance_id") ?? fallbackLibrary?.instanceId ?? null;
     const library = instanceId ? libraryByInstanceId.get(instanceId) : undefined;
 
-    if (!chunkId || !text || score === null || !itemKey || !instanceId || !library) {
+    if (
+      !chunkId ||
+      !text ||
+      score === null ||
+      score < minScore ||
+      !itemKey ||
+      !instanceId ||
+      !library
+    ) {
       continue;
     }
 
@@ -128,7 +168,7 @@ function evidenceFromSearch(
       score,
     });
 
-    if (evidence.length >= MAX_RESULTS) {
+    if (evidence.length >= maxResults) {
       break;
     }
   }
@@ -142,50 +182,221 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
   constructor(
     private readonly namespace: AiSearchNamespaceLike | undefined,
     catalog?: LibraryCatalogPort,
+    private readonly medicalRetrievalV2 = false,
+    private readonly medicalQueryRewriteV1 = false,
+    private readonly smallQueryModel?: WorkersAiLike,
+    private readonly intentRoutingV1 = false,
+    private readonly singleMultiInstanceSearchV1 = false,
   ) {
     this.catalog = catalog ?? new AiSearchNamespaceLibraryCatalog(namespace);
   }
 
+  async route(request: RetrievalRequest) {
+    const userMessages = request.recentUserMessages?.slice(-5);
+    const focused = userMessages?.length
+      ? focusedUserMessageQuery(userMessages)
+      : focusedSearchQuery(request.query);
+    if (!this.intentRoutingV1) return { intent: "medical" as const, searchQuery: focused };
+    return routeMedicalRequest(
+      this.smallQueryModel,
+      request.query,
+      focused,
+      request.onRouteDiagnostic,
+      userMessages,
+    );
+  }
+
   async retrieve(request: RetrievalRequest): Promise<RetrievedEvidence[]> {
+    return (await this.retrieveInternal(request, false)).evidence;
+  }
+
+  async retrieveWithGallery(request: RetrievalRequest): Promise<CombinedSearchResult> {
+    return this.retrieveInternal(request, true);
+  }
+
+  private async retrieveInternal(
+    request: RetrievalRequest,
+    includeGallery: boolean,
+  ): Promise<CombinedSearchResult> {
     if (!this.namespace) {
       throw new GroundedAiError(503, "AI_NOT_CONFIGURED", "AI Search binding is required");
     }
 
     try {
-      const selectedLibraries = selectLibraries(await this.catalog.list(), request.libraryId);
-      if (selectedLibraries.length === 0) {
-        return [];
+      // Begin catalog lookup before the model rewrite to overlap both network calls.
+      const catalogPromise = this.catalog.list();
+      const currentTopicQuery = focusedSearchQuery(request.query);
+      const queryPromise = request.preparedQuery
+        ? Promise.resolve(request.preparedQuery)
+        : this.medicalRetrievalV2 && this.medicalQueryRewriteV1
+          ? rewriteMedicalSearchQuery(this.smallQueryModel, request.query, currentTopicQuery)
+          : Promise.resolve(currentTopicQuery);
+      const [catalog, searchQuery] = await Promise.all([catalogPromise, queryPromise]);
+      const selectedLibraries = selectLibraries(catalog, request.libraryId);
+      if (this.medicalRetrievalV2) {
+        if (this.singleMultiInstanceSearchV1)
+          return this.retrieveSingleMultiInstance(
+            currentTopicQuery,
+            selectedLibraries,
+            searchQuery,
+            includeGallery && request.libraryId === null,
+          );
+        return {
+          evidence: await this.retrieveMedicalV2(currentTopicQuery, selectedLibraries, searchQuery),
+          galleryHits: [],
+        };
       }
-      if (selectedLibraries.length > MAX_SEARCH_INSTANCES) {
-        throw new GroundedAiError(
-          503,
-          "SEARCH_CONFIGURATION_ERROR",
-          `All Libraries currently supports at most ${MAX_SEARCH_INSTANCES} AI Search instances`,
-        );
-      }
-
-      const result = await this.namespace.search({
-        query: request.query,
-        ai_search_options: {
-          instance_ids: selectedLibraries.map((entry) => entry.instanceId),
-          retrieval: {
-            retrieval_type: "hybrid",
-            match_threshold: MATCH_THRESHOLD,
-            max_num_results: MAX_RESULTS,
-            return_on_failure: true,
-          },
-          query_rewrite: {
-            enabled: false,
-          },
-        },
-      });
-
-      return evidenceFromSearch(result, selectedLibraries);
+      // Query each index concurrently. Asking a single global top-5 search
+      // routinely hides smaller libraries, even when their evidence is relevant.
+      // No Reranker or synthetic citation is involved. From each library we
+      // retain at most one valid, relevant, Cloudflare-ranked source passage.
+      const results = await Promise.all(
+        selectedLibraries.map(async (entry) => {
+          const search = await this.namespace!.search({
+            query: currentTopicQuery,
+            ai_search_options: {
+              instance_ids: [entry.instanceId],
+              retrieval: {
+                retrieval_type: "hybrid",
+                match_threshold: MATCH_THRESHOLD,
+                max_num_results: PER_LIBRARY_CANDIDATES,
+                return_on_failure: true,
+              },
+              query_rewrite: { enabled: false },
+            },
+          });
+          // Do not force one result per library: a high semantic score can
+          // still be for a DIFFERENT disease from a previous discussion.
+          return evidenceFromSearch(search, [entry]).slice(0, 1);
+        }),
+      );
+      return { evidence: results.flat().slice(0, MAX_RESULTS), galleryHits: [] };
     } catch (error) {
       if (error instanceof GroundedAiError) {
         throw error;
       }
       throw new GroundedAiError(502, "SEARCH_FAILED", "AI Search request failed");
     }
+  }
+
+  /**
+   * Staging opt-in: one Cloudflare namespace search, across the exact allowed indexes.
+   * Do not retry, fan out, or treat partial per-index failures as empty evidence.
+   * Cloudflare owns the merged reranking order; retain real source identities and
+   * choose up to five distinct original articles for the unchanged Luna prompt.
+   */
+  private async retrieveSingleMultiInstance(
+    query: string,
+    libraries: readonly LibraryCatalogEntry[],
+    searchQuery: string,
+    includeGallery = false,
+  ): Promise<CombinedSearchResult> {
+    const response = await this.namespace!.search({
+      query: searchQuery,
+      ai_search_options: {
+        instance_ids: [
+          ...libraries.map((library) => library.instanceId),
+          ...(includeGallery ? [IMAGE_SEARCH_INSTANCE] : []),
+        ],
+        retrieval: {
+          retrieval_type: "hybrid",
+          match_threshold: MATCH_THRESHOLD,
+          max_num_results: includeGallery
+            ? WITH_GALLERY_MERGED_CANDIDATES
+            : MERGED_SEARCH_CANDIDATES,
+          return_on_failure: true,
+          fusion_method: "rrf",
+        },
+        reranking: {
+          enabled: true,
+          model: "@cf/baai/bge-reranker-base",
+        },
+        query_rewrite: { enabled: false },
+      },
+    });
+    const result = asRecord(response);
+    if (Array.isArray(result?.errors) && result.errors.length > 0) {
+      throw new GroundedAiError(502, "SEARCH_FAILED", "Multi-instance search partially failed");
+    }
+    const candidates = evidenceFromSearch(
+      response,
+      libraries,
+      includeGallery ? WITH_GALLERY_MERGED_CANDIDATES : MERGED_SEARCH_CANDIDATES,
+    ).map((evidence, position) => ({ evidence, position }));
+    const galleryHits: GallerySearchHit[] = [];
+    if (includeGallery && Array.isArray(result?.chunks)) {
+      const seen = new Set<string>();
+      for (const raw of result.chunks) {
+        const row = asRecord(raw);
+        if (stringField(row, "instance_id") !== IMAGE_SEARCH_INSTANCE) continue;
+        const item = asRecord(row?.item);
+        const key = stringField(item, "key");
+        const score = numberField(row, "score");
+        const image = key ? /(?:^|\/)(img_\d{6})\.json$/.exec(key) : null;
+        if (!image || score === null || score < MATCH_THRESHOLD) continue;
+        const imageId = image[1]!;
+        if (seen.has(imageId)) continue;
+        seen.add(imageId);
+        galleryHits.push({ imageId, score });
+      }
+    }
+    return {
+      evidence: rankMedicalCandidates(query, candidates, MAX_RESULTS),
+      galleryHits,
+    };
+  }
+
+  /**
+   * Quality-first staging rollout. The source *collection* is never passed
+   * straight through to Luna. Relevance and source diversity are evaluated
+   * after Cloudflare's native per-index reranking. Extra retrieval only runs
+   * when insufficient relevant passages survive the first stage.
+   */
+  private async retrieveMedicalV2(
+    query: string,
+    libraries: readonly LibraryCatalogEntry[],
+    searchQuery: string,
+  ): Promise<RetrievedEvidence[]> {
+    const searchStage = async (
+      maxResults: number,
+      minScore: number,
+    ): Promise<RankedCandidate[]> => {
+      const batches = await Promise.all(
+        libraries.map(async (library) => {
+          const response = await this.namespace!.search({
+            query: searchQuery,
+            ai_search_options: {
+              instance_ids: [library.instanceId],
+              retrieval: {
+                retrieval_type: "hybrid",
+                match_threshold: minScore,
+                max_num_results: maxResults,
+                return_on_failure: true,
+                fusion_method: "rrf",
+              },
+              reranking: {
+                enabled: true,
+                model: "@cf/baai/bge-reranker-base",
+              },
+              query_rewrite: { enabled: false },
+            },
+          });
+          return evidenceFromSearch(response, [library], maxResults, minScore).map(
+            (evidence, position) => ({ evidence, position }),
+          );
+        }),
+      );
+      return batches.flat();
+    };
+
+    const first = await searchStage(V2_PER_LIBRARY_CANDIDATES, MATCH_THRESHOLD);
+    let best = rankMedicalCandidates(query, first, MAX_RESULTS);
+    // No speculative retries or new Luna generation. At most one extra
+    // retrieval pass (10 AI Search operations for all five libraries).
+    if (best.length < Math.min(3, libraries.length)) {
+      const second = await searchStage(V2_EXPANDED_CANDIDATES, 0.25);
+      best = rankMedicalCandidates(query, [...first, ...second], MAX_RESULTS);
+    }
+    return best;
   }
 }

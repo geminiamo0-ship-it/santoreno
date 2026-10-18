@@ -256,7 +256,6 @@ export async function routeMedicalRequest(
       "Previous USER messages (oldest first):",
       ...previous,
       "CURRENT USER MESSAGE: " + latest.slice(0, 1000),
-      "Search topic: " + focusedQuery.slice(0, MAX_FOCUSED_CHARS),
     ].join("\n");
   }
   let timer: ReturnType<typeof setTimeout> | undefined;

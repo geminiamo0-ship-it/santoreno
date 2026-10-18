@@ -82,6 +82,8 @@ export interface SantoBindings {
   SANTO_QWEN_ROUTING_V1?: string;
   SANTO_LUNA_RICH_IMAGES_V1?: string;
   SANTO_GALLERY_IMAGES_V1?: string;
+  SANTO_ANKING_CARDS_V1?: string;
+  SANTO_ANKING_RIGHTS_CLEARED_V1?: string;
   SANTO_LIBRARY_READER_V1?: string;
   CONTROL_DB?: D1DatabaseLike;
   CONTENT_BUCKET?: R2BucketLike;

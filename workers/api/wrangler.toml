@@ -76,9 +76,9 @@ SANTO_QWEN_ROUTING_V1 = "true"
 SANTO_LUNA_RICH_IMAGES_V1 = "true"
 # Set true on staging only; the gallery deploy job verifies the sixth index first.
 SANTO_GALLERY_IMAGES_V1 = "true"
-# Rights-gated AnKing Cardiology pilot, disabled until license and expert review are verified.
-SANTO_ANKING_CARDS_V1 = "false"
-SANTO_ANKING_RIGHTS_CLEARED_V1 = "false"
+# Owner-confirmed commercial text rights. CIDs can be suggested; unreviewed medical facts are excluded from Luna.
+SANTO_ANKING_CARDS_V1 = "true"
+SANTO_ANKING_RIGHTS_CLEARED_V1 = "true"
 SANTO_AI_SEARCH_INSTANCE_IDS = "amboss,usmle,passmedicine,pastest,one-examination-isolated"
 SANTO_LIBRARY_READER_V1 = "true"
 

@@ -1,4 +1,3 @@
-import { z } from "zod";
 import { ApiErrorResponseSchema } from "@santo/contracts";
 import type { SantoBindings } from "../runtime/bindings";
 import { D1ExternalUserRepository } from "../session/repository";
@@ -7,13 +6,21 @@ import { SantoSessionTokenService, SessionTokenError } from "../session/token";
 import { D1TenantRepository } from "../tenancy/repository";
 import { findMoreAnkingCards } from "./anking-topic-finder";
 
-const RequestSchema = z
-  .object({
-    topic: z.string().trim().min(3).max(250),
-    cursor: z.number().int().min(0).max(150).optional(),
-    excludeCardIds: z.array(z.number().int().positive().safe()).max(5).optional(),
-  })
-  .strict();
+type SearchRequest = { topic: string; cursor: number; excludeCardIds: number[] };
+function parseSearchRequest(value: unknown): SearchRequest | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const raw = value as Record<string, unknown>;
+  if (Object.keys(raw).some(key => !["topic", "cursor", "excludeCardIds"].includes(key))) return null;
+  if (typeof raw.topic !== "string") return null;
+  const topic = raw.topic.trim();
+  if (topic.length < 3 || topic.length > 250) return null;
+  const cursor = raw.cursor === undefined ? 0 : raw.cursor;
+  if (typeof cursor !== "number" || !Number.isSafeInteger(cursor) || cursor < 0 || cursor > 1000) return null;
+  const excluded = raw.excludeCardIds === undefined ? [] : raw.excludeCardIds;
+  if (!Array.isArray(excluded) || excluded.length > 5 ||
+    excluded.some(id => typeof id !== "number" || !Number.isSafeInteger(id) || id <= 0)) return null;
+  return { topic, cursor, excludeCardIds: excluded as number[] };
+}
 const HEADERS = { "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff" };
 
 function error(code: string, status: number): Response {
@@ -32,8 +39,8 @@ export async function handleAnkingFindMore(
   )
     return error("ANKING_UNAVAILABLE", 404);
   if (request.method !== "POST") return error("METHOD_NOT_ALLOWED", 405);
-  const body = RequestSchema.safeParse(await request.json().catch(() => null));
-  if (!body.success) return error("INVALID_FLASHCARD_SEARCH", 400);
+  const body = parseSearchRequest(await request.json().catch(() => null));
+  if (!body) return error("INVALID_FLASHCARD_SEARCH", 400);
   try {
     const tokens = new SantoSessionTokenService(env);
     const principal = await tokens.verifyBearerToken(
@@ -45,7 +52,7 @@ export async function handleAnkingFindMore(
       new D1TenantRepository(env.CONTROL_DB),
       tokens,
     ).resolve(principal);
-    const { topic, cursor = 0, excludeCardIds = [] } = body.data;
+    const { topic, cursor, excludeCardIds } = body;
     const result = await findMoreAnkingCards(
       env.CONTENT_BUCKET,
       topic,

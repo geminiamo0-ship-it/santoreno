@@ -151,32 +151,12 @@ function parseCard(raw: unknown): GroundedAiSuggestedFlashcard | null {
 
 /** Only readable note content goes to the student; skip internal metadata and unsafe fields.
  * AnKing V3 staging shards currently carry medical_fact/clinical_pearl.
- * Other original text fields can be added by an R2 metadata backfill later.
+ * The Back intentionally exposes only the original clinical pearl, not other note fields.
  */
 function studyNoteFields(note: NoteRecord): Array<{ label: string; value: string }> {
-  const fields: Array<{ label: string; value: string }> = [];
-  const seen = new Set<string>();
-  const push = (label: string, value: unknown) => {
-    if (typeof value !== "string") return;
-    const text = value.trim();
-    if (!text || text.length > 3000 || !label.trim() || label.length > 80) return;
-    if (/<(?:script|iframe|img|svg)\b|\[sound:/i.test(text)) return;
-    const key = text.toLocaleLowerCase();
-    if (seen.has(key) || fields.length >= 12) return;
-    seen.add(key);
-    fields.push({ label, value: text });
-  };
-  push("Clinical Pearl", note.clinical_pearl);
-  for (const group of [note.supplementary_notes, note.additional_fields]) {
-    const map = record(group);
-    if (!map) continue;
-    for (const [label, value] of Object.entries(map)) {
-      if (/^(?:id|card|guid|raw|tags|rights|review|source|image|media|audio|html)/i.test(label))
-        continue;
-      push(label, value);
-    }
-  }
-  return fields;
+  const pearl = typeof note.clinical_pearl === "string" ? note.clinical_pearl.trim() : "";
+  if (!pearl || pearl.length > 3000 || /<(?:script|iframe|img|svg)\\b|\\[sound:/i.test(pearl)) return [];
+  return [{ label: "Clinical Pearls", value: pearl }];
 }
 
 export class R2AnkingSupplementRetriever implements AnkingSupplementRetriever {

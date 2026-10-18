@@ -1,0 +1,29 @@
+name: Temporary AnKing staging formatter
+on:
+  push:
+    branches:
+      - feat/anking-cardiology-suggestions-staging-20261018
+permissions:
+  contents: write
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - name: Format targeted files
+        run: |
+          set -euo pipefail
+          pnpm exec prettier --write .github/workflows/anking-cardiology-staging-ingest.yml workers/api/src/ai/anking-flashcards.ts
+          git add .github/workflows/anking-cardiology-staging-ingest.yml workers/api/src/ai/anking-flashcards.ts
+          if git diff --cached --quiet; then exit 0; fi
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git commit -m "style(ai): format AnKing ingestion and R2 shard adapter"
+          git push origin HEAD:feat/anking-cardiology-suggestions-staging-20261018

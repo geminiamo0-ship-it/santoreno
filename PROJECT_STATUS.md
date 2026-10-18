@@ -9,7 +9,6 @@
 - Royal [Preview](https://royal-bank-2gcodh690-drmostafa5868-7427.vercel.app/santo) is READY with Suggested AnKing Flashcards UI. Authenticated live answer and CID usability must be tested with a signed-in session; the above smoke is infrastructure/retrieval only.
 - Maintain one `AI Search` namespace call and keep this experiment isolated from full `santo-anking-step-v12` index and Production.
 
-
 ### Full AnKing Step v12 — 18 Oct 2026 isolated Staging ingestion
 
 - Owner provided [full-library ZIP](https://drive.google.com/file/d/1sr_XbG5KFC8hFuNXf23WKCthyFYWk4ls/view?usp=sharing), SHA-256 `3e75c1629a74423f012556ff0b52c87703ce12812cfa35b195f3bf57dcebfb25`; source verified 30,521 notes, 36,941 real card IDs, but only 36,937 cloze-match verified; 4 reported mismatches need explicit follow-up.

@@ -1,0 +1,25 @@
+name: AnKing Find More Live Staging Smoke
+on:
+  push:
+    branches:
+      - feat/anking-card-data-viewer-20261018
+    paths:
+      - .github/workflows/anking-findmore-live-smoke.yml
+permissions:
+  contents: read
+jobs:
+  live-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verify endpoint exists and refuses unauthenticated card discovery
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://santo-api-staging.geminiamo0.workers.dev"
+          health="$(curl -sS --fail "$base/health")"
+          jq -e '.status == "ok" and .service == "santo-api"' <<< "$health" >/dev/null
+          code="$(curl -sS -o /tmp/findmore-denial.json -w '%{http_code}' -X POST "$base/v1/flashcards/find-more" -H 'content-type: application/json' --data '{"topic":"aortic stenosis"}')"
+          test "$code" = "401"
+          jq -e '.error == "SESSION_AUTH_REQUIRED" or .error == "AUTHENTICATION_REQUIRED" or (.error | type == "string")' /tmp/findmore-denial.json >/dev/null
+          echo 'ANKING_FIND_MORE_STAGING_ROUTE_AUTH_SMOKE_PASSED'

@@ -56,6 +56,8 @@ describe("rights-locked AnKing suggestions", () => {
         ankiQuery: `cid:${cardId}`,
         focus: "stenosis",
         preview: "Aortic [...] causes a systolic murmur",
+        backText: "Aortic stenosis causes a crescendo-decrescendo systolic murmur",
+        noteFields: [{ label: "Clinical Pearls", value: "Radiates toward the carotids" }],
       },
     ]);
     expect(result.promptContext).toContain("EXAM_MEMORY_ADJUNCTS");
@@ -63,6 +65,21 @@ describe("rights-locked AnKing suggestions", () => {
     expect(bucket.get).toHaveBeenCalledWith(
       `anking/v3/cardiology/shards/shard_${String(noteId % 32).padStart(2, "0")}.json`,
     );
+  });
+
+  it("keeps only Clinical Pearls even if R2 has extra source notes", async () => {
+    const result = await new R2AnkingSupplementRetriever(
+      source({
+        ...valid,
+        review_status: "pending_expert_review",
+        supplementary_notes: { Extra: "Hidden extended text" },
+        additional_fields: { FirstAid: "Not shown" },
+      }),
+    ).hydrate(hits, "aortic stenosis");
+    expect(result.cards[0]?.noteFields).toEqual([
+      { label: "Clinical Pearls", value: "Radiates toward the carotids" },
+    ]);
+    expect(result.promptContext).toBe("");
   });
 
   it("rejects fabricated or mismatched IDs rather than repairing them", async () => {

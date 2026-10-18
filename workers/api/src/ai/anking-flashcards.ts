@@ -24,7 +24,7 @@ interface CardRecord {
   anki_query?: unknown;
 }
 
-interface NoteRecord {
+export interface NoteRecord {
   note_id?: unknown;
   primary_system?: unknown;
   topic?: unknown;
@@ -44,7 +44,7 @@ type Shard = Record<string, NoteRecord>;
 const shardCache = new WeakMap<R2BucketLike, Map<number, { until: number; data: Shard }>>();
 const shardFlights = new WeakMap<R2BucketLike, Map<number, Promise<Shard>>>();
 
-async function loadShard(bucket: R2BucketLike, shard: number): Promise<Shard> {
+export async function loadShard(bucket: R2BucketLike, shard: number): Promise<Shard> {
   let cache = shardCache.get(bucket);
   if (!cache) {
     cache = new Map();
@@ -127,7 +127,7 @@ function overlap(query: Set<string>, text: string): number {
   return count;
 }
 
-function parseCard(raw: unknown): GroundedAiSuggestedFlashcard | null {
+export function parseCard(raw: unknown): GroundedAiSuggestedFlashcard | null {
   const c = record(raw);
   if (!c) return null;
   const id = c.card_id;
@@ -145,6 +145,17 @@ function parseCard(raw: unknown): GroundedAiSuggestedFlashcard | null {
     focus: targets.join(", ").slice(0, 180),
     preview: c.preview.slice(0, 500),
   };
+}
+
+/** Only readable note content goes to the student; skip internal metadata and unsafe fields.
+ * AnKing V3 staging shards currently carry medical_fact/clinical_pearl.
+ * The Back intentionally exposes only the original clinical pearl, not other note fields.
+ */
+export function studyNoteFields(note: NoteRecord): Array<{ label: string; value: string }> {
+  const pearl = typeof note.clinical_pearl === "string" ? note.clinical_pearl.trim() : "";
+  if (!pearl || pearl.length > 3000 || /<(?:script|iframe|img|svg)\b|\[sound:/i.test(pearl))
+    return [];
+  return [{ label: "Clinical Pearls", value: pearl }];
 }
 
 export class R2AnkingSupplementRetriever implements AnkingSupplementRetriever {
@@ -176,13 +187,15 @@ export class R2AnkingSupplementRetriever implements AnkingSupplementRetriever {
       // Unreviewed facts must NEVER enter Luna's clinical explanation prompt.
       if (note.rights_status !== "licensed_for_santo") continue;
       const medicalFact =
-        typeof note.medical_fact === "string" ? note.medical_fact.slice(0, 420) : "";
+        typeof note.medical_fact === "string" ? note.medical_fact.slice(0, 2500) : "";
       const pearl =
-        typeof note.clinical_pearl === "string" ? note.clinical_pearl.slice(0, 220) : "";
+        typeof note.clinical_pearl === "string" ? note.clinical_pearl.slice(0, 3000) : "";
       const topic = typeof note.topic === "string" ? note.topic.slice(0, 120) : "AnKing high-yield";
       if (!medicalFact || overlap(queryTerms, `${topic} ${medicalFact}`) === 0) continue;
       if (note.review_status === "approved") {
-        facts.push(`- ${topic}: ${medicalFact}${pearl ? "; " + pearl : ""}`);
+        facts.push(
+          `- ${topic}: ${medicalFact.slice(0, 420)}${pearl ? "; " + pearl.slice(0, 220) : ""}`,
+        );
       }
       if (!Array.isArray(note.cards)) continue;
       for (const item of note.cards as unknown[]) {
@@ -191,7 +204,12 @@ export class R2AnkingSupplementRetriever implements AnkingSupplementRetriever {
         // Do not expose every card in the note. Prefer the exact cloze's topic/focus.
         if (overlap(queryTerms, `${topic} ${card.preview} ${card.focus}`) === 0) continue;
         seen.add(card.cardId);
-        selected.push(card);
+        // Expose original note text on Back only; never manufacture card answers.
+        selected.push({
+          ...card,
+          backText: medicalFact.slice(0, 2500),
+          noteFields: studyNoteFields(note),
+        });
         if (selected.length >= MAX_CARDS) break;
       }
       if (selected.length >= MAX_CARDS) break;

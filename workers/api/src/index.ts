@@ -1,4 +1,5 @@
 import { handleGroundedAiQuery } from "./ai/handler";
+import { handleAnkingFindMore } from "./ai/anking-topic-handler";
 import { app } from "./app";
 import { handleConversation } from "./conversation/handler";
 import { handleP33GlobalSearchAcceptance } from "./infrastructure/p33-global-search-acceptance";
@@ -40,6 +41,9 @@ const fetch: typeof app.fetch = async (request, env, executionContext) => {
   }
   if (url.pathname === "/v1/conversations" || url.pathname.startsWith("/v1/conversations/")) {
     return handleConversation(request, env as SantoBindings);
+  }
+  if (url.pathname === "/v1/flashcards/find-more") {
+    return handleAnkingFindMore(request, env as SantoBindings);
   }
   if (url.pathname === "/v1/ai/query") {
     return handleGroundedAiQuery(request, env as SantoBindings);

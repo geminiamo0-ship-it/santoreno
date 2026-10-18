@@ -90,7 +90,7 @@ describe("AMBOSS-only adjacent R2 evidence expansion", () => {
     expect(result).toHaveLength(8);
     expect(result.filter((x) => x.libraryId === "amboss")).toHaveLength(4);
     expect(result.filter((x) => x.libraryId !== "amboss")).toHaveLength(4);
-    expect(buildGroundedPrompt("Treatment of AS", result)).toContain("s-0015");
+    expect(buildGroundedPrompt("Treatment of AS", result)).toContain("SAVR and TAVR");
   });
 
   it("never expands a non-AMBOSS hit, untrusted R2 key, or crossing numeric boundary", async () => {

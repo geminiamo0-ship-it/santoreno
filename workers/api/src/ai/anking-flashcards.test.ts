@@ -57,7 +57,7 @@ describe("rights-locked AnKing suggestions", () => {
         focus: "stenosis",
         preview: "Aortic [...] causes a systolic murmur",
         backText: "Aortic stenosis causes a crescendo-decrescendo systolic murmur",
-        noteFields: [{ label: "Clinical Pearl", value: "Radiates toward the carotids" }],
+        noteFields: [{ label: "Clinical Pearls", value: "Radiates toward the carotids" }],
       },
     ]);
     expect(result.promptContext).toContain("EXAM_MEMORY_ADJUNCTS");
@@ -67,19 +67,17 @@ describe("rights-locked AnKing suggestions", () => {
     );
   });
 
-  it("preserves additional readable note fields without leaking raw metadata to the student", async () => {
+  it("keeps only Clinical Pearls even if R2 has extra source notes", async () => {
     const result = await new R2AnkingSupplementRetriever(
       source({
         ...valid,
         review_status: "pending_expert_review",
-        supplementary_notes: { Extra: "Remember the classic findings", raw_tags: "private" },
-        additional_fields: { Clinical: "Diagnostic memory aid", html: "<script>alert(1)</script>" },
+        supplementary_notes: { Extra: "Hidden extended text" },
+        additional_fields: { FirstAid: "Not shown" },
       }),
     ).hydrate(hits, "aortic stenosis");
     expect(result.cards[0]?.noteFields).toEqual([
-      { label: "Clinical Pearl", value: "Radiates toward the carotids" },
-      { label: "Extra", value: "Remember the classic findings" },
-      { label: "Clinical", value: "Diagnostic memory aid" },
+      { label: "Clinical Pearls", value: "Radiates toward the carotids" },
     ]);
     expect(result.promptContext).toBe("");
   });

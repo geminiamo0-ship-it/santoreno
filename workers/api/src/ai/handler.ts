@@ -15,6 +15,7 @@ import { AiSearchNamespaceLibraryCatalog } from "./library-catalog";
 import { createGroundedModel } from "./model";
 import { CloudflareAiSearchRetrieval } from "./retrieval";
 import { CloudflareGalleryImageRetrieval } from "./image-gallery";
+import { R2AnkingSupplementRetriever } from "./anking-flashcards";
 import { GroundedAiService } from "./service";
 import { streamValidatedGroundedAnswer } from "./stream";
 import { AnalyticsEngineAiTelemetry } from "./telemetry";
@@ -80,6 +81,10 @@ export function createGroundedAiHandler(dependencies: GroundedAiHandlerDependenc
         env.AI,
         env.SANTO_ENV === "staging" && env.SANTO_QWEN_ROUTING_V1 === "true",
         env.SANTO_ENV === "staging" && env.SANTO_AI_SEARCH_SINGLE_REQUEST_V1 === "true",
+        env.SANTO_ENV === "staging" &&
+          env.SANTO_ANKING_CARDS_V1 === "true" &&
+          env.SANTO_ANKING_RIGHTS_CLEARED_V1 === "true" &&
+          env.SANTO_AI_SEARCH_SINGLE_REQUEST_V1 === "true",
       );
     });
   const modelFactory = dependencies.modelFactory ?? createGroundedModel;
@@ -140,6 +145,13 @@ export function createGroundedAiHandler(dependencies: GroundedAiHandlerDependenc
           env.SANTO_AI_SEARCH_SINGLE_REQUEST_V1 === "true" &&
           env.CONTENT_BUCKET
           ? new CloudflareGalleryImageRetrieval(env.CONTENT_BUCKET)
+          : undefined,
+        env.SANTO_ENV === "staging" &&
+          env.SANTO_ANKING_CARDS_V1 === "true" &&
+          env.SANTO_ANKING_RIGHTS_CLEARED_V1 === "true" &&
+          env.SANTO_AI_SEARCH_SINGLE_REQUEST_V1 === "true" &&
+          env.CONTENT_BUCKET
+          ? new R2AnkingSupplementRetriever(env.CONTENT_BUCKET)
           : undefined,
       ).query(session, parsed.data, request.signal, onProvisionalAnswer);
 

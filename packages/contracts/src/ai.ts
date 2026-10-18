@@ -44,6 +44,19 @@ export const GroundedAiRelatedPicSchema = z
   .strict();
 export type GroundedAiRelatedPic = z.infer<typeof GroundedAiRelatedPicSchema>;
 
+export const GroundedAiSuggestedFlashcardSchema = z
+  .object({
+    cardId: z.number().int().positive().safe(),
+    ankiQuery: z.string().regex(/^cid:[0-9]{10,16}$/),
+    focus: z.string().min(1).max(180),
+    preview: z.string().min(1).max(500),
+  })
+  .strict()
+  .refine((card) => card.ankiQuery === `cid:${card.cardId}`, {
+    message: "Anki query must equal the canonical server-provided Card ID",
+  });
+export type GroundedAiSuggestedFlashcard = z.infer<typeof GroundedAiSuggestedFlashcardSchema>;
+
 export const GroundedAiUsageSchema = z.object({
   unitsCharged: z.literal(1),
   remaining: z.number().int().nonnegative(),
@@ -60,6 +73,8 @@ export const GroundedAiQueryResponseSchema = z
     citations: z.array(GroundedAiCitationSchema).max(5),
     /** Optional persisted candidates not selected for inline Luna figures. */
     relatedPics: z.array(GroundedAiRelatedPicSchema).max(7).optional(),
+    /** Exact backend-owned AnKing CIDs; not model-generated clinical citations. */
+    suggestedFlashcards: z.array(GroundedAiSuggestedFlashcardSchema).max(5).optional(),
     /** Real browsable library articles, but not model-cited inline medical claims. */
     citationMode: z.literal("related").optional(),
     usage: GroundedAiUsageSchema,

@@ -1,0 +1,27 @@
+name: AnKing Cardiology Index Readiness Snapshot
+
+on:
+  push:
+    branches:
+      - feat/anking-cardiology-suggestions-staging-20261018
+    paths:
+      - .github/workflows/anking-cardio-index-readiness.yml
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - name: Read-only index count, without any paid search
+        shell: bash
+        run: |
+          set -euo pipefail
+          result="$(curl -fsS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/ai-search/namespaces/default/instances/santo-anking-cardiology/stats")"
+          jq -e '.success == true' <<< "$result" > /dev/null
+          jq '.result | {completed,queued,running,error,skipped,degraded}' <<< "$result"

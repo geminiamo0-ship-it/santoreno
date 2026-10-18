@@ -194,12 +194,14 @@ describe("verified conversation turn state", () => {
     const start = turns.begin(ask());
     const saved = {
       ...answer,
-      relatedPics: [{
-        src: "https://pub-2a81f2cb19cc4473a3d076e657af6121.r2.dev/offline_media/valve.webp",
-        alt: "Aortic valve",
-        caption: "Stenotic aortic valve",
-        sourceName: "Medical gallery",
-      }],
+      relatedPics: [
+        {
+          src: "https://pub-2a81f2cb19cc4473a3d076e657af6121.r2.dev/offline_media/valve.webp",
+          alt: "Aortic valve",
+          caption: "Stenotic aortic valve",
+          sourceName: "Medical gallery",
+        },
+      ],
     };
     const completed = turns.complete({
       actor,

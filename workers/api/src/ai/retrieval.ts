@@ -7,6 +7,7 @@ import {
 } from "./library-catalog";
 import type {
   CombinedSearchResult,
+  AnkingSearchHit,
   GallerySearchHit,
   RetrievalPort,
   RetrievalRequest,
@@ -27,6 +28,9 @@ const MERGED_SEARCH_CANDIDATES = 25;
 const WITH_GALLERY_MERGED_CANDIDATES = 45;
 // Sixth index participates in the SAME Cloudflare namespace-level search call.
 const IMAGE_SEARCH_INSTANCE = "santo-medical-images";
+// Separate licensed educational exam-memory index; never clinical citation evidence.
+const ANKING_SEARCH_INSTANCE = "santo-anking-cardiology";
+const WITH_ANKING_MERGED_CANDIDATES = 60;
 const MATCH_THRESHOLD = 0.4;
 const MAX_CHUNK_CHARS = 5000;
 
@@ -187,6 +191,7 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
     private readonly smallQueryModel?: WorkersAiLike,
     private readonly intentRoutingV1 = false,
     private readonly singleMultiInstanceSearchV1 = false,
+    private readonly ankingCardsV1 = false,
   ) {
     this.catalog = catalog ?? new AiSearchNamespaceLibraryCatalog(namespace);
   }
@@ -240,6 +245,7 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
             selectedLibraries,
             searchQuery,
             includeGallery && request.libraryId === null,
+            this.ankingCardsV1 && request.libraryId === null,
           );
         return {
           evidence: await this.retrieveMedicalV2(currentTopicQuery, selectedLibraries, searchQuery),
@@ -290,6 +296,7 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
     libraries: readonly LibraryCatalogEntry[],
     searchQuery: string,
     includeGallery = false,
+    includeAnking = false,
   ): Promise<CombinedSearchResult> {
     const response = await this.namespace!.search({
       query: searchQuery,
@@ -297,13 +304,16 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
         instance_ids: [
           ...libraries.map((library) => library.instanceId),
           ...(includeGallery ? [IMAGE_SEARCH_INSTANCE] : []),
+          ...(includeAnking ? [ANKING_SEARCH_INSTANCE] : []),
         ],
         retrieval: {
           retrieval_type: "hybrid",
           match_threshold: MATCH_THRESHOLD,
-          max_num_results: includeGallery
-            ? WITH_GALLERY_MERGED_CANDIDATES
-            : MERGED_SEARCH_CANDIDATES,
+          max_num_results: includeAnking
+            ? WITH_ANKING_MERGED_CANDIDATES
+            : includeGallery
+              ? WITH_GALLERY_MERGED_CANDIDATES
+              : MERGED_SEARCH_CANDIDATES,
           return_on_failure: true,
           fusion_method: "rrf",
         },
@@ -321,7 +331,11 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
     const candidates = evidenceFromSearch(
       response,
       libraries,
-      includeGallery ? WITH_GALLERY_MERGED_CANDIDATES : MERGED_SEARCH_CANDIDATES,
+      includeAnking
+        ? WITH_ANKING_MERGED_CANDIDATES
+        : includeGallery
+          ? WITH_GALLERY_MERGED_CANDIDATES
+          : MERGED_SEARCH_CANDIDATES,
     ).map((evidence, position) => ({ evidence, position }));
     const galleryHits: GallerySearchHit[] = [];
     if (includeGallery && Array.isArray(result?.chunks)) {
@@ -340,9 +354,28 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
         galleryHits.push({ imageId, score });
       }
     }
+    const ankingHits: AnkingSearchHit[] = [];
+    if (includeAnking && Array.isArray(result?.chunks)) {
+      const seen = new Set<string>();
+      for (const raw of result.chunks) {
+        const row = asRecord(raw);
+        if (stringField(row, "instance_id") !== ANKING_SEARCH_INSTANCE) continue;
+        const item = asRecord(row?.item);
+        const key = stringField(item, "key");
+        const score = numberField(row, "score");
+        const match = key ? /(?:^|\\/)(note_\\d{10,16})\\.json$/.exec(key) : null;
+        if (!match || score === null || score < MATCH_THRESHOLD) continue;
+        const noteId = match[1]!;
+        if (seen.has(noteId)) continue;
+        seen.add(noteId);
+        ankingHits.push({ noteId, score });
+        if (ankingHits.length >= 10) break;
+      }
+    }
     return {
       evidence: rankMedicalCandidates(query, candidates, MAX_RESULTS),
       galleryHits,
+      ...(ankingHits.length ? { ankingHits } : {}),
     };
   }
 

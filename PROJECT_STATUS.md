@@ -1,12 +1,14 @@
 # Santo Project Status — Living Handoff
 
-### AnKing exact CID recommendations — isolated staging candidate (18 Oct 2026; issue #164)
+### AnKing Cardiology seventh search — isolated staging rollout (18 Oct 2026; issue #164)
 
-- User confirmed Card IDs in the supported AnKing installation match the V3 snapshot; this is owner acceptance, **not** a universal AnkiHub portability guarantee.
-- Offline Cardiology V3: 4,151 note-level search documents and 5,156 unique card IDs, with validated internal `note_id` / `cards.ord` / `cid:` mapping; small TF-IDF topical retrieval probe 8/8 keyword hits in top 5 (not an AI Search or clinical accuracy benchmark).
-- Isolated code branch `feat/anking-cardiology-suggestions-staging-20261018`: an optional seventh educational index in SAME multi-instance namespace call; AnKing chunks never qualify as clinical citations; R2-owned per-note metadata supplies exact suggested CIDs, not Luna. Medical explanation adjuncts only from records explicitly rights-cleared **and** medically approved.
-- Both staging switches `SANTO_ANKING_CARDS_V1=false` and `SANTO_ANKING_RIGHTS_CLEARED_V1=false` by default; production unchanged. Offline artifacts are not uploaded to Cloudflare/R2 or GitHub. Activation **blocked** until content distribution/indexing licenses (including third-party material), medical review and retrieval QA are established. Do not mark blocked gates complete.
-- Track rollout at [Issue #164](https://github.com/geminiamo0-ship-it/santoreno/issues/164). Frontend card UI, source-grounded E2E and index provisioning remain subsequent work.
+- The owner states commercial permission for AnKing text and verifies the supported AnKing V3 Card IDs. That confirms authorization for this pilot but does not imply that every third-party image/audio right is covered. No AnKing images or audio are uploaded.
+- V3 SHA-256-pinned source provides **4,151 notes and 5,156 distinct original `cid:` Card IDs**. The offline note/card join, cloze ordinal and search-document checks passed; offline TF-IDF 8/8 topical query smoke is not a clinical accuracy or live AI Search benchmark.
+- **R2 staging upload completed:** 32 private metadata shards written to `santo-content-staging/anking/v3/cardiology/shards/`, with a real readback-byte comparison. No Production R2/index changes.
+- Isolated `santo-anking-cardiology` built-in-storage AI Search ingestion is in progress: [Action #39137197811](https://github.com/geminiamo0-ship-it/santoreno/actions/runs/39137197811). At the 18 Oct 14:54 UTC snapshot: 202 completed, 1883 queued, 3 running, 0 indexing errors. **Do not report the full 4,151 as indexed yet.** Cloudflare indexing may continue beyond document upload.
+- Code branch `feat/anking-cardiology-suggestions-staging-20261018` passes Verify and is unmerged. Once the separate index has fully processed and seven-index live smoke passes, staging-only flags `SANTO_ANKING_CARDS_V1=true` and `SANTO_ANKING_RIGHTS_CLEARED_V1=true` deploy through the gated [Activation Action](https://github.com/geminiamo0-ship-it/santoreno/actions/workflows/anking-cardiology-staging-activate.yml). They are only branch configuration until deployed.
+- CID navigation may show licensed original study cards while `pending_expert_review`; unreviewed AnKing facts **never** enter Luna's clinical explanation prompt. Only individually medically approved facts can supplement Luna, and AnKing cannot replace the five clinical citations. Clinical review is still pending; no blanket approval.
+- Royal Bank card preview [PR #138](https://github.com/geminiamo0-ship-it/ROYAL-BANK/pull/138) has green tests, and Vercel preview is READY. Authenticated signed-in card retrieval, retrieval latency, medical answer quality and user quotas still require acceptance. Production remains untouched.
 
 ### Santo sixth image index — ONE merged AI Search call: deployed and live verified (17 Oct 2026)
 

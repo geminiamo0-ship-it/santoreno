@@ -1,5 +1,13 @@
 # Santo Project Status — Living Handoff
 
+### AnKing exact CID recommendations — isolated staging candidate (18 Oct 2026; issue #164)
+- User confirmed Card IDs in the supported AnKing installation match the V3 snapshot; this is owner acceptance, **not** a universal AnkiHub portability guarantee.
+- Offline Cardiology V3: 4,151 note-level search documents and 5,156 unique card IDs, with validated internal `note_id` / `cards.ord` / `cid:` mapping; small TF-IDF topical retrieval probe 8/8 keyword hits in top 5 (not an AI Search or clinical accuracy benchmark).
+- Isolated code branch `feat/anking-cardiology-suggestions-staging-20261018`: an optional seventh educational index in SAME multi-instance namespace call; AnKing chunks never qualify as clinical citations; R2-owned per-note metadata supplies exact suggested CIDs, not Luna. Medical explanation adjuncts only from records explicitly rights-cleared **and** medically approved.
+- Both staging switches `SANTO_ANKING_CARDS_V1=false` and `SANTO_ANKING_RIGHTS_CLEARED_V1=false` by default; production unchanged. Offline artifacts are not uploaded to Cloudflare/R2 or GitHub. Activation **blocked** until content distribution/indexing licenses (including third-party material), medical review and retrieval QA are established. Do not mark blocked gates complete.
+- Track rollout at [Issue #164](https://github.com/geminiamo0-ship-it/santoreno/issues/164). Frontend card UI, source-grounded E2E and index provisioning remain subsequent work.
+
+
 ### Santo sixth image index — ONE merged AI Search call: deployed and live verified (17 Oct 2026)
 
 - **Verified Staging Worker deployment:** [Action #39070116851](https://github.com/geminiamo0-ship-it/santoreno/actions/runs/39070116851) success on commit `42ef04de62627f1f0b77f87f58e4b7d95f619d95`. The Worker uses the original one-namespace-call mode, now with the **five medical indexes PLUS `santo-medical-images`** in the same `instance_ids` list.

@@ -1,0 +1,48 @@
+name: Cardiology AI Search Diagnostics
+on:
+  push:
+    branches:
+      - experiment/anking-cardiology-partial-staging-20261018
+    paths:
+      - .github/workflows/anking-cardio-diagnostics.yml
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Inspect sanitized Cloudflare search responses
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,os,urllib.request,urllib.error
+          url=f"https://api.cloudflare.com/client/v4/accounts/{os.environ['CLOUDFLARE_ACCOUNT_ID']}/ai-search/namespaces/default"
+          h={"Authorization":"Bearer "+os.environ["CLOUDFLARE_API_TOKEN"],"Content-Type":"application/json"}
+          clinical=["amboss","usmle","passmedicine","pastest","one-examination-isolated"]
+          tests=[
+            ("cardio-only",url+"/instances/santo-anking-cardiology/search",None),
+            ("six-only",url+"/search",clinical+["santo-medical-images"]),
+            ("seven",url+"/search",clinical+["santo-medical-images","santo-anking-cardiology"]),
+          ]
+          for name,path,instance_ids in tests:
+            opts={"retrieval":{"retrieval_type":"hybrid","match_threshold":0.4,"max_num_results":35,"return_on_failure":True,"fusion_method":"rrf"},"reranking":{"enabled":True,"model":"@cf/baai/bge-reranker-base"},"query_rewrite":{"enabled":False}}
+            if instance_ids:opts["instance_ids"]=instance_ids
+            payload={"query":"aortic stenosis systolic murmur carotids","ai_search_options":opts}
+            try:
+              q=urllib.request.Request(path,data=json.dumps(payload).encode(),headers=h)
+              with urllib.request.urlopen(q,timeout=80) as res:status=res.status;body=res.read()
+            except urllib.error.HTTPError as ex:status=ex.code;body=ex.read()
+            except Exception as ex: print(name,"transport error",str(ex)[:120],flush=True);continue
+            try:d=json.loads(body)
+            except Exception: print(name,"non-json HTTP",status,flush=True);continue
+            result=d.get("result") or {}
+            counts={}
+            for c in result.get("chunks") or []:
+              instance=c.get("instance_id","unknown");counts[instance]=counts.get(instance,0)+1
+            print(name,"http",status,"success",d.get("success"),"errors",[(e.get("code"),str(e.get("message"))[:190]) for e in d.get("errors",[]) if isinstance(e,dict)],"partials",result.get("errors"),"counts",counts,flush=True)
+          PY

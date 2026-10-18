@@ -26,6 +26,24 @@ export const GroundedAiCitationSchema = z.object({
 });
 export type GroundedAiCitation = z.infer<typeof GroundedAiCitationSchema>;
 
+/** Verified gallery figures are visual aids, NEVER sources for clinical claims.
+ * The URL is an immutable R2 media asset from the backend image manifest.
+ */
+export const GroundedAiRelatedPicSchema = z
+  .object({
+    src: z
+      .string()
+      .max(900)
+      .regex(
+        /^https:\/\/pub-2a81f2cb19cc4473a3d076e657af6121\.r2\.dev\/offline_media\/[A-Za-z0-9_%+.-]+\.(?:png|jpg|jpeg|webp|gif)$/i,
+      ),
+    alt: z.string().min(1).max(160),
+    caption: z.string().max(240),
+    sourceName: z.string().min(1).max(160),
+  })
+  .strict();
+export type GroundedAiRelatedPic = z.infer<typeof GroundedAiRelatedPicSchema>;
+
 export const GroundedAiUsageSchema = z.object({
   unitsCharged: z.literal(1),
   remaining: z.number().int().nonnegative(),
@@ -40,6 +58,8 @@ export const GroundedAiQueryResponseSchema = z
     /** Legacy responses without this property are always source-grounded. */
     groundingMode: z.enum(["santo", "general"]).optional(),
     citations: z.array(GroundedAiCitationSchema).max(5),
+    /** Optional persisted candidates not selected for inline Luna figures. */
+    relatedPics: z.array(GroundedAiRelatedPicSchema).max(7).optional(),
     /** Real browsable library articles, but not model-cited inline medical claims. */
     citationMode: z.literal("related").optional(),
     usage: GroundedAiUsageSchema,

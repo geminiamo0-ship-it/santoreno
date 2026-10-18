@@ -533,6 +533,7 @@ describe("grounded AI handler", () => {
     expect(body.answer).toContain(media + "ecg.webp");
     expect(body.answer).not.toContain("[[IMG_001]]");
     expect(body.answer).not.toContain("[[IMG_081]]");
+    expect(body.relatedPics ?? []).toHaveLength(0); // Already inline: no duplication.
     expect(body.citations).toMatchObject([{ sourceId }]);
     expect(retrieval.retrieveWithGallery).toHaveBeenCalledTimes(1);
     expect(retrieval.retrieve).not.toHaveBeenCalled();
@@ -541,6 +542,29 @@ describe("grounded AI handler", () => {
     expect(prompt).toContain("IMG_001");
     expect(prompt).toContain("IMG_081");
     expect(quota.finalizeCalls).toBe(1);
+
+    // Next question uses the SAME search + same original Luna image prompt,
+    // but Luna doesn't select the verified gallery image inline.
+    model.generate = vi.fn(async () => ({
+      answer: "## Diagnosis\\nDoppler [[1]].",
+      citationIds: [sourceId],
+    }));
+    const second = await handler()(request(token, "related-pics", "Aortic stenosis ECG"), env);
+    expect(second.status).toBe(200);
+    const secondBody = await second.json();
+    expect(secondBody.relatedPics).toEqual([
+      {
+        src: media + "ecg.webp",
+        alt: "Aortic stenosis ECG",
+        caption: "ECG finding",
+        sourceName: "Medical image gallery",
+      },
+    ]);
+    expect(secondBody.answer).not.toContain("ecg.webp");
+    expect(secondBody.citations).toMatchObject([{ sourceId }]);
+    expect(retrieval.retrieveWithGallery).toHaveBeenCalledTimes(2);
+    expect(retrieval.retrieve).not.toHaveBeenCalled();
+    expect(quota.finalizeCalls).toBe(2);
   });
 
   it("passes an uncited Markdown contract to staging when retrieval is empty", async () => {

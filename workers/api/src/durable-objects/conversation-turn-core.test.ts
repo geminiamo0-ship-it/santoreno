@@ -189,6 +189,34 @@ describe("verified conversation turn state", () => {
     }
   });
 
+  it("persists Related Pics with a verified answer and restores them unchanged", () => {
+    const { turns } = setup();
+    const start = turns.begin(ask());
+    const saved = {
+      ...answer,
+      relatedPics: [
+        {
+          src: "https://pub-2a81f2cb19cc4473a3d076e657af6121.r2.dev/offline_media/valve.webp",
+          alt: "Aortic valve",
+          caption: "Stenotic aortic valve",
+          sourceName: "Medical gallery",
+        },
+      ],
+    };
+    const completed = turns.complete({
+      actor,
+      conversationId,
+      idempotencyKey: "first",
+      attemptId: start.attemptId,
+      response: saved,
+    });
+    expect(completed.response).toMatchObject({ relatedPics: saved.relatedPics });
+    expect(turns.begin(ask()).turn.response).toMatchObject({ relatedPics: saved.relatedPics });
+    expect(turns.list({ actor, conversationId }).turns[0]?.response).toMatchObject({
+      relatedPics: saved.relatedPics,
+    });
+  });
+
   it("atomically starts, completes and replays the same verified response", () => {
     const { turns, base } = setup();
     const start = turns.begin(ask());

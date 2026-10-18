@@ -132,6 +132,7 @@ export class GroundedAiService {
 
     let answer: string;
     let citations: GroundedAiQueryResponse["citations"];
+    let relatedPics: NonNullable<GroundedAiQueryResponse["relatedPics"]> = [];
     let responseMode: "santo" | "general" = "santo";
     let retrievedSourceCount = 0;
     let validCitationCount = 0;
@@ -360,6 +361,19 @@ export class GroundedAiService {
           ? renderMedicalImageMarkers(draft.answer, availableImages)
           : { answer: draft.answer, sourceIds: [] as string[] };
         answer = images.answer;
+        // Gallery results came from the existing six-index search + verified R2
+        // manifest, never from a model-authored URL. Luna's inline selection is
+        // unchanged; expose only UNUSED figures for the saved Related Pics UI.
+        // No new AI Search, R2 call, model call, citation, or quota operation.
+        relatedPics = galleryImages
+          .filter((figure) => !answer.includes(figure.src))
+          .slice(0, 7)
+          .map((figure) => ({
+            src: figure.src,
+            alt: (figure.alt || figure.caption || "Medical illustration").slice(0, 160),
+            caption: figure.caption.slice(0, 240),
+            sourceName: (figure.articleTitle || "Medical gallery").slice(0, 160),
+          }));
         if (imageDiagnostics) {
           // Counts refer to actual server-expanded R2 images, not untrusted
           // model-provided Markdown. Do not log prompt, excerpts or URLs.
@@ -373,6 +387,7 @@ export class GroundedAiService {
             requestId,
             offeredImageCount: availableImages.length,
             selectedImageCount,
+            relatedPicsCount: relatedPics.length,
           });
         }
         outputChars = answer.length;
@@ -502,6 +517,7 @@ export class GroundedAiService {
       messageId,
       answer,
       citations,
+      ...(relatedPics.length ? { relatedPics } : {}),
       ...(responseMode === "general" ? { groundingMode: "general" as const } : {}),
       usage: {
         unitsCharged: 1,

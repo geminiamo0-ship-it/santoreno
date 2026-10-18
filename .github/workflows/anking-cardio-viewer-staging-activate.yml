@@ -1,0 +1,87 @@
+name: Activate Royal Bank AnKing Viewer on Santo Staging
+
+on:
+  push:
+    branches:
+      - feat/anking-card-data-viewer-20261018
+    paths:
+      - .github/workflows/anking-cardio-viewer-staging-activate.yml
+
+permissions:
+  contents: read
+  actions: read
+  checks: read
+
+concurrency:
+  group: santo-staging-anking-viewer-rollout
+  cancel-in-progress: false
+
+jobs:
+  activate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 65
+    env:
+      GH_TOKEN: ${{ github.token }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      WORKER_URL: https://santo-api-staging.geminiamo0.workers.dev
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Wait for validated and backed-up R2 text field upload
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 210); do
+            status="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/39165518118" --jq '.status')"
+            conclusion="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/39165518118" --jq '.conclusion // ""')"
+            if [[ "$status" == "completed" ]]; then
+              test "$conclusion" = "success" || { echo "Text backfill failed. Deployment prevented."; exit 1; }
+              echo 'Source-validated staging R2 note-field backfill succeeded'
+              break
+            fi
+            if [[ "$attempt" == 210 ]]; then echo 'Backfill still running'; exit 1; fi
+            sleep 15
+          done
+
+      - name: Require green exact commit tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 80); do
+            checks="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/check-runs")"
+            result="$(jq -r '[.check_runs[] | select(.name=="verify") | .conclusion] | map(select(.!=null)) | .[0] // ""' <<<"$checks")"
+            if [[ "$result" == "success" ]]; then echo 'Exact commit verified'; break; fi
+            if [[ "$result" == "failure" || "$result" == "cancelled" ]]; then exit 1; fi
+            if [[ "$attempt" == 80 ]]; then echo 'Verify timed out'; exit 1; fi
+            sleep 10
+          done
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install workspace
+        run: |
+          corepack enable
+          pnpm install --frozen-lockfile
+
+      - name: Deploy ONLY Santo STAGING with original Back and Extra fields
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${CLOUDFLARE_API_TOKEN:-}"
+          test -n "${CLOUDFLARE_ACCOUNT_ID:-}"
+          grep -q 'SANTO_ANKING_CARDS_V1 = "true"' workers/api/wrangler.toml
+          cd workers/api
+          pnpm exec wrangler deploy --env staging --keep-vars
+
+      - name: Check staging Worker health and access control
+        shell: bash
+        run: |
+          set -euo pipefail
+          response="$(curl --fail -sS --retry 4 --retry-delay 2 "$WORKER_URL/health")"
+          jq -e '.service == "santo-api" and .status == "ok"' <<<"$response" >/dev/null
+          code="$(curl -sS -o /dev/null -w '%{http_code}' -X POST "$WORKER_URL/v1/ai/query" -H 'content-type: application/json' --data '{"query":"aortic stenosis","idempotency_key":"viewer-staging-unauth"}')"
+          test "$code" = "401"
+          echo 'ROYAL_BANK_ANKING_STUDY_VIEWER_STAGING_DEPLOYED'

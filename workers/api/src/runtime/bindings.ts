@@ -79,6 +79,7 @@ export interface SantoBindings {
   SANTO_MEDICAL_RETRIEVAL_V2?: string;
   SANTO_AI_SEARCH_SINGLE_REQUEST_V1?: string;
   SANTO_MEDICAL_QUERY_REWRITE_V1?: string;
+  SANTO_AMBOSS_ADJACENT_R2_V1?: string;
   SANTO_QWEN_ROUTING_V1?: string;
   SANTO_LUNA_RICH_IMAGES_V1?: string;
   SANTO_GALLERY_IMAGES_V1?: string;

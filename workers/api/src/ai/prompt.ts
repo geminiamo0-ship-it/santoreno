@@ -2,7 +2,8 @@ import { GroundedAiError } from "./errors";
 import type { RetrievedEvidence } from "./types";
 
 const MAX_QUERY_CHARS = 4000;
-const MAX_EVIDENCE_ITEMS = 5;
+// Five ranked source passages plus at most three verified AMBOSS R2 neighbors.
+const MAX_EVIDENCE_ITEMS = 8;
 const MAX_EVIDENCE_CHARS = 3500;
 const MAX_SOURCE_ID_CHARS = 512;
 const MAX_LIBRARY_ID_CHARS = 64;
@@ -49,7 +50,7 @@ export function buildGroundedPrompt(
     ...(format === "markdown"
       ? [
           "OUTPUT CONTRACT: Write the teaching response directly in Markdown. Do not use structured response wrappers, code fences, or raw machine source identifiers.",
-          "EVIDENCE_JSON contains five or fewer genuine retrieved excerpts. Each source_id will be replaced by a temporary SANTO_REF_N label in this same model request. Cite a supported clinical statement using [[N]], where N is the integer in that excerpt's SANTO_REF_N label. Use the marker only when the associated excerpt really supports the statement.",
+          "EVIDENCE_JSON contains up to eight genuine excerpts (five search results plus at most three server-verified AMBOSS neighboring sections). Each source_id will be replaced by a temporary SANTO_REF_N label in this same model request. Cite a supported clinical statement using [[N]], where N is the integer in that excerpt's SANTO_REF_N label. Use the marker only when the associated excerpt really supports the statement.",
           "Review each relevant EVIDENCE_JSON excerpt and cite sources across libraries when supported. Include at least one [[N]] marker if evidence supports the answer; never add an unrelated or invented source, favor a brand, or attribute general medical background to a library.",
           "Source links and source cards belong to Santo, not the model. Never print SANTO_REF_N, original source_id strings, or internal IDs in prose. Finish complete paragraphs and sentences.",
         ]

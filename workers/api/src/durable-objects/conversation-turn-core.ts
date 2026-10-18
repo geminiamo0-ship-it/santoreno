@@ -120,6 +120,23 @@ function recentContext(sql: SqlStorageLike): string {
   }, "");
 }
 
+/** Deterministically select up to five user turns from existing SQLite state.
+ * No Luna answers, source excerpts or additional Durable Object requests.
+ * Returning bounded text here also bounds the internal request payload.
+ */
+function recentUserMessages(sql: SqlStorageLike, upToSequence: number): string[] {
+  const messages = sql
+    .exec<{ text: string }>(
+      "SELECT text FROM conversation_messages WHERE role = 'user' AND sequence <= ? ORDER BY sequence DESC LIMIT 5",
+      upToSequence,
+    )
+    .toArray()
+    .reverse();
+  return messages.map((row, index) =>
+    row.text.slice(0, index === messages.length - 1 ? 1000 : 300),
+  );
+}
+
 /** This core owns only conversation sequencing and verified response persistence, never quota. */
 export class ConversationTurnCore {
   constructor(
@@ -180,6 +197,7 @@ export class ConversationTurnCore {
           attemptId,
           turn: toTurn(renewed),
           context: existing.context_text,
+          recentUserMessages: recentUserMessages(sql, existing.sequence),
           quotaEpoch: existing.quota_epoch,
         });
       }
@@ -233,6 +251,7 @@ export class ConversationTurnCore {
         state: "started",
         attemptId,
         context,
+        recentUserMessages: recentUserMessages(sql, next),
         quotaEpoch: 0,
         turn: {
           messageId,

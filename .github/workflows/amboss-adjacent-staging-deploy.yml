@@ -1,5 +1,5 @@
 name: Deploy AMBOSS Adjacent Context — Santo Staging
-# Rerun on exact updated candidate with formatted status
+# Rerun exact integration source with base Prettier-approved status
 
 on:
   push:

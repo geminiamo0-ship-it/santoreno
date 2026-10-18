@@ -259,6 +259,38 @@ describe("grounded AI handler", () => {
     expect(save).not.toHaveBeenCalled();
   });
 
+  it("records request-correlated Qwen routing outcomes without student text", async () => {
+    env.SANTO_ENV = "staging";
+    env.SANTO_QWEN_ROUTING_V1 = "true";
+    const diagnostics = vi.spyOn(console, "info").mockImplementation(() => undefined);
+    retrieval.route = vi.fn(async (request) => {
+      request.onRouteDiagnostic?.("success_chat", 43);
+      return { intent: "chat" as const, answer: "Hello!" };
+    });
+    try {
+      const response = await handler()(request(token, "diag-1", "hi"), env);
+      expect(response.status).toBe(200);
+      const data = await response.json();
+      expect(data.answer).toBe("Hello!");
+      expect(model.generate).not.toHaveBeenCalled();
+      expect(diagnostics).toHaveBeenCalledWith(
+        "santo_qwen_route_outcome",
+        expect.objectContaining({
+          requestId: expect.any(String),
+          outcome: "success_chat",
+          milliseconds: 43,
+        }),
+      );
+      const events = diagnostics.mock.calls.filter(
+        ([event]) => event === "santo_qwen_route_outcome",
+      );
+      expect(JSON.stringify(events)).not.toContain("Hello!");
+      expect(quota.finalizeCalls).toBe(1);
+    } finally {
+      diagnostics.mockRestore();
+    }
+  });
+
   it("persistently finalizes a Qwen CLARIFY question without Luna or medical retrieval", async () => {
     env.SANTO_ENV = "staging";
     env.SANTO_QWEN_ROUTING_V1 = "true";

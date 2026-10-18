@@ -15,6 +15,11 @@ export interface RetrievalRequest {
   libraryId: string | null;
   /** Validated single-Qwen medical search query; avoids calling Qwen twice. */
   preparedQuery?: string;
+  /** Optional request-scoped observer: outcome and duration only, never prompts. */
+  onRouteDiagnostic?: (
+    outcome: import("./medical-query-rewrite").QwenRouteOutcome,
+    milliseconds: number,
+  ) => void;
 }
 
 export interface GallerySearchHit {

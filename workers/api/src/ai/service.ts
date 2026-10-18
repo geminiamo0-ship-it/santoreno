@@ -141,7 +141,18 @@ export class GroundedAiService {
       const route =
         this.intentRoutingEnabled && libraryId === null && this.retrieval.route
           ? await withAiDeadline(
-              () => this.retrieval.route!({ query: input.query, libraryId }),
+              () =>
+                this.retrieval.route!({
+                  query: input.query,
+                  libraryId,
+                  onRouteDiagnostic: (outcome, milliseconds) => {
+                    console.info("santo_qwen_route_outcome", {
+                      requestId,
+                      outcome,
+                      milliseconds,
+                    });
+                  },
+                }),
               signal,
               this.timeouts.retrievalMs,
               "SEARCH_TIMEOUT",

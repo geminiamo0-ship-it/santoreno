@@ -171,7 +171,8 @@ function studyNoteFields(note: NoteRecord): Array<{ label: string; value: string
     const map = record(group);
     if (!map) continue;
     for (const [label, value] of Object.entries(map)) {
-      if (/^(?:id|card|guid|raw|tags|rights|review|source|image|media|audio|html)/i.test(label)) continue;
+      if (/^(?:id|card|guid|raw|tags|rights|review|source|image|media|audio|html)/i.test(label))
+        continue;
       push(label, value);
     }
   }

@@ -253,7 +253,11 @@ export class GroundedAiService {
           this.ankingSupplement &&
           combinedSearch.ankingHits?.length
             ? withAiDeadline(
-                () => this.ankingSupplement!.hydrate(combinedSearch.ankingHits!, input.query),
+                () =>
+                  this.ankingSupplement!.hydrate(
+                    combinedSearch.ankingHits!,
+                    route?.intent === "medical" ? route.searchQuery : input.query,
+                  ),
                 signal,
                 4_000,
                 "SEARCH_TIMEOUT",

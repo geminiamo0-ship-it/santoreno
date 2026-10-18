@@ -1,4 +1,5 @@
 name: Deploy AMBOSS Adjacent Context — Santo Staging
+# Rerun on exact updated candidate with formatted status
 
 on:
   push:

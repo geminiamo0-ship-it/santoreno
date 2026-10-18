@@ -210,7 +210,7 @@ function acceptedClarification(output: unknown): string | null {
     question.length < 8 ||
     question.length > 260 ||
     /[\r\n{}<>]/.test(question) ||
-    /https?:\/\/|\[\[|SANTO_REF_|(?:source|citation|guideline):/i.test(question) ||
+        /https?:|\[\[|SANTO_REF_|(?:source|citation|guideline):/i.test(result.answer)
     !/[?؟]$/.test(question)
   )
     return null;
@@ -262,7 +262,7 @@ export async function routeMedicalRequest(
       }),
     ]);
     const output = modelOutput(raw)
-      ?.replace(/^<think>[\\s\\S]*?<\\/think>\\s*/i, "")
+      ?.replace(/^<think>[\s\S]*?<\/think>\s*/i, "")
       .trim();
     if (!output || output.length > 850) return fail("invalid_output");
     let parsed: unknown;

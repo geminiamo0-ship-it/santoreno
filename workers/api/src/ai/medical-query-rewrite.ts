@@ -249,7 +249,9 @@ export async function routeMedicalRequest(
     "Prior medical context exists: " + originalRequest.includes(FOLLOW_UP_MARKER),
   ].join("\n");
   if (usingUserHistory) {
-    const previous = history.slice(0, -1).map((text, index) => `${index + 1}. ${text.slice(0, 300)}`);
+    const previous = history
+      .slice(0, -1)
+      .map((text, index) => `${index + 1}. ${text.slice(0, 300)}`);
     input = [
       "Previous USER messages (oldest first):",
       ...previous,

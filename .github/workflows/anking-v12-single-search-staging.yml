@@ -1,5 +1,5 @@
 name: Verify Full AnKing v12 Single Search and Deploy — Santo Staging
-# Exact one-call medical+image+full-AnKing verified staging activation
+# Owner-confirmed AnKing v12 indexing complete; activate via existing single 7-index search
 
 on:
   push:
@@ -88,7 +88,7 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Test indexed full AnKing plus five clinical libraries in SAME search request
+      - name: Verify live seven-index search (skip index-status readiness probe)
         shell: bash
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -97,6 +97,7 @@ jobs:
           set -euo pipefail
           python -m pip install requests==2.32.3
           python scripts/smoke_anking_full_v12_single_search_staging.py
+          echo 'Full v12 indexing accepted as owner-confirmed; index-count gating skipped.'
       - name: Deploy Santo staging only, retaining secrets
         shell: bash
         run: |

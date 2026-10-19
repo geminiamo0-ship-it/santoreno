@@ -362,20 +362,22 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
     // Preserve the five clinical references; add at most one relevant original
     // AnKing excerpt with a canonical AI Search source identity for [[N]].
     const clinicalEvidence = rankMedicalCandidates(query, candidates, MAX_RESULTS);
-    const ankingEvidence = includeAnking && this.ankingFullV12
-      ? evidenceFromSearch(
-          response,
-          [{ id: "anking", instanceId: ANKING_FULL_V12_INSTANCE, title: "AnKing v12" }],
-          10,
-        ).filter(item => /(?:^|\/)note_\d{10,16}\.json$/.test(item.itemKey))
-      : [];
+    const ankingEvidence =
+      includeAnking && this.ankingFullV12
+        ? evidenceFromSearch(
+            response,
+            [{ id: "anking", instanceId: ANKING_FULL_V12_INSTANCE, title: "AnKing v12" }],
+            10,
+          ).filter((item) => /(?:^|\/)note_\d{10,16}\.json$/.test(item.itemKey))
+        : [];
     const bestAnking = rankMedicalCandidates(
       query,
       ankingEvidence.map((evidence, position) => ({ evidence, position })),
       1,
-    ).map(item => ({
+    ).map((item) => ({
       ...item,
-      title: "AnKing v12 — " + (item.title === "Untitled" ? "High-Yield Medical Notes" : item.title),
+      title:
+        "AnKing v12 — " + (item.title === "Untitled" ? "High-Yield Medical Notes" : item.title),
     }));
     return {
       evidence: [...clinicalEvidence, ...bestAnking],

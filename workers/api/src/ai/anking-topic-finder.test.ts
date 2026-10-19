@@ -16,8 +16,11 @@ function bucket(matches = 25): R2BucketLike {
     card_ids: Object.fromEntries(noteIds.map((id, i) => [String(id), [cid + i]])),
   };
   return {
-    get: vi.fn(async (key: string) => key === "anking/v12/full/topic-index-v1.json"
-      ? { text: async () => JSON.stringify(index) } : null),
+    get: vi.fn(async (key: string) =>
+      key === "anking/v12/full/topic-index-v1.json"
+        ? { text: async () => JSON.stringify(index) }
+        : null,
+    ),
     put: vi.fn(async () => undefined),
     delete: vi.fn(async () => undefined),
   };
@@ -56,7 +59,10 @@ describe("fully isolated original CID Find the Card search", () => {
 
   it("returns empty for unrelated topics without an AI query rewrite", async () => {
     expect(await findMoreAnkingCards(bucket(3), "sarcoidosis", 0)).toMatchObject({
-      cardIds: [], ankiQuery: "", total: 0, nextCursor: null,
+      cardIds: [],
+      ankiQuery: "",
+      total: 0,
+      nextCursor: null,
     });
   });
 

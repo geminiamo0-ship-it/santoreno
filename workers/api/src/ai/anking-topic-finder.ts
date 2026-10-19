@@ -35,14 +35,21 @@ async function topicIndex(bucket: R2BucketLike): Promise<TopicIndex> {
     const file = await bucket.get(INDEX_KEY);
     if (!file) throw new Error("ANKING_V12_TOPIC_INDEX_NOT_READY");
     const raw: unknown = JSON.parse(await file.text());
-    if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error("INVALID_ANKING_TOPIC_INDEX");
+    if (!raw || typeof raw !== "object" || Array.isArray(raw))
+      throw new Error("INVALID_ANKING_TOPIC_INDEX");
     const data = raw as Partial<TopicIndex>;
     if (
-      data.version !== 2 || data.notes !== 30_477 || data.cards !== 36_896 ||
-      !data.topics || !data.facts || !data.card_ids ||
-      typeof data.topics !== "object" || typeof data.facts !== "object" ||
+      data.version !== 2 ||
+      data.notes !== 30_477 ||
+      data.cards !== 36_896 ||
+      !data.topics ||
+      !data.facts ||
+      !data.card_ids ||
+      typeof data.topics !== "object" ||
+      typeof data.facts !== "object" ||
       typeof data.card_ids !== "object"
-    ) throw new Error("INVALID_ANKING_TOPIC_INDEX");
+    )
+      throw new Error("INVALID_ANKING_TOPIC_INDEX");
     const index = data as TopicIndex;
     cache.set(bucket, { expires: Date.now() + INDEX_TTL_MS, index });
     return index;
@@ -56,9 +63,11 @@ async function topicIndex(bucket: R2BucketLike): Promise<TopicIndex> {
 }
 
 function terms(query: string): string[] {
-  return [...new Set(
-    (query.toLowerCase().match(/[a-z][a-z0-9]{2,}/g) ?? []).filter(word => !STOP.has(word)),
-  )].slice(0, 20);
+  return [
+    ...new Set(
+      (query.toLowerCase().match(/[a-z][a-z0-9]{2,}/g) ?? []).filter((word) => !STOP.has(word)),
+    ),
+  ].slice(0, 20);
 }
 
 function matchedNotes(index: TopicIndex, query: string): number[] {
@@ -68,7 +77,10 @@ function matchedNotes(index: TopicIndex, query: string): number[] {
   const matches = new Map<number, number>();
   for (const token of tokens) {
     const covered = new Set<number>();
-    for (const [postings, weight] of [[index.topics, 8], [index.facts, 1]] as const) {
+    for (const [postings, weight] of [
+      [index.topics, 8],
+      [index.facts, 1],
+    ] as const) {
       const ids = postings[token];
       // Prevent generic terms from swamping more specific disease concepts.
       if (!Array.isArray(ids) || ids.length > 20_000) continue;
@@ -85,7 +97,7 @@ function matchedNotes(index: TopicIndex, query: string): number[] {
   const minMatch = tokens.length > 1 ? Math.min(2, maxMatch) : 1;
   return [...score.entries()]
     .filter(([id]) => (matches.get(id) ?? 0) >= minMatch)
-    .sort((a, b) => (matches.get(b[0])! - matches.get(a[0])!) || b[1] - a[1] || a[0] - b[0])
+    .sort((a, b) => matches.get(b[0])! - matches.get(a[0])! || b[1] - a[1] || a[0] - b[0])
     .map(([id]) => id);
 }
 
@@ -122,7 +134,7 @@ export async function findMoreAnkingCards(
   const cardIds = allIds.slice(cursor, cursor + PAGE_SIZE);
   return {
     cardIds,
-    ankiQuery: cardIds.map(id => `cid:${id}`).join(" OR "),
+    ankiQuery: cardIds.map((id) => `cid:${id}`).join(" OR "),
     nextCursor: cursor + PAGE_SIZE < allIds.length ? cursor + PAGE_SIZE : null,
     total: allIds.length,
     normalizedTopic,

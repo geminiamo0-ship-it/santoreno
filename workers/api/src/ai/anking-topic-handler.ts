@@ -10,8 +10,7 @@ type SearchRequest = { topic: string; cursor: number };
 function parseSearchRequest(value: unknown): SearchRequest | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const raw = value as Record<string, unknown>;
-  if (Object.keys(raw).some((key) => !["topic", "cursor"].includes(key)))
-    return null;
+  if (Object.keys(raw).some((key) => !["topic", "cursor"].includes(key))) return null;
   if (typeof raw.topic !== "string") return null;
   const topic = raw.topic.trim();
   if (topic.length < 3 || topic.length > 250) return null;

@@ -53,36 +53,42 @@ export async function expandAmbossAdjacentEvidence(
   const existing = new Map(original.map((item) => [item.itemKey, item]));
   const additional: RetrievedEvidence[] = [];
 
-  for (let offset = 1; offset <= ADJACENT_FILES; offset += 1) {
-    const key = folder + "s-" + String(firstNumber + offset).padStart(4, "0") + ".md";
-    const alreadyRetrieved = existing.get(key);
+  // Ten sequential awaited R2 gets added network round trips before Luna
+  // could emit its first token. Prefetch the same ten SAME-ARTICLE keys
+  // concurrently, then consume IN ORDER and stop at the first missing,
+  // invalid or mismatched section. Do not widen retrieval or change citations.
+  const neighbors = await Promise.all(
+    Array.from({ length: ADJACENT_FILES }, async (_, index) => {
+      const key = folder + "s-" + String(firstNumber + index + 1).padStart(4, "0") + ".md";
+      const alreadyRetrieved = existing.get(key);
+      if (alreadyRetrieved) return { key, alreadyRetrieved, raw: null as string | null };
+      try {
+        const object = await bucket.get(key);
+        return { key, alreadyRetrieved: undefined, raw: object ? await object.text() : null };
+      } catch {
+        return { key, alreadyRetrieved: undefined, raw: null };
+      }
+    }),
+  );
+  for (const { key, alreadyRetrieved, raw } of neighbors) {
     if (alreadyRetrieved) {
       additional.push(alreadyRetrieved);
       continue;
     }
-    try {
-      const object = await bucket.get(key);
-      // Stop at the first gap. Never read from a subsequent article or other library.
-      if (!object) break;
-      const raw = await object.text();
-      if (raw.length > MAX_R2_SECTION_CHARS) break;
-      const metadata = sectionMetadata(raw);
-      if (!metadata || (initialTitle && initialTitle !== metadata.title)) break;
-      additional.push({
-        sourceId: await sourceIdForObject(anchor.instanceId, key),
-        libraryId: "amboss",
-        instanceId: anchor.instanceId,
-        itemKey: key,
-        title: metadata.title,
-        page: null,
-        section: metadata.section,
-        text: raw.slice(0, MAX_SECTION_CHARS),
-        score: 0, // Adjacent context is not an independently scored AI Search hit.
-      });
-    } catch {
-      // R2 augmentation is optional; never downgrade valid search evidence.
-      break;
-    }
+    if (!raw || raw.length > MAX_R2_SECTION_CHARS) break;
+    const metadata = sectionMetadata(raw);
+    if (!metadata || (initialTitle && initialTitle !== metadata.title)) break;
+    additional.push({
+      sourceId: await sourceIdForObject(anchor.instanceId, key),
+      libraryId: "amboss",
+      instanceId: anchor.instanceId,
+      itemKey: key,
+      title: metadata.title,
+      page: null,
+      section: metadata.section,
+      text: raw.slice(0, MAX_SECTION_CHARS),
+      score: 0,
+    });
   }
 
   const added = new Set<string>();

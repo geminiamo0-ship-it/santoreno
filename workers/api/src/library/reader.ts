@@ -192,7 +192,7 @@ export class LibraryReaderService {
     if (!source) throw new LibraryReaderError(404, "LIBRARY_NOT_FOUND");
     // Original AnKing v12 scientific note citations open as a source-backed
     // study-note article. Never resolve/display an Anki card or CID here.
-    const ankingKey = /(?:^|\\/)(note_(\\d{10,16}))\\.json$/.exec(source.itemKey);
+    const ankingKey = /(?:^|\/)(note_(\d{10,16}))\.json$/.exec(source.itemKey);
     if (
       source.libraryId === "anking" &&
       source.instanceId === "santo-anking-step-v12" &&

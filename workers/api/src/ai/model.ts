@@ -181,7 +181,7 @@ function parseDraft(text: string): GroundedModelDraft {
 
   return {
     answer: answer.trim(),
-    citationIds: citationIds.slice(0, 10),
+    citationIds: citationIds.slice(0, 15),
   };
 }
 
@@ -192,7 +192,7 @@ const groundedResponseSchema = {
     citation_ids: {
       type: "array",
       items: { type: "string" },
-      maxItems: 8,
+      maxItems: 15,
     },
   },
   required: ["answer", "citation_ids"],
@@ -208,7 +208,7 @@ const groundedResponseSchema = {
 export function groundedSchemaForCitationIds(allowedCitationIds?: readonly string[]) {
   if (allowedCitationIds === undefined) return groundedResponseSchema;
   const ids = [...new Set(allowedCitationIds)];
-  if (ids.length > 8 || ids.some((id) => !id || id.length > 512)) {
+  if (ids.length > 15 || ids.some((id) => !id || id.length > 512)) {
     throw new GroundedAiError(502, "SEARCH_FAILED", "Invalid verified source references");
   }
   return {
@@ -220,7 +220,7 @@ export function groundedSchemaForCitationIds(allowedCitationIds?: readonly strin
         items:
           ids.length > 0 ? { type: "string" as const, enum: ids } : { type: "string" as const },
         minItems: ids.length > 0 ? 1 : 0,
-        maxItems: ids.length > 0 ? 8 : 0,
+        maxItems: ids.length > 0 ? 15 : 0,
       },
     },
   };

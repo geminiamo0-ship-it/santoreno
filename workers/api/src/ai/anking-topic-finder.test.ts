@@ -87,6 +87,9 @@ describe("full v12 real R2 topic results (CI opt-in)", () => {
       delete: vi.fn(async () => undefined),
     };
     const samples = ["aortic stenosis", "treatment of aortic stenosis", "sarcoidosis"];
+    const baseTopic = await findMoreAnkingCards(store, "aortic stenosis", 0);
+    const treatmentTopic = await findMoreAnkingCards(store, "treatment of aortic stenosis", 0);
+    expect(treatmentTopic.total).toBeLessThanOrEqual(baseTopic.total);
     for (const topic of samples) {
       const first = await findMoreAnkingCards(store, topic, 0);
       expect(first.total, topic).toBeGreaterThan(0);

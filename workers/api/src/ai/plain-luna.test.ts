@@ -52,9 +52,7 @@ describe("staging single-pass plain-Luna citation contract", () => {
       "Management [[N]](SANTO_REF_15) [[N]](SANTO_REF_4).";
     const parsed = parsePlainLunaAnswer(raw, ids);
     expect(parsed.citationIds).toEqual([ids[3], ids[14]]);
-    expect(parsed.answer).toBe(
-      "## Aortic stenosis\\nMechanism [1]. Management [2] [1].",
-    );
+    expect(parsed.answer).toBe("## Aortic stenosis\\nMechanism [1]. Management [2] [1].");
     expect(parsed.answer).not.toContain("SANTO_REF");
     expect(parsed.answer).not.toContain("[[N]]");
   });

@@ -107,10 +107,8 @@ export function parsePlainLunaAnswer(
   // Convert ONLY a bounded, exact alias that maps to an actually retrieved
   // source. Then the same server-owned citation verification runs as usual.
   // Unknown or out-of-range aliases are dropped, never linked by the model.
-  const canonical = text.replace(
-    /\[\[N\]\]\(SANTO_REF_([1-9]\d?)\)/g,
-    (_whole, number: string) =>
-      Number(number) <= allowed.length ? "[[" + number + "]]" : "",
+  const canonical = text.replace(/\[\[N\]\]\(SANTO_REF_([1-9]\d?)\)/g, (_whole, number: string) =>
+    Number(number) <= allowed.length ? "[[" + number + "]]" : "",
   );
   let answer = canonical.replace(/\[\[([^\]\n]{0,24})\]\]/g, (_whole, token: string) => {
     if (/^IMG_\d{3}$/.test(token)) return _whole;

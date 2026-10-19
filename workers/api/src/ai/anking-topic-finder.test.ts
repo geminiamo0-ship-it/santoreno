@@ -78,32 +78,37 @@ describe("fully isolated original CID Find the Card search", () => {
  */
 describe("full v12 real R2 topic results (CI opt-in)", () => {
   const file = process.env.SANTO_ANKING_TOPIC_INDEX_FILE;
-  it.skipIf(!file)("resolves real disease + management topics into original Anki CIDs", async () => {
-    const raw = readFileSync(file!, "utf8");
-    const store: R2BucketLike = {
-      get: vi.fn(async (key: string) => key === "anking/v12/full/topic-index-v1.json"
-        ? { text: async () => raw } : null),
-      put: vi.fn(async () => undefined),
-      delete: vi.fn(async () => undefined),
-    };
-    const samples = ["aortic stenosis", "treatment of aortic stenosis", "sarcoidosis"];
-    const baseTopic = await findMoreAnkingCards(store, "aortic stenosis", 0);
-    const treatmentTopic = await findMoreAnkingCards(store, "treatment of aortic stenosis", 0);
-    expect(treatmentTopic.total).toBeLessThanOrEqual(baseTopic.total);
-    for (const topic of samples) {
-      const first = await findMoreAnkingCards(store, topic, 0);
-      expect(first.total, topic).toBeGreaterThan(0);
-      expect(first.cardIds.length, topic).toBeGreaterThan(0);
-      expect(first.cardIds.length, topic).toBeLessThanOrEqual(20);
-      expect(first.ankiQuery).toBe(first.cardIds.map(id => `cid:${id}`).join(" OR "));
-      const second = first.nextCursor !== null
-        ? await findMoreAnkingCards(store, topic, first.nextCursor)
-        : { cardIds: [] };
-      expect(new Set([...first.cardIds, ...second.cardIds]).size).toBe(
-        first.cardIds.length + second.cardIds.length,
-      );
-      console.info("REAL_ANKING_FIND_THE_CARD_TOPIC_PASSED", topic, "total=", first.total);
-    }
-    expect(store.put).not.toHaveBeenCalled();
-  });
+  it.skipIf(!file)(
+    "resolves real disease + management topics into original Anki CIDs",
+    async () => {
+      const raw = readFileSync(file!, "utf8");
+      const store: R2BucketLike = {
+        get: vi.fn(async (key: string) =>
+          key === "anking/v12/full/topic-index-v1.json" ? { text: async () => raw } : null,
+        ),
+        put: vi.fn(async () => undefined),
+        delete: vi.fn(async () => undefined),
+      };
+      const samples = ["aortic stenosis", "treatment of aortic stenosis", "sarcoidosis"];
+      const baseTopic = await findMoreAnkingCards(store, "aortic stenosis", 0);
+      const treatmentTopic = await findMoreAnkingCards(store, "treatment of aortic stenosis", 0);
+      expect(treatmentTopic.total).toBeLessThanOrEqual(baseTopic.total);
+      for (const topic of samples) {
+        const first = await findMoreAnkingCards(store, topic, 0);
+        expect(first.total, topic).toBeGreaterThan(0);
+        expect(first.cardIds.length, topic).toBeGreaterThan(0);
+        expect(first.cardIds.length, topic).toBeLessThanOrEqual(20);
+        expect(first.ankiQuery).toBe(first.cardIds.map((id) => `cid:${id}`).join(" OR "));
+        const second =
+          first.nextCursor !== null
+            ? await findMoreAnkingCards(store, topic, first.nextCursor)
+            : { cardIds: [] };
+        expect(new Set([...first.cardIds, ...second.cardIds]).size).toBe(
+          first.cardIds.length + second.cardIds.length,
+        );
+        console.info("REAL_ANKING_FIND_THE_CARD_TOPIC_PASSED", topic, "total=", first.total);
+      }
+      expect(store.put).not.toHaveBeenCalled();
+    },
+  );
 });

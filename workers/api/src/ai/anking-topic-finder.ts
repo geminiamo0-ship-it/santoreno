@@ -75,13 +75,15 @@ function terms(query: string): string[] {
  * diseases just because they also discuss management.
  */
 const FACET_TERMS = new Set(
-  "treatment management therapy diagnosis diagnostic pathophysiology pharmacology prevention monitoring complications prognosis surgery surgical intervention interventions imaging investigations tests testing".split(" "),
+  "treatment management therapy diagnosis diagnostic pathophysiology pharmacology prevention monitoring complications prognosis surgery surgical intervention interventions imaging investigations tests testing".split(
+    " ",
+  ),
 );
 
 function matchedNotes(index: TopicIndex, query: string): number[] {
   const tokens = terms(query);
   if (!tokens.length) return [];
-  const core = tokens.filter(token => !FACET_TERMS.has(token));
+  const core = tokens.filter((token) => !FACET_TERMS.has(token));
   const weight = new Map<number, number>();
   const coreMatches = new Map<number, number>();
   const facetMatches = new Map<number, number>();
@@ -106,16 +108,20 @@ function matchedNotes(index: TopicIndex, query: string): number[] {
   // Require all disease terms if that produces any results; otherwise use
   // best disease-term coverage as an inexpensive spelling/fallback strategy.
   const bestCoreMatch = Math.max(0, ...coreMatches.values());
-  const strict = core.length > 0 && candidates.some(id => coreMatches.get(id) === core.length);
+  const strict = core.length > 0 && candidates.some((id) => coreMatches.get(id) === core.length);
   const requiredCoreMatch = core.length === 0 ? 0 : strict ? core.length : bestCoreMatch;
   return candidates
-    .filter(id => core.length === 0 ? (facetMatches.get(id) ?? 0) > 0 :
-      requiredCoreMatch > 0 && (coreMatches.get(id) ?? 0) >= requiredCoreMatch)
-    .sort((a, b) =>
-      (facetMatches.get(b) ?? 0) - (facetMatches.get(a) ?? 0) ||
-      (coreMatches.get(b) ?? 0) - (coreMatches.get(a) ?? 0) ||
-      (weight.get(b) ?? 0) - (weight.get(a) ?? 0) ||
-      a - b,
+    .filter((id) =>
+      core.length === 0
+        ? (facetMatches.get(id) ?? 0) > 0
+        : requiredCoreMatch > 0 && (coreMatches.get(id) ?? 0) >= requiredCoreMatch,
+    )
+    .sort(
+      (a, b) =>
+        (facetMatches.get(b) ?? 0) - (facetMatches.get(a) ?? 0) ||
+        (coreMatches.get(b) ?? 0) - (coreMatches.get(a) ?? 0) ||
+        (weight.get(b) ?? 0) - (weight.get(a) ?? 0) ||
+        a - b,
     );
 }
 

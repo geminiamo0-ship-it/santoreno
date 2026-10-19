@@ -106,6 +106,7 @@ export function createLunaCitationAliases(
   prompt: string,
   verifiedSourceIds: readonly string[] | undefined,
   format: "json" | "markdown" = "json",
+  includeReminder = true,
 ): {
   prompt: string;
   modelCitationIds: readonly string[] | undefined;
@@ -127,9 +128,11 @@ export function createLunaCitationAliases(
   return {
     prompt:
       sanitizedPrompt +
-      (format === "markdown"
-        ? "\nOnly use temporary SANTO_REF_N labels to identify real evidence. Cite a supported statement as [[N]], using the N from its source label. Never print source labels, raw IDs or JSON fields."
-        : "\nOnly refer to evidence using its temporary SANTO_REF_N labels. Put labels inside citation_ids only, never in the answer prose."),
+      (includeReminder
+        ? format === "markdown"
+          ? "\nOnly use temporary SANTO_REF_N labels to identify real evidence. Cite a supported statement as [[N]], using the N from its source label. Never print source labels, raw IDs or JSON fields."
+          : "\nOnly refer to evidence using its temporary SANTO_REF_N labels. Put labels inside citation_ids only, never in the answer prose."
+        : ""),
     modelCitationIds: aliases,
     resolve: (id: string) => mapping.get(id) ?? id,
     privateIds: [...verifiedSourceIds, ...aliases],
@@ -297,6 +300,7 @@ export class CloudflareLunaModel implements ModelPort {
             prompt,
             allowedCitationIds,
             this.plainTextOutput ? "markdown" : "json",
+            !this.unifiedPrompt,
           )
         : {
             prompt,

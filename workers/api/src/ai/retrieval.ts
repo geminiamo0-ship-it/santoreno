@@ -197,6 +197,7 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
     private readonly ankingCardsV1 = false,
     private readonly ankingFullV12 = false,
     private readonly fastOneSearchV1 = false,
+    private readonly forwardAllSearchHitsV1 = false,
   ) {
     this.catalog = catalog ?? new AiSearchNamespaceLibraryCatalog(namespace);
   }
@@ -325,8 +326,10 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
           retrieval: {
             retrieval_type: "hybrid",
             match_threshold: MATCH_THRESHOLD,
-            max_num_results: this.fastOneSearchV1
-              ? STAGING_FAST_SEARCH_CANDIDATES
+            max_num_results: this.forwardAllSearchHitsV1
+              ? WITH_ANKING_MERGED_CANDIDATES
+              : this.fastOneSearchV1
+                ? STAGING_FAST_SEARCH_CANDIDATES
               : includeAnking
                 ? WITH_ANKING_MERGED_CANDIDATES
                 : includeGallery
@@ -358,8 +361,10 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
     const candidates = evidenceFromSearch(
       response,
       libraries,
-      this.fastOneSearchV1
-        ? STAGING_FAST_SEARCH_CANDIDATES
+      this.forwardAllSearchHitsV1
+        ? WITH_ANKING_MERGED_CANDIDATES
+        : this.fastOneSearchV1
+          ? STAGING_FAST_SEARCH_CANDIDATES
         : includeAnking
           ? WITH_ANKING_MERGED_CANDIDATES
           : includeGallery
@@ -393,9 +398,39 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
         ? evidenceFromSearch(
             response,
             [{ id: "anking", instanceId: ANKING_FULL_V12_INSTANCE, title: "AnKing v12" }],
-            10,
+            this.forwardAllSearchHitsV1 ? WITH_ANKING_MERGED_CANDIDATES : 10,
           ).filter((item) => /(?:^|\/)note_\d{10,16}\.json$/.test(item.itemKey))
         : [];
+    if (this.forwardAllSearchHitsV1) {
+      // Preserve EVERY valid original chunk across clinical libraries and
+      // AnKing, in Cloudflare's actual merged response order. Deduplicate only
+      // identical server-owned source IDs; Gallery remains illustration-only.
+      // The upstream Cloudflare API itself caps this ONE request at 50 hits.
+      const byId = new Map(
+        [...candidates.map(({ evidence }) => evidence), ...ankingEvidence].map((item) => [
+          item.sourceId,
+          item,
+        ]),
+      );
+      const forwarded: RetrievedEvidence[] = [];
+      for (const rawChunk of Array.isArray(result?.chunks) ? result.chunks : []) {
+        const chunk = asRecord(rawChunk);
+        const instanceId = stringField(chunk, "instance_id");
+        const chunkId = stringField(chunk, "id");
+        if (!instanceId || !chunkId) continue;
+        const sourceId = `${instanceId}:${chunkId}`;
+        const found = byId.get(sourceId);
+        if (!found) continue;
+        forwarded.push(found);
+        byId.delete(sourceId);
+      }
+      console.info("santo_forwarded_search_evidence", {
+        medical: forwarded.filter((item) => item.libraryId !== "anking").length,
+        anking: forwarded.filter((item) => item.libraryId === "anking").length,
+        gallery: galleryHits.length,
+      });
+      return { evidence: forwarded, galleryHits };
+    }
     const bestAnking = rankMedicalCandidates(
       query,
       ankingEvidence.map((evidence, position) => ({ evidence, position })),

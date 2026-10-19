@@ -63,6 +63,8 @@ SANTO_LUNA_PREVIEW = "true"
 SANTO_SINGLE_PASS_GENERATION_V1 = "true"
 SANTO_COMPACT_CITATION_ALIASES_V1 = "true"
 SANTO_PLAIN_TEXT_LUNA_V1 = "true"
+# Single unified Luna instruction; staged rollback preserves prior prompt behaviour.
+SANTO_LUNA_UNIFIED_PROMPT_V1 = "true"
 SANTO_COPILOT_ROUTING_V1 = "true"
 SANTO_GENERAL_MEDICAL_FALLBACK = "true"
 # Staging-only rollback switch for precision-first medical retrieval.

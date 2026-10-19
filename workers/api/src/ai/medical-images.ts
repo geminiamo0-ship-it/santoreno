@@ -364,10 +364,14 @@ export function selectMedicalImagesForPrompt(
   return chosen.sort((a, b) => a.index - b.index).map(({ image }) => image);
 }
 
-export function medicalImagePrompt(images: readonly MedicalImageCandidate[], query = ""): string {
+export function medicalImagePrompt(
+  images: readonly MedicalImageCandidate[],
+  query = "",
+  dataOnly = false,
+): string {
   if (!images.length) return "";
   const selected = selectMedicalImagesForPrompt(images, query);
-  return (
+  const payload =
     "\nAVAILABLE_ORIGINAL_ARTICLE_IMAGES:\n" +
     JSON.stringify(
       selected.map((image) => ({
@@ -387,7 +391,10 @@ export function medicalImagePrompt(images: readonly MedicalImageCandidate[], que
               context_after: image.after.slice(0, 130),
             }),
       })),
-    ) +
+    );
+  if (dataOnly) return payload;
+  return (
+    payload +
     "\nIllustrations are a PRIORITY teaching resource only when they genuinely match the CURRENT question, its source section and the explanation. Prefer exact anatomy, mechanism or diagnostic figures over broad generic images; use none if no illustration adds reliable teaching value. " +
     "Position each relevant figure beside the matching clinical explanation; use multiple figures only when they convey distinct anatomy, mechanism, findings or management rather than repeating the same idea. " +
     "To request a figure, write ONLY its exact [[IMG_001]]-style image_id on a standalone line. " +

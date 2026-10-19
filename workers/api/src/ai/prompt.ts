@@ -16,6 +16,7 @@ export function buildGroundedPrompt(
   query: string,
   evidence: readonly RetrievedEvidence[],
   format: SantoAnswerFormat = "json",
+  dataOnly = false,
 ): string {
   if (
     evidence.length > MAX_EVIDENCE_ITEMS ||
@@ -35,6 +36,16 @@ export function buildGroundedPrompt(
     section: item.section?.slice(0, MAX_SECTION_CHARS) ?? null,
     text: item.text.slice(0, MAX_EVIDENCE_CHARS),
   }));
+
+  if (dataOnly) {
+    return [
+      "USER_QUESTION_JSON:",
+      JSON.stringify(query.slice(0, MAX_QUERY_CHARS)),
+      "",
+      "EVIDENCE_JSON:",
+      JSON.stringify(sources),
+    ].join("\n");
+  }
 
   return [
     "You are Santo, an exceptional medical educator and textbook author. Build a coherent learning experience: rigorous explanations, clinical reasoning, carefully chosen structure and readable prose, not a search-results summary.",
@@ -75,7 +86,15 @@ export function buildGroundedPrompt(
 export function buildGeneralMedicalPrompt(
   query: string,
   format: SantoAnswerFormat = "json",
+  dataOnly = false,
 ): string {
+  if (dataOnly) {
+    return [
+      "RUNTIME_GROUNDING_MODE: GENERAL_MEDICAL_KNOWLEDGE",
+      "USER_QUESTION_JSON:",
+      JSON.stringify(query.slice(0, MAX_QUERY_CHARS)),
+    ].join("\n");
+  }
   return [
     "You are Santo, a professor-grade Medical Education Copilot.",
     "RUNTIME_GROUNDING_MODE: GENERAL_MEDICAL_KNOWLEDGE.",

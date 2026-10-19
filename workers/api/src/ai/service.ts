@@ -85,6 +85,7 @@ export class GroundedAiService {
     private readonly intentRoutingEnabled = false,
     private readonly imageGallery?: GalleryImageRetriever,
     private readonly ankingSupplement?: AnkingSupplementRetriever,
+    private readonly unifiedLunaPrompt = false,
   ) {}
 
   async query(
@@ -303,9 +304,11 @@ export class GroundedAiService {
         });
         const answerFormat = this.markdownOutput ? "markdown" : "json";
         const sourcedPrompt =
-          buildGroundedPrompt(input.query, evidence, answerFormat) +
-          medicalImagePrompt(availableImages, input.query) +
-          anking.promptContext;
+          buildGroundedPrompt(input.query, evidence, answerFormat, this.unifiedLunaPrompt) +
+          medicalImagePrompt(availableImages, input.query, this.unifiedLunaPrompt) +
+          (this.unifiedLunaPrompt
+            ? anking.promptContext.split("\nUse these only as exam-recall context")[0]
+            : anking.promptContext);
         suggestedFlashcards = anking.cards;
         console.info("santo_runtime_stage_ms", {
           stage: "pre_model",
@@ -329,7 +332,7 @@ export class GroundedAiService {
           () =>
             this.model.generate(
               groundingMode === "general"
-                ? buildGeneralMedicalPrompt(input.query, answerFormat)
+                ? buildGeneralMedicalPrompt(input.query, answerFormat, this.unifiedLunaPrompt)
                 : sourcedPrompt,
               progress,
               groundingMode === "general" ? [] : evidence.map((item) => item.sourceId),
@@ -360,7 +363,11 @@ export class GroundedAiService {
           onProvisionalAnswer?.("");
           draft = await withAiDeadline(
             () =>
-              this.model.generate(buildGeneralMedicalPrompt(input.query), onProvisionalAnswer, []),
+              this.model.generate(
+                buildGeneralMedicalPrompt(input.query, answerFormat, this.unifiedLunaPrompt),
+                onProvisionalAnswer,
+                [],
+              ),
             signal,
             this.timeouts.modelMs,
             "MODEL_TIMEOUT",

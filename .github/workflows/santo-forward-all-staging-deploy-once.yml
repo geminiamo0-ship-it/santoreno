@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: read
+  issues: write
 
 concurrency:
   group: santo-forward-all-hits-staging-20261020
@@ -86,3 +87,10 @@ jobs:
           echo "SANTO_ALL_HITS_STAGING_DEPLOYED" >> "$GITHUB_STEP_SUMMARY"
           echo "Source SHA: $(git rev-parse HEAD)" >> "$GITHUB_STEP_SUMMARY"
           echo "Production untouched; authenticated Royal Preview source-card acceptance pending." >> "$GITHUB_STEP_SUMMARY"
+      - name: Publish immutable deployment evidence to tracking issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh issue comment 195 --repo geminiamo0-ship-it/santoreno \
+            --body "✅ Santo STAGING deployed and validated: source SHA $(git rev-parse HEAD); 50-result one-call Cloudflare fast search returned medical + AnKing hits under 12s on both fixed cases; lint/typecheck/tests/build/smoke passed; Worker health=200 and unauthorized query=401. Production unchanged. Authenticated Royal Preview card acceptance remains pending."

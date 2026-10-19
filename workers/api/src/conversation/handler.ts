@@ -133,8 +133,9 @@ export function createConversationHandler(deps: ConversationHandlerDependencies 
           const draftFormat = (request.headers.get("accept") ?? "").includes("santo-draft=delta")
             ? "delta"
             : "cumulative";
-          const commentKeepalive = (request.headers.get("accept") ?? "")
-            .includes("santo-keepalive=comment");
+          const commentKeepalive = (request.headers.get("accept") ?? "").includes(
+            "santo-keepalive=comment",
+          );
           return streamProvisionalConversationAnswer(
             (onDraft) =>
               askService(client).ask(

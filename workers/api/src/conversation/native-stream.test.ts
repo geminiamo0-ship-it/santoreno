@@ -64,12 +64,18 @@ describe("native provisional conversation SSE (staging only)", () => {
     vi.useFakeTimers();
     try {
       let release!: () => void;
-      const pending = new Promise<void>((resolve) => { release = resolve; });
-      const response = streamProvisionalConversationAnswer(async (emit) => {
-        emit("## TAVR");
-        await pending;
-        return answer;
-      }, "delta", true);
+      const pending = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const response = streamProvisionalConversationAnswer(
+        async (emit) => {
+          emit("## TAVR");
+          await pending;
+          return answer;
+        },
+        "delta",
+        true,
+      );
       const reader = response.body!.getReader();
       const first = await reader.read();
       expect(new TextDecoder().decode(first.value)).toContain('"type":"draft"');

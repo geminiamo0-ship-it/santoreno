@@ -1,5 +1,12 @@
 # Santo Project Status — Living Handoff
 
+### Comprehensive Luna teaching prompt — 19 Oct 2026
+
+- Owner-approved detailed and broad medical education answers use up to 3,000 output tokens as useful, with clear explanations, comparisons, tables, and evidence synthesis across relevant libraries.
+- The single Staging-only unified instruction stays below 1,000 UTF-8 bytes; it is not a limit on medical evidence or the user's dynamic question.
+- Unified mode omits redundant citation-alias reminders but preserves server-verified `SANTO_REF_N` citation mapping, 15-source cap, 10 AMBOSS adjacent sections, image delivery, AnKing, and Qwen routing.
+- Production remains unchanged. Staging deployment and authenticated response/source-card verification are tracked in Issue #177 and PR #178.
+
 ### Cardiology AnKing Staging trial LIVE — 18 Oct 2026 (PR #166)
 
 - **Successfully deployed to `santo-api-staging` Worker** from commit `eadaf0742003e7ffdde9d7fa4767e21e87c20e1e` in [Action #39161122303](https://github.com/geminiamo0-ship-it/santoreno/actions/runs/39161122303) after passing [exact-head Verify](https://github.com/geminiamo0-ship-it/santoreno/actions/runs/39161126309). Worker Version ID `1784ab33-ea9b-45e8-b948-e1c254e032a5`; health and unauthenticated 401 both passed. **Production untouched.**

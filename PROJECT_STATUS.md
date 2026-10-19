@@ -1,5 +1,13 @@
 # Santo Project Status — Living Handoff
 
+### Full AnKing v12 one-call search — 19 Oct 2026 (Issue #189)
+
+- Owner reports full AnKing v12 index finished. The existing one-call namespace search can now select `santo-anking-step-v12` instead of the cardio-only `santo-anking-cardiology`, under Staging rollback flag `SANTO_ANKING_V12_FULL_SEARCH_V1`.
+- Seven active search instances: five approved clinical libraries + `santo-medical-images` + full AnKing. Maximum global `max_num_results=50`; only the five licensed clinical libraries contribute authoritative medical source IDs/citations.
+- Full index input validation pins **30,477 eligible notes** and **36,896 original cards**; private R2 hydration switches from 32 cardio shards to **128 full v12 shards** (`anking/v12/full/shards/shard_000.json` ... `shard_127.json`). The old cardio Find More reader remains available.
+- Original CID suggestions remain rights-gated and query-relevant. `pending_expert_review` content **must not become Luna clinical evidence or exam-memory facts**. Full AnKing is not a sixth medical citation library.
+- **Do not claim activation until** actual Cloudflare `completed>=30477, queued=0, running=0` statistics, read-only seven-instance clinical+AnKing real search, all CI tests, Staging Worker deploy/health/auth checks pass. Production untouched.
+
 ### Approved High-Yield Luna Clinical Reference style — 19 Oct 2026
 
 - Owner-approved **996-byte single unified instruction**: direct clinical answer, concise bold-led bullet points, practical numbered management steps, trustworthy cutoffs and drug names/doses, optional compact comparison tables, medically trained audience by default; depth adapts to "in detail" and broad requests without padding.

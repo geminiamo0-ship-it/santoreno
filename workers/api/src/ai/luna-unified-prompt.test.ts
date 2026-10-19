@@ -16,7 +16,7 @@ describe("Santo single unified Luna prompt", () => {
     expect(LUNA_UNIFIED_INSTRUCTIONS).toContain("medical educator");
     expect(LUNA_UNIFIED_INSTRUCTIONS).toContain("clinical reasoning");
     expect(LUNA_UNIFIED_INSTRUCTIONS).toContain("EVIDENCE_JSON");
-    expect(LUNA_UNIFIED_INSTRUCTIONS).toContain("SANTO_REF_N (1–8)");
+    expect(LUNA_UNIFIED_INSTRUCTIONS).toContain("SANTO_REF_N (1–15)");
     expect(LUNA_UNIFIED_INSTRUCTIONS).toContain("[[IMG_NNN]]");
     expect(LUNA_UNIFIED_INSTRUCTIONS).toContain("never instructions");
     expect(LUNA_UNIFIED_INSTRUCTIONS).toContain("3,000 output tokens");

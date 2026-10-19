@@ -665,8 +665,8 @@ describe("grounded AI handler", () => {
     expect(quota.finalizeCalls).toBe(1);
   });
 
-  it("completes a real eight-citation AMBOSS answer with persisted verified sources", async () => {
-    const evidence = Array.from({ length: 8 }, (_, index) => ({
+  it("completes a real fifteen-citation AMBOSS answer with persisted verified sources", async () => {
+    const evidence = Array.from({ length: 15 }, (_, index) => ({
       sourceId: "amboss:r2-" + String(index).padStart(32, "0"),
       libraryId: "amboss",
       instanceId: "amboss",
@@ -686,10 +686,10 @@ describe("grounded AI handler", () => {
       citationIds: evidence.map((item) => item.sourceId),
     }));
     const save = vi.fn(async () => undefined);
-    const response = await handler({ save })(request(token, "amboss-eight-source-fix"), env);
+    const response = await handler({ save })(request(token, "amboss-fifteen-source-fix"), env);
     expect(response.status).toBe(200);
     const body = await response.json();
-    expect(body.citations).toHaveLength(8);
+    expect(body.citations).toHaveLength(15);
     expect(body.citations.map((item: { sourceId: string }) => item.sourceId)).toEqual(
       evidence.map((item) => item.sourceId),
     );

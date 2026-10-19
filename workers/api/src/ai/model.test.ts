@@ -121,12 +121,12 @@ describe("Cloudflare Workers AI model adapter", () => {
 });
 
 describe("AMBOSS expanded evidence model source guard", () => {
-  it("accepts up to eight verified source IDs with up to eight output citations", () => {
-    const sourceIds = Array.from({ length: 8 }, (_, index) => "amboss:source-" + index);
+  it("accepts up to fifteen verified source IDs with up to fifteen output citations", () => {
+    const sourceIds = Array.from({ length: 15 }, (_, index) => "amboss:source-" + index);
     const schema = groundedSchemaForCitationIds(sourceIds);
     expect(schema.properties.citation_ids.items).toMatchObject({ enum: sourceIds });
-    expect(schema.properties.citation_ids.maxItems).toBe(8);
-    expect(() => groundedSchemaForCitationIds([...sourceIds, "amboss:source-9"])).toThrow(
+    expect(schema.properties.citation_ids.maxItems).toBe(15);
+    expect(() => groundedSchemaForCitationIds([...sourceIds, "amboss:source-16"])).toThrow(
       "Invalid verified source references",
     );
   });
@@ -471,7 +471,7 @@ describe("strict server-bound citation schema regression", () => {
           type: "array",
           items: { type: "string", enum: [...trusted] },
           minItems: 1,
-          maxItems: 8,
+          maxItems: 15,
         },
       },
     });
@@ -486,7 +486,7 @@ describe("strict server-bound citation schema regression", () => {
         },
       },
     });
-    const tooMany = Array.from({ length: 9 }, (_, index) => `amboss:source-${index}`);
+    const tooMany = Array.from({ length: 16 }, (_, index) => `amboss:source-${index}`);
     expect(() => groundedSchemaForCitationIds(tooMany)).toThrowError(
       "Invalid verified source references",
     );

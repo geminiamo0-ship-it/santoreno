@@ -1,5 +1,13 @@
 # Santo Project Status — Living Handoff
 
+### All Cloudflare search hits forwarded to Luna — 20 Oct 2026 (STAGING candidate, not yet deployed)
+
+- Owner requested removal of Santo's 5-clinical/1-AnKing post-search truncation. `SANTO_FORWARD_ALL_SEARCH_HITS_V1=true` enables passing **every valid retrieved chunk**, including all original AnKing v12 notes, in Cloudflare's merged order to **one** Luna inference. Gallery IDs remain images only, never fabricated clinical citations.
+- Cloudflare AI Search itself supports **at most 50 returned chunks** in one namespace request (verified earlier by provider 400 when 60 requested). Fast RRF remains on, native reranker stays disabled, and the call now requests 50 instead of 30. Still one AI Search call; no reindexing, extra retrieval pass or added model invocation.
+- When needed, ten original AMBOSS adjacent R2 sections can join the preserved search hits (up to 60 evidence items). The prompt accepts 60 **distinct original server-verified source IDs**, but client-facing cited sources remain capped at 15; the unified instruction now allows SANTO_REF_1 through SANTO_REF_60 and says cite at most 15. Staging only and plain Luna Markdown only: the legacy JSON citation-schema 15-ID ceiling is not widened.
+- Larger prompts can materially increase first-token latency and paid **input** tokens; earlier measured 30-result no-rerank search 2.71–3.61s vs 50-result 4.06–8.97s. This change is an owner-directed **coverage-first experiment**, not a speed optimization.
+- Source and regression tests added; exact-head CI, live verified final citations, speed/cost and Staging Worker deploy **not yet verified**. Royal Production and Santo Production unchanged; rollback by `SANTO_FORWARD_ALL_SEARCH_HITS_V1=false` + staging redeploy.
+
 ### Full AnKing v12 one-call search — 19 Oct 2026 (Issue #189)
 
 - Owner reports full AnKing v12 index finished. The existing one-call namespace search can now select `santo-anking-step-v12` instead of the cardio-only `santo-anking-cardiology`, under Staging rollback flag `SANTO_ANKING_V12_FULL_SEARCH_V1`.

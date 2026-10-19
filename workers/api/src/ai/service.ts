@@ -363,7 +363,11 @@ export class GroundedAiService {
           onProvisionalAnswer?.("");
           draft = await withAiDeadline(
             () =>
-              this.model.generate(buildGeneralMedicalPrompt(input.query, answerFormat, this.unifiedLunaPrompt), onProvisionalAnswer, []),
+              this.model.generate(
+                buildGeneralMedicalPrompt(input.query, answerFormat, this.unifiedLunaPrompt),
+                onProvisionalAnswer,
+                [],
+              ),
             signal,
             this.timeouts.modelMs,
             "MODEL_TIMEOUT",

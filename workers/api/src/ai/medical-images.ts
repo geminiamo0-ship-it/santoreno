@@ -371,7 +371,7 @@ export function medicalImagePrompt(
 ): string {
   if (!images.length) return "";
   const selected = selectMedicalImagesForPrompt(images, query);
-  const payload = (
+  const payload =
     "\nAVAILABLE_ORIGINAL_ARTICLE_IMAGES:\n" +
     JSON.stringify(
       selected.map((image) => ({
@@ -391,8 +391,7 @@ export function medicalImagePrompt(
               context_after: image.after.slice(0, 130),
             }),
       })),
-    )
-  );
+    );
   if (dataOnly) return payload;
   return (
     payload +

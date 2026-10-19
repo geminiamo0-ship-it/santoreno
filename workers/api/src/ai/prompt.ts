@@ -38,7 +38,13 @@ export function buildGroundedPrompt(
   }));
 
   if (dataOnly) {
-    return ["USER_QUESTION_JSON:", JSON.stringify(query.slice(0, MAX_QUERY_CHARS)), "", "EVIDENCE_JSON:", JSON.stringify(sources)].join("\n");
+    return [
+      "USER_QUESTION_JSON:",
+      JSON.stringify(query.slice(0, MAX_QUERY_CHARS)),
+      "",
+      "EVIDENCE_JSON:",
+      JSON.stringify(sources),
+    ].join("\n");
   }
 
   return [
@@ -83,7 +89,11 @@ export function buildGeneralMedicalPrompt(
   dataOnly = false,
 ): string {
   if (dataOnly) {
-    return ["RUNTIME_GROUNDING_MODE: GENERAL_MEDICAL_KNOWLEDGE", "USER_QUESTION_JSON:", JSON.stringify(query.slice(0, MAX_QUERY_CHARS))].join("\n");
+    return [
+      "RUNTIME_GROUNDING_MODE: GENERAL_MEDICAL_KNOWLEDGE",
+      "USER_QUESTION_JSON:",
+      JSON.stringify(query.slice(0, MAX_QUERY_CHARS)),
+    ].join("\n");
   }
   return [
     "You are Santo, a professor-grade Medical Education Copilot.",

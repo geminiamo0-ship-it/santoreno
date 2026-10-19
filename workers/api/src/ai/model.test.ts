@@ -162,7 +162,10 @@ describe("GPT-6 Luna isolated Santo staging preview", () => {
     const { LUNA_UNIFIED_INSTRUCTIONS } = await import("./luna-unified-prompt");
     expect(payload.instructions).toBe(LUNA_UNIFIED_INSTRUCTIONS);
     expect(payload.instructions).toContain('"in detail"');
-    expect(payload.instructions).toContain("3,000 output tokens when helpful");
+    expect(payload.instructions).toContain("3,000 output tokens");
+    expect(payload.instructions).toContain("clinician-level readers");
+    expect(payload.instructions).toContain("NOT lay-patient counseling");
+    expect(payload.instructions).toContain("verified doses");
     expect(payload.input).toContain("SANTO_REF_1");
     expect(payload.input).not.toContain("Only use temporary SANTO_REF_N labels");
     expect(payload.input).not.toContain("Teach, do not merely retrieve");

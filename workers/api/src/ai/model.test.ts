@@ -161,6 +161,10 @@ describe("GPT-6 Luna isolated Santo staging preview", () => {
     };
     const { LUNA_UNIFIED_INSTRUCTIONS } = await import("./luna-unified-prompt");
     expect(payload.instructions).toBe(LUNA_UNIFIED_INSTRUCTIONS);
+    expect(payload.instructions).toContain('"in detail"');
+    expect(payload.instructions).toContain("3,000 output tokens when helpful");
+    expect(payload.input).toContain("SANTO_REF_1");
+    expect(payload.input).not.toContain("Only use temporary SANTO_REF_N labels");
     expect(payload.input).not.toContain("Teach, do not merely retrieve");
     expect(payload.input).not.toContain("Illustrations are a PRIORITY");
     expect(payload.max_output_tokens).toBe(3000);
@@ -314,6 +318,10 @@ describe("Staging-only compact citation mapping", () => {
     const refs = createLunaCitationAliases("source_id: " + rawId, [rawId]);
     expect(refs.resolve("SANTO_REF_1")).toBe(rawId);
     expect(refs.prompt).not.toContain(rawId);
+    expect(refs.prompt).toContain("Only refer to evidence");
+    const unified = createLunaCitationAliases("source_id: " + rawId, [rawId], "markdown", false);
+    expect(unified.prompt).toBe("source_id: SANTO_REF_1");
+    expect(unified.resolve("SANTO_REF_1")).toBe(rawId);
   });
 
   it("leaves the legacy model's real source IDs unchanged when aliasing is off", () => {

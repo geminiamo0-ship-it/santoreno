@@ -7,7 +7,6 @@ import {
 } from "./library-catalog";
 import type {
   CombinedSearchResult,
-  AnkingSearchHit,
   GallerySearchHit,
   RetrievalPort,
   RetrievalRequest,
@@ -358,28 +357,6 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
         galleryHits.push({ imageId, score });
       }
     }
-    const ankingHits: AnkingSearchHit[] = [];
-    if (includeAnking && Array.isArray(result?.chunks)) {
-      const seen = new Set<string>();
-      for (const raw of result.chunks) {
-        const row = asRecord(raw);
-        if (
-          stringField(row, "instance_id") !==
-          (this.ankingFullV12 ? ANKING_FULL_V12_INSTANCE : ANKING_SEARCH_INSTANCE)
-        )
-          continue;
-        const item = asRecord(row?.item);
-        const key = stringField(item, "key");
-        const score = numberField(row, "score");
-        const match = key ? /(?:^|\/)(note_\d{10,16})\.json$/.exec(key) : null;
-        if (!match || score === null || score < MATCH_THRESHOLD) continue;
-        const noteId = match[1]!;
-        if (seen.has(noteId)) continue;
-        seen.add(noteId);
-        ankingHits.push({ noteId, score });
-        if (ankingHits.length >= 10) break;
-      }
-    }
     // AnKing is a licensed scientific study source, not a flashcard-generation action.
     // Reuse ONLY the chunks already returned by this SAME namespace request.
     // Preserve the five clinical references; add at most one relevant original
@@ -390,7 +367,7 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
           response,
           [{ id: "anking", instanceId: ANKING_FULL_V12_INSTANCE, title: "AnKing v12" }],
           10,
-        ).filter(item => /^(?:[^/]+\\/)*note_\\d{10,16}\\.json$/.test(item.itemKey))
+        ).filter(item => /(?:^|\/)note_\d{10,16}\.json$/.test(item.itemKey)))
       : [];
     const bestAnking = rankMedicalCandidates(
       query,

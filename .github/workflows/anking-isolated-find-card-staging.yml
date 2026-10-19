@@ -45,11 +45,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          pnpm exec prettier --write workers/api/src/ai/retrieval.ts workers/api/src/ai/retrieval.test.ts workers/api/src/ai/service.ts workers/api/src/ai/handler.ts workers/api/src/ai/amboss-adjacent.ts workers/api/src/ai/anking-topic-finder.ts workers/api/src/ai/anking-topic-finder.test.ts workers/api/src/ai/anking-topic-handler.ts
+          pnpm exec prettier --write workers/api/src/ai/retrieval.ts workers/api/src/ai/retrieval.test.ts workers/api/src/ai/service.ts workers/api/src/ai/handler.ts workers/api/src/ai/amboss-adjacent.ts workers/api/src/ai/anking-topic-finder.ts workers/api/src/ai/anking-topic-finder.test.ts workers/api/src/ai/anking-topic-handler.ts workers/api/src/library/reader.ts
           if ! git diff --quiet; then
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add workers/api/src/ai/retrieval.ts workers/api/src/ai/retrieval.test.ts workers/api/src/ai/service.ts workers/api/src/ai/handler.ts workers/api/src/ai/amboss-adjacent.ts workers/api/src/ai/anking-topic-finder.ts workers/api/src/ai/anking-topic-finder.test.ts workers/api/src/ai/anking-topic-handler.ts
+            git add workers/api/src/ai/retrieval.ts workers/api/src/ai/retrieval.test.ts workers/api/src/ai/service.ts workers/api/src/ai/handler.ts workers/api/src/ai/amboss-adjacent.ts workers/api/src/ai/anking-topic-finder.ts workers/api/src/ai/anking-topic-finder.test.ts workers/api/src/ai/anking-topic-handler.ts workers/api/src/library/reader.ts
             git commit -m "style(staging): format isolated Anki CID search and licensed scientific citations"
             git push origin HEAD:feat/anking-reference-isolated-find-card-20261019
           fi
@@ -81,7 +81,6 @@ jobs:
           grep -Fq 'const ANKING_FULL_V12_INSTANCE = "santo-anking-step-v12";' workers/api/src/ai/retrieval.ts
           grep -Fq 'const FULL_V12_SHARD_COUNT = 128;' workers/api/src/ai/anking-flashcards.ts
           grep -Fq 'const INDEX_KEY = "anking/v12/full/topic-index-v1.json";' workers/api/src/ai/anking-topic-finder.ts
-          grep -Fq 'no cards' /dev/null || true
           grep -Fq 'export const LUNA_MAX_OUTPUT_TOKENS = 3_000;' workers/api/src/ai/model.ts
           grep -Fq 'SANTO_AI_SEARCH_SINGLE_REQUEST_V1 = "true"' workers/api/wrangler.toml
           test -n "${CLOUDFLARE_ACCOUNT_ID:-}"

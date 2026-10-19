@@ -7,8 +7,9 @@ import {
 
 describe("Santo clinician-level unified Luna instruction", () => {
   it("stays under the strict 1,000 UTF-8 byte instruction ceiling", () => {
-    expect(new TextEncoder().encode(LUNA_UNIFIED_INSTRUCTIONS).byteLength)
-      .toBeLessThanOrEqual(LUNA_UNIFIED_MAX_INSTRUCTION_BYTES);
+    expect(new TextEncoder().encode(LUNA_UNIFIED_INSTRUCTIONS).byteLength).toBeLessThanOrEqual(
+      LUNA_UNIFIED_MAX_INSTRUCTION_BYTES,
+    );
     expect(LUNA_UNIFIED_MAX_INSTRUCTION_BYTES).toBe(1000);
   });
 

@@ -256,24 +256,15 @@ export class GroundedAiService {
           galleryImagesPromise,
         ]);
         if (imageDiagnostics) {
-              console.info("santo_runtime_stage_ms", {
-                stage: "image_hydration",
-                milliseconds: Math.round(performance.now() - imagesStartedAt),
-              });
-            }
-            return images;
-          }),
-          galleryImagesPromise.then((images) => {
-            if (imageDiagnostics) {
-              console.info("santo_runtime_stage_ms", {
-                stage: "gallery_hydration",
-                milliseconds: Math.round(performance.now() - galleryStartedAt),
-              });
-            }
-            return images;
-          }),
-          ankingPromise,
-        ]);
+          console.info("santo_runtime_stage_ms", {
+            stage: "image_hydration",
+            milliseconds: Math.round(performance.now() - imagesStartedAt),
+          });
+          console.info("santo_runtime_stage_ms", {
+            stage: "gallery_hydration",
+            milliseconds: Math.round(performance.now() - galleryStartedAt),
+          });
+        }
         if (imageDiagnostics) {
           console.info("santo_luna_image_pipeline", {
             phase: "before_model",

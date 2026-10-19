@@ -70,35 +70,53 @@ function terms(query: string): string[] {
   ].slice(0, 20);
 }
 
+/** The clinical topic always wins over a facet such as treatment or diagnosis.
+ * The facet reorders matched disease notes; it must not introduce unrelated
+ * diseases just because they also discuss management.
+ */
+const FACET_TERMS = new Set(
+  "treatment management therapy diagnosis diagnostic pathophysiology pharmacology prevention monitoring complications prognosis surgery surgical intervention interventions imaging investigations tests testing".split(" "),
+);
+
 function matchedNotes(index: TopicIndex, query: string): number[] {
   const tokens = terms(query);
   if (!tokens.length) return [];
-  const score = new Map<number, number>();
-  const matches = new Map<number, number>();
+  const core = tokens.filter(token => !FACET_TERMS.has(token));
+  const weight = new Map<number, number>();
+  const coreMatches = new Map<number, number>();
+  const facetMatches = new Map<number, number>();
   for (const token of tokens) {
     const covered = new Set<number>();
-    for (const [postings, weight] of [
+    for (const [postings, score] of [
       [index.topics, 8],
       [index.facts, 1],
     ] as const) {
       const ids = postings[token];
-      // Prevent generic terms from swamping more specific disease concepts.
       if (!Array.isArray(ids) || ids.length > 20_000) continue;
       for (const id of ids) {
         if (!Number.isSafeInteger(id) || id <= 0) continue;
-        score.set(id, (score.get(id) ?? 0) + weight);
+        weight.set(id, (weight.get(id) ?? 0) + score);
         covered.add(id);
       }
     }
-    for (const id of covered) matches.set(id, (matches.get(id) ?? 0) + 1);
+    const count = core.includes(token) ? coreMatches : facetMatches;
+    for (const id of covered) count.set(id, (count.get(id) ?? 0) + 1);
   }
-  // Prefer all disease terms: e.g. 'aortic stenosis' before single-token matches.
-  const maxMatch = Math.max(0, ...matches.values());
-  const minMatch = tokens.length > 1 ? Math.min(2, maxMatch) : 1;
-  return [...score.entries()]
-    .filter(([id]) => (matches.get(id) ?? 0) >= minMatch)
-    .sort((a, b) => matches.get(b[0])! - matches.get(a[0])! || b[1] - a[1] || a[0] - b[0])
-    .map(([id]) => id);
+  const candidates = [...weight.keys()];
+  // Require all disease terms if that produces any results; otherwise use
+  // best disease-term coverage as an inexpensive spelling/fallback strategy.
+  const bestCoreMatch = Math.max(0, ...coreMatches.values());
+  const strict = core.length > 0 && candidates.some(id => coreMatches.get(id) === core.length);
+  const requiredCoreMatch = core.length === 0 ? 0 : strict ? core.length : bestCoreMatch;
+  return candidates
+    .filter(id => core.length === 0 ? (facetMatches.get(id) ?? 0) > 0 :
+      requiredCoreMatch > 0 && (coreMatches.get(id) ?? 0) >= requiredCoreMatch)
+    .sort((a, b) =>
+      (facetMatches.get(b) ?? 0) - (facetMatches.get(a) ?? 0) ||
+      (coreMatches.get(b) ?? 0) - (coreMatches.get(a) ?? 0) ||
+      (weight.get(b) ?? 0) - (weight.get(a) ?? 0) ||
+      a - b,
+    );
 }
 
 export interface FindMoreCardsResult {

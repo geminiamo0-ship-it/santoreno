@@ -42,7 +42,7 @@ export function streamProvisionalConversationAnswer(
       // remain unchanged. This keeps quiet provider periods from looking dead.
       if (commentKeepalive) {
         heartbeat = setInterval(() => {
-          if (!canceled) controller.enqueue(encoder.encode(": santo-keepalive\\n\\n"));
+          if (!canceled) controller.enqueue(encoder.encode(": santo-keepalive\n\n"));
         }, 12_000);
       }
       void (async () => {

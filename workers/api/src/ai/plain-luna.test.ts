@@ -18,14 +18,14 @@ function sse(text: string): ReadableStream<Uint8Array> {
 }
 
 describe("staging single-pass plain-Luna citation contract", () => {
-  it("maps eight real inline references to their verified retrieval IDs without dropping claims", () => {
-    const ids = Array.from({ length: 8 }, (_, index) => "amboss:r2-" + index);
+  it("maps fifteen real inline references to their verified retrieval IDs without dropping claims", () => {
+    const ids = Array.from({ length: 15 }, (_, index) => "amboss:r2-" + index);
     const answer = ids
       .map((_, index) => "Finding " + index + " [[" + (index + 1) + "]].")
       .join(" ");
     const result = parsePlainLunaAnswer(answer, ids);
     expect(result.citationIds).toEqual(ids);
-    expect(result.answer).toContain("Finding 7 [8].");
+    expect(result.answer).toContain("Finding 14 [15].");
     expect(result.answer).not.toContain("SANTO_REF");
   });
 

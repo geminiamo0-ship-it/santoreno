@@ -1,4 +1,5 @@
 name: Verify Comprehensive Luna Prompt and Deploy — Santo Staging
+# Rerun after precise source-safety wording assertion update
 
 on:
   push:

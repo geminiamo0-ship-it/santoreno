@@ -75,7 +75,7 @@ describe("native provisional conversation SSE (staging only)", () => {
       expect(new TextDecoder().decode(first.value)).toContain('"type":"draft"');
       await vi.advanceTimersByTimeAsync(12_000);
       const keepalive = await reader.read();
-      expect(new TextDecoder().decode(keepalive.value)).toBe(": santo-keepalive\\n\\n");
+      expect(new TextDecoder().decode(keepalive.value)).toBe(": santo-keepalive\n\n");
       release();
       const complete = await reader.read();
       expect(new TextDecoder().decode(complete.value)).toContain('"type":"complete"');

@@ -17,6 +17,7 @@ import { ConversationServiceError } from "./service";
 export function streamProvisionalConversationAnswer(
   work: (onDraft: (text: string) => void) => Promise<ConversationAnswer>,
   draftFormat: "cumulative" | "delta" = "cumulative",
+  commentKeepalive = false,
 ): Response {
   const encoder = new TextEncoder();
   let canceled = false;
@@ -24,6 +25,7 @@ export function streamProvisionalConversationAnswer(
   let count = 0;
   const startedAt = performance.now();
   let firstDraftRecorded = false;
+  let heartbeat: ReturnType<typeof setInterval> | undefined;
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
       const send = (event: ConversationProgressEvent): void => {
@@ -35,6 +37,14 @@ export function streamProvisionalConversationAnswer(
           ),
         );
       };
+      // SSE comments are not typed events and carry no user/model content.
+      // Only browsers which explicitly opt in receive them; legacy parsers
+      // remain unchanged. This keeps quiet provider periods from looking dead.
+      if (commentKeepalive) {
+        heartbeat = setInterval(() => {
+          if (!canceled) controller.enqueue(encoder.encode(": santo-keepalive\\n\\n"));
+        }, 12_000);
+      }
       void (async () => {
         try {
           const result = await work((text) => {
@@ -69,18 +79,25 @@ export function streamProvisionalConversationAnswer(
             error instanceof GroundedAiError || error instanceof ConversationServiceError
               ? error.code
               : "SANTO_UNAVAILABLE";
+          console.warn("santo_native_sse_failed", {
+            code,
+            milliseconds: Math.round(performance.now() - startedAt),
+            receivedDraft: firstDraftRecorded,
+          });
           // Never leak provider output, stack traces or authorization details.
           send({
             type: "error",
             code: /^[A-Z0-9_]{3,90}$/.test(code) ? code : "SANTO_UNAVAILABLE",
           });
         } finally {
+          if (heartbeat) clearInterval(heartbeat);
           if (!canceled) controller.close();
         }
       })();
     },
     cancel() {
       canceled = true;
+      if (heartbeat) clearInterval(heartbeat);
     },
   });
 

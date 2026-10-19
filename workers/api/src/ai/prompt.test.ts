@@ -193,8 +193,21 @@ describe("deterministic grounded prompt builder", () => {
     });
   });
 
+
+  it("forwards all fifty search hits and ten AMBOSS neighbors to Luna without truncating source identities", () => {
+    const items = Array.from({ length: 60 }, (_, i) => ({
+      ...evidence,
+      sourceId: "mrcp:chunk-" + (i + 1),
+      text: "Verified clinical material " + (i + 1),
+    }));
+    const parsed = promptSections(buildGroundedPrompt("Explain aortic stenosis", items, "markdown", true));
+    expect(parsed.sources).toHaveLength(60);
+    expect((parsed.sources[0] as { source_id: string }).source_id).toBe("mrcp:chunk-1");
+    expect((parsed.sources[59] as { source_id: string }).source_id).toBe("mrcp:chunk-60");
+  });
+
   it("fails closed instead of silently dropping additional or unbounded source identifiers", () => {
-    expect(() => buildGroundedPrompt("test", Array(16).fill(evidence))).toThrowError(
+    expect(() => buildGroundedPrompt("test", Array(61).fill(evidence))).toThrowError(
       "Retrieved evidence exceeds prompt limits",
     );
     expect(() =>

@@ -1,5 +1,5 @@
 name: Activate Isolated Find the Card + AnKing Scientific References — Staging
-# Owner-confirmed AnKing index is complete: revalidate existing R2 index, never reindex it during ranking-only releases.
+# Owner-confirmed AnKing index complete: rerun isolated CID lookup typecheck and R2 disease-facet smoke without reindexing.
 
 on:
   push:

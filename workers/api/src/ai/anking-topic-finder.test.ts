@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
 import { findMoreAnkingCards } from "./anking-topic-finder";
 import type { R2BucketLike } from "../runtime/bindings";
 
@@ -68,5 +69,38 @@ describe("fully isolated original CID Find the Card search", () => {
 
   it("rejects unsupported cursor positions rather than reading arbitrary R2 keys", async () => {
     await expect(findMoreAnkingCards(bucket(), "aortic stenosis", 40001)).rejects.toThrow();
+  });
+});
+
+/** Optional post-ingest smoke against the ACTUAL private full-v12 R2 topic index.
+ * CI supplies SANTO_ANKING_TOPIC_INDEX_FILE after read-only R2 download.
+ * No model/AI Search/API tokens, cards rendering, tenant session or quota.
+ */
+describe("full v12 real R2 topic results (CI opt-in)", () => {
+  const file = process.env.SANTO_ANKING_TOPIC_INDEX_FILE;
+  it.skipIf(!file)("resolves real disease + management topics into original Anki CIDs", async () => {
+    const raw = readFileSync(file!, "utf8");
+    const store: R2BucketLike = {
+      get: vi.fn(async (key: string) => key === "anking/v12/full/topic-index-v1.json"
+        ? { text: async () => raw } : null),
+      put: vi.fn(async () => undefined),
+      delete: vi.fn(async () => undefined),
+    };
+    const samples = ["aortic stenosis", "treatment of aortic stenosis", "sarcoidosis"];
+    for (const topic of samples) {
+      const first = await findMoreAnkingCards(store, topic, 0);
+      expect(first.total, topic).toBeGreaterThan(0);
+      expect(first.cardIds.length, topic).toBeGreaterThan(0);
+      expect(first.cardIds.length, topic).toBeLessThanOrEqual(20);
+      expect(first.ankiQuery).toBe(first.cardIds.map(id => `cid:${id}`).join(" OR "));
+      const second = first.nextCursor !== null
+        ? await findMoreAnkingCards(store, topic, first.nextCursor)
+        : { cardIds: [] };
+      expect(new Set([...first.cardIds, ...second.cardIds]).size).toBe(
+        first.cardIds.length + second.cardIds.length,
+      );
+      console.info("REAL_ANKING_FIND_THE_CARD_TOPIC_PASSED", topic, "total=", first.total);
+    }
+    expect(store.put).not.toHaveBeenCalled();
   });
 });

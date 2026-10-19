@@ -27,6 +27,13 @@ const MERGED_SEARCH_CANDIDATES = 25;
 const WITH_GALLERY_MERGED_CANDIDATES = 45;
 // Sixth index participates in the SAME Cloudflare namespace-level search call.
 const IMAGE_SEARCH_INSTANCE = "santo-medical-images";
+// Separate licensed educational exam-memory index; never clinical citation evidence.
+const ANKING_SEARCH_INSTANCE = "santo-anking-cardiology";
+const ANKING_FULL_V12_INSTANCE = "santo-anking-step-v12";
+const WITH_ANKING_MERGED_CANDIDATES = 50;
+// Verified on real staging with 4 representative clinical queries: lower-latency
+// first-pass RRF retrieval without expensive 50-result native reranking.
+const STAGING_FAST_SEARCH_CANDIDATES = 30;
 const MATCH_THRESHOLD = 0.4;
 const MAX_CHUNK_CHARS = 5000;
 
@@ -187,6 +194,10 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
     private readonly smallQueryModel?: WorkersAiLike,
     private readonly intentRoutingV1 = false,
     private readonly singleMultiInstanceSearchV1 = false,
+    private readonly ankingCardsV1 = false,
+    private readonly ankingFullV12 = false,
+    private readonly fastOneSearchV1 = false,
+    private readonly forwardAllSearchHitsV1 = false,
   ) {
     this.catalog = catalog ?? new AiSearchNamespaceLibraryCatalog(namespace);
   }
@@ -224,7 +235,13 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
 
     try {
       // Begin catalog lookup before the model rewrite to overlap both network calls.
-      const catalogPromise = this.catalog.list();
+      const catalogStartedAt = performance.now();
+      const catalogPromise = this.catalog.list().finally(() => {
+        console.info("santo_search_phase_ms", {
+          phase: "catalog",
+          milliseconds: Math.round(performance.now() - catalogStartedAt),
+        });
+      });
       const currentTopicQuery = focusedSearchQuery(request.query);
       const queryPromise = request.preparedQuery
         ? Promise.resolve(request.preparedQuery)
@@ -240,6 +257,7 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
             selectedLibraries,
             searchQuery,
             includeGallery && request.libraryId === null,
+            this.ankingCardsV1 && request.libraryId === null,
           );
         return {
           evidence: await this.retrieveMedicalV2(currentTopicQuery, selectedLibraries, searchQuery),
@@ -290,30 +308,52 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
     libraries: readonly LibraryCatalogEntry[],
     searchQuery: string,
     includeGallery = false,
+    includeAnking = false,
   ): Promise<CombinedSearchResult> {
-    const response = await this.namespace!.search({
-      query: searchQuery,
-      ai_search_options: {
-        instance_ids: [
-          ...libraries.map((library) => library.instanceId),
-          ...(includeGallery ? [IMAGE_SEARCH_INSTANCE] : []),
-        ],
-        retrieval: {
-          retrieval_type: "hybrid",
-          match_threshold: MATCH_THRESHOLD,
-          max_num_results: includeGallery
-            ? WITH_GALLERY_MERGED_CANDIDATES
-            : MERGED_SEARCH_CANDIDATES,
-          return_on_failure: true,
-          fusion_method: "rrf",
+    const searchStartedAt = performance.now();
+    let response: unknown;
+    try {
+      response = await this.namespace!.search({
+        query: searchQuery,
+        ai_search_options: {
+          instance_ids: [
+            ...libraries.map((library) => library.instanceId),
+            ...(includeGallery ? [IMAGE_SEARCH_INSTANCE] : []),
+            ...(includeAnking
+              ? [this.ankingFullV12 ? ANKING_FULL_V12_INSTANCE : ANKING_SEARCH_INSTANCE]
+              : []),
+          ],
+          retrieval: {
+            retrieval_type: "hybrid",
+            match_threshold: MATCH_THRESHOLD,
+            max_num_results: this.forwardAllSearchHitsV1
+              ? WITH_ANKING_MERGED_CANDIDATES
+              : this.fastOneSearchV1
+                ? STAGING_FAST_SEARCH_CANDIDATES
+                : includeAnking
+                  ? WITH_ANKING_MERGED_CANDIDATES
+                  : includeGallery
+                    ? WITH_GALLERY_MERGED_CANDIDATES
+                    : MERGED_SEARCH_CANDIDATES,
+            return_on_failure: true,
+            fusion_method: "rrf",
+          },
+          reranking: {
+            enabled: !this.fastOneSearchV1,
+            ...(this.fastOneSearchV1 ? {} : { model: "@cf/baai/bge-reranker-base" }),
+          },
+          query_rewrite: { enabled: false },
         },
-        reranking: {
-          enabled: true,
-          model: "@cf/baai/bge-reranker-base",
-        },
-        query_rewrite: { enabled: false },
-      },
-    });
+      });
+    } finally {
+      // Can finish after withAiDeadline has timed out: that distinction is
+      // useful for diagnosing provider tail latency. Never log query text.
+      console.info("santo_search_phase_ms", {
+        phase: "namespace_search",
+        milliseconds: Math.round(performance.now() - searchStartedAt),
+        fast: this.fastOneSearchV1,
+      });
+    }
     const result = asRecord(response);
     if (Array.isArray(result?.errors) && result.errors.length > 0) {
       throw new GroundedAiError(502, "SEARCH_FAILED", "Multi-instance search partially failed");
@@ -321,7 +361,15 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
     const candidates = evidenceFromSearch(
       response,
       libraries,
-      includeGallery ? WITH_GALLERY_MERGED_CANDIDATES : MERGED_SEARCH_CANDIDATES,
+      this.forwardAllSearchHitsV1
+        ? WITH_ANKING_MERGED_CANDIDATES
+        : this.fastOneSearchV1
+          ? STAGING_FAST_SEARCH_CANDIDATES
+          : includeAnking
+            ? WITH_ANKING_MERGED_CANDIDATES
+            : includeGallery
+              ? WITH_GALLERY_MERGED_CANDIDATES
+              : MERGED_SEARCH_CANDIDATES,
     ).map((evidence, position) => ({ evidence, position }));
     const galleryHits: GallerySearchHit[] = [];
     if (includeGallery && Array.isArray(result?.chunks)) {
@@ -340,9 +388,63 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
         galleryHits.push({ imageId, score });
       }
     }
+    // AnKing is a licensed scientific study source, not a flashcard-generation action.
+    // Reuse ONLY the chunks already returned by this SAME namespace request.
+    // Preserve the five clinical references; add at most one relevant original
+    // AnKing excerpt with a canonical AI Search source identity for [[N]].
+    const clinicalEvidence = rankMedicalCandidates(query, candidates, MAX_RESULTS);
+    const ankingEvidence =
+      includeAnking && this.ankingFullV12
+        ? evidenceFromSearch(
+            response,
+            [{ id: "anking", instanceId: ANKING_FULL_V12_INSTANCE, title: "AnKing v12" }],
+            this.forwardAllSearchHitsV1 ? WITH_ANKING_MERGED_CANDIDATES : 10,
+          ).filter((item) => /(?:^|\/)note_\d{10,16}\.json$/.test(item.itemKey))
+        : [];
+    if (this.forwardAllSearchHitsV1) {
+      // Preserve EVERY valid original chunk across clinical libraries and
+      // AnKing, in Cloudflare's actual merged response order. Deduplicate only
+      // identical server-owned source IDs; Gallery remains illustration-only.
+      // The upstream Cloudflare API itself caps this ONE request at 50 hits.
+      const byId = new Map(
+        [...candidates.map(({ evidence }) => evidence), ...ankingEvidence].map((item) => [
+          item.sourceId,
+          item,
+        ]),
+      );
+      const forwarded: RetrievedEvidence[] = [];
+      for (const rawChunk of Array.isArray(result?.chunks) ? result.chunks : []) {
+        const chunk = asRecord(rawChunk);
+        const instanceId = stringField(chunk, "instance_id");
+        const chunkId = stringField(chunk, "id");
+        if (!instanceId || !chunkId) continue;
+        const sourceId = `${instanceId}:${chunkId}`;
+        const found = byId.get(sourceId);
+        if (!found) continue;
+        forwarded.push(found);
+        byId.delete(sourceId);
+      }
+      console.info("santo_forwarded_search_evidence", {
+        medical: forwarded.filter((item) => item.libraryId !== "anking").length,
+        anking: forwarded.filter((item) => item.libraryId === "anking").length,
+        gallery: galleryHits.length,
+      });
+      return { evidence: forwarded, galleryHits };
+    }
+    const bestAnking = rankMedicalCandidates(
+      query,
+      ankingEvidence.map((evidence, position) => ({ evidence, position })),
+      1,
+    ).map((item) => ({
+      ...item,
+      title:
+        "AnKing v12 — " + (item.title === "Untitled" ? "High-Yield Medical Notes" : item.title),
+    }));
     return {
-      evidence: rankMedicalCandidates(query, candidates, MAX_RESULTS),
+      evidence: [...clinicalEvidence, ...bestAnking],
       galleryHits,
+      // Cards never hydrate on the Luna path. Find the Card owns a separate
+      // authenticated R2-only endpoint with independent lifecycle and quota.
     };
   }
 

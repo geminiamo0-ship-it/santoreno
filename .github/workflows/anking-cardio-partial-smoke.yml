@@ -1,0 +1,45 @@
+name: Cardiology Partial Search Live Smoke
+
+on:
+  push:
+    branches:
+      - experiment/anking-cardiology-partial-staging-20261018
+    paths:
+      - .github/workflows/anking-cardio-partial-smoke.yml
+
+permissions:
+  contents: read
+
+jobs:
+  cloudflare-readonly-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Confirm partial Cardiology index has usable content
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${CLOUDFLARE_ACCOUNT_ID:-}"
+          test -n "${CLOUDFLARE_API_TOKEN:-}"
+          stats="$(curl --fail --silent --show-error --retry 3 -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/ai-search/namespaces/default/instances/santo-anking-cardiology/stats")"
+          jq -e '.success == true' <<< "$stats" >/dev/null
+          jq -c '.result | {completed,queued,running,error,degraded}' <<< "$stats"
+          completed="$(jq -r '.result.completed // 0' <<< "$stats")"
+          test "$completed" -gt 20
+          echo "Partial Cardiology available ($completed processed documents)"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Verify clinical and AnKing results in one real namespace call
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install requests==2.32.3
+          python scripts/smoke_anking_seven_index_staging.py

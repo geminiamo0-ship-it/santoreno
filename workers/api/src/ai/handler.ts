@@ -14,6 +14,7 @@ import { AI_STAGE_TIMEOUTS } from "./deadline";
 import { AiSearchNamespaceLibraryCatalog } from "./library-catalog";
 import { createGroundedModel } from "./model";
 import { CloudflareAiSearchRetrieval } from "./retrieval";
+import { AmbossAdjacentRetrieval } from "./amboss-adjacent";
 import { CloudflareGalleryImageRetrieval } from "./image-gallery";
 import { GroundedAiService } from "./service";
 import { streamValidatedGroundedAnswer } from "./stream";
@@ -72,7 +73,7 @@ export function createGroundedAiHandler(dependencies: GroundedAiHandlerDependenc
           .map((id) => id.trim())
           .filter((id) => /^[a-z0-9][a-z0-9-]{0,63}$/.test(id)),
       );
-      return new CloudflareAiSearchRetrieval(
+      const retrieval = new CloudflareAiSearchRetrieval(
         env.AI_SEARCH,
         new AiSearchNamespaceLibraryCatalog(env.AI_SEARCH, allowed),
         env.SANTO_ENV === "staging" && env.SANTO_MEDICAL_RETRIEVAL_V2 === "true",
@@ -80,7 +81,22 @@ export function createGroundedAiHandler(dependencies: GroundedAiHandlerDependenc
         env.AI,
         env.SANTO_ENV === "staging" && env.SANTO_QWEN_ROUTING_V1 === "true",
         env.SANTO_ENV === "staging" && env.SANTO_AI_SEARCH_SINGLE_REQUEST_V1 === "true",
+        env.SANTO_ENV === "staging" &&
+          env.SANTO_ANKING_CARDS_V1 === "true" &&
+          env.SANTO_ANKING_RIGHTS_CLEARED_V1 === "true" &&
+          env.SANTO_AI_SEARCH_SINGLE_REQUEST_V1 === "true",
+        env.SANTO_ENV === "staging" && env.SANTO_ANKING_V12_FULL_SEARCH_V1 === "true",
+        env.SANTO_ENV === "staging" && env.SANTO_SEARCH_FAST_PATH_V1 === "true",
+        env.SANTO_ENV === "staging" &&
+          env.SANTO_LUNA_PREVIEW === "true" &&
+          env.SANTO_PLAIN_TEXT_LUNA_V1 === "true" &&
+          env.SANTO_FORWARD_ALL_SEARCH_HITS_V1 === "true",
       );
+      return env.SANTO_ENV === "staging" &&
+        env.SANTO_AMBOSS_ADJACENT_R2_V1 === "true" &&
+        env.CONTENT_BUCKET
+        ? new AmbossAdjacentRetrieval(retrieval, env.CONTENT_BUCKET)
+        : retrieval;
     });
   const modelFactory = dependencies.modelFactory ?? createGroundedModel;
   const sourceStoreFactory =
@@ -141,6 +157,11 @@ export function createGroundedAiHandler(dependencies: GroundedAiHandlerDependenc
           env.CONTENT_BUCKET
           ? new CloudflareGalleryImageRetrieval(env.CONTENT_BUCKET)
           : undefined,
+        undefined, // Find the Card is isolated, never requested by Luna.
+        env.SANTO_ENV === "staging" &&
+          env.SANTO_LUNA_PREVIEW === "true" &&
+          env.SANTO_PLAIN_TEXT_LUNA_V1 === "true" &&
+          env.SANTO_LUNA_UNIFIED_PROMPT_V1 === "true",
       ).query(session, parsed.data, request.signal, onProvisionalAnswer);
 
       const validated = GroundedAiQueryResponseSchema.parse(response);

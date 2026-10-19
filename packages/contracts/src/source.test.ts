@@ -5,6 +5,7 @@ import {
   TrustedSourceDetailResponseSchema,
   TrustedSourceMediaManifestEntrySchema,
   TrustedSourceMetadataSchema,
+  VerifiedSourceSnapshotSchema,
 } from "./source";
 
 const source = {
@@ -27,6 +28,38 @@ const image = {
 };
 
 describe("trusted source contracts", () => {
+  it("persists fifteen authentic AMBOSS source references, never a sixteenth or forged source", () => {
+    const sources = Array.from({ length: 15 }, (_, index) => ({
+      ...source,
+      sourceId: "amboss:r2-" + String(index).padStart(32, "0"),
+      libraryId: "amboss",
+      instanceId: "amboss",
+      itemKey:
+        "medical-search/v1/amboss/unnamed-2746/s-" + String(index + 15).padStart(4, "0") + ".md",
+      page: null,
+    }));
+    const snapshot = {
+      tenantId: "123e4567-e89b-42d3-a456-426614174000",
+      externalUserId: "student-1",
+      messageId: "123e4567-e89b-42d3-a456-426614174001",
+      createdAt: 1,
+      sources,
+    };
+    expect(VerifiedSourceSnapshotSchema.safeParse(snapshot).success).toBe(true);
+    expect(
+      VerifiedSourceSnapshotSchema.safeParse({
+        ...snapshot,
+        sources: [...sources, { ...sources[0], sourceId: "amboss:r2-other" }],
+      }).success,
+    ).toBe(false);
+    expect(
+      VerifiedSourceSnapshotSchema.safeParse({
+        ...snapshot,
+        sources: [...sources.slice(0, 14), { ...sources[14], sourceId: "usmle:forged" }],
+      }).success,
+    ).toBe(false);
+  });
+
   it("accepts stable metadata from a verified search citation", () => {
     expect(TrustedSourceMetadataSchema.parse(source)).toEqual(source);
     expect(TrustedSourceDetailResponseSchema.parse({ source, images: [image] }).images).toEqual([

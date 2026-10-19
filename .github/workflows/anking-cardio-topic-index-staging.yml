@@ -1,0 +1,66 @@
+name: AnKing Cardiology Topic Index R2 Staging
+
+on:
+  push:
+    branches:
+      - feat/anking-card-data-viewer-20261018
+    paths:
+      - .github/workflows/anking-cardio-topic-index-staging.yml
+
+permissions:
+  contents: read
+  checks: read
+
+concurrency:
+  group: santo-cardiology-r2-topic-index
+  cancel-in-progress: false
+
+jobs:
+  upload-topic-index:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require passing repository tests on exact commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 90); do
+            checks="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/check-runs")"
+            result="$(jq -r '[.check_runs[]|select(.name=="verify")|.conclusion]|map(select(. != null))|.[0]//""' <<<"$checks")"
+            if [[ "$result" == "success" ]]; then break; fi
+            if [[ "$result" == "failure" || "$result" == "cancelled" ]]; then exit 1; fi
+            if [[ "$attempt" == 90 ]]; then echo "Missing passing Verify"; exit 1; fi
+            sleep 10
+          done
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Download and validate exact original archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install requests==2.32.3
+          python scripts/ingest_anking_cardiology_staging.py --download --archive /tmp/anking-cardio-original.zip --output /tmp/anking-source-check
+          python scripts/build_anking_cardio_topic_index.py --source /tmp/anking-cardio-original.zip --output /tmp/anking-topic-index.json
+          test "$(stat -c %s /tmp/anking-topic-index.json)" -gt 100000
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: |
+          corepack enable
+          pnpm install --frozen-lockfile
+      - name: Write one small private R2 topic index only
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${CLOUDFLARE_ACCOUNT_ID:-}"
+          test -n "${CLOUDFLARE_API_TOKEN:-}"
+          pnpm --dir workers/api exec wrangler r2 object put "santo-content-staging/anking/v3/cardiology/topic-index-v1.json" --file /tmp/anking-topic-index.json --remote
+          pnpm --dir workers/api exec wrangler r2 object get "santo-content-staging/anking/v3/cardiology/topic-index-v1.json" --file /tmp/anking-topic-index-readback.json --remote
+          cmp /tmp/anking-topic-index-readback.json /tmp/anking-topic-index.json
+          echo 'ANKING_CARDIO_TOPIC_INDEX_R2_VERIFIED'

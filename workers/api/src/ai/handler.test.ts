@@ -336,6 +336,23 @@ describe("grounded AI handler", () => {
     expect(quota.finalizeCalls).toBe(1);
   });
 
+  it("removes old instructional blocks from the source prompt in unified staging", async () => {
+    env.SANTO_ENV = "staging";
+    env.SANTO_LUNA_PREVIEW = "true";
+    env.SANTO_SINGLE_PASS_GENERATION_V1 = "true";
+    env.SANTO_PLAIN_TEXT_LUNA_V1 = "true";
+    env.SANTO_LUNA_UNIFIED_PROMPT_V1 = "true";
+    const response = await handler()(request(token, "unified-1k-staging"), env);
+    expect(response.status).toBe(200);
+    const prompt = vi.mocked(model.generate).mock.calls[0]?.[0] as string;
+    expect(prompt).toContain("USER_QUESTION_JSON");
+    expect(prompt).toContain("EVIDENCE_JSON");
+    expect(prompt).not.toContain("Teach, do not merely retrieve");
+    expect(prompt).not.toContain("OUTPUT CONTRACT");
+    expect(prompt).not.toContain("citation markers");
+    expect(quota.used).toBe(1);
+  });
+
   it("passes one consistent sourced Markdown contract to staging Luna", async () => {
     env.SANTO_ENV = "staging";
     env.SANTO_LUNA_PREVIEW = "true";
@@ -646,6 +663,43 @@ describe("grounded AI handler", () => {
     expect(save).not.toHaveBeenCalled();
     expect(model.generate).toHaveBeenCalledTimes(1);
     expect(quota.finalizeCalls).toBe(1);
+  });
+
+  it("completes a real fifteen-citation AMBOSS answer with persisted verified sources", async () => {
+    const evidence = Array.from({ length: 15 }, (_, index) => ({
+      sourceId: "amboss:r2-" + String(index).padStart(32, "0"),
+      libraryId: "amboss",
+      instanceId: "amboss",
+      itemKey:
+        "medical-search/v1/amboss/unnamed-2746/s-" + String(index + 15).padStart(4, "0") + ".md",
+      title: "Aortic valve stenosis",
+      page: null,
+      section: index === 0 ? "Treatment" : "Approach",
+      text: "Verified AMBOSS aortic stenosis teaching for section " + index,
+      score: index === 0 ? 0.91 : 0,
+    }));
+    retrieval.retrieve = vi.fn(async () => evidence);
+    model.generate = vi.fn(async () => ({
+      answer:
+        "Severity and management " +
+        evidence.map((_, index) => "[[" + (index + 1) + "]]").join(" "),
+      citationIds: evidence.map((item) => item.sourceId),
+    }));
+    const save = vi.fn(async () => undefined);
+    const response = await handler({ save })(request(token, "amboss-fifteen-source-fix"), env);
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.citations).toHaveLength(15);
+    expect(body.citations.map((item: { sourceId: string }) => item.sourceId)).toEqual(
+      evidence.map((item) => item.sourceId),
+    );
+    expect(save).toHaveBeenCalledOnce();
+    expect(save).toHaveBeenCalledWith(
+      expect.any(Object),
+      evidence.map((item) => expect.objectContaining({ sourceId: item.sourceId })),
+    );
+    expect(quota.used).toBe(1);
+    expect(quota.releaseCalls).toBe(0);
   });
 
   it("saves only verified citation metadata before finalizing quota", async () => {

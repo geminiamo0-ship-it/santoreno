@@ -1,0 +1,30 @@
+name: Find the Card — Isolated Staging Auth Smoke
+
+on:
+  push:
+    branches:
+      - feat/anking-reference-isolated-find-card-20261019
+    paths:
+      - .github/workflows/anking-find-card-isolation-live-smoke.yml
+
+permissions:
+  contents: read
+
+jobs:
+  auth-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Confirm deployed Santo Staging health and isolated Find the Card authentication
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://santo-api-staging.geminiamo0.workers.dev"
+          health="$(curl -fsS "$base/health")"
+          jq -e '.service=="santo-api" and .status=="ok"' <<< "$health" >/dev/null
+          denied="$(curl -sS -o /tmp/find-card.json -w '%{http_code}' -X POST "$base/v1/flashcards/find-more" -H 'content-type: application/json' --data '{"topic":"aortic stenosis","cursor":0}')"
+          test "$denied" = "401"
+          jq -e '.error | type=="string"' /tmp/find-card.json >/dev/null
+          invalid="$(curl -sS -o /dev/null -w '%{http_code}' -X POST "$base/v1/flashcards/find-more" -H 'content-type: application/json' --data '{"topic":"aortic stenosis","cursor":0,"model":"luna"}')"
+          test "$invalid" = "400"
+          echo "FIND_THE_CARD_ZERO_MODEL_STAGING_AUTH_SMOKE_PASSED"

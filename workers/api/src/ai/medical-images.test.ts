@@ -133,6 +133,12 @@ describe("Luna original medical article images", () => {
     expect(prompt.match(/"image_id":/g)).toHaveLength(30);
     expect(prompt).not.toContain(MEDIA + "44.png"); // Original URLs stay server-side
     expect(prompt).toContain("Illustrations are a PRIORITY");
+    const compact = medicalImagePrompt(candidates, "aortic stenosis", true);
+    expect(compact).toContain("AVAILABLE_ORIGINAL_ARTICLE_IMAGES:");
+    expect(compact).toContain("IMG_045");
+    expect(compact).not.toContain("Illustrations are a PRIORITY");
+    expect(compact).not.toContain("To request a figure");
+
     expect(prompt).toContain("genuinely match the CURRENT question");
     expect(prompt).toContain("use none if no illustration adds reliable teaching value");
   });

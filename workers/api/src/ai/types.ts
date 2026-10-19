@@ -29,9 +29,16 @@ export interface GallerySearchHit {
   score: number;
 }
 
+/** Never accepted as medical evidence or clinical source IDs. */
+export interface AnkingSearchHit {
+  noteId: string;
+  score: number;
+}
+
 export interface CombinedSearchResult {
   evidence: RetrievedEvidence[];
   galleryHits: GallerySearchHit[];
+  ankingHits?: AnkingSearchHit[];
 }
 
 export interface RetrievalPort {

@@ -830,8 +830,16 @@ describe("Santo five licensed library retrieval", () => {
       },
     });
     const retrieval = new CloudflareAiSearchRetrieval(
-      namespace, undefined, true, false, undefined,
-      false, true, true, true, true,
+      namespace,
+      undefined,
+      true,
+      false,
+      undefined,
+      false,
+      true,
+      true,
+      true,
+      true,
     );
     const result = await retrieval.retrieveWithGallery({
       query: "aortic stenosis",
@@ -857,7 +865,7 @@ describe("Santo five licensed library retrieval", () => {
         query_rewrite: { enabled: false },
       },
     });
-    expect(result.evidence.map(e => e.libraryId)).toEqual(["amboss", "usmle", "anking"]);
+    expect(result.evidence.map((e) => e.libraryId)).toEqual(["amboss", "usmle", "anking"]);
     expect(result.galleryHits).toEqual([{ imageId: "img_000123", score: 0.92 }]);
     expect(result.ankingHits).toBeUndefined();
   });

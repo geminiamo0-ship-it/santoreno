@@ -313,35 +313,35 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
     let response: unknown;
     try {
       response = await this.namespace!.search({
-      query: searchQuery,
-      ai_search_options: {
-        instance_ids: [
-          ...libraries.map((library) => library.instanceId),
-          ...(includeGallery ? [IMAGE_SEARCH_INSTANCE] : []),
-          ...(includeAnking
-            ? [this.ankingFullV12 ? ANKING_FULL_V12_INSTANCE : ANKING_SEARCH_INSTANCE]
-            : []),
-        ],
-        retrieval: {
-          retrieval_type: "hybrid",
-          match_threshold: MATCH_THRESHOLD,
-          max_num_results: this.fastOneSearchV1
-            ? STAGING_FAST_SEARCH_CANDIDATES
-            : includeAnking
-              ? WITH_ANKING_MERGED_CANDIDATES
-              : includeGallery
-                ? WITH_GALLERY_MERGED_CANDIDATES
-                : MERGED_SEARCH_CANDIDATES,
-          return_on_failure: true,
-          fusion_method: "rrf",
+        query: searchQuery,
+        ai_search_options: {
+          instance_ids: [
+            ...libraries.map((library) => library.instanceId),
+            ...(includeGallery ? [IMAGE_SEARCH_INSTANCE] : []),
+            ...(includeAnking
+              ? [this.ankingFullV12 ? ANKING_FULL_V12_INSTANCE : ANKING_SEARCH_INSTANCE]
+              : []),
+          ],
+          retrieval: {
+            retrieval_type: "hybrid",
+            match_threshold: MATCH_THRESHOLD,
+            max_num_results: this.fastOneSearchV1
+              ? STAGING_FAST_SEARCH_CANDIDATES
+              : includeAnking
+                ? WITH_ANKING_MERGED_CANDIDATES
+                : includeGallery
+                  ? WITH_GALLERY_MERGED_CANDIDATES
+                  : MERGED_SEARCH_CANDIDATES,
+            return_on_failure: true,
+            fusion_method: "rrf",
+          },
+          reranking: {
+            enabled: !this.fastOneSearchV1,
+            ...(this.fastOneSearchV1 ? {} : { model: "@cf/baai/bge-reranker-base" }),
+          },
+          query_rewrite: { enabled: false },
         },
-        reranking: {
-          enabled: !this.fastOneSearchV1,
-          ...(this.fastOneSearchV1 ? {} : { model: "@cf/baai/bge-reranker-base" }),
-        },
-        query_rewrite: { enabled: false },
-      },
-    });
+      });
     } finally {
       // Can finish after withAiDeadline has timed out: that distinction is
       // useful for diagnosing provider tail latency. Never log query text.

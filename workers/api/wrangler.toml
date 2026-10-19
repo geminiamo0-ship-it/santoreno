@@ -84,6 +84,9 @@ SANTO_GALLERY_IMAGES_V1 = "true"
 SANTO_ANKING_CARDS_V1 = "true"
 # Full 30,477-note AnKing v12 index replaces cardio inside the same one-call search.
 SANTO_ANKING_V12_FULL_SEARCH_V1 = "true"
+# Owner-approved measured fast route: one 7-index hybrid RRF search, top 30,
+# no native reranking. Staging rollback: set false and redeploy.
+SANTO_SEARCH_FAST_PATH_V1 = "true"
 SANTO_ANKING_RIGHTS_CLEARED_V1 = "true"
 SANTO_AI_SEARCH_INSTANCE_IDS = "amboss,usmle,passmedicine,pastest,one-examination-isolated"
 SANTO_LIBRARY_READER_V1 = "true"

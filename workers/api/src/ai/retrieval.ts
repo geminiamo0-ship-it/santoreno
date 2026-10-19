@@ -367,7 +367,7 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
           response,
           [{ id: "anking", instanceId: ANKING_FULL_V12_INSTANCE, title: "AnKing v12" }],
           10,
-        ).filter(item => /(?:^|\/)note_\d{10,16}\.json$/.test(item.itemKey)))
+        ).filter(item => /(?:^|\/)note_\d{10,16}\.json$/.test(item.itemKey))
       : [];
     const bestAnking = rankMedicalCandidates(
       query,

@@ -204,16 +204,21 @@ export class LibraryReaderService {
         `anking/v12/full/shards/shard_${String(noteId % 128).padStart(3, "0")}.json`,
         MAX_ARTICLE_BYTES,
       );
-      const notes = raw && typeof raw === "object" && !Array.isArray(raw)
-        ? raw as Record<string, unknown> : null;
+      const notes =
+        raw && typeof raw === "object" && !Array.isArray(raw)
+          ? (raw as Record<string, unknown>)
+          : null;
       const record = notes?.[ankingKey[1]!];
-      const note = record && typeof record === "object" && !Array.isArray(record)
-        ? record as Record<string, unknown> : null;
+      const note =
+        record && typeof record === "object" && !Array.isArray(record)
+          ? (record as Record<string, unknown>)
+          : null;
       if (!note || note.note_id !== noteId || note.rights_status !== "licensed_for_santo") {
         throw new LibraryReaderError(404, "LIBRARY_ARTICLE_NOT_AVAILABLE");
       }
       const fact = typeof note.medical_fact === "string" ? note.medical_fact.slice(0, 3000) : "";
-      const pearl = typeof note.clinical_pearl === "string" ? note.clinical_pearl.slice(0, 1000) : "";
+      const pearl =
+        typeof note.clinical_pearl === "string" ? note.clinical_pearl.slice(0, 1000) : "";
       if (!fact.trim()) throw new LibraryReaderError(404, "LIBRARY_ARTICLE_NOT_AVAILABLE");
       const topic = typeof note.topic === "string" ? note.topic.slice(0, 250) : "Medical concept";
       const article = LibraryArticleSchema.parse({
@@ -225,7 +230,9 @@ export class LibraryReaderService {
         source: "AnKing v12",
         sections: [
           { id: "medical-fact", heading: "Medical concept", text: fact, images: [] },
-          ...(pearl ? [{ id: "clinical-pearl", heading: "Clinical Pearl", text: pearl, images: [] }] : []),
+          ...(pearl
+            ? [{ id: "clinical-pearl", heading: "Clinical Pearl", text: pearl, images: [] }]
+            : []),
         ],
       });
       return SourceArticleResponseSchema.parse({

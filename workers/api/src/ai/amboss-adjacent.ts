@@ -9,8 +9,8 @@ import type {
 // A search section is one independent R2 object, not a neighboring chunk in
 // the same AI Search item. Only approved AMBOSS keys may be expanded.
 const AMBOSS_SECTION_KEY = /^medical-search\/v1\/amboss\/[a-zA-Z0-9_-]+\/s-(\d{4})\.md$/;
-const ADJACENT_FILES = 3;
-const MAX_TOTAL_EVIDENCE = 8;
+const ADJACENT_FILES = 10;
+const MAX_TOTAL_EVIDENCE = 15;
 const MAX_SECTION_CHARS = 3500;
 const MAX_R2_SECTION_CHARS = 100_000;
 
@@ -30,7 +30,7 @@ async function sourceIdForObject(instanceId: string, key: string): Promise<strin
   return instanceId + ":r2-" + id.slice(0, 32);
 }
 
-/** Preserve all five original search results; add at most three neighboring AMBOSS sections. */
+/** Preserve all five original search results; add at most ten neighboring AMBOSS sections. */
 export async function expandAmbossAdjacentEvidence(
   original: readonly RetrievedEvidence[],
   bucket: Pick<R2BucketLike, "get">,
@@ -44,7 +44,7 @@ export async function expandAmbossAdjacentEvidence(
   const match = AMBOSS_SECTION_KEY.exec(anchor.itemKey);
   if (!match) return [...original];
   const firstNumber = Number(match[1]);
-  if (!Number.isSafeInteger(firstNumber) || firstNumber < 1 || firstNumber > 9996) {
+  if (!Number.isSafeInteger(firstNumber) || firstNumber < 1 || firstNumber > 9989) {
     return [...original];
   }
 

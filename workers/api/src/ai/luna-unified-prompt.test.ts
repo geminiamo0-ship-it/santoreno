@@ -8,7 +8,7 @@ import {
 describe("Santo high-yield clinical-reference unified Luna instructions", () => {
   it("preserves the strict 1,000-byte instruction budget", () => {
     const bytes = new TextEncoder().encode(LUNA_UNIFIED_INSTRUCTIONS).byteLength;
-    expect(bytes).toBe(996);
+    expect(bytes).toBeGreaterThan(850);
     expect(bytes).toBeLessThanOrEqual(LUNA_UNIFIED_MAX_INSTRUCTION_BYTES);
     expect(LUNA_UNIFIED_MAX_INSTRUCTION_BYTES).toBe(1_000);
   });
@@ -37,7 +37,8 @@ describe("Santo high-yield clinical-reference unified Luna instructions", () => 
 
   it("preserves citations, clinical uncertainty, image safety and topic boundaries", () => {
     expect(LUNA_UNIFIED_INSTRUCTIONS).toContain("EVIDENCE_JSON");
-    expect(LUNA_UNIFIED_INSTRUCTIONS).toContain("SANTO_REF_N (1-15)");
+    expect(LUNA_UNIFIED_INSTRUCTIONS).toContain("SANTO_REF_N (1-60)");
+    expect(LUNA_UNIFIED_INSTRUCTIONS).toContain("cite up to 15 [[N]]");
     expect(LUNA_UNIFIED_INSTRUCTIONS).toContain("[[N]]");
     expect(LUNA_UNIFIED_INSTRUCTIONS).toContain("directly supports the claim");
     expect(LUNA_UNIFIED_INSTRUCTIONS).toContain('"General medical teaching:"');

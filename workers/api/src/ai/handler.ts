@@ -159,6 +159,10 @@ export function createGroundedAiHandler(dependencies: GroundedAiHandlerDependenc
           env.CONTENT_BUCKET
           ? new R2AnkingSupplementRetriever(env.CONTENT_BUCKET)
           : undefined,
+        env.SANTO_ENV === "staging" &&
+          env.SANTO_LUNA_PREVIEW === "true" &&
+          env.SANTO_PLAIN_TEXT_LUNA_V1 === "true" &&
+          env.SANTO_LUNA_UNIFIED_PROMPT_V1 === "true",
       ).query(session, parsed.data, request.signal, onProvisionalAnswer);
 
       const validated = GroundedAiQueryResponseSchema.parse(response);

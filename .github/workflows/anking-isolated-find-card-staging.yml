@@ -1,5 +1,5 @@
 name: Activate Isolated Find the Card + AnKing Scientific References — Staging
-# Owner-confirmed AnKing v12 indexing complete; this revision repairs handler and citation regex parsing
+# Owner-confirmed AnKing index is complete: revalidate existing R2 index, never reindex it during ranking-only releases.
 
 on:
   push:
@@ -87,19 +87,26 @@ jobs:
           test -n "${CLOUDFLARE_API_TOKEN:-}"
           test "$(git ls-remote origin refs/heads/feat/anking-reference-isolated-find-card-20261019 | cut -f1)" = "$(git rev-parse HEAD)"
           echo "VERIFIED_DEPLOY_SOURCE_SHA=$(git rev-parse HEAD)"
-      - name: Build and publish owner-licensed full v12 CID topic index from existing private R2 shards
+      - name: Verify existing full-v12 isolated CID index (read-only, no reindexing)
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p /tmp/anking-v12-shards
-          for i in $(seq -w 0 127); do
-            pnpm --dir workers/api exec wrangler r2 object get "santo-content-staging/anking/v12/full/shards/shard_${i}.json" --file "/tmp/anking-v12-shards/shard_${i}.json" --remote
-          done
-          python3 scripts/build_anking_full_v12_topic_index.py --shards /tmp/anking-v12-shards --out /tmp/anking-v12-topic-index.json
-          pnpm --dir workers/api exec wrangler r2 object put "santo-content-staging/anking/v12/full/topic-index-v1.json" --file /tmp/anking-v12-topic-index.json --remote
           pnpm --dir workers/api exec wrangler r2 object get "santo-content-staging/anking/v12/full/topic-index-v1.json" --file /tmp/anking-topic-readback.json --remote
-          cmp /tmp/anking-v12-topic-index.json /tmp/anking-topic-readback.json
-          echo "FULL_V12_ANKI_COPY_ONLY_TOPIC_INDEX_VERIFIED"
+          python3 - <<'PY'
+          import json
+          data=json.load(open("/tmp/anking-topic-readback.json", encoding="utf-8"))
+          assert data["version"] == 2
+          assert data["notes"] == 30477 and data["cards"] == 36896
+          assert len(data["card_ids"]) == 30477
+          print("FULL_V12_EXISTING_ANKI_TOPIC_INDEX_VERIFIED_READ_ONLY")
+          PY
+      - name: Test real treatment/diagnosis ranking and original CID pages without any model
+        shell: bash
+        env:
+          SANTO_ANKING_TOPIC_INDEX_FILE: /tmp/anking-topic-readback.json
+        run: |
+          set -euo pipefail
+          pnpm --dir workers/api exec vitest run src/ai/anking-topic-finder.test.ts
       - name: Setup Python for read-only Cloudflare full-index and search verification
         uses: actions/setup-python@v5
         with:

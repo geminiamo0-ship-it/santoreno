@@ -306,7 +306,9 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
         instance_ids: [
           ...libraries.map((library) => library.instanceId),
           ...(includeGallery ? [IMAGE_SEARCH_INSTANCE] : []),
-          ...(includeAnking ? [this.ankingFullV12 ? ANKING_FULL_V12_INSTANCE : ANKING_SEARCH_INSTANCE] : []),
+          ...(includeAnking
+            ? [this.ankingFullV12 ? ANKING_FULL_V12_INSTANCE : ANKING_SEARCH_INSTANCE]
+            : []),
         ],
         retrieval: {
           retrieval_type: "hybrid",
@@ -361,7 +363,11 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
       const seen = new Set<string>();
       for (const raw of result.chunks) {
         const row = asRecord(raw);
-        if (stringField(row, "instance_id") !== (this.ankingFullV12 ? ANKING_FULL_V12_INSTANCE : ANKING_SEARCH_INSTANCE)) continue;
+        if (
+          stringField(row, "instance_id") !==
+          (this.ankingFullV12 ? ANKING_FULL_V12_INSTANCE : ANKING_SEARCH_INSTANCE)
+        )
+          continue;
         const item = asRecord(row?.item);
         const key = stringField(item, "key");
         const score = numberField(row, "score");

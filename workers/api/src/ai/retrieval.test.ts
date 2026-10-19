@@ -771,10 +771,19 @@ describe("Santo five licensed library retrieval", () => {
       },
     });
     const retrieval = new CloudflareAiSearchRetrieval(
-      namespace, undefined, true, false, undefined, false, true, true, true,
+      namespace,
+      undefined,
+      true,
+      false,
+      undefined,
+      false,
+      true,
+      true,
+      true,
     );
     const result = await retrieval.retrieveWithGallery({
-      query: "aortic stenosis systolic murmur", libraryId: null,
+      query: "aortic stenosis systolic murmur",
+      libraryId: null,
     });
     expect(namespace.searchInputs).toHaveLength(1);
     expect(namespace.searchInputs[0]).toMatchObject({

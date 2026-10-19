@@ -158,7 +158,10 @@ export function createGroundedAiHandler(dependencies: GroundedAiHandlerDependenc
           env.SANTO_ANKING_RIGHTS_CLEARED_V1 === "true" &&
           env.SANTO_AI_SEARCH_SINGLE_REQUEST_V1 === "true" &&
           env.CONTENT_BUCKET
-          ? new R2AnkingSupplementRetriever(env.CONTENT_BUCKET, env.SANTO_ANKING_V12_FULL_SEARCH_V1 === "true")
+          ? new R2AnkingSupplementRetriever(
+              env.CONTENT_BUCKET,
+              env.SANTO_ANKING_V12_FULL_SEARCH_V1 === "true",
+            )
           : undefined,
         env.SANTO_ENV === "staging" &&
           env.SANTO_LUNA_PREVIEW === "true" &&

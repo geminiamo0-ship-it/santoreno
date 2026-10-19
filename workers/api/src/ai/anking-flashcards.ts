@@ -46,7 +46,11 @@ type Shard = Record<string, NoteRecord>;
 const shardCache = new WeakMap<R2BucketLike, Map<string, { until: number; data: Shard }>>();
 const shardFlights = new WeakMap<R2BucketLike, Map<string, Promise<Shard>>>();
 
-export async function loadShard(bucket: R2BucketLike, shard: number, fullV12 = false): Promise<Shard> {
+export async function loadShard(
+  bucket: R2BucketLike,
+  shard: number,
+  fullV12 = false,
+): Promise<Shard> {
   const key = `${fullV12 ? "v12" : "cardio"}:${shard}`;
   let cache = shardCache.get(bucket);
   if (!cache) {
@@ -63,7 +67,9 @@ export async function loadShard(bucket: R2BucketLike, shard: number, fullV12 = f
   const existing = flights.get(key);
   if (existing) return existing;
   const loading = (async (): Promise<Shard> => {
-    const object = await bucket.get(`${fullV12 ? FULL_V12_SHARD_PREFIX : SHARD_PREFIX}shard_${String(shard).padStart(fullV12 ? 3 : 2, "0")}.json`);
+    const object = await bucket.get(
+      `${fullV12 ? FULL_V12_SHARD_PREFIX : SHARD_PREFIX}shard_${String(shard).padStart(fullV12 ? 3 : 2, "0")}.json`,
+    );
     if (!object) return {};
     const parsed = record(JSON.parse(await object.text()) as unknown);
     if (!parsed) return {};
@@ -162,7 +168,10 @@ export function studyNoteFields(note: NoteRecord): Array<{ label: string; value:
 }
 
 export class R2AnkingSupplementRetriever implements AnkingSupplementRetriever {
-  constructor(private readonly bucket: R2BucketLike, private readonly fullV12 = false) {}
+  constructor(
+    private readonly bucket: R2BucketLike,
+    private readonly fullV12 = false,
+  ) {}
 
   async hydrate(hits: readonly AnkingSearchHit[], query: string): Promise<AnkingSupplement> {
     if (!hits.length) return EMPTY;
@@ -173,7 +182,15 @@ export class R2AnkingSupplementRetriever implements AnkingSupplementRetriever {
       unique.map(async (id) => {
         try {
           const number = Number(id.slice(5));
-          return (await loadShard(this.bucket, number % (this.fullV12 ? FULL_V12_SHARD_COUNT : SHARD_COUNT), this.fullV12))[id] ?? null;
+          return (
+            (
+              await loadShard(
+                this.bucket,
+                number % (this.fullV12 ? FULL_V12_SHARD_COUNT : SHARD_COUNT),
+                this.fullV12,
+              )
+            )[id] ?? null
+          );
         } catch {
           return null;
         }

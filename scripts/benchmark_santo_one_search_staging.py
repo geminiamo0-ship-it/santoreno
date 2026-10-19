@@ -18,14 +18,15 @@ IMAGE = "santo-medical-images"
 ANKING = "santo-anking-step-v12"
 IDS = sorted(CLINICAL) + [IMAGE, ANKING]
 CASES = (
-    ("baseline_50_rerank", 50, True),
-    ("reduced_30_rerank", 30, True),
-    ("reduced_30_no_rerank", 30, False),
-    ("reduced_24_rerank", 24, True),
+    ("50_no_rerank", 50, False),
+    ("40_no_rerank", 40, False),
+    ("30_no_rerank", 30, False),
 )
 QUERIES = (
     "aortic stenosis systolic murmur radiates to carotid arteries",
     "ventricular septal defect holosystolic murmur left lower sternal border",
+    "sarcoidosis diagnosis pulmonary manifestations treatment",
+    "heart failure reduced ejection fraction guideline directed medication",
 )
 TIMEOUT = 33
 

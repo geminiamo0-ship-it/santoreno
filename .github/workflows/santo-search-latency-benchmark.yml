@@ -19,7 +19,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Measure real Cloudflare catalog and four native 7-index search configurations
+      - name: Measure real Cloudflare catalog and three native 7-index no-reranker configurations across four medical topics
         shell: bash
         run: |
           set -euo pipefail

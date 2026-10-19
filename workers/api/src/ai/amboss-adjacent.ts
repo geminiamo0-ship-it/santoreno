@@ -10,7 +10,8 @@ import type {
 // the same AI Search item. Only approved AMBOSS keys may be expanded.
 const AMBOSS_SECTION_KEY = /^medical-search\/v1\/amboss\/[a-zA-Z0-9_-]+\/s-(\d{4})\.md$/;
 const ADJACENT_FILES = 10;
-const MAX_TOTAL_EVIDENCE = 15;
+const MAX_TOTAL_EVIDENCE = 60;
+const LEGACY_MAX_TOTAL_EVIDENCE = 15;
 const MAX_SECTION_CHARS = 3500;
 const MAX_R2_SECTION_CHARS = 100_000;
 
@@ -38,7 +39,12 @@ export async function expandAmbossAdjacentEvidence(
   const anchor = original.find(
     (item) => item.libraryId === "amboss" && AMBOSS_SECTION_KEY.test(item.itemKey),
   );
-  if (!anchor || original.length >= MAX_TOTAL_EVIDENCE) {
+  // Original short retrieval keeps its 15-source behavior. In the all-hits
+  // staging trial, never truncate a 16–50-hit search response.
+  const evidenceCap = original.length > LEGACY_MAX_TOTAL_EVIDENCE
+    ? MAX_TOTAL_EVIDENCE
+    : LEGACY_MAX_TOTAL_EVIDENCE;
+  if (!anchor || original.length >= evidenceCap) {
     return [...original];
   }
   const match = AMBOSS_SECTION_KEY.exec(anchor.itemKey);
@@ -59,7 +65,7 @@ export async function expandAmbossAdjacentEvidence(
   // invalid or mismatched section. Do not widen retrieval or change citations.
   const neighbors = await Promise.all(
     Array.from(
-      { length: Math.min(ADJACENT_FILES, MAX_TOTAL_EVIDENCE - original.length) },
+      { length: Math.min(ADJACENT_FILES, evidenceCap - original.length) },
       async (_, index) => {
         const key = folder + "s-" + String(firstNumber + index + 1).padStart(4, "0") + ".md";
         const alreadyRetrieved = existing.get(key);
@@ -108,7 +114,7 @@ export async function expandAmbossAdjacentEvidence(
       }
     }
   }
-  return result.slice(0, MAX_TOTAL_EVIDENCE);
+  return result.slice(0, evidenceCap);
 }
 
 /** Preserve existing query routing and gallery retrieval; no extra AI Search calls. */

@@ -330,11 +330,11 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
               ? WITH_ANKING_MERGED_CANDIDATES
               : this.fastOneSearchV1
                 ? STAGING_FAST_SEARCH_CANDIDATES
-              : includeAnking
-                ? WITH_ANKING_MERGED_CANDIDATES
-                : includeGallery
-                  ? WITH_GALLERY_MERGED_CANDIDATES
-                  : MERGED_SEARCH_CANDIDATES,
+                : includeAnking
+                  ? WITH_ANKING_MERGED_CANDIDATES
+                  : includeGallery
+                    ? WITH_GALLERY_MERGED_CANDIDATES
+                    : MERGED_SEARCH_CANDIDATES,
             return_on_failure: true,
             fusion_method: "rrf",
           },
@@ -365,11 +365,11 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
         ? WITH_ANKING_MERGED_CANDIDATES
         : this.fastOneSearchV1
           ? STAGING_FAST_SEARCH_CANDIDATES
-        : includeAnking
-          ? WITH_ANKING_MERGED_CANDIDATES
-          : includeGallery
-            ? WITH_GALLERY_MERGED_CANDIDATES
-            : MERGED_SEARCH_CANDIDATES,
+          : includeAnking
+            ? WITH_ANKING_MERGED_CANDIDATES
+            : includeGallery
+              ? WITH_GALLERY_MERGED_CANDIDATES
+              : MERGED_SEARCH_CANDIDATES,
     ).map((evidence, position) => ({ evidence, position }));
     const galleryHits: GallerySearchHit[] = [];
     if (includeGallery && Array.isArray(result?.chunks)) {

@@ -870,12 +870,16 @@ describe("Santo five licensed library retrieval", () => {
     expect(result.ankingHits).toBeUndefined();
   });
 
-
   it("forwards every valid one-call search hit to Luna: 38 clinical, 11 AnKing, gallery separated", async () => {
     const medical = Array.from({ length: 38 }, (_, i) => ({
       ...chunk(expectedIds[i % expectedIds.length]!, i + 1),
       item: {
-        key: "medical-search/v1/" + expectedIds[i % expectedIds.length] + "/article/s-" + String(i + 1).padStart(4, "0") + ".md",
+        key:
+          "medical-search/v1/" +
+          expectedIds[i % expectedIds.length] +
+          "/article/s-" +
+          String(i + 1).padStart(4, "0") +
+          ".md",
         metadata: { title: "Clinical topic " + i },
       },
     }));
@@ -884,7 +888,10 @@ describe("Santo five licensed library retrieval", () => {
       text: "Original AnKing v12 high-yield clinical note number " + i,
       score: 0.91,
       instance_id: "santo-anking-step-v12",
-      item: { key: "note_" + (1471558916902 + i) + ".json", metadata: { title: "AnKing note " + i } },
+      item: {
+        key: "note_" + (1471558916902 + i) + ".json",
+        metadata: { title: "AnKing note " + i },
+      },
     }));
     const gallery = {
       id: "gallery-one",
@@ -897,7 +904,17 @@ describe("Santo five licensed library retrieval", () => {
       __merged: { chunks: [medical[0], ...anking, ...medical.slice(1), gallery] },
     });
     const retrieval = new CloudflareAiSearchRetrieval(
-      namespace, undefined, true, false, undefined, false, true, true, true, true, true,
+      namespace,
+      undefined,
+      true,
+      false,
+      undefined,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
     );
     const result = await retrieval.retrieveWithGallery({
       query: "aortic stenosis pathophysiology",

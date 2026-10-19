@@ -41,9 +41,8 @@ export async function expandAmbossAdjacentEvidence(
   );
   // Original short retrieval keeps its 15-source behavior. In the all-hits
   // staging trial, never truncate a 16–50-hit search response.
-  const evidenceCap = original.length > LEGACY_MAX_TOTAL_EVIDENCE
-    ? MAX_TOTAL_EVIDENCE
-    : LEGACY_MAX_TOTAL_EVIDENCE;
+  const evidenceCap =
+    original.length > LEGACY_MAX_TOTAL_EVIDENCE ? MAX_TOTAL_EVIDENCE : LEGACY_MAX_TOTAL_EVIDENCE;
   if (!anchor || original.length >= evidenceCap) {
     return [...original];
   }

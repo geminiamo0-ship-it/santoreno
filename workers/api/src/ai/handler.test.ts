@@ -336,6 +336,23 @@ describe("grounded AI handler", () => {
     expect(quota.finalizeCalls).toBe(1);
   });
 
+  it("removes old instructional blocks from the source prompt in unified staging", async () => {
+    env.SANTO_ENV = "staging";
+    env.SANTO_LUNA_PREVIEW = "true";
+    env.SANTO_SINGLE_PASS_GENERATION_V1 = "true";
+    env.SANTO_PLAIN_TEXT_LUNA_V1 = "true";
+    env.SANTO_LUNA_UNIFIED_PROMPT_V1 = "true";
+    const response = await handler()(request(token, "unified-1k-staging"), env);
+    expect(response.status).toBe(200);
+    const prompt = vi.mocked(model.generate).mock.calls[0]?.[0] as string;
+    expect(prompt).toContain("USER_QUESTION_JSON");
+    expect(prompt).toContain("EVIDENCE_JSON");
+    expect(prompt).not.toContain("Teach, do not merely retrieve");
+    expect(prompt).not.toContain("OUTPUT CONTRACT");
+    expect(prompt).not.toContain("citation markers");
+    expect(quota.used).toBe(1);
+  });
+
   it("passes one consistent sourced Markdown contract to staging Luna", async () => {
     env.SANTO_ENV = "staging";
     env.SANTO_LUNA_PREVIEW = "true";

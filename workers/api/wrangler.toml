@@ -87,6 +87,8 @@ SANTO_ANKING_V12_FULL_SEARCH_V1 = "true"
 # Owner-approved measured fast route: one 7-index hybrid RRF search, top 30,
 # no native reranking. Staging rollback: set false and redeploy.
 SANTO_SEARCH_FAST_PATH_V1 = "true"
+# Staging trial: forward all valid hits returned by the ONE Cloudflare search (provider hard limit: 50).
+SANTO_FORWARD_ALL_SEARCH_HITS_V1 = "true"
 SANTO_ANKING_RIGHTS_CLEARED_V1 = "true"
 SANTO_AI_SEARCH_INSTANCE_IDS = "amboss,usmle,passmedicine,pastest,one-examination-isolated"
 SANTO_LIBRARY_READER_V1 = "true"

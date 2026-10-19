@@ -806,6 +806,62 @@ describe("Santo five licensed library retrieval", () => {
     expect(result.evidence[1]?.sourceId).toBe("santo-anking-step-v12:anking-v12");
   });
 
+  it("measured staging fast mode makes ONE seven-index 30-result RRF search, no reranker", async () => {
+    const namespace = new FakeAiSearchNamespace(undefined, {
+      __merged: {
+        chunks: [
+          chunk("amboss", 1, 0.95),
+          chunk("usmle", 1, 0.88),
+          {
+            id: "anking-note-1",
+            text: "Aortic stenosis is an obstruction of flow through the aortic valve",
+            score: 0.91,
+            instance_id: "santo-anking-step-v12",
+            item: { key: "note_1471558916902.json", metadata: { title: "Aortic stenosis" } },
+          },
+          {
+            id: "gallery-1",
+            text: "Aortic valve",
+            score: 0.92,
+            instance_id: "santo-medical-images",
+            item: { key: "img_000123.json" },
+          },
+        ],
+      },
+    });
+    const retrieval = new CloudflareAiSearchRetrieval(
+      namespace, undefined, true, false, undefined,
+      false, true, true, true, true,
+    );
+    const result = await retrieval.retrieveWithGallery({
+      query: "aortic stenosis",
+      libraryId: null,
+      preparedQuery: "aortic stenosis severity treatment",
+    });
+    expect(namespace.searchInputs).toHaveLength(1);
+    expect(namespace.searchInputs[0]).toMatchObject({
+      query: "aortic stenosis severity treatment",
+      ai_search_options: {
+        instance_ids: [
+          ...expectedIds.map(instanceFor),
+          "santo-medical-images",
+          "santo-anking-step-v12",
+        ],
+        retrieval: {
+          retrieval_type: "hybrid",
+          max_num_results: 30,
+          match_threshold: 0.4,
+          fusion_method: "rrf",
+        },
+        reranking: { enabled: false },
+        query_rewrite: { enabled: false },
+      },
+    });
+    expect(result.evidence.map(e => e.libraryId)).toEqual(["amboss", "usmle", "anking"]);
+    expect(result.galleryHits).toEqual([{ imageId: "img_000123", score: 0.92 }]);
+    expect(result.ankingHits).toBeUndefined();
+  });
+
   it("explicit clinical library filter never adds AnKing, even when opt-in enabled", async () => {
     const namespace = new FakeAiSearchNamespace(undefined, {
       amboss: { chunks: [chunk("amboss")] },

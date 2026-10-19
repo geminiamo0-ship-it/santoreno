@@ -472,6 +472,15 @@ export class GroundedAiService {
         : error instanceof GroundedAiError
           ? error
           : new GroundedAiError(502, "MODEL_FAILED", "Grounded AI request failed");
+      // Privacy-safe request-stage diagnostic (no query, user, source or token data).
+      // This makes SEARCH_TIMEOUT identifiable in Cloudflare request logs instead
+      // of surfacing as HTTP 200 on an unfinished SSE channel.
+      console.warn("santo_query_failure_stage", {
+        requestId,
+        code: mapped.code,
+        stage: failureStage(mapped.code),
+        milliseconds: Math.max(0, this.nowMs() - startedAt),
+      });
       this.recordFailure(requestId, session, startedAt, mapped.code, {
         failureStage: failureStage(mapped.code),
         responseFormat: this.markdownOutput ? "markdown" : "json",

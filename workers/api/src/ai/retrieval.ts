@@ -31,6 +31,9 @@ const IMAGE_SEARCH_INSTANCE = "santo-medical-images";
 const ANKING_SEARCH_INSTANCE = "santo-anking-cardiology";
 const ANKING_FULL_V12_INSTANCE = "santo-anking-step-v12";
 const WITH_ANKING_MERGED_CANDIDATES = 50;
+// Verified on real staging with 4 representative clinical queries: lower-latency
+// first-pass RRF retrieval without expensive 50-result native reranking.
+const STAGING_FAST_SEARCH_CANDIDATES = 30;
 const MATCH_THRESHOLD = 0.4;
 const MAX_CHUNK_CHARS = 5000;
 
@@ -193,6 +196,7 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
     private readonly singleMultiInstanceSearchV1 = false,
     private readonly ankingCardsV1 = false,
     private readonly ankingFullV12 = false,
+    private readonly fastOneSearchV1 = false,
   ) {
     this.catalog = catalog ?? new AiSearchNamespaceLibraryCatalog(namespace);
   }
@@ -230,7 +234,13 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
 
     try {
       // Begin catalog lookup before the model rewrite to overlap both network calls.
-      const catalogPromise = this.catalog.list();
+      const catalogStartedAt = performance.now();
+      const catalogPromise = this.catalog.list().finally(() => {
+        console.info("santo_search_phase_ms", {
+          phase: "catalog",
+          milliseconds: Math.round(performance.now() - catalogStartedAt),
+        });
+      });
       const currentTopicQuery = focusedSearchQuery(request.query);
       const queryPromise = request.preparedQuery
         ? Promise.resolve(request.preparedQuery)
@@ -299,34 +309,48 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
     includeGallery = false,
     includeAnking = false,
   ): Promise<CombinedSearchResult> {
-    const response = await this.namespace!.search({
-      query: searchQuery,
-      ai_search_options: {
-        instance_ids: [
-          ...libraries.map((library) => library.instanceId),
-          ...(includeGallery ? [IMAGE_SEARCH_INSTANCE] : []),
-          ...(includeAnking
-            ? [this.ankingFullV12 ? ANKING_FULL_V12_INSTANCE : ANKING_SEARCH_INSTANCE]
-            : []),
-        ],
-        retrieval: {
-          retrieval_type: "hybrid",
-          match_threshold: MATCH_THRESHOLD,
-          max_num_results: includeAnking
-            ? WITH_ANKING_MERGED_CANDIDATES
-            : includeGallery
-              ? WITH_GALLERY_MERGED_CANDIDATES
-              : MERGED_SEARCH_CANDIDATES,
-          return_on_failure: true,
-          fusion_method: "rrf",
+    const searchStartedAt = performance.now();
+    let response: unknown;
+    try {
+      response = await this.namespace!.search({
+        query: searchQuery,
+        ai_search_options: {
+          instance_ids: [
+            ...libraries.map((library) => library.instanceId),
+            ...(includeGallery ? [IMAGE_SEARCH_INSTANCE] : []),
+            ...(includeAnking
+              ? [this.ankingFullV12 ? ANKING_FULL_V12_INSTANCE : ANKING_SEARCH_INSTANCE]
+              : []),
+          ],
+          retrieval: {
+            retrieval_type: "hybrid",
+            match_threshold: MATCH_THRESHOLD,
+            max_num_results: this.fastOneSearchV1
+              ? STAGING_FAST_SEARCH_CANDIDATES
+              : includeAnking
+                ? WITH_ANKING_MERGED_CANDIDATES
+                : includeGallery
+                  ? WITH_GALLERY_MERGED_CANDIDATES
+                  : MERGED_SEARCH_CANDIDATES,
+            return_on_failure: true,
+            fusion_method: "rrf",
+          },
+          reranking: {
+            enabled: !this.fastOneSearchV1,
+            ...(this.fastOneSearchV1 ? {} : { model: "@cf/baai/bge-reranker-base" }),
+          },
+          query_rewrite: { enabled: false },
         },
-        reranking: {
-          enabled: true,
-          model: "@cf/baai/bge-reranker-base",
-        },
-        query_rewrite: { enabled: false },
-      },
-    });
+      });
+    } finally {
+      // Can finish after withAiDeadline has timed out: that distinction is
+      // useful for diagnosing provider tail latency. Never log query text.
+      console.info("santo_search_phase_ms", {
+        phase: "namespace_search",
+        milliseconds: Math.round(performance.now() - searchStartedAt),
+        fast: this.fastOneSearchV1,
+      });
+    }
     const result = asRecord(response);
     if (Array.isArray(result?.errors) && result.errors.length > 0) {
       throw new GroundedAiError(502, "SEARCH_FAILED", "Multi-instance search partially failed");
@@ -334,11 +358,13 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
     const candidates = evidenceFromSearch(
       response,
       libraries,
-      includeAnking
-        ? WITH_ANKING_MERGED_CANDIDATES
-        : includeGallery
-          ? WITH_GALLERY_MERGED_CANDIDATES
-          : MERGED_SEARCH_CANDIDATES,
+      this.fastOneSearchV1
+        ? STAGING_FAST_SEARCH_CANDIDATES
+        : includeAnking
+          ? WITH_ANKING_MERGED_CANDIDATES
+          : includeGallery
+            ? WITH_GALLERY_MERGED_CANDIDATES
+            : MERGED_SEARCH_CANDIDATES,
     ).map((evidence, position) => ({ evidence, position }));
     const galleryHits: GallerySearchHit[] = [];
     if (includeGallery && Array.isArray(result?.chunks)) {

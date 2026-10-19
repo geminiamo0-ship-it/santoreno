@@ -144,6 +144,24 @@ describe("AMBOSS-only adjacent R2 evidence expansion", () => {
     expect(buildGroundedPrompt("Treatment of AS", result)).toContain("SAVR and TAVR");
   });
 
+
+  it("preserves all 50 ranked search records while appending up to 10 matching AMBOSS sections", async () => {
+    const original = [
+      anchor,
+      ...Array.from({ length: 49 }, (_, i) => ({
+        ...usmle,
+        sourceId: "usmle:verified-" + (i + 1),
+        itemKey: "medical-search/v1/usmle/article/s-" + String(i + 1).padStart(4, "0") + ".md",
+      })),
+    ];
+    const result = await expandAmbossAdjacentEvidence(original, fakeBucket(files()).bucket);
+    expect(result).toHaveLength(60);
+    expect(result.filter((item) => item.libraryId === "amboss")).toHaveLength(11);
+    expect(result.filter((item) => item.libraryId === "usmle")).toHaveLength(49);
+    expect(original.every((item) => result.some((other) => other.sourceId === item.sourceId))).toBe(true);
+    expect(buildGroundedPrompt("Aortic stenosis", result, "markdown", true)).toContain("EVIDENCE_JSON:");
+  });
+
   it("rejects other libraries, unsafe R2 keys, and the section-number boundary", async () => {
     const { bucket, reads } = fakeBucket(files());
     for (const evidence of [

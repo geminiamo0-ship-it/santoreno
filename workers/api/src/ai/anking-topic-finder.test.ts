@@ -78,7 +78,8 @@ describe("fully isolated original CID Find the Card search", () => {
  * No model/AI Search/API tokens, cards rendering, tenant session or quota.
  */
 describe("full v12 real R2 topic results (CI opt-in)", () => {
-  const file = (globalThis as unknown as { process?: { env?: Record<string, string | undefined> } }).process?.env?.SANTO_ANKING_TOPIC_INDEX_FILE;
+  const file = (globalThis as unknown as { process?: { env?: Record<string, string | undefined> } })
+    .process?.env?.SANTO_ANKING_TOPIC_INDEX_FILE;
   it.skipIf(!file)(
     "resolves real disease + management topics into original Anki CIDs",
     async () => {

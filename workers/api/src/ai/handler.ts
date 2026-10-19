@@ -81,7 +81,64 @@ export function createGroundedAiHandler(dependencies: GroundedAiHandlerDependenc
         env.AI,
         env.SANTO_ENV === "staging" && env.SANTO_QWEN_ROUTING_V1 === "true",
         env.SANTO_ENV === "staging" && env.SANTO_AI_SEARCH_SINGLE_REQUEST_V1 === "true",
-        undefined, // Fully isolated Find the Card endpoint; no automatic flashcards.
+        env.SANTO_ENV === "staging" &&
+          env.SANTO_ANKING_CARDS_V1 === "true" &&
+          env.SANTO_ANKING_RIGHTS_CLEARED_V1 === "true" &&
+          env.SANTO_AI_SEARCH_SINGLE_REQUEST_V1 === "true",
+        env.SANTO_ENV === "staging" && env.SANTO_ANKING_V12_FULL_SEARCH_V1 === "true",
+      );
+      return env.SANTO_ENV === "staging" &&
+        env.SANTO_AMBOSS_ADJACENT_R2_V1 === "true" &&
+        env.CONTENT_BUCKET
+        ? new AmbossAdjacentRetrieval(retrieval, env.CONTENT_BUCKET)
+        : retrieval;
+    });
+  const modelFactory = dependencies.modelFactory ?? createGroundedModel;
+  const sourceStoreFactory =
+    dependencies.sourceStoreFactory ??
+    ((env: SantoBindings) =>
+      env.CONTENT_BUCKET ? new R2VerifiedSourceStore(env.CONTENT_BUCKET) : null);
+  const telemetryFactory =
+    dependencies.telemetryFactory ?? ((env) => new AnalyticsEngineAiTelemetry(env.USAGE_ANALYTICS));
+
+  return async function handleGroundedAiQuery(
+    request: Request,
+    env: SantoBindings,
+    onProvisionalAnswer?: (text: string) => void,
+  ): Promise<Response> {
+    if (request.method !== "POST") {
+      return errorResponse("METHOD_NOT_ALLOWED", 405);
+    }
+
+    const parsed = GroundedAiQueryRequestSchema.safeParse(await request.json().catch(() => null));
+    if (!parsed.success) {
+      return errorResponse("INVALID_AI_QUERY", 400);
+    }
+
+    try {
+      const tokens = new SantoSessionTokenService(env);
+      const principal = await tokens.verifyBearerToken(
+        request.headers.get("authorization") ?? undefined,
+      );
+      const session = await new SessionExchangeService(
+        externalUserRepositoryFactory(env),
+        tenantRepositoryFactory(env),
+        tokens,
+      ).resolve(principal);
+
+      const response = await new GroundedAiService(
+        quotaServiceFactory(env),
+        retrievalFactory(env),
+        modelFactory(env),
+        telemetryFactory(env),
+        undefined,
+        dependencies.stageTimeouts ??
+          (env.SANTO_ENV === "staging" && env.SANTO_LUNA_PREVIEW === "true"
+            ? { ...AI_STAGE_TIMEOUTS, modelMs: 180_000 }
+            : undefined),
+        sourceStoreFactory(env),
+        env.SANTO_GENERAL_MEDICAL_FALLBACK === "true",
+        env.SANTO_ENV === "staging" && env.SANTO_SINGLE_PASS_GENERATION_V1 === "true",
         env.SANTO_ENV === "staging" &&
           env.SANTO_LUNA_PREVIEW === "true" &&
           env.SANTO_SINGLE_PASS_GENERATION_V1 === "true" &&
@@ -95,16 +152,7 @@ export function createGroundedAiHandler(dependencies: GroundedAiHandlerDependenc
           env.CONTENT_BUCKET
           ? new CloudflareGalleryImageRetrieval(env.CONTENT_BUCKET)
           : undefined,
-        env.SANTO_ENV === "staging" &&
-          env.SANTO_ANKING_CARDS_V1 === "true" &&
-          env.SANTO_ANKING_RIGHTS_CLEARED_V1 === "true" &&
-          env.SANTO_AI_SEARCH_SINGLE_REQUEST_V1 === "true" &&
-          env.CONTENT_BUCKET
-          ? new R2AnkingSupplementRetriever(
-              env.CONTENT_BUCKET,
-              env.SANTO_ANKING_V12_FULL_SEARCH_V1 === "true",
-            )
-          : undefined,
+        undefined, // Find the Card is isolated, never requested by Luna.
         env.SANTO_ENV === "staging" &&
           env.SANTO_LUNA_PREVIEW === "true" &&
           env.SANTO_PLAIN_TEXT_LUNA_V1 === "true" &&

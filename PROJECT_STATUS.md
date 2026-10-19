@@ -1,5 +1,11 @@
 # Santo Project Status — Living Handoff
 
+### Approved High-Yield Luna Clinical Reference style — 19 Oct 2026
+
+- Owner-approved **996-byte single unified instruction**: direct clinical answer, concise bold-led bullet points, practical numbered management steps, trustworthy cutoffs and drug names/doses, optional compact comparison tables, medically trained audience by default; depth adapts to "in detail" and broad requests without padding.
+- Uses up to 3,000 output tokens at runtime; verified citations up to 15 only when relevant, uncited background marked "General medical teaching:", medical uncertainty and high-risk dosing qualified, original source image markers preserved.
+- One search, AMBOSS +10 R2 neighbors, AnKing, Qwen and real model-token SSE unchanged. Staging-only PR for this iteration; see Issue #187. Production unchanged; authenticated in-browser answer-depth check remains pending.
+
 ### Comprehensive Luna teaching prompt — 19 Oct 2026
 
 - Owner-approved detailed and broad medical education answers use up to 3,000 output tokens as useful, with clear explanations, comparisons, tables, and evidence synthesis across relevant libraries.

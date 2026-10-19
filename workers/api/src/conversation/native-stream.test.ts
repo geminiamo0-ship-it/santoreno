@@ -60,6 +60,32 @@ describe("native provisional conversation SSE (staging only)", () => {
     expect(remainingText).toContain('"type":"complete"');
   });
 
+  it("sends opt-in SSE comment heartbeat during a quiet model and still completes", async () => {
+    vi.useFakeTimers();
+    try {
+      let release!: () => void;
+      const pending = new Promise<void>((resolve) => { release = resolve; });
+      const response = streamProvisionalConversationAnswer(async (emit) => {
+        emit("## TAVR");
+        await pending;
+        return answer;
+      }, "delta", true);
+      const reader = response.body!.getReader();
+      const first = await reader.read();
+      expect(new TextDecoder().decode(first.value)).toContain('"type":"draft"');
+      await vi.advanceTimersByTimeAsync(12_000);
+      const keepalive = await reader.read();
+      expect(new TextDecoder().decode(keepalive.value)).toBe(": santo-keepalive\\n\\n");
+      release();
+      const complete = await reader.read();
+      expect(new TextDecoder().decode(complete.value)).toContain('"type":"complete"');
+      expect((await reader.read()).done).toBe(true);
+      reader.releaseLock();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("emits provisional text before source-verified persisted completion", async () => {
     const persist = vi.fn(async () => undefined);
     const stream = streamProvisionalConversationAnswer(async (emit) => {

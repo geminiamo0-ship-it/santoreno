@@ -870,6 +870,56 @@ describe("Santo five licensed library retrieval", () => {
     expect(result.ankingHits).toBeUndefined();
   });
 
+
+  it("forwards every valid one-call search hit to Luna: 38 clinical, 11 AnKing, gallery separated", async () => {
+    const medical = Array.from({ length: 38 }, (_, i) => ({
+      ...chunk(expectedIds[i % expectedIds.length]!, i + 1),
+      item: {
+        key: "medical-search/v1/" + expectedIds[i % expectedIds.length] + "/article/s-" + String(i + 1).padStart(4, "0") + ".md",
+        metadata: { title: "Clinical topic " + i },
+      },
+    }));
+    const anking = Array.from({ length: 11 }, (_, i) => ({
+      id: "anking-full-" + i,
+      text: "Original AnKing v12 high-yield clinical note number " + i,
+      score: 0.91,
+      instance_id: "santo-anking-step-v12",
+      item: { key: "note_" + (1471558916902 + i) + ".json", metadata: { title: "AnKing note " + i } },
+    }));
+    const gallery = {
+      id: "gallery-one",
+      text: "Clinically relevant figure",
+      score: 0.93,
+      instance_id: "santo-medical-images",
+      item: { key: "img_000123.json" },
+    };
+    const namespace = new FakeAiSearchNamespace(undefined, {
+      __merged: { chunks: [medical[0], ...anking, ...medical.slice(1), gallery] },
+    });
+    const retrieval = new CloudflareAiSearchRetrieval(
+      namespace, undefined, true, false, undefined, false, true, true, true, true, true,
+    );
+    const result = await retrieval.retrieveWithGallery({
+      query: "aortic stenosis pathophysiology",
+      libraryId: null,
+    });
+    expect(namespace.searchInputs).toHaveLength(1);
+    expect(namespace.searchInputs[0]).toMatchObject({
+      ai_search_options: {
+        retrieval: { max_num_results: 50, match_threshold: 0.4 },
+        reranking: { enabled: false },
+      },
+    });
+    expect(result.evidence).toHaveLength(49);
+    expect(result.evidence.filter((source) => source.libraryId === "anking")).toHaveLength(11);
+    expect(result.evidence.filter((source) => source.libraryId !== "anking")).toHaveLength(38);
+    expect(result.evidence[0]?.libraryId).toBe("amboss");
+    expect(result.evidence[1]?.libraryId).toBe("anking");
+    expect(result.evidence[12]?.libraryId).not.toBe("anking");
+    expect(result.galleryHits).toEqual([{ imageId: "img_000123", score: 0.93 }]);
+    expect(result.ankingHits).toBeUndefined();
+  });
+
   it("explicit clinical library filter never adds AnKing, even when opt-in enabled", async () => {
     const namespace = new FakeAiSearchNamespace(undefined, {
       amboss: { chunks: [chunk("amboss")] },

@@ -98,7 +98,9 @@ describe("AMBOSS-only adjacent R2 evidence expansion", () => {
 
   it("starts all ten R2 reads before awaiting any individual object and preserves neighbor ordering", async () => {
     let release!: () => void;
-    const waiting = new Promise<void>((resolve) => { release = resolve; });
+    const waiting = new Promise<void>((resolve) => {
+      release = resolve;
+    });
     const calls: string[] = [];
     const bucket: Pick<R2BucketLike, "get"> = {
       get: vi.fn(async (key: string) => {
@@ -114,11 +116,7 @@ describe("AMBOSS-only adjacent R2 evidence expansion", () => {
     expect(calls[9]).toBe(folder + "s-0025.md");
     release();
     const result = await pending;
-    expect(result.map((x) => x.itemKey)).toEqual([
-      anchor.itemKey,
-      ...calls,
-      usmle.itemKey,
-    ]);
+    expect(result.map((x) => x.itemKey)).toEqual([anchor.itemKey, ...calls, usmle.itemKey]);
   });
 
   it("keeps the five original results and caps the total at fifteen", async () => {

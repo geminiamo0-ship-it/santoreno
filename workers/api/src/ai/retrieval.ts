@@ -30,6 +30,7 @@ const WITH_GALLERY_MERGED_CANDIDATES = 45;
 const IMAGE_SEARCH_INSTANCE = "santo-medical-images";
 // Separate licensed educational exam-memory index; never clinical citation evidence.
 const ANKING_SEARCH_INSTANCE = "santo-anking-cardiology";
+const ANKING_FULL_V12_INSTANCE = "santo-anking-step-v12";
 const WITH_ANKING_MERGED_CANDIDATES = 50;
 const MATCH_THRESHOLD = 0.4;
 const MAX_CHUNK_CHARS = 5000;
@@ -192,6 +193,7 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
     private readonly intentRoutingV1 = false,
     private readonly singleMultiInstanceSearchV1 = false,
     private readonly ankingCardsV1 = false,
+    private readonly ankingFullV12 = false,
   ) {
     this.catalog = catalog ?? new AiSearchNamespaceLibraryCatalog(namespace);
   }
@@ -304,7 +306,9 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
         instance_ids: [
           ...libraries.map((library) => library.instanceId),
           ...(includeGallery ? [IMAGE_SEARCH_INSTANCE] : []),
-          ...(includeAnking ? [ANKING_SEARCH_INSTANCE] : []),
+          ...(includeAnking
+            ? [this.ankingFullV12 ? ANKING_FULL_V12_INSTANCE : ANKING_SEARCH_INSTANCE]
+            : []),
         ],
         retrieval: {
           retrieval_type: "hybrid",
@@ -359,7 +363,11 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
       const seen = new Set<string>();
       for (const raw of result.chunks) {
         const row = asRecord(raw);
-        if (stringField(row, "instance_id") !== ANKING_SEARCH_INSTANCE) continue;
+        if (
+          stringField(row, "instance_id") !==
+          (this.ankingFullV12 ? ANKING_FULL_V12_INSTANCE : ANKING_SEARCH_INSTANCE)
+        )
+          continue;
         const item = asRecord(row?.item);
         const key = stringField(item, "key");
         const score = numberField(row, "score");

@@ -95,6 +95,45 @@ describe("rights-locked AnKing suggestions", () => {
     expect(result.cards).toEqual([]);
   });
 
+  it("hydrates original AnKing v12 CIDs from the 128-shard full library, not cardio shards", async () => {
+    const path = `anking/v12/full/shards/shard_${String(noteId % 128).padStart(3, "0")}.json`;
+    const bucket: R2BucketLike = {
+      get: vi.fn(async (key: string) =>
+        key === path ? { text: async () => JSON.stringify({ [`note_${noteId}`]: valid }) } : null,
+      ),
+      put: vi.fn(async () => undefined),
+      delete: vi.fn(async () => undefined),
+    };
+    const result = await new R2AnkingSupplementRetriever(bucket, true).hydrate(
+      hits,
+      "aortic stenosis",
+    );
+    expect(result.cards).toHaveLength(1);
+    expect(result.cards[0]?.ankiQuery).toBe(`cid:${cardId}`);
+    expect(bucket.get).toHaveBeenCalledWith(path);
+    expect(bucket.get).not.toHaveBeenCalledWith(
+      `anking/v3/cardiology/shards/shard_${String(noteId % 32).padStart(2, "0")}.json`,
+    );
+  });
+
+  it("never forwards unreviewed AnKing v12 facts or invented clinical citations", async () => {
+    const bucket = source({ ...valid, review_status: "pending_expert_review" });
+    const result = await new R2AnkingSupplementRetriever(bucket, true).hydrate(
+      hits,
+      "aortic stenosis",
+    );
+    expect(result.cards.map((card) => card.cardId)).toEqual([cardId]);
+    expect(result.promptContext).toBe("");
+    const denied = await new R2AnkingSupplementRetriever(
+      source({
+        ...valid,
+        rights_status: "unverified_rights_locked",
+      }),
+      true,
+    ).hydrate(hits, "aortic stenosis");
+    expect(denied.cards).toEqual([]);
+  });
+
   it("does not return a non-matching cloze or content for irrelevant hits", async () => {
     const result = await new R2AnkingSupplementRetriever(source(valid)).hydrate(
       hits,

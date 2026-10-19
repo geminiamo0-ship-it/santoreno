@@ -39,28 +39,37 @@ const MAX_NOTES = 7;
 const MAX_CARDS = 5;
 const SHARD_PREFIX = "anking/v3/cardiology/shards/";
 const SHARD_COUNT = 32;
+const FULL_V12_SHARD_PREFIX = "anking/v12/full/shards/";
+const FULL_V12_SHARD_COUNT = 128;
 const SHARD_CACHE_MS = 5 * 60_000;
 type Shard = Record<string, NoteRecord>;
-const shardCache = new WeakMap<R2BucketLike, Map<number, { until: number; data: Shard }>>();
-const shardFlights = new WeakMap<R2BucketLike, Map<number, Promise<Shard>>>();
+const shardCache = new WeakMap<R2BucketLike, Map<string, { until: number; data: Shard }>>();
+const shardFlights = new WeakMap<R2BucketLike, Map<string, Promise<Shard>>>();
 
-export async function loadShard(bucket: R2BucketLike, shard: number): Promise<Shard> {
+export async function loadShard(
+  bucket: R2BucketLike,
+  shard: number,
+  fullV12 = false,
+): Promise<Shard> {
+  const key = `${fullV12 ? "v12" : "cardio"}:${shard}`;
   let cache = shardCache.get(bucket);
   if (!cache) {
     cache = new Map();
     shardCache.set(bucket, cache);
   }
-  const stored = cache.get(shard);
+  const stored = cache.get(key);
   if (stored && stored.until > Date.now()) return stored.data;
   let flights = shardFlights.get(bucket);
   if (!flights) {
     flights = new Map();
     shardFlights.set(bucket, flights);
   }
-  const existing = flights.get(shard);
+  const existing = flights.get(key);
   if (existing) return existing;
   const loading = (async (): Promise<Shard> => {
-    const object = await bucket.get(`${SHARD_PREFIX}shard_${String(shard).padStart(2, "0")}.json`);
+    const object = await bucket.get(
+      `${fullV12 ? FULL_V12_SHARD_PREFIX : SHARD_PREFIX}shard_${String(shard).padStart(fullV12 ? 3 : 2, "0")}.json`,
+    );
     if (!object) return {};
     const parsed = record(JSON.parse(await object.text()) as unknown);
     if (!parsed) return {};
@@ -71,14 +80,14 @@ export async function loadShard(bucket: R2BucketLike, shard: number): Promise<Sh
         if (row) checked[key] = row as NoteRecord;
       }
     }
-    cache!.set(shard, { until: Date.now() + SHARD_CACHE_MS, data: checked });
+    cache!.set(key, { until: Date.now() + SHARD_CACHE_MS, data: checked });
     return checked;
   })();
-  flights.set(shard, loading);
+  flights.set(key, loading);
   try {
     return await loading;
   } finally {
-    flights.delete(shard);
+    flights.delete(key);
   }
 }
 
@@ -159,7 +168,10 @@ export function studyNoteFields(note: NoteRecord): Array<{ label: string; value:
 }
 
 export class R2AnkingSupplementRetriever implements AnkingSupplementRetriever {
-  constructor(private readonly bucket: R2BucketLike) {}
+  constructor(
+    private readonly bucket: R2BucketLike,
+    private readonly fullV12 = false,
+  ) {}
 
   async hydrate(hits: readonly AnkingSearchHit[], query: string): Promise<AnkingSupplement> {
     if (!hits.length) return EMPTY;
@@ -170,7 +182,15 @@ export class R2AnkingSupplementRetriever implements AnkingSupplementRetriever {
       unique.map(async (id) => {
         try {
           const number = Number(id.slice(5));
-          return (await loadShard(this.bucket, number % SHARD_COUNT))[id] ?? null;
+          return (
+            (
+              await loadShard(
+                this.bucket,
+                number % (this.fullV12 ? FULL_V12_SHARD_COUNT : SHARD_COUNT),
+                this.fullV12,
+              )
+            )[id] ?? null
+          );
         } catch {
           return null;
         }

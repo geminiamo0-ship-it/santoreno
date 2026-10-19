@@ -1,5 +1,5 @@
 name: Activate Isolated Find the Card + AnKing Scientific References — Staging
-# Owner-confirmed AnKing v12 indexing complete; activate via existing single 7-index search
+# Owner-confirmed AnKing v12 indexing complete; this revision repairs handler and citation regex parsing
 
 on:
   push:

@@ -45,6 +45,33 @@ describe("staging single-pass plain-Luna citation contract", () => {
     });
   });
 
+  it("maps provider [[N]](SANTO_REF_4) syntax to an actual server-verified reference", () => {
+    const ids = Array.from({ length: 15 }, (_, index) => "medical:verified-source-" + index);
+    const raw =
+      "## Aortic stenosis\\nMechanism [[N]](SANTO_REF_4). " +
+      "Management [[N]](SANTO_REF_15) [[N]](SANTO_REF_4).";
+    const parsed = parsePlainLunaAnswer(raw, ids);
+    expect(parsed.citationIds).toEqual([ids[3], ids[14]]);
+    expect(parsed.answer).toBe(
+      "## Aortic stenosis\\nMechanism [1]. Management [2] [1].",
+    );
+    expect(parsed.answer).not.toContain("SANTO_REF");
+    expect(parsed.answer).not.toContain("[[N]]");
+  });
+
+  it("rejects fabricated aliases, never invents citations, and hides streaming citation syntax", () => {
+    const ids = ["amboss:real"];
+    const result = parsePlainLunaAnswer(
+      "Supported [[N]](SANTO_REF_1). Fabricated [[N]](SANTO_REF_15).",
+      ids,
+    );
+    expect(result.citationIds).toEqual(ids);
+    expect(result.answer).toBe("Supported [1]. Fabricated .");
+    expect(parsePlainLunaAnswer("Unknown [[N]](SANTO_REF_13).", ids).citationIds).toEqual([]);
+    expect(previewPlainLuna("Supported [[N]](SANTO_REF_1).", ids)).not.toContain("SANTO_REF");
+    expect(previewPlainLuna("Supported [[N]](SANTO_", ids)).not.toContain("[[N]]");
+  });
+
   it("preserves completed uncited medical teaching with related source status", () => {
     expect(parsePlainLunaAnswer("Management consists of valve replacement.", [sourceA])).toEqual({
       answer: "Management consists of valve replacement.",

@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+// @ts-expect-error Node types are intentionally absent in the Cloudflare Worker tsconfig.
 import { readFileSync } from "node:fs";
 import { findMoreAnkingCards } from "./anking-topic-finder";
 import type { R2BucketLike } from "../runtime/bindings";
@@ -77,7 +78,7 @@ describe("fully isolated original CID Find the Card search", () => {
  * No model/AI Search/API tokens, cards rendering, tenant session or quota.
  */
 describe("full v12 real R2 topic results (CI opt-in)", () => {
-  const file = process.env.SANTO_ANKING_TOPIC_INDEX_FILE;
+  const file = (globalThis as unknown as { process?: { env?: Record<string, string | undefined> } }).process?.env?.SANTO_ANKING_TOPIC_INDEX_FILE;
   it.skipIf(!file)(
     "resolves real disease + management topics into original Anki CIDs",
     async () => {

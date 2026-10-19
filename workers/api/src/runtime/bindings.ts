@@ -87,6 +87,7 @@ export interface SantoBindings {
   SANTO_ANKING_CARDS_V1?: string;
   SANTO_ANKING_V12_FULL_SEARCH_V1?: string;
   SANTO_SEARCH_FAST_PATH_V1?: string;
+  SANTO_FORWARD_ALL_SEARCH_HITS_V1?: string;
   SANTO_ANKING_RIGHTS_CLEARED_V1?: string;
   SANTO_LIBRARY_READER_V1?: string;
   CONTROL_DB?: D1DatabaseLike;

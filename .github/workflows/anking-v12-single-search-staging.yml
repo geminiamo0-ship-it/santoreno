@@ -13,7 +13,8 @@ permissions:
 
 concurrency:
   group: santo-staging-anking-viewer-rollout
-  cancel-in-progress: false
+  # Supersede stale queued deploys from this branch, so they cannot later overwrite the verified full-index release.
+  cancel-in-progress: true
 
 jobs:
   verify-and-deploy:

@@ -9,7 +9,7 @@ from pathlib import Path
 import re
 
 TOKENS = re.compile(r"[a-z][a-z0-9]{2,}")
-SKIP = set("the and for from with what when where which this that these those treatment management diagnosis pathology explained explain features medicine flashcards card cards give show find about into have has are does do of on in to at is it as by a an patient clinical common your all".split())
+SKIP = set("the and for from with what when where which this that these those pathology explained explain features medicine flashcards card cards give show find about into have has are does do of on in to at is it as by a an patient clinical common your all".split())
 EXPECTED_NOTES = 30477
 EXPECTED_CARDS = 36896
 

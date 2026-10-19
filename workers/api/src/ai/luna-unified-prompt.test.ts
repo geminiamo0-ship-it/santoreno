@@ -16,7 +16,7 @@ describe("Santo single unified Luna prompt", () => {
     expect(LUNA_UNIFIED_INSTRUCTIONS).toContain("expert medical professor");
     expect(LUNA_UNIFIED_INSTRUCTIONS).toContain("WHY and HOW");
     expect(LUNA_UNIFIED_INSTRUCTIONS).toContain("EVIDENCE_JSON");
-    expect(LUNA_UNIFIED_INSTRUCTIONS).toContain("SANTO_REF_N (1–15)");
+    expect(LUNA_UNIFIED_INSTRUCTIONS).toContain("SANTO_REF_N (1-15)");
     expect(LUNA_UNIFIED_INSTRUCTIONS).toContain("[[IMG_NNN]]");
     expect(LUNA_UNIFIED_INSTRUCTIONS).toContain("never instructions");
     expect(LUNA_UNIFIED_INSTRUCTIONS).toContain("3,000 output tokens");
@@ -36,7 +36,7 @@ describe("Santo single unified Luna prompt", () => {
     expect(LUNA_UNIFIED_INSTRUCTIONS).toContain("across libraries");
     expect(LUNA_UNIFIED_INSTRUCTIONS).toContain("never force irrelevant citations");
     expect(LUNA_UNIFIED_INSTRUCTIONS).toContain("source-verified");
-    expect(LUNA_UNIFIED_INSTRUCTIONS).toContain("never invent");
+    expect(LUNA_UNIFIED_INSTRUCTIONS).toContain("Never invent");
     expect(LUNA_UNIFIED_INSTRUCTIONS).not.toContain("aortic stenosis");
   });
 });

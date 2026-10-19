@@ -730,7 +730,7 @@ describe("Santo five licensed library retrieval", () => {
     });
     expect(result.evidence).toHaveLength(1);
     expect(result.evidence[0]?.libraryId).toBe("amboss");
-    expect(result.ankingHits).toEqual([{ noteId: "note_1471558916902", score: 0.91 }]);
+    expect(result.ankingHits).toBeUndefined(); // Never hydrate flashcards with a Luna answer.
     expect(result.galleryHits).toEqual([]);
   });
 
@@ -741,7 +741,7 @@ describe("Santo five licensed library retrieval", () => {
           chunk("amboss", 1, 0.94),
           {
             id: "anking-v12",
-            text: "Full-library educational text, not a citation",
+            text: "Aortic stenosis creates a systolic crescendo-decrescendo murmur with radiation to the carotid arteries",
             score: 0.95,
             instance_id: "santo-anking-step-v12",
             item: { key: "note_1471558916902.json" },
@@ -796,10 +796,14 @@ describe("Santo five licensed library retrieval", () => {
         retrieval: { max_num_results: 50 },
       },
     });
-    expect(result.ankingHits).toEqual([{ noteId: "note_1471558916902", score: 0.95 }]);
+    expect(result.ankingHits).toBeUndefined();
     expect(result.galleryHits).toEqual([{ imageId: "img_000123", score: 0.9 }]);
-    expect(result.evidence.map((item) => item.libraryId)).toEqual(["amboss"]);
-    expect(result.evidence.every((item) => !item.sourceId.includes("anking"))).toBe(true);
+    expect(result.evidence.map((item) => item.libraryId)).toEqual(["amboss", "anking"]);
+    expect(result.evidence[1]).toMatchObject({
+      instanceId: "santo-anking-step-v12",
+      itemKey: "note_1471558916902.json",
+    });
+    expect(result.evidence[1]?.sourceId).toBe("santo-anking-step-v12:anking-v12");
   });
 
   it("explicit clinical library filter never adds AnKing, even when opt-in enabled", async () => {

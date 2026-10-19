@@ -2,8 +2,8 @@ import { GroundedAiError } from "./errors";
 import type { RetrievedEvidence } from "./types";
 
 const MAX_QUERY_CHARS = 4000;
-// Five ranked source passages plus at most three verified AMBOSS R2 neighbors.
-const MAX_EVIDENCE_ITEMS = 8;
+// Five ranked source passages plus at most ten verified AMBOSS R2 neighbors.
+const MAX_EVIDENCE_ITEMS = 15;
 const MAX_EVIDENCE_CHARS = 3500;
 const MAX_SOURCE_ID_CHARS = 512;
 const MAX_LIBRARY_ID_CHARS = 64;
@@ -61,13 +61,13 @@ export function buildGroundedPrompt(
     ...(format === "markdown"
       ? [
           "OUTPUT CONTRACT: Write the teaching response directly in Markdown. Do not use structured response wrappers, code fences, or raw machine source identifiers.",
-          "EVIDENCE_JSON contains up to eight genuine excerpts (five search results plus at most three server-verified AMBOSS neighboring sections). Each source_id will be replaced by a temporary SANTO_REF_N label in this same model request. Cite a supported clinical statement using [[N]], where N is the integer in that excerpt's SANTO_REF_N label. Use the marker only when the associated excerpt really supports the statement.",
+          "EVIDENCE_JSON contains up to fifteen genuine excerpts (five search results plus at most ten server-verified AMBOSS neighboring sections). Each source_id will be replaced by a temporary SANTO_REF_N label in this same model request. Cite a supported clinical statement using [[N]], where N is the integer in that excerpt's SANTO_REF_N label. Use the marker only when the associated excerpt really supports the statement.",
           "Review each relevant EVIDENCE_JSON excerpt and cite sources across libraries when supported. Include at least one [[N]] marker if evidence supports the answer; never add an unrelated or invented source, favor a brand, or attribute general medical background to a library.",
           "Source links and source cards belong to Santo, not the model. Never print SANTO_REF_N, original source_id strings, or internal IDs in prose. Finish complete paragraphs and sentences.",
         ]
       : [
           "Every citation_id must exactly match a source_id from EVIDENCE_JSON and genuinely support claims grounded in those passages. The server, not the model, owns links and source displays. NEVER print raw source_id strings such as passmedicine:chunk-id or bracketed machine citation IDs inside answer Markdown; include source identifiers ONLY in citation_ids. If adding substantial general-background reasoning, distinguish it without attaching an unsupported library citation.",
-          "Review EACH retrieved EVIDENCE_JSON source. Cite claims across distinct libraries when genuinely supported, using up to eight citation_ids. NEVER add an unrelated source, favor a brand, or attribute general background knowledge to a library.",
+          "Review EACH retrieved EVIDENCE_JSON source. Cite claims across distinct libraries when genuinely supported, using up to fifteen citation_ids. NEVER add an unrelated source, favor a brand, or attribute general background knowledge to a library.",
           "Return JSON only with this exact shape:",
           '{"answer":"evidence-grounded, richly structured medical explanation in Markdown","citation_ids":["source_id"]}',
           "Use at least one legitimate citation_id for a successful sourced answer. Never invent a citation, a specific guideline recommendation/date, statistics, drug dose or decision threshold beyond evidence; uncertainty must be visible when clinical precision matters.",

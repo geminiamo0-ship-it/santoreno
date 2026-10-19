@@ -1,0 +1,48 @@
+name: Format and Verify All Search Hits — Staging Candidate
+
+on:
+  push:
+    branches:
+      - feat/santo-forward-all-search-hits-staging-20261020
+    paths:
+      - .github/workflows/santo-forward-all-format-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  format-and-verify:
+    if: github.repository == 'geminiamo0-ship-it/santoreno'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install pinned workspace
+        run: |
+          set -euo pipefail
+          corepack enable
+          pnpm install --frozen-lockfile
+      - name: Apply Prettier to candidate changes only
+        run: |
+          set -euo pipefail
+          pnpm exec prettier --write workers/api/src/ai/amboss-adjacent.test.ts workers/api/src/ai/amboss-adjacent.ts workers/api/src/ai/prompt.test.ts workers/api/src/ai/retrieval.test.ts workers/api/src/ai/retrieval.ts
+          if ! git diff --quiet; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add workers/api/src/ai/amboss-adjacent.test.ts workers/api/src/ai/amboss-adjacent.ts workers/api/src/ai/prompt.test.ts workers/api/src/ai/retrieval.test.ts workers/api/src/ai/retrieval.ts
+            git commit -m "style(staging): format all-results retrieval and regression tests"
+            git push origin HEAD:feat/santo-forward-all-search-hits-staging-20261020
+          fi
+      - name: Validate formatting, TypeScript, full tests and build (NO DEPLOY)
+        run: |
+          set -euo pipefail
+          pnpm lint
+          pnpm typecheck
+          pnpm test
+          pnpm build
+          pnpm smoke

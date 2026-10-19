@@ -75,8 +75,9 @@ describe("AMBOSS-only adjacent R2 evidence expansion", () => {
     expect(result).toHaveLength(12);
     expect(result.map((item) => item.itemKey)).toEqual([
       anchor.itemKey,
-      ...Array.from({ length: 10 }, (_, index) =>
-        folder + "s-" + String(index + 16).padStart(4, "0") + ".md"
+      ...Array.from(
+        { length: 10 },
+        (_, index) => folder + "s-" + String(index + 16).padStart(4, "0") + ".md",
       ),
       usmle.itemKey,
     ]);

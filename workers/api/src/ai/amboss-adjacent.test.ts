@@ -48,27 +48,39 @@ function fakeBucket(keys: Record<string, string>) {
 }
 
 function files() {
-  return {
-    [folder + "s-0016.md"]: section(16, "Approach"),
-    [folder + "s-0017.md"]: section(17, "Echocardiographic monitoring"),
-    [folder + "s-0018.md"]: section(18, "SAVR and TAVR"),
-    [folder + "s-0019.md"]: section(19, "Follow-up"),
-  };
+  const names = [
+    "Approach",
+    "Echocardiographic monitoring",
+    "SAVR and TAVR",
+    "Follow-up",
+    "Antithrombotic therapy",
+    "Complications",
+    "Special populations",
+    "Concomitant disease",
+    "Follow-up after intervention",
+    "Treatment summary",
+  ];
+  return Object.fromEntries(
+    names.map((name, index) => [
+      folder + "s-" + String(index + 16).padStart(4, "0") + ".md",
+      section(index + 16, name),
+    ]),
+  );
 }
 
 describe("AMBOSS-only adjacent R2 evidence expansion", () => {
-  it("adds exactly 3 following sections with distinct server-derived citations", async () => {
+  it("adds exactly ten following AMBOSS sections with distinct server-derived citations", async () => {
     const { bucket, reads } = fakeBucket(files());
     const result = await expandAmbossAdjacentEvidence([anchor, usmle], bucket);
-    expect(result).toHaveLength(5);
+    expect(result).toHaveLength(12);
     expect(result.map((item) => item.itemKey)).toEqual([
       anchor.itemKey,
-      folder + "s-0016.md",
-      folder + "s-0017.md",
-      folder + "s-0018.md",
+      ...Array.from({ length: 10 }, (_, index) =>
+        folder + "s-" + String(index + 16).padStart(4, "0") + ".md"
+      ),
       usmle.itemKey,
     ]);
-    expect(reads).toEqual(result.slice(1, 4).map((item) => item.itemKey));
+    expect(reads).toEqual(result.slice(1, 11).map((item) => item.itemKey));
     expect(result[1]).toMatchObject({
       section: "Approach",
       libraryId: "amboss",
@@ -77,13 +89,13 @@ describe("AMBOSS-only adjacent R2 evidence expansion", () => {
       score: 0,
     });
     expect(result[1]?.sourceId).toMatch(/^amboss:r2-[0-9a-f]{32}$/);
-    expect(new Set(result.map((item) => item.sourceId)).size).toBe(5);
+    expect(new Set(result.map((item) => item.sourceId)).size).toBe(12);
     const output = buildGroundedPrompt("Management of aortic stenosis", result);
     expect(output).toContain("Echocardiographic monitoring");
     expect(output).toContain(result[3]!.sourceId);
   });
 
-  it("keeps the five original results and caps the total at eight", async () => {
+  it("keeps the five original results and caps the total at fifteen", async () => {
     const original = [
       anchor,
       usmle,
@@ -102,8 +114,8 @@ describe("AMBOSS-only adjacent R2 evidence expansion", () => {
       },
     ];
     const result = await expandAmbossAdjacentEvidence(original, fakeBucket(files()).bucket);
-    expect(result).toHaveLength(8);
-    expect(result.filter((x) => x.libraryId === "amboss")).toHaveLength(4);
+    expect(result).toHaveLength(15);
+    expect(result.filter((x) => x.libraryId === "amboss")).toHaveLength(11);
     expect(result.filter((x) => x.libraryId !== "amboss")).toHaveLength(4);
     expect(buildGroundedPrompt("Treatment of AS", result)).toContain("SAVR and TAVR");
   });
@@ -147,7 +159,7 @@ describe("AMBOSS-only adjacent R2 evidence expansion", () => {
       sourceId: "amboss:real-search-0016",
     };
     const result = await expandAmbossAdjacentEvidence([anchor, usmle, originalSecond], bucket);
-    expect(result).toHaveLength(5);
+    expect(result).toHaveLength(12);
     expect(result[1]?.sourceId).toBe(originalSecond.sourceId);
     expect(result.filter((r) => r.itemKey === originalSecond.itemKey)).toHaveLength(1);
     expect(reads).not.toContain(originalSecond.itemKey);
@@ -176,11 +188,11 @@ describe("AMBOSS-only adjacent R2 evidence expansion", () => {
     const decorated = new AmbossAdjacentRetrieval(source, fakeBucket(files()).bucket);
     const request = { query: "management", libraryId: null };
     const result = await decorated.retrieve(request);
-    expect(result).toHaveLength(5);
+    expect(result).toHaveLength(12);
     expect(search).toHaveBeenCalledTimes(1);
     const withGallery = await decorated.retrieveWithGallery!(request);
     expect(withGallery.galleryHits).toEqual([{ imageId: "img_000014", score: 0.9 }]);
-    expect(withGallery.evidence).toHaveLength(5);
+    expect(withGallery.evidence).toHaveLength(12);
     expect(gallery).toHaveBeenCalledTimes(1);
     expect(await decorated.route!(request)).toEqual({
       intent: "medical",

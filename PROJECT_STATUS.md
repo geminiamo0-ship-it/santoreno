@@ -6,7 +6,7 @@
 - Seven active search instances: five approved clinical libraries + `santo-medical-images` + full AnKing. Maximum global `max_num_results=50`; only the five licensed clinical libraries contribute authoritative medical source IDs/citations.
 - Full index input validation pins **30,477 eligible notes** and **36,896 original cards**; private R2 hydration switches from 32 cardio shards to **128 full v12 shards** (`anking/v12/full/shards/shard_000.json` ... `shard_127.json`). The old cardio Find More reader remains available.
 - Original CID suggestions remain rights-gated and query-relevant. `pending_expert_review` content **must not become Luna clinical evidence or exam-memory facts**. Full AnKing is not a sixth medical citation library.
-- **Do not claim activation until** actual Cloudflare `completed>=30477, queued=0, running=0` statistics, read-only seven-instance clinical+AnKing real search, all CI tests, Staging Worker deploy/health/auth checks pass. Production untouched.
+- **Owner explicitly confirmed completed indexing** and authorized skipping the stats/count readiness gate. No reindexing, no extra index status check. Still require real seven-instance clinical+AnKing search, all CI tests, Staging Worker deploy/health/auth before claiming activation. Production untouched.
 
 ### Approved High-Yield Luna Clinical Reference style — 19 Oct 2026
 

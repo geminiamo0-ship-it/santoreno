@@ -133,6 +133,40 @@ describe("AMBOSS expanded evidence model source guard", () => {
 });
 
 describe("GPT-6 Luna isolated Santo staging preview", () => {
+  it("calls Luna with exactly the unified instructions and data-only input", async () => {
+    const ai: WorkersAiLike = {
+      run: vi.fn(async () => ({
+        output_text: "Aortic valve replacement is definitive. [[1]]",
+      })),
+    };
+    const model = createGroundedModel({
+      AI: ai,
+      SANTO_ENV: "staging",
+      SANTO_LUNA_PREVIEW: "true",
+      SANTO_SINGLE_PASS_GENERATION_V1: "true",
+      SANTO_PLAIN_TEXT_LUNA_V1: "true",
+      SANTO_COMPACT_CITATION_ALIASES_V1: "true",
+      SANTO_LUNA_UNIFIED_PROMPT_V1: "true",
+    });
+    // The constructor uses the same single payload in the real Worker.
+    await model.generate(
+      'USER_QUESTION_JSON:\\n"Aortic stenosis"\\nEVIDENCE_JSON:\\n[{"source_id":"amboss:chunk-1","text":"Treatment"}]',
+      undefined,
+      ["amboss:chunk-1"],
+    );
+    const payload = vi.mocked(ai.run).mock.calls[0]?.[1] as {
+      instructions: string;
+      input: string;
+      max_output_tokens: number;
+    };
+    const { LUNA_UNIFIED_INSTRUCTIONS } = await import("./luna-unified-prompt");
+    expect(payload.instructions).toBe(LUNA_UNIFIED_INSTRUCTIONS);
+    expect(payload.input).not.toContain("Teach, do not merely retrieve");
+    expect(payload.input).not.toContain("Illustrations are a PRIORITY");
+    expect(payload.max_output_tokens).toBe(3000);
+    expect(ai.run).toHaveBeenCalledTimes(1);
+  });
+
   it("uses native Responses API with low reasoning and fast tier only under staging flag", async () => {
     const ai: WorkersAiLike = {
       run: vi.fn(async () => ({

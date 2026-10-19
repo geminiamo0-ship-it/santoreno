@@ -6,26 +6,18 @@ import { SantoSessionTokenService, SessionTokenError } from "../session/token";
 import { D1TenantRepository } from "../tenancy/repository";
 import { findMoreAnkingCards } from "./anking-topic-finder";
 
-type SearchRequest = { topic: string; cursor: number; excludeCardIds: number[] };
+type SearchRequest = { topic: string; cursor: number };
 function parseSearchRequest(value: unknown): SearchRequest | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const raw = value as Record<string, unknown>;
-  if (Object.keys(raw).some((key) => !["topic", "cursor", "excludeCardIds"].includes(key)))
-    return null;
+  if (Object.keys(raw).some((key) => !["topic", "cursor"].includes(key))) return null;
   if (typeof raw.topic !== "string") return null;
   const topic = raw.topic.trim();
   if (topic.length < 3 || topic.length > 250) return null;
   const cursor = raw.cursor === undefined ? 0 : raw.cursor;
-  if (typeof cursor !== "number" || !Number.isSafeInteger(cursor) || cursor < 0 || cursor > 1000)
+  if (typeof cursor !== "number" || !Number.isSafeInteger(cursor) || cursor < 0 || cursor > 40_000)
     return null;
-  const excluded = raw.excludeCardIds === undefined ? [] : raw.excludeCardIds;
-  if (
-    !Array.isArray(excluded) ||
-    excluded.length > 5 ||
-    excluded.some((id) => typeof id !== "number" || !Number.isSafeInteger(id) || id <= 0)
-  )
-    return null;
-  return { topic, cursor, excludeCardIds: excluded as number[] };
+  return { topic, cursor };
 }
 const HEADERS = { "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff" };
 
@@ -58,15 +50,9 @@ export async function handleAnkingFindMore(
       new D1TenantRepository(env.CONTROL_DB),
       tokens,
     ).resolve(principal);
-    const { topic, cursor, excludeCardIds } = body;
-    const result = await findMoreAnkingCards(
-      env.CONTENT_BUCKET,
-      topic,
-      cursor,
-      excludeCardIds,
-      // Only optional Arabic->English query normalization, on the FIRST page.
-      env.AI,
-    );
+    const { topic, cursor } = body;
+    // Isolated read-only Anki search. No Luna, Qwen, AI Search, conversation or quota.
+    const result = await findMoreAnkingCards(env.CONTENT_BUCKET, topic, cursor);
     return Response.json(result, { headers: HEADERS });
   } catch (caught) {
     if (caught instanceof SessionError || caught instanceof SessionTokenError) {

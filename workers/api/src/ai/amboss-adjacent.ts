@@ -38,7 +38,7 @@ export async function expandAmbossAdjacentEvidence(
   const anchor = original.find(
     (item) => item.libraryId === "amboss" && AMBOSS_SECTION_KEY.test(item.itemKey),
   );
-  if (!anchor || original.length > MAX_TOTAL_EVIDENCE - ADJACENT_FILES) {
+  if (!anchor || original.length >= MAX_TOTAL_EVIDENCE) {
     return [...original];
   }
   const match = AMBOSS_SECTION_KEY.exec(anchor.itemKey);
@@ -58,17 +58,20 @@ export async function expandAmbossAdjacentEvidence(
   // concurrently, then consume IN ORDER and stop at the first missing,
   // invalid or mismatched section. Do not widen retrieval or change citations.
   const neighbors = await Promise.all(
-    Array.from({ length: ADJACENT_FILES }, async (_, index) => {
-      const key = folder + "s-" + String(firstNumber + index + 1).padStart(4, "0") + ".md";
-      const alreadyRetrieved = existing.get(key);
-      if (alreadyRetrieved) return { key, alreadyRetrieved, raw: null as string | null };
-      try {
-        const object = await bucket.get(key);
-        return { key, alreadyRetrieved: undefined, raw: object ? await object.text() : null };
-      } catch {
-        return { key, alreadyRetrieved: undefined, raw: null };
-      }
-    }),
+    Array.from(
+      { length: Math.min(ADJACENT_FILES, MAX_TOTAL_EVIDENCE - original.length) },
+      async (_, index) => {
+        const key = folder + "s-" + String(firstNumber + index + 1).padStart(4, "0") + ".md";
+        const alreadyRetrieved = existing.get(key);
+        if (alreadyRetrieved) return { key, alreadyRetrieved, raw: null as string | null };
+        try {
+          const object = await bucket.get(key);
+          return { key, alreadyRetrieved: undefined, raw: object ? await object.text() : null };
+        } catch {
+          return { key, alreadyRetrieved: undefined, raw: null };
+        }
+      },
+    ),
   );
   for (const { key, alreadyRetrieved, raw } of neighbors) {
     if (alreadyRetrieved) {

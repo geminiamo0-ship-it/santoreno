@@ -136,7 +136,7 @@ export class GroundedAiService {
     let answer: string;
     let citations: GroundedAiQueryResponse["citations"];
     let relatedPics: NonNullable<GroundedAiQueryResponse["relatedPics"]> = [];
-    let suggestedFlashcards: NonNullable<GroundedAiQueryResponse["suggestedFlashcards"]> = [];
+
     let responseMode: "santo" | "general" = "santo";
     let retrievedSourceCount = 0;
     let validCitationCount = 0;
@@ -249,40 +249,22 @@ export class GroundedAiService {
                 "SEARCH_TIMEOUT",
               ).catch(() => [])
             : Promise.resolve([]);
-        const ankingPromise =
-          groundingMode === "santo" && this.ankingSupplement && combinedSearch.ankingHits?.length
-            ? withAiDeadline(
-                () =>
-                  this.ankingSupplement!.hydrate(
-                    combinedSearch.ankingHits!,
-                    route?.intent === "medical" ? route.searchQuery : input.query,
-                  ),
-                signal,
-                4_000,
-                "SEARCH_TIMEOUT",
-              ).catch(() => ({ cards: [], promptContext: "" }))
-            : Promise.resolve({ cards: [], promptContext: "" });
-        const [originalImages, galleryImages, anking] = await Promise.all([
-          originalImagesPromise.then((images) => {
-            if (imageDiagnostics) {
-              console.info("santo_runtime_stage_ms", {
-                stage: "image_hydration",
-                milliseconds: Math.round(performance.now() - imagesStartedAt),
-              });
-            }
-            return images;
-          }),
-          galleryImagesPromise.then((images) => {
-            if (imageDiagnostics) {
-              console.info("santo_runtime_stage_ms", {
-                stage: "gallery_hydration",
-                milliseconds: Math.round(performance.now() - galleryStartedAt),
-              });
-            }
-            return images;
-          }),
-          ankingPromise,
+        // No flashcards, card-shard reads or extra AI operations in the Luna
+        // answer path. AnKing scientific excerpts are already part of evidence.
+        const [originalImages, galleryImages] = await Promise.all([
+          originalImagesPromise,
+          galleryImagesPromise,
         ]);
+        if (imageDiagnostics) {
+          console.info("santo_runtime_stage_ms", {
+            stage: "image_hydration",
+            milliseconds: Math.round(performance.now() - imagesStartedAt),
+          });
+          console.info("santo_runtime_stage_ms", {
+            stage: "gallery_hydration",
+            milliseconds: Math.round(performance.now() - galleryStartedAt),
+          });
+        }
         if (imageDiagnostics) {
           console.info("santo_luna_image_pipeline", {
             phase: "before_model",
@@ -305,11 +287,7 @@ export class GroundedAiService {
         const answerFormat = this.markdownOutput ? "markdown" : "json";
         const sourcedPrompt =
           buildGroundedPrompt(input.query, evidence, answerFormat, this.unifiedLunaPrompt) +
-          medicalImagePrompt(availableImages, input.query, this.unifiedLunaPrompt) +
-          (this.unifiedLunaPrompt
-            ? anking.promptContext.split("\nUse these only as exam-recall context")[0]
-            : anking.promptContext);
-        suggestedFlashcards = anking.cards;
+          medicalImagePrompt(availableImages, input.query, this.unifiedLunaPrompt);
         console.info("santo_runtime_stage_ms", {
           stage: "pre_model",
           milliseconds: Math.round(performance.now() - routeStartedAt),
@@ -544,7 +522,7 @@ export class GroundedAiService {
       answer,
       citations,
       ...(relatedPics.length ? { relatedPics } : {}),
-      ...(responseMode === "santo" && suggestedFlashcards.length ? { suggestedFlashcards } : {}),
+
       ...(responseMode === "general" ? { groundingMode: "general" as const } : {}),
       usage: {
         unitsCharged: 1,

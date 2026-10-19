@@ -16,7 +16,6 @@ import { createGroundedModel } from "./model";
 import { CloudflareAiSearchRetrieval } from "./retrieval";
 import { AmbossAdjacentRetrieval } from "./amboss-adjacent";
 import { CloudflareGalleryImageRetrieval } from "./image-gallery";
-import { R2AnkingSupplementRetriever } from "./anking-flashcards";
 import { GroundedAiService } from "./service";
 import { streamValidatedGroundedAnswer } from "./stream";
 import { AnalyticsEngineAiTelemetry } from "./telemetry";
@@ -153,16 +152,7 @@ export function createGroundedAiHandler(dependencies: GroundedAiHandlerDependenc
           env.CONTENT_BUCKET
           ? new CloudflareGalleryImageRetrieval(env.CONTENT_BUCKET)
           : undefined,
-        env.SANTO_ENV === "staging" &&
-          env.SANTO_ANKING_CARDS_V1 === "true" &&
-          env.SANTO_ANKING_RIGHTS_CLEARED_V1 === "true" &&
-          env.SANTO_AI_SEARCH_SINGLE_REQUEST_V1 === "true" &&
-          env.CONTENT_BUCKET
-          ? new R2AnkingSupplementRetriever(
-              env.CONTENT_BUCKET,
-              env.SANTO_ANKING_V12_FULL_SEARCH_V1 === "true",
-            )
-          : undefined,
+        undefined, // Find the Card is isolated, never requested by Luna.
         env.SANTO_ENV === "staging" &&
           env.SANTO_LUNA_PREVIEW === "true" &&
           env.SANTO_PLAIN_TEXT_LUNA_V1 === "true" &&

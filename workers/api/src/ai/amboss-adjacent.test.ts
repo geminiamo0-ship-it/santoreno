@@ -96,6 +96,31 @@ describe("AMBOSS-only adjacent R2 evidence expansion", () => {
     expect(output).toContain(result[3]!.sourceId);
   });
 
+  it("starts all ten R2 reads before awaiting any individual object and preserves neighbor ordering", async () => {
+    let release!: () => void;
+    const waiting = new Promise<void>((resolve) => { release = resolve; });
+    const calls: string[] = [];
+    const bucket: Pick<R2BucketLike, "get"> = {
+      get: vi.fn(async (key: string) => {
+        calls.push(key);
+        await waiting;
+        return { text: async () => files()[key] ?? "" };
+      }),
+    };
+    const pending = expandAmbossAdjacentEvidence([anchor, usmle], bucket);
+    await Promise.resolve();
+    expect(calls).toHaveLength(10);
+    expect(calls[0]).toBe(folder + "s-0016.md");
+    expect(calls[9]).toBe(folder + "s-0025.md");
+    release();
+    const result = await pending;
+    expect(result.map((x) => x.itemKey)).toEqual([
+      anchor.itemKey,
+      ...calls,
+      usmle.itemKey,
+    ]);
+  });
+
   it("keeps the five original results and caps the total at fifteen", async () => {
     const original = [
       anchor,
@@ -138,7 +163,7 @@ describe("AMBOSS-only adjacent R2 evidence expansion", () => {
     const missing = fakeBucket({ [folder + "s-0016.md"]: section(16, "Approach") });
     const partial = await expandAmbossAdjacentEvidence([anchor], missing.bucket);
     expect(partial).toHaveLength(2);
-    expect(missing.reads).toEqual([folder + "s-0016.md", folder + "s-0017.md"]);
+    expect(missing.reads).toHaveLength(10); // Prefetched concurrently; only the valid consecutive prefix is trusted.
     const invalid = fakeBucket({
       [folder + "s-0016.md"]: section(16, "Approach").replace("AMBOSS", "USMLE"),
     });

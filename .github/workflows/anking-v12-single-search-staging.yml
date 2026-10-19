@@ -12,7 +12,8 @@ permissions:
   contents: write
 
 concurrency:
-  group: santo-staging-anking-viewer-rollout
+  # Dedicated verified v12 staging rollout; old queued jobs fail exact-head SHA check.
+  group: santo-staging-anking-v12-activation-20261019
   # Supersede stale queued deploys from this branch, so they cannot later overwrite the verified full-index release.
   cancel-in-progress: true
 

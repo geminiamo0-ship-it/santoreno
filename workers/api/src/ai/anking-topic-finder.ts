@@ -9,7 +9,7 @@ const PAGE_SIZE = 20;
 const MAX_CURSOR = 40_000;
 const INDEX_TTL_MS = 5 * 60_000;
 const STOP = new Set(
-  "a an and are be by can causes clinical common diagnosis disease does explain for from have how in is it its more most of on or please present presentation signs symptoms the their these this to treatment what when which why with about all associated features following finding facts classic medicine topic cards card flashcards show give me plus".split(
+  "a an and are be by can causes clinical common diagnosis disease does explain for from have how in is it its more most of on or please present presentation signs symptoms the their these this to what when which why with about all associated features following finding facts classic medicine topic cards card flashcards show give me plus".split(
     " ",
   ),
 );

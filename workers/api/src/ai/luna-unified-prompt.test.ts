@@ -14,7 +14,9 @@ describe("Santo high-yield clinical-reference unified Luna instructions", () => 
   });
 
   it("addresses medical students/doctors without lay counseling or boilerplate", () => {
-    expect(LUNA_UNIFIED_INSTRUCTIONS).toContain("clinical reference for medical students and doctors");
+    expect(LUNA_UNIFIED_INSTRUCTIONS).toContain(
+      "clinical reference for medical students and doctors",
+    );
     expect(LUNA_UNIFIED_INSTRUCTIONS).toContain("not lay patients");
     expect(LUNA_UNIFIED_INSTRUCTIONS).toContain("For personal emergencies give urgent advice");
     expect(LUNA_UNIFIED_INSTRUCTIONS).toContain("No lay filler");
@@ -40,7 +42,9 @@ describe("Santo high-yield clinical-reference unified Luna instructions", () => 
     expect(LUNA_UNIFIED_INSTRUCTIONS).toContain("directly supports the claim");
     expect(LUNA_UNIFIED_INSTRUCTIONS).toContain('"General medical teaching:"');
     expect(LUNA_UNIFIED_INSTRUCTIONS).toContain("flag guideline-dependent cutoffs");
-    expect(LUNA_UNIFIED_INSTRUCTIONS).toContain("Never invent doses, thresholds, guidelines or citations");
+    expect(LUNA_UNIFIED_INSTRUCTIONS).toContain(
+      "Never invent doses, thresholds, guidelines or citations",
+    );
     expect(LUNA_UNIFIED_INSTRUCTIONS).toContain("qualify high-risk dosing");
     expect(LUNA_UNIFIED_INSTRUCTIONS).toContain("[[IMG_NNN]] alone");
     expect(LUNA_UNIFIED_INSTRUCTIONS).toContain("images aren't evidence");

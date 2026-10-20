@@ -893,7 +893,7 @@ describe("Santo five licensed library retrieval", () => {
 });
 
 describe("Qwen planned multi-query cross-library evidence retrieval", () => {
-  it("searches up to four facets and fuses up to 90 candidates into 30 diverse original sources", async () => {
+  it("forwards all 200 distinct Cloudflare hits in provider order, without best-30/90 ranking", async () => {
     const searches: Array<{
       query: string;
       ai_search_options: {
@@ -961,10 +961,14 @@ describe("Qwen planned multi-query cross-library evidence retrieval", () => {
       expect(call.ai_search_options.reranking.enabled).toBe(false);
       expect(call.ai_search_options.instance_ids).toHaveLength(7);
     }
-    expect(results.evidence.length).toBe(30);
-    expect(new Set(results.evidence.map((e) => e.sourceId)).size).toBe(30);
+    expect(results.evidence.length).toBe(200);
+    expect(new Set(results.evidence.map((e) => e.sourceId)).size).toBe(200);
     expect(new Set(results.evidence.map((e) => e.libraryId)).size).toBe(5);
     expect(results.evidence.every((e) => e.text.includes("evidence"))).toBe(true);
+    expect(results.evidence.slice(0, 2).map((e) => e.sourceId)).toEqual([
+      expectedIds[0] + ":chunk-101",
+      expectedIds[0] + ":chunk-102",
+    ]);
     expect(results.galleryHits.map((h) => h.imageId)).toEqual(["img_000001"]);
   });
 });

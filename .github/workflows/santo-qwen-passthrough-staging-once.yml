@@ -46,10 +46,12 @@ jobs:
             workers/api/src/ai/prompt.ts workers/api/src/ai/prompt.test.ts \
             workers/api/src/ai/model.ts workers/api/src/ai/model.test.ts \
             workers/api/src/ai/amboss-adjacent.ts workers/api/src/ai/amboss-adjacent.test.ts
-          if ! git diff --quiet; then
+          # GitHub Actions cannot push .github/workflows via its restricted token.
+          # Format that file only in the checkout; it is a disposable CI job.
+          git add PROJECT_STATUS.md packages/contracts/src/ai.ts workers/api/src/ai/retrieval.ts workers/api/src/ai/retrieval.test.ts workers/api/src/ai/prompt.ts workers/api/src/ai/prompt.test.ts workers/api/src/ai/model.ts workers/api/src/ai/model.test.ts workers/api/src/ai/amboss-adjacent.ts workers/api/src/ai/amboss-adjacent.test.ts
+          if ! git diff --cached --quiet; then
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add PROJECT_STATUS.md .github/workflows/santo-qwen-passthrough-staging-once.yml packages/contracts/src/ai.ts workers/api/src/ai/retrieval.ts workers/api/src/ai/retrieval.test.ts workers/api/src/ai/prompt.ts workers/api/src/ai/prompt.test.ts workers/api/src/ai/model.ts workers/api/src/ai/model.test.ts workers/api/src/ai/amboss-adjacent.ts workers/api/src/ai/amboss-adjacent.test.ts
             git commit -m "style(libraries): format exact-dedup passthrough implementation"
             git push origin HEAD:fix/qwen-passthrough-dedup-no-ranking-20261021
           fi

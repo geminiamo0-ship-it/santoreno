@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: write
+  issues: write
 
 jobs:
   verify:
@@ -38,6 +39,7 @@ jobs:
             git push origin HEAD:fix/research-pmc-fulltext-priority-20261021
           fi
       - name: Lint TypeScript tests build and smoke (no deployment)
+        id: verify
         run: |
           set -euo pipefail
           pnpm lint
@@ -45,6 +47,15 @@ jobs:
           pnpm test
           pnpm build
           pnpm smoke
+      - name: Publish exact verification result to Research issue
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TEST_RESULT: ${{ steps.verify.outcome }}
+          JOB_RESULT: ${{ job.status }}
+        run: |
+          gh issue comment 203 --repo geminiamo0-ship-it/santoreno \
+            --body "PMC full-text-first Research verification on SHA $(git rev-parse HEAD): test=$TEST_RESULT job=$JOB_RESULT. Staging/Production NOT deployed. CI details: https://github.com/geminiamo0-ship-it/santoreno/actions/workflows/research-pmc-verify-once.yml"
       - name: Record tested SHA
         run: |
           echo "RESEARCH_FULLTEXT_TESTED_SHA=$(git rev-parse HEAD)" >> "$GITHUB_STEP_SUMMARY"

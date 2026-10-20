@@ -59,6 +59,8 @@ SANTO_NATIVE_STREAMING_V1 = "true"
 SANTO_SESSION_TTL_SECONDS = "900"
 SANTO_AI_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
 SANTO_LUNA_PREVIEW = "true"
+# Staging model selection: GLM-4.7-Flash (Cloudflare-hosted). Switch false to restore Luna.
+SANTO_GLM_47_FLASH_V1 = "true"
 # One provider response per user generation attempt; no silent paid fallback.
 SANTO_SINGLE_PASS_GENERATION_V1 = "true"
 SANTO_COMPACT_CITATION_ALIASES_V1 = "true"

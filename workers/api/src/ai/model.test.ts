@@ -23,7 +23,7 @@ describe("Cloudflare Workers AI model adapter", () => {
       answer: "Sodium is 135–145 mmol/L.",
       citationIds: ["medical:chunk-1"],
     });
-    expect(GROUNDED_MODEL_POLICY.maxTokens).toBe(1500);
+    expect(GROUNDED_MODEL_POLICY.maxTokens).toBe(3000);
     expect(ai.run).toHaveBeenCalledWith(
       "@cf/test/grounded-model",
       expect.objectContaining({

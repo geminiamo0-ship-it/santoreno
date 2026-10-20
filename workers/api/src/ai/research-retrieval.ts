@@ -26,7 +26,7 @@ const OPENALEX = "https://api.openalex.org/works";
 const MAX_CANDIDATES = 60; // Network bound, not a model/source citation count.
 const MAX_EVIDENCE_BYTES = 14000; // Input headroom within the shared 10k token target.
 const MAX_DOWNLOAD_BYTES = 1_500_000;
-const TIMEOUT_MS = 12000;
+const TIMEOUT_MS = 4000;
 
 function decodeXml(value: string): string {
   return value
@@ -193,8 +193,8 @@ export class PubMedResearchRetrieval implements RetrievalPort {
     this.fetcher = config.fetcher ?? fetch;
   }
 
-  private async get(url: URL, signal?: AbortSignal): Promise<string> {
-    const timeout = AbortSignal.timeout(TIMEOUT_MS);
+  private async get(url: URL, signal?: AbortSignal, timeoutMs = TIMEOUT_MS): Promise<string> {
+    const timeout = AbortSignal.timeout(timeoutMs);
     const combined = signal ? AbortSignal.any([timeout, signal]) : timeout;
     let response: Response;
     try {
@@ -236,7 +236,7 @@ export class PubMedResearchRetrieval implements RetrievalPort {
     url.searchParams.set("select", "doi,cited_by_count,publication_year");
     url.searchParams.set("api_key", this.config.openAlexApiKey.trim());
     try {
-      const data: unknown = JSON.parse(await this.get(url, signal));
+      const data: unknown = JSON.parse(await this.get(url, signal, 1200));
       if (!data || typeof data !== "object" || !("results" in data)) return;
       const results = (data as { results?: unknown }).results;
       if (!Array.isArray(results)) return;
@@ -371,6 +371,7 @@ export class PubMedResearchRetrieval implements RetrievalPort {
             retmode: "xml",
           }),
           signal,
+          3000,
         );
         for (const article of xmlChunks(records, "article")) {
           const pmcid = /<article-id\s+pub-id-type=["']pmc["']>(\d+)<\/article-id>/i.exec(

@@ -74,7 +74,9 @@ describe("PubMed Research Mode adapter", () => {
     expect(evidence[0]?.text).toContain("Figure caption");
     expect(evidence[0]?.text).toContain("PubMed abstract");
     expect(evidence[0]?.instanceId).toBe("pubmed");
-    expect(calls.some((url) => url.includes("api.openalex.org") && url.includes("filter="))).toBe(true);
+    expect(calls.some((url) => url.includes("api.openalex.org") && url.includes("filter="))).toBe(
+      true,
+    );
     expect(calls.some((url) => url.includes("db=pmc"))).toBe(true);
   });
 

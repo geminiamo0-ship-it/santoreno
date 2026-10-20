@@ -6,6 +6,8 @@ import { SantoSessionTokenService, SessionTokenError } from "../session/token";
 import { D1TenantRepository, type TenantRepository } from "../tenancy/repository";
 import { SourceResolutionError } from "../sources/store";
 import { LibraryReaderService, LibraryReaderError } from "./reader";
+import { PubMedArticleViewerService } from "./research-article";
+import { R2VerifiedSourceStore } from "../sources/store";
 
 export interface LibraryReaderDependencies {
   tenants?: (env: SantoBindings) => TenantRepository;
@@ -28,10 +30,11 @@ export function createLibraryReaderHandler(deps: LibraryReaderDependencies = {})
     const path = url.pathname;
     const catalog = path === "/v1/libraries";
     const citation = path === "/v1/sources/article";
+    const researchCitation = path === "/v1/sources/research-article";
     const listed = /^\/v1\/libraries\/([^/]+)\/articles$/.exec(path);
     const detail = /^\/v1\/libraries\/([^/]+)\/articles\/([^/]+)$/.exec(path);
-    if (!catalog && !citation && !listed && !detail) return error("LIBRARY_NOT_FOUND", 404);
-    if (citation ? request.method !== "POST" : request.method !== "GET") {
+    if (!catalog && !citation && !researchCitation && !listed && !detail) return error("LIBRARY_NOT_FOUND", 404);
+    if (citation || researchCitation ? request.method !== "POST" : request.method !== "GET") {
       return error("METHOD_NOT_ALLOWED", 405);
     }
     try {
@@ -63,6 +66,16 @@ export function createLibraryReaderHandler(deps: LibraryReaderDependencies = {})
           : null;
       if (!service) throw new LibraryReaderError(503, "LIBRARY_UNAVAILABLE");
       if (catalog) return Response.json(await service.catalog(), { headers: HEADERS });
+      if (researchCitation) {
+        if (env.SANTO_RESEARCH_ENABLED !== "true" || !env.CONTENT_BUCKET) {
+          return error("LIBRARY_NOT_FOUND", 404);
+        }
+        const reader = new PubMedArticleViewerService(new R2VerifiedSourceStore(env.CONTENT_BUCKET));
+        return Response.json(
+          await reader.fromCitation(session, await request.json().catch(() => null)),
+          { headers: HEADERS },
+        );
+      }
       if (citation)
         return Response.json(
           await service.fromCitation(session, await request.json().catch(() => null)),

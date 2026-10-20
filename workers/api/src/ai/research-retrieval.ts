@@ -259,6 +259,56 @@ export class PubMedResearchRetrieval implements RetrievalPort {
     }
   }
 
+
+  private async fallbackEuropePmc(question: string, signal?: AbortSignal): Promise<Paper[]> {
+    // Europe PMC indexes PubMed (MED) records with stable PMIDs. This is an
+    // independent read-only fallback when NCBI E-utilities is unavailable.
+    const url = new URL("https://www.ebi.ac.uk/europepmc/webservices/rest/search");
+    url.searchParams.set("query", question.slice(0, 1800));
+    url.searchParams.set("format", "json");
+    url.searchParams.set("resultType", "core");
+    url.searchParams.set("pageSize", String(MAX_CANDIDATES));
+    const payload: unknown = JSON.parse(await this.get(url, signal));
+    const root = payload && typeof payload === "object"
+      ? (payload as { resultList?: { result?: unknown } }).resultList : null;
+    if (!Array.isArray(root?.result)) {
+      throw new GroundedAiError(502, "SEARCH_FAILED", "Both biomedical search providers unavailable");
+    }
+    const papers: Paper[] = [];
+    const seen = new Set<string>();
+    for (const item of root.result) {
+      if (!item || typeof item !== "object") continue;
+      const record = item as Record<string, unknown>;
+      const pmid = record.pmid;
+      const title = record.title;
+      if (record.source !== "MED" || typeof pmid !== "string" ||
+          !/^\\d+$/.test(pmid) || typeof title !== "string" ||
+          title.trim().length < 4 || seen.has(pmid)) continue;
+      if (record.isRetracted === true || record.isRetracted === "Y") continue;
+      const abstract = typeof record.abstractText === "string"
+        ? decodeXml(record.abstractText).slice(0, 8500) : "";
+      if (!abstract.trim()) continue;
+      const doi = typeof record.doi === "string" && record.doi.length < 250
+        ? normalizedDoi(record.doi) : null;
+      const pmcid = typeof record.pmcid === "string" && /^PMC\\d+$/i.test(record.pmcid)
+        ? record.pmcid.toUpperCase() : null;
+      const yearRaw = typeof record.pubYear === "string" ? record.pubYear : "";
+      const year = numeric(yearRaw);
+      const citations = typeof record.citedByCount === "number" &&
+        Number.isSafeInteger(record.citedByCount) && record.citedByCount >= 0
+        ? record.citedByCount : null;
+      seen.add(pmid);
+      papers.push({
+        pmid, title: title.slice(0, 480), abstract, doi, pmcid, year,
+        citations, position: papers.length, score: 0,
+        types: typeof record.pubTypeList === "object" && record.pubTypeList !== null &&
+          Array.isArray((record.pubTypeList as { pubType?: unknown }).pubType)
+          ? (record.pubTypeList as { pubType: unknown[] }).pubType
+            .filter((x): x is string => typeof x === "string").slice(0, 12) : [],
+      });
+    }
+    return papers;
+  }
   async retrieve(request: RetrievalRequest): Promise<RetrievedEvidence[]> {
     if (request.libraryId !== null) {
       throw new GroundedAiError(
@@ -271,37 +321,39 @@ export class PubMedResearchRetrieval implements RetrievalPort {
     const cleanQuestion = request.query.includes("Follow-up question:")
       ? request.query.split("Follow-up question:").at(-1)!.trim()
       : request.query;
-    const search = this.ncbiUrl("esearch", {
-      db: "pubmed",
-      term: cleanQuestion.slice(0, 1800),
-      retmax: String(MAX_CANDIDATES),
-      retmode: "json",
-      sort: "relevance",
-    });
-    let ids: string[];
+    let papers: Paper[];
     try {
-      const result: unknown = JSON.parse(await this.get(search, signal));
-      const root =
-        result && typeof result === "object"
-          ? (result as { esearchresult?: { idlist?: unknown } }).esearchresult
-          : null;
-      ids = Array.isArray(root?.idlist)
-        ? root.idlist.filter((id): id is string => typeof id === "string" && /^\d+$/.test(id))
-        : [];
-    } catch (error) {
-      if (error instanceof GroundedAiError) throw error;
-      throw new GroundedAiError(502, "SEARCH_FAILED", "Invalid PubMed response");
-    }
-    if (!ids.length) return [];
-    const xml = await this.get(
-      this.ncbiUrl("efetch", {
+      const search = this.ncbiUrl("esearch", {
         db: "pubmed",
-        id: ids.join(","),
-        retmode: "xml",
-      }),
-      signal,
-    );
-    const papers = extractPapers(xml, ids);
+        term: cleanQuestion.slice(0, 1800),
+        retmax: String(MAX_CANDIDATES),
+        retmode: "json",
+        sort: "relevance",
+      });
+      const result: unknown = JSON.parse(await this.get(search, signal));
+      const root = result && typeof result === "object"
+        ? (result as { esearchresult?: { idlist?: unknown } }).esearchresult : null;
+      const ids = Array.isArray(root?.idlist)
+        ? root.idlist.filter((id): id is string => typeof id === "string" && /^\\d+$/.test(id))
+        : [];
+      if (!ids.length) return [];
+      const xml = await this.get(this.ncbiUrl("efetch", {
+        db: "pubmed", id: ids.join(","), retmode: "xml",
+      }), signal);
+      papers = extractPapers(xml, ids);
+      // Malformed-but-200 provider responses must not silently mean no evidence.
+      if (papers.length === 0) {
+        throw new GroundedAiError(502, "SEARCH_FAILED", "PubMed returned no parseable records");
+      }
+    } catch (primaryError) {
+      if (signal?.aborted) throw primaryError;
+      try {
+        papers = await this.fallbackEuropePmc(cleanQuestion, signal);
+      } catch {
+        throw primaryError instanceof GroundedAiError
+          ? primaryError : new GroundedAiError(502, "SEARCH_FAILED", "Research discovery unavailable");
+      }
+    }
     if (!papers.length) return [];
     await this.enrichOpenAlex(papers, signal);
     const ranked = rankPapers(papers, cleanQuestion);

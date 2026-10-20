@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { GroundedAiLibraryIdSchema } from "./ai";
+import { MAX_GROUNDED_CITATIONS, GroundedAiLibraryIdSchema } from "./ai";
 
 /**
  * A citation ID is an opaque, server-verified source identity: an AI Search
@@ -138,7 +138,7 @@ export const VerifiedSourceSnapshotSchema = z
     externalUserId: z.string().min(1).max(255),
     messageId: z.string().uuid(),
     createdAt: z.number().int().nonnegative(),
-    sources: z.array(TrustedSourceMetadataSchema).min(1).max(15),
+    sources: z.array(TrustedSourceMetadataSchema).min(1).max(MAX_GROUNDED_CITATIONS),
   })
   .strict();
 

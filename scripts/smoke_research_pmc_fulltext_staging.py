@@ -22,6 +22,12 @@ for provider, url in urls:
         decoded = xml.decode("utf-8")
         pattern = r"<article-id\b[^>]*\bpub-id-type=['\"]pmc['\"][^>]*>\s*(?:PMC)?" + PMCID + r"\s*</article-id>"
         if not re.search(pattern, decoded, re.I):
+            ids = re.findall(r"<article-id\\b[^>]*>[^<]{0,85}</article-id>", decoded, re.I)
+            alternate = re.findall(r"<articleid\\b[^>]*>[^<]{0,85}</articleid>", decoded, re.I)
+            print("PMC_ID_DIAGNOSTIC", {"provider": provider, "bytes": len(xml),
+                                        "xml_head": decoded[:90].replace("\\n", " "),
+                                        "article_ids": ids[:7], "alternate_ids": alternate[:4]},
+                  flush=True)
             raise RuntimeError("PMC identity missing or invalid JATS structure")
         readable = re.sub(r"<[^>]+>", " ", decoded).lower()
         missing = [term for term in ("pregnan", "insulin", "potassium", "kidney", "heart failure", "children")

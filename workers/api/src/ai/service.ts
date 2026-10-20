@@ -73,7 +73,11 @@ export class GroundedAiService {
     const libraryId = input.library_id ?? null;
     const sourceMode = input.source_mode ?? "libraries";
     if (sourceMode === "research" && libraryId !== null) {
-      throw new GroundedAiError(400, "INVALID_SOURCE_MODE", "Research mode cannot use a library filter");
+      throw new GroundedAiError(
+        400,
+        "INVALID_SOURCE_MODE",
+        "Research mode cannot use a library filter",
+      );
     }
     const quotaIdempotencyKey = await deriveQuotaIdempotencyKey(
       session.externalUserId,
@@ -116,7 +120,12 @@ export class GroundedAiService {
     let responseMode: "santo" | "general" = "santo";
     try {
       const evidence = await withAiDeadline(
-        () => this.retrieval.retrieve({ query: input.query, libraryId, ...(sourceMode === "research" ? { sourceMode, signal } : {}) }),
+        () =>
+          this.retrieval.retrieve({
+            query: input.query,
+            libraryId,
+            ...(sourceMode === "research" ? { sourceMode, signal } : {}),
+          }),
         signal,
         this.timeouts.retrievalMs,
         "SEARCH_TIMEOUT",
@@ -149,7 +158,8 @@ export class GroundedAiService {
       if (
         draft.answer === "INSUFFICIENT_EVIDENCE" &&
         groundingMode === "santo" &&
-        this.generalFallbackEnabled && sourceMode !== "research"
+        this.generalFallbackEnabled &&
+        sourceMode !== "research"
       ) {
         groundingMode = "general";
         draft = await withAiDeadline(

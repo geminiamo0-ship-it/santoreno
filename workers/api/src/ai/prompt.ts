@@ -22,19 +22,21 @@ export function buildGroundedPrompt(query: string, evidence: readonly RetrievedE
   }
 
   let remainingChars = TOTAL_EVIDENCE_CHARS;
-  const sources = evidence.map((item) => {
-    const allowed = Math.max(0, Math.min(MAX_EVIDENCE_CHARS, remainingChars));
-    const trimmed = item.text.slice(0, allowed);
-    remainingChars -= trimmed.length;
-    return ({
-    source_id: item.sourceId,
-    library_id: item.libraryId,
-    title: item.title.slice(0, MAX_TITLE_CHARS),
-    page: item.page,
-    section: item.section?.slice(0, MAX_SECTION_CHARS) ?? null,
-    text: trimmed,
-  });
-  }).filter((item) => item.text.length > 0);
+  const sources = evidence
+    .map((item) => {
+      const allowed = Math.max(0, Math.min(MAX_EVIDENCE_CHARS, remainingChars));
+      const trimmed = item.text.slice(0, allowed);
+      remainingChars -= trimmed.length;
+      return {
+        source_id: item.sourceId,
+        library_id: item.libraryId,
+        title: item.title.slice(0, MAX_TITLE_CHARS),
+        page: item.page,
+        section: item.section?.slice(0, MAX_SECTION_CHARS) ?? null,
+        text: trimmed,
+      };
+    })
+    .filter((item) => item.text.length > 0);
 
   return [
     "You are Santo, a professor-grade Medical Education Copilot.",

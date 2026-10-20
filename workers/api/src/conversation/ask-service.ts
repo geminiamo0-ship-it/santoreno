@@ -24,7 +24,12 @@ export class ConversationAskService {
     private readonly generateVerifiedAnswer: (
       bearer: string,
       env: SantoBindings,
-      input: { query: string; idempotency_key: string; library_id?: string; source_mode?: "libraries" | "research" },
+      input: {
+        query: string;
+        idempotency_key: string;
+        library_id?: string;
+        source_mode?: "libraries" | "research";
+      },
       signal: AbortSignal,
     ) => Promise<GroundedAiQueryResponse> = invokeGroundedAnswer,
   ) {}

@@ -131,9 +131,13 @@ export class ConversationTurnCore {
     private readonly newId: () => string = () => crypto.randomUUID(),
   ) {
     storage.sql.exec(TURN_SCHEMA);
-    const columns = storage.sql.exec<{ name: string }>("PRAGMA table_info(conversation_turns)").toArray();
+    const columns = storage.sql
+      .exec<{ name: string }>("PRAGMA table_info(conversation_turns)")
+      .toArray();
     if (!columns.some((column) => column.name === "source_mode")) {
-      storage.sql.exec("ALTER TABLE conversation_turns ADD COLUMN source_mode TEXT NOT NULL DEFAULT 'libraries'");
+      storage.sql.exec(
+        "ALTER TABLE conversation_turns ADD COLUMN source_mode TEXT NOT NULL DEFAULT 'libraries'",
+      );
     }
   }
 

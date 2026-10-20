@@ -76,7 +76,10 @@ export function createGroundedAiHandler(dependencies: GroundedAiHandlerDependenc
           env.AI_SEARCH,
           new AiSearchNamespaceLibraryCatalog(env.AI_SEARCH, allowed),
         ),
-        new PubMedResearchRetrieval({ ncbiApiKey: env.NCBI_API_KEY, openAlexApiKey: env.OPENALEX_API_KEY }),
+        new PubMedResearchRetrieval({
+          ncbiApiKey: env.NCBI_API_KEY,
+          openAlexApiKey: env.OPENALEX_API_KEY,
+        }),
       );
     });
   const modelFactory = dependencies.modelFactory ?? createGroundedModel;

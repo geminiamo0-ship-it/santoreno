@@ -46,7 +46,7 @@ const sections = [
   },
 ];
 const pmcXml =
-  '<pmc-articleset><article><front><article-meta><article-id pub-id-type="pmc">12444256</article-id></article-meta></front><body>' +
+  '<pmc-articleset><article><front><article-meta><article-id pub-id-type="pmcid">PMC12444256</article-id><article-id pub-id-type="pmid">40980300</article-id></article-meta></front><body>' +
   sections
     .map(
       (section) => "<sec><title>" + section.title + "</title><p>" + section.content + "</p></sec>",
@@ -122,6 +122,18 @@ describe("PMC full-text-first original medical evidence", () => {
     }
     expect(evidence[0]?.text.length).toBeGreaterThan(1_500);
     expect(urls.some((url) => url.includes("db=pmc"))).toBe(true);
+  });
+
+  it("recognizes the real NCBI/Europe PMC JATS pub-id-type=pmcid and preserves the original PMID citation", async () => {
+    const { fetcher } = provider();
+    const evidence = await new PubMedResearchRetrieval({ fetcher }).retrieve({
+      query: question, libraryId: null, sourceMode: "research",
+    });
+    expect(evidence).toHaveLength(1);
+    expect(evidence[0]?.sourceId).toBe("pubmed:40980300");
+    expect(evidence[0]?.section).toContain("PMC12444256");
+    expect(evidence[0]?.text).toContain("PMC full-text passages available and included");
+    expect(evidence[0]?.text).toContain("250 mL");
   });
 
   it("explicitly labels abstract-only when both PMC full-text providers fail; never invents a dose", async () => {

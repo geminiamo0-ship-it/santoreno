@@ -154,9 +154,8 @@ export function selectPmcTeachingPassages(
   if (broadSpecial) {
     for (const group of SPECIAL_GROUPS) {
       const sectionMatches = candidates.filter((p) => group.test.test(p.section));
-      const options = (sectionMatches.length
-        ? sectionMatches
-        : candidates.filter((p) => group.test.test(p.text))
+      const options = (
+        sectionMatches.length ? sectionMatches : candidates.filter((p) => group.test.test(p.text))
       ).sort((a, b) => b.score - a.score || a.order - b.order);
       if (options[0]) add(options[0]);
       if (options[1]) add(options[1]);

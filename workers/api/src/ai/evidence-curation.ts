@@ -49,9 +49,7 @@ export function curateRetrievedEvidence(
     const heading = lines.find((line) => /^#\s+\S/.test(line.trim()))?.trim() ?? "";
     const body = lines
       .filter(
-        (line) =>
-          !/^\s*#\s+\S/.test(line) &&
-          !/^\s*(?:Library|Category|Section):\s*/i.test(line),
+        (line) => !/^\s*#\s+\S/.test(line) && !/^\s*(?:Library|Category|Section):\s*/i.test(line),
       )
       .join(" ")
       .replace(/\s+/g, " ")
@@ -92,10 +90,7 @@ export class CuratedEvidenceRetrieval implements RetrievalPort {
           const result = await original.retrieveWithGallery!(request);
           return {
             ...result,
-            evidence: curateRetrievedEvidence(
-              request.preparedQuery ?? request.query,
-              result.evidence,
-            ),
+            evidence: curateRetrievedEvidence(request.preparedQuery ?? request.query, result.evidence),
           };
         }
       : undefined;

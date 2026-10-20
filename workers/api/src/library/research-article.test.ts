@@ -28,6 +28,7 @@ class Bucket implements R2BucketLike {
   }
   async put(key: string, value: string | ArrayBuffer | Uint8Array): Promise<unknown> {
     if (typeof value === "string") this.data.set(key, value);
+    return undefined;
   }
   async delete(key: string): Promise<void> {
     this.data.delete(key);

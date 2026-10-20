@@ -29,7 +29,7 @@ export class ConversationAskService {
         source_mode?: "libraries" | "research";
         recent_user_messages?: string[];
         recent_qwen_replies?: { sequence: number; answer: string }[];
-    recent_qwen_replies?: { sequence: number; answer: string }[];
+        recent_qwen_replies?: { sequence: number; answer: string }[];
       },
       signal: AbortSignal,
       onProvisionalAnswer?: (text: string) => void,

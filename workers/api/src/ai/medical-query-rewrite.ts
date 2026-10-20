@@ -143,15 +143,32 @@ export async function rewriteMedicalSearchQuery(
 
 /** Deterministic, medically-neutral facet expansion for Qwen outages.
  * The source disease is never replaced with a model-invented condition. */
-export function deterministicMedicalSearchPlan(focusedQuery: string, narrowQuestion: string): string[] {
+export function deterministicMedicalSearchPlan(
+  focusedQuery: string,
+  narrowQuestion: string,
+): string[] {
   const root = focusedQuery.trim().slice(0, 200);
   if (!root) return [];
-  const narrow = /\b(management|treatment|therapy|diagnos|complication|prognosis|symptom|causes|pathophys|prevention|investigation|follow.up)\b/i.test(narrowQuestion);
+  const narrow =
+    /\b(management|treatment|therapy|diagnos|complication|prognosis|symptom|causes|pathophys|prevention|investigation|follow.up)\b/i.test(
+      narrowQuestion,
+    );
   const facets = narrow
-    ? ["clinical indications", "diagnostic criteria and monitoring", "treatment options complications"]
-    : ["definition etiology pathophysiology", "clinical features diagnosis severity",
-       "management treatment indications", "complications prognosis follow-up"];
-  return [root, ...facets.map((facet) => root + " " + facet).filter((q) => q.length <= 220)].slice(0, 6);
+    ? [
+        "clinical indications",
+        "diagnostic criteria and monitoring",
+        "treatment options complications",
+      ]
+    : [
+        "definition etiology pathophysiology",
+        "clinical features diagnosis severity",
+        "management treatment indications",
+        "complications prognosis follow-up",
+      ];
+  return [root, ...facets.map((facet) => root + " " + facet).filter((q) => q.length <= 220)].slice(
+    0,
+    6,
+  );
 }
 
 /** One Qwen inference classifies a student turn and normalizes medical search.
@@ -244,7 +261,10 @@ export async function routeMedicalRequest(
   const fallback: MedicalRoute = {
     intent: "medical",
     searchQuery: focusedQuery,
-    searchQueries: deterministicMedicalSearchPlan(focusedQuery, latestStudentMessage(originalRequest)),
+    searchQueries: deterministicMedicalSearchPlan(
+      focusedQuery,
+      latestStudentMessage(originalRequest),
+    ),
   };
   const report = (outcome: QwenRouteOutcome): void => {
     onDiagnostic?.(outcome, Math.round(performance.now() - startedAt));
@@ -277,8 +297,10 @@ export async function routeMedicalRequest(
       ...previous,
       "CURRENT USER MESSAGE: " + latest.slice(0, 1000),
       ...(qwenReplies?.length
-        ? ["PREVIOUS SHORT QWEN REPLIES (not clinical sources):",
-           ...qwenReplies.slice(-5).map((reply) => reply.answer.slice(0, 350))]
+        ? [
+            "PREVIOUS SHORT QWEN REPLIES (not clinical sources):",
+            ...qwenReplies.slice(-5).map((reply) => reply.answer.slice(0, 350)),
+          ]
         : []),
     ].join("\n");
   }
@@ -325,19 +347,39 @@ export async function routeMedicalRequest(
       const rawPlan = Array.isArray(result.search_queries) ? result.search_queries : [];
       const anchored = [query];
       const anchors = query.toLowerCase().match(/[a-z]{4,}/g) ?? [];
-      const common = new Set(["diagnosis", "treatment", "management", "symptoms", "causes",
-        "etiology", "clinical", "approach", "overview", "complications", "prognosis", "therapy",
-        "pathophysiology", "severity", "with", "from", "and", "the"]);
+      const common = new Set([
+        "diagnosis",
+        "treatment",
+        "management",
+        "symptoms",
+        "causes",
+        "etiology",
+        "clinical",
+        "approach",
+        "overview",
+        "complications",
+        "prognosis",
+        "therapy",
+        "pathophysiology",
+        "severity",
+        "with",
+        "from",
+        "and",
+        "the",
+      ]);
       const topic = anchors.filter((word) => !common.has(word)).slice(0, 4);
       for (const proposed of rawPlan.slice(0, 6)) {
         const accepted = acceptMedicalRewrite(query, proposed);
         if (!accepted) continue;
         if (topic.length && !topic.some((word) => accepted.toLowerCase().includes(word))) continue;
-        if (!anchored.some((old) => old.toLowerCase() === accepted.toLowerCase())) anchored.push(accepted);
+        if (!anchored.some((old) => old.toLowerCase() === accepted.toLowerCase()))
+          anchored.push(accepted);
       }
       const current = latestStudentMessage(originalRequest);
-      const focused = /\b(management|treatment|therapy|diagnos|complication|prognosis|symptom|causes|pathophys|prevention|investigation|follow.up)\b/i
-        .test(current);
+      const focused =
+        /\b(management|treatment|therapy|diagnos|complication|prognosis|symptom|causes|pathophys|prevention|investigation|follow.up)\b/i.test(
+          current,
+        );
       if (anchored.length < 3) {
         for (const candidate of deterministicMedicalSearchPlan(query, current).slice(1)) {
           if (!anchored.includes(candidate)) anchored.push(candidate);

@@ -147,23 +147,31 @@ function recentQwenReplies(
   sql: SqlStorageLike,
   upToSequence: number,
 ): { sequence: number; answer: string }[] {
-  const seen = sql.exec<{ sequence: number }>(
-    "SELECT sequence FROM conversation_messages WHERE role = 'user' AND sequence <= ? ORDER BY sequence DESC LIMIT 5",
-    upToSequence,
-  ).toArray();
+  const seen = sql
+    .exec<{ sequence: number }>(
+      "SELECT sequence FROM conversation_messages WHERE role = 'user' AND sequence <= ? ORDER BY sequence DESC LIMIT 5",
+      upToSequence,
+    )
+    .toArray();
   const oldest = seen.at(-1)?.sequence ?? upToSequence;
-  const rows = sql.exec<{ sequence: number; response_json: string }>(
-    "SELECT sequence, response_json FROM conversation_turns WHERE status = 'completed' AND sequence >= ? AND sequence < ? ORDER BY sequence DESC LIMIT 5",
-    oldest,
-    upToSequence,
-  ).toArray();
+  const rows = sql
+    .exec<{ sequence: number; response_json: string }>(
+      "SELECT sequence, response_json FROM conversation_turns WHERE status = 'completed' AND sequence >= ? AND sequence < ? ORDER BY sequence DESC LIMIT 5",
+      oldest,
+      upToSequence,
+    )
+    .toArray();
   return rows
     .filter((row) => {
       try {
         const parsed: unknown = JSON.parse(row.response_json);
-        return ConversationAnswerSchema.safeParse(parsed).success &&
-          !!parsed && typeof parsed === "object" &&
-          "responder" in parsed && parsed.responder === "qwen";
+        return (
+          ConversationAnswerSchema.safeParse(parsed).success &&
+          !!parsed &&
+          typeof parsed === "object" &&
+          "responder" in parsed &&
+          parsed.responder === "qwen"
+        );
       } catch {
         return false;
       }

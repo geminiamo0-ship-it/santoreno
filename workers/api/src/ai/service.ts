@@ -155,9 +155,7 @@ export class GroundedAiService {
     try {
       const routeStartedAt = performance.now();
       const route =
-        this.intentRoutingEnabled &&
-        sourceMode !== "research" &&
-        this.retrieval.route
+        this.intentRoutingEnabled && sourceMode !== "research" && this.retrieval.route
           ? await withAiDeadline(
               () =>
                 this.retrieval.route!({

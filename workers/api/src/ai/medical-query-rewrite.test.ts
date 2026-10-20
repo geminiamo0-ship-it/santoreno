@@ -274,7 +274,9 @@ describe("staging Qwen3 medical query rewriter", () => {
         response: '{"intent":"CHAT","answer":"Hello!"}',
       }),
     };
-    expect(await routeMedicalRequest(ai, "Hi, explain heart failure", "heart failure")).toMatchObject({
+    expect(
+      await routeMedicalRequest(ai, "Hi, explain heart failure", "heart failure"),
+    ).toMatchObject({
       intent: "medical",
       searchQuery: "heart failure",
     });
@@ -300,24 +302,41 @@ describe("staging Qwen3 medical query rewriter", () => {
   });
 
   it("uses one inference to build several on-topic search queries with past Qwen replies, never Luna", async () => {
-    const calls: Array<{model:string; input:unknown}> = [];
-    const ai: WorkersAiLike = {run: async (model,input) => {
-      calls.push({model,input});
-      return {response: JSON.stringify({
-        intent:"MEDICAL",search_query:"aortic stenosis",
-        search_queries:["aortic stenosis pathophysiology","aortic stenosis diagnosis echocardiography",
-          "aortic stenosis management SAVR TAVR","sarcoidosis unrelated disease"]
-      })};
-    }};
-    const result=await routeMedicalRequest(ai,"Aortic stenosis","aortic stenosis",undefined,
-      ["Hi","Cardiology","Aortic stenosis"],
-      [{sequence:0,answer:"Hi, which medical topic?"},{sequence:1,answer:"Let's study cardiology."}]);
+    const calls: Array<{ model: string; input: unknown }> = [];
+    const ai: WorkersAiLike = {
+      run: async (model, input) => {
+        calls.push({ model, input });
+        return {
+          response: JSON.stringify({
+            intent: "MEDICAL",
+            search_query: "aortic stenosis",
+            search_queries: [
+              "aortic stenosis pathophysiology",
+              "aortic stenosis diagnosis echocardiography",
+              "aortic stenosis management SAVR TAVR",
+              "sarcoidosis unrelated disease",
+            ],
+          }),
+        };
+      },
+    };
+    const result = await routeMedicalRequest(
+      ai,
+      "Aortic stenosis",
+      "aortic stenosis",
+      undefined,
+      ["Hi", "Cardiology", "Aortic stenosis"],
+      [
+        { sequence: 0, answer: "Hi, which medical topic?" },
+        { sequence: 1, answer: "Let's study cardiology." },
+      ],
+    );
     expect(calls).toHaveLength(1);
     expect(result.intent).toBe("medical");
     if (result.intent !== "medical") throw Error("Incorrect route");
     expect(result.searchQueries?.length).toBeGreaterThanOrEqual(3);
     expect(result.searchQueries?.every((q) => q.includes("aortic stenosis"))).toBe(true);
-    const payload=JSON.stringify(calls[0]?.input);
+    const payload = JSON.stringify(calls[0]?.input);
     expect(payload).toContain("Let's study cardiology");
     expect(payload).not.toContain("LUNA_PRIVATE");
   });

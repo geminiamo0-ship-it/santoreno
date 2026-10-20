@@ -441,9 +441,13 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
     includeGallery: boolean,
     includeAnking: boolean,
   ): Promise<CombinedSearchResult> {
-    const cleanQueries = [...new Set(plan.map((item) => item.trim()).filter(
-      (item) => item.length >= 3 && item.length <= 220 && !/[\r\n{}<>]/.test(item),
-    ))].slice(0, 4);
+    const cleanQueries = [
+      ...new Set(
+        plan
+          .map((item) => item.trim())
+          .filter((item) => item.length >= 3 && item.length <= 220 && !/[\r\n{}<>]/.test(item)),
+      ),
+    ].slice(0, 4);
     if (!cleanQueries.length) {
       throw new GroundedAiError(502, "SEARCH_FAILED", "No valid medical search plan");
     }
@@ -455,29 +459,33 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
         : []),
     ];
     const started = performance.now();
-    const results = await Promise.allSettled(cleanQueries.map(async (query) => {
-      const result = await this.namespace!.search({
-        query,
-        ai_search_options: {
-          instance_ids: instances,
-          retrieval: {
-            retrieval_type: "hybrid",
-            match_threshold: MATCH_THRESHOLD,
-            max_num_results: 50,
-            return_on_failure: true,
-            fusion_method: "rrf",
+    const results = await Promise.allSettled(
+      cleanQueries.map(async (query) => {
+        const result = await this.namespace!.search({
+          query,
+          ai_search_options: {
+            instance_ids: instances,
+            retrieval: {
+              retrieval_type: "hybrid",
+              match_threshold: MATCH_THRESHOLD,
+              max_num_results: 50,
+              return_on_failure: true,
+              fusion_method: "rrf",
+            },
+            reranking: { enabled: false },
+            query_rewrite: { enabled: false },
           },
-          reranking: { enabled: false },
-          query_rewrite: { enabled: false },
-        },
-      });
-      const root = asRecord(result);
-      if (!Array.isArray(root?.chunks) ||
-          (Array.isArray(root?.errors) && root.errors.length > 0)) {
-        throw new GroundedAiError(502, "SEARCH_FAILED", "Medical search call failed");
-      }
-      return result;
-    }));
+        });
+        const root = asRecord(result);
+        if (
+          !Array.isArray(root?.chunks) ||
+          (Array.isArray(root?.errors) && root.errors.length > 0)
+        ) {
+          throw new GroundedAiError(502, "SEARCH_FAILED", "Medical search call failed");
+        }
+        return result;
+      }),
+    );
     const success = results.filter(
       (result): result is PromiseFulfilledResult<unknown> => result.status === "fulfilled",
     );
@@ -486,7 +494,8 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
       succeeded: success.length,
       milliseconds: Math.round(performance.now() - started),
     });
-    if (!success.length) throw new GroundedAiError(502, "SEARCH_FAILED", "All medical search queries failed");
+    if (!success.length)
+      throw new GroundedAiError(502, "SEARCH_FAILED", "All medical search queries failed");
 
     // Reciprocal-rank fusion across query results. Return only original
     // server-validated chunk IDs, original text and whitelisted indexes.
@@ -518,16 +527,22 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
         }
       }
       if (includeAnking && this.ankingFullV12) {
-        ankingPool.push(...evidenceFromSearch(
-          source,
-          [{ id: "anking", instanceId: ANKING_FULL_V12_INSTANCE, title: "AnKing v12" }],
-          15,
-        ).filter((item) => /(?:^|\/)note_\d{10,16}\.json$/.test(item.itemKey)));
+        ankingPool.push(
+          ...evidenceFromSearch(
+            source,
+            [{ id: "anking", instanceId: ANKING_FULL_V12_INSTANCE, title: "AnKing v12" }],
+            15,
+          ).filter((item) => /(?:^|\/)note_\d{10,16}\.json$/.test(item.itemKey)),
+        );
       }
     }
     const ranked = [...pool.values()]
-      .sort((a, b) => b.rrf - a.rrf || b.item.score - a.item.score ||
-        a.item.sourceId.localeCompare(b.item.sourceId))
+      .sort(
+        (a, b) =>
+          b.rrf - a.rrf ||
+          b.item.score - a.item.score ||
+          a.item.sourceId.localeCompare(b.item.sourceId),
+      )
       .slice(0, 90);
     // Preserve library diversity in the first 20 results, then fill by RRF.
     const selected: RetrievedEvidence[] = [];
@@ -545,9 +560,10 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
       usedPerArticle.set(article, (usedPerArticle.get(article) ?? 0) + 1);
       // Short extracts reserve context for ~30 meaningful citations and
       // 3,000 output tokens; never add unverified language-model content.
-      const cut = item.text.length <= 1100
-        ? item.text
-        : item.text.slice(0, Math.max(300, item.text.lastIndexOf(". ", 1100) + 1 || 1100));
+      const cut =
+        item.text.length <= 1100
+          ? item.text
+          : item.text.slice(0, Math.max(300, item.text.lastIndexOf(". ", 1100) + 1 || 1100));
       selected.push({ ...item, text: cut });
       return true;
     };
@@ -561,11 +577,14 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
       if (selected.length >= 30) break;
       pick(entry.item);
     }
-    const bestAnking = includeAnking && this.ankingFullV12
-      ? rankMedicalCandidates(question, ankingPool.map((evidence, position) =>
-          ({ evidence, position })), 1)
-          .map((item) => ({ ...item, title: "AnKing v12 — " + item.title }))
-      : [];
+    const bestAnking =
+      includeAnking && this.ankingFullV12
+        ? rankMedicalCandidates(
+            question,
+            ankingPool.map((evidence, position) => ({ evidence, position })),
+            1,
+          ).map((item) => ({ ...item, title: "AnKing v12 — " + item.title }))
+        : [];
     console.info("santo_medical_search_candidates", {
       candidates: Math.min(90, pool.size),
       selected: selected.length,

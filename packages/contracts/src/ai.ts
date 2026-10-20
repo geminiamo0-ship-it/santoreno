@@ -22,7 +22,11 @@ export const GroundedAiQueryRequestSchema = z
     source_mode: SantoSourceModeSchema.optional(),
     /** Trusted Qwen-only replies from ConversationDO; no Luna outputs. */
     recent_qwen_replies: z
-      .array(z.object({ sequence: z.number().int().nonnegative(), answer: z.string().max(350) }).strict())
+      .array(
+        z
+          .object({ sequence: z.number().int().nonnegative(), answer: z.string().max(350) })
+          .strict(),
+      )
       .max(5)
       .optional(),
     /** Optional bounded router context; constructed by trusted ConversationDO on /ask. */

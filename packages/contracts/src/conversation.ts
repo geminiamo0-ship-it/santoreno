@@ -186,7 +186,11 @@ export const ConversationBeginTurnResponseSchema = z
     context: z.string().max(1600),
     /** Only short, verified Qwen CHAT/CLARIFY responses from completed same-owner turns. */
     recentQwenReplies: z
-      .array(z.object({ sequence: z.number().int().nonnegative(), answer: z.string().max(350) }).strict())
+      .array(
+        z
+          .object({ sequence: z.number().int().nonnegative(), answer: z.string().max(350) })
+          .strict(),
+      )
       .max(5)
       .optional(),
     /** Only authenticated user turns, including current, no assistant answers. */

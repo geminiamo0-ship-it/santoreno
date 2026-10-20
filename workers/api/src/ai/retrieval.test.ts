@@ -894,8 +894,14 @@ describe("Santo five licensed library retrieval", () => {
 
 describe("Qwen planned multi-query cross-library evidence retrieval", () => {
   it("searches up to four facets and fuses up to 90 candidates into 30 diverse original sources", async () => {
-    const searches: Array<{query:string; ai_search_options:{instance_ids:string[];
-      retrieval:{max_num_results:number}; reranking:{enabled:boolean}}}> = [];
+    const searches: Array<{
+      query: string;
+      ai_search_options: {
+        instance_ids: string[];
+        retrieval: { max_num_results: number };
+        reranking: { enabled: boolean };
+      };
+    }> = [];
     const namespace: AiSearchNamespaceLike = {
       list: async () => ({ result: catalogItems }),
       search: async (input: unknown) => {
@@ -911,22 +917,43 @@ describe("Qwen planned multi-query cross-library evidence retrieval", () => {
             },
           })),
         );
-        return { chunks: [...hits, {
-          id:"image",text:"aortic valve illustration",score:0.95,
-          instance_id:"santo-medical-images",item:{key:"images/img_000001.json"},
-        }] };
+        return {
+          chunks: [
+            ...hits,
+            {
+              id: "image",
+              text: "aortic valve illustration",
+              score: 0.95,
+              instance_id: "santo-medical-images",
+              item: { key: "images/img_000001.json" },
+            },
+          ],
+        };
       },
     };
     const retrieval = new CloudflareAiSearchRetrieval(
-      namespace, undefined, true, true, undefined, true, true, true, true, true,
+      namespace,
+      undefined,
+      true,
+      true,
+      undefined,
+      true,
+      true,
+      true,
+      true,
+      true,
     );
     const results = await retrieval.retrieveWithGallery({
-      query: "Aortic stenosis", libraryId: null,
+      query: "Aortic stenosis",
+      libraryId: null,
       preparedQuery: "aortic stenosis",
-      preparedQueries: ["aortic stenosis", "aortic stenosis pathophysiology",
+      preparedQueries: [
+        "aortic stenosis",
+        "aortic stenosis pathophysiology",
         "aortic stenosis diagnosis echocardiography",
         "aortic stenosis management SAVR TAVR",
-        "aortic stenosis complications prognosis"],
+        "aortic stenosis complications prognosis",
+      ],
     });
     expect(searches).toHaveLength(4);
     for (const call of searches) {

@@ -480,8 +480,7 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
           },
         });
         const root = asRecord(response);
-        if (!Array.isArray(root?.chunks) ||
-          (Array.isArray(root?.errors) && root.errors.length > 0))
+        if (!Array.isArray(root?.chunks) || (Array.isArray(root?.errors) && root.errors.length > 0))
           throw new GroundedAiError(502, "SEARCH_FAILED", "Medical search call failed");
         return response;
       }),
@@ -514,16 +513,14 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
       const source = response.value;
       const root = asRecord(source);
       providerChunks += Array.isArray(root?.chunks) ? root.chunks.length : 0;
-      for (const item of evidenceFromSearch(source, libraries, 50))
-        keep(item);
+      for (const item of evidenceFromSearch(source, libraries, 50)) keep(item);
       if (includeAnking && this.ankingFullV12) {
         const notes = evidenceFromSearch(
           source,
           [{ id: "anking", instanceId: ANKING_FULL_V12_INSTANCE, title: "AnKing v12" }],
           50,
         ).filter((item) => /(?:^|\/)note_\d{10,16}\.json$/.test(item.itemKey));
-        for (const item of notes)
-          keep({ ...item, title: "AnKing v12 — " + item.title });
+        for (const item of notes) keep({ ...item, title: "AnKing v12 — " + item.title });
       }
       if (includeGallery && Array.isArray(root?.chunks)) {
         for (const raw of root.chunks) {

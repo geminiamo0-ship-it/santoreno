@@ -126,9 +126,12 @@ describe("AMBOSS expanded evidence model source guard", () => {
     const schema = groundedSchemaForCitationIds(sourceIds);
     expect(schema.properties.citation_ids.items).toMatchObject({ enum: sourceIds });
     expect(schema.properties.citation_ids.maxItems).toBe(60);
-    expect(() => groundedSchemaForCitationIds([...sourceIds, ...Array.from({ length: 11 }, (_, i) => "amboss:extra-" + i)])).toThrow(
-      "Invalid verified source references",
-    );
+    expect(() =>
+      groundedSchemaForCitationIds([
+        ...sourceIds,
+        ...Array.from({ length: 11 }, (_, i) => "amboss:extra-" + i),
+      ]),
+    ).toThrow("Invalid verified source references");
   });
 });
 

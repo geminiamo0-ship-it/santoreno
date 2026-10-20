@@ -108,7 +108,9 @@ describe("AMBOSS-only adjacent R2 evidence expansion", () => {
     ];
     const expanded = await expandAmbossAdjacentEvidence(original, fakeBucket(files()).bucket);
     expect(expanded).toHaveLength(210);
-    expect(expanded.map((entry) => entry.sourceId).filter((sourceId) => sourceId.startsWith("usmle:"))).toHaveLength(199);
+    expect(
+      expanded.map((entry) => entry.sourceId).filter((sourceId) => sourceId.startsWith("usmle:")),
+    ).toHaveLength(199);
   });
 
   it("starts all ten R2 reads before awaiting any individual object and preserves neighbor ordering", async () => {

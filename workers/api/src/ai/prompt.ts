@@ -45,21 +45,26 @@ function packOriginalLibrarySources(evidence: readonly RetrievedEvidence[]) {
   // For very large result sets avoid repeated JSON fields: the source ID still
   // carries exact provenance and gets replaced by an authenticated SANTO_REF_N.
   const compact = evidence.length > 75;
-  const metadata = evidence.map((item) => compact
-    ? { source_id: item.sourceId, text: "" }
-    : {
-        source_id: item.sourceId,
-        library_id: item.libraryId,
-        title: item.title.slice(0, 120),
-        page: item.page,
-        section: item.section?.slice(0, 90) ?? null,
-        text: "",
-      },
+  const metadata = evidence.map((item) =>
+    compact
+      ? { source_id: item.sourceId, text: "" }
+      : {
+          source_id: item.sourceId,
+          library_id: item.libraryId,
+          title: item.title.slice(0, 120),
+          page: item.page,
+          section: item.section?.slice(0, 90) ?? null,
+          text: "",
+        },
   );
   const overhead = JSON.stringify(metadata).length;
   const remaining = MAX_LIBRARY_EVIDENCE_JSON_CHARS - overhead;
   if (remaining < evidence.length * 40) {
-    throw new GroundedAiError(502, "SEARCH_FAILED", "All original evidence IDs exceed the safe model context budget");
+    throw new GroundedAiError(
+      502,
+      "SEARCH_FAILED",
+      "All original evidence IDs exceed the safe model context budget",
+    );
   }
   const perExcerpt = Math.min(3500, Math.max(40, Math.floor(remaining / evidence.length) - 6));
   const packed = metadata.map((item, index) => {
@@ -94,16 +99,17 @@ export function buildGroundedPrompt(
 
   const research = evidence.length > 0 && evidence.every((item) => item.libraryId === "pubmed");
   const question = research ? researchQuestion(query) : query;
-  const sources = research || evidence.length <= 15
-    ? evidence.map((item) => ({
-        source_id: item.sourceId,
-        library_id: item.libraryId,
-        title: item.title.slice(0, MAX_TITLE_CHARS),
-        page: item.page,
-        section: item.section?.slice(0, MAX_SECTION_CHARS) ?? null,
-        text: item.text.slice(0, research ? MAX_RESEARCH_EVIDENCE_CHARS : MAX_EVIDENCE_CHARS),
-      }))
-    : packOriginalLibrarySources(evidence);
+  const sources =
+    research || evidence.length <= 15
+      ? evidence.map((item) => ({
+          source_id: item.sourceId,
+          library_id: item.libraryId,
+          title: item.title.slice(0, MAX_TITLE_CHARS),
+          page: item.page,
+          section: item.section?.slice(0, MAX_SECTION_CHARS) ?? null,
+          text: item.text.slice(0, research ? MAX_RESEARCH_EVIDENCE_CHARS : MAX_EVIDENCE_CHARS),
+        }))
+      : packOriginalLibrarySources(evidence);
 
   if (dataOnly) {
     return [

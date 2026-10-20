@@ -975,7 +975,7 @@ describe("Qwen planned multi-query cross-library evidence retrieval", () => {
   it("removes only exact source/content duplicates, preserving Cloudflare ordering and all sections of one article", async () => {
     let count = 0;
     const oneArticle = Array.from({ length: 8 }, (_, index) => ({
-      ...chunk("amboss", index + 10, 0.45 + (index / 20)),
+      ...chunk("amboss", index + 10, 0.45 + index / 20),
       item: {
         key: "medical-search/v1/amboss/the-same-article/s-0001.md",
         metadata: { title: "Aortic stenosis" },
@@ -987,25 +987,38 @@ describe("Qwen planned multi-query cross-library evidence retrieval", () => {
         count++;
         return count === 1
           ? { chunks: oneArticle }
-          : { chunks: [
-              { ...oneArticle[0], score: 0.999 },
-              { ...chunk("usmle", 99), text: oneArticle[1]!.text },
-              chunk("usmle", 100),
-            ] };
+          : {
+              chunks: [
+                { ...oneArticle[0], score: 0.999 },
+                { ...chunk("usmle", 99), text: oneArticle[1]!.text },
+                chunk("usmle", 100),
+              ],
+            };
       },
     };
     const retrieval = new CloudflareAiSearchRetrieval(
-      namespace, undefined, true, true, undefined, true, true, true, true, true,
+      namespace,
+      undefined,
+      true,
+      true,
+      undefined,
+      true,
+      true,
+      true,
+      true,
+      true,
     );
     const results = await retrieval.retrieve({
-      query: "Aortic stenosis", libraryId: null,
+      query: "Aortic stenosis",
+      libraryId: null,
       preparedQuery: "aortic stenosis",
       preparedQueries: ["aortic stenosis", "aortic stenosis treatment"],
     });
     expect(count).toBe(2);
     expect(results).toHaveLength(9);
-    expect(results.slice(0, 8).map((item) => item.sourceId))
-      .toEqual(oneArticle.map((item) => "amboss:" + item.id));
+    expect(results.slice(0, 8).map((item) => item.sourceId)).toEqual(
+      oneArticle.map((item) => "amboss:" + item.id),
+    );
     expect(results[8]?.sourceId).toBe("usmle:chunk-usmle-100");
     // Later, higher-score duplicates do NOT replace the original first source.
     expect(results[0]?.score).toBeCloseTo(0.45);

@@ -10,8 +10,7 @@ function chatSse(text: string): ReadableStream<Uint8Array> {
     { choices: [{ index: 0, delta: {}, finish_reason: "stop" }] },
   ];
   const bytes = new TextEncoder().encode(
-    frames.map((event) => "data: " + JSON.stringify(event) + "\n\n").join("") +
-      "data: [DONE]\n\n",
+    frames.map((event) => "data: " + JSON.stringify(event) + "\n\n").join("") + "data: [DONE]\n\n",
   );
   return new ReadableStream({
     start(controller) {
@@ -29,7 +28,7 @@ describe("Staging-only GLM-4.7-Flash adapter", () => {
     const model = new CloudflareGlmFlashModel(ai);
     const drafts: string[] = [];
     const answer = await model.generate(
-      "USER_QUESTION_JSON:\n\"Aortic stenosis\"\nEVIDENCE_JSON:\n" +
+      'USER_QUESTION_JSON:\n"Aortic stenosis"\nEVIDENCE_JSON:\n' +
         JSON.stringify(trusted.map((source_id) => ({ source_id, text: "Medical evidence." }))),
       (s) => drafts.push(s),
       trusted,

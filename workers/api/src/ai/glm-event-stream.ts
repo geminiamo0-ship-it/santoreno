@@ -11,12 +11,7 @@ export async function collectGlmEventStream(
   raw: unknown,
   onProgress: (answer: string) => void,
 ): Promise<string> {
-  const body =
-    raw instanceof ReadableStream
-      ? raw
-      : raw instanceof Response
-        ? raw.body
-        : null;
+  const body = raw instanceof ReadableStream ? raw : raw instanceof Response ? raw.body : null;
   if (!body) {
     throw new GroundedAiError(502, "MODEL_RESPONSE_INVALID", "GLM did not return an SSE stream");
   }
@@ -123,7 +118,11 @@ export async function collectGlmEventStream(
     if (previousCR) pending += "\n";
     if (pending.trim()) parseFrame(pending);
     if (!sawStop || !sawDone) {
-      throw new GroundedAiError(502, "MODEL_STREAM_UNFINISHED", "GLM stream ended without verified completion");
+      throw new GroundedAiError(
+        502,
+        "MODEL_STREAM_UNFINISHED",
+        "GLM stream ended without verified completion",
+      );
     }
     if (!generated.trim()) {
       throw new GroundedAiError(502, "MODEL_RESPONSE_INVALID", "GLM did not emit answer text");

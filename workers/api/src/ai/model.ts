@@ -484,9 +484,11 @@ export function createGroundedModel(
   if (env.SANTO_ENV === "staging" && env.SANTO_LUNA_PREVIEW === "true") {
     // Opt-in GLM adapter preserves the existing one-call and verified-source
     // contract. No change to the Production or non-GLM Luna model path.
-    if (env.SANTO_GLM_47_FLASH_V1 === "true" &&
-        env.SANTO_SINGLE_PASS_GENERATION_V1 === "true" &&
-        env.SANTO_PLAIN_TEXT_LUNA_V1 === "true") {
+    if (
+      env.SANTO_GLM_47_FLASH_V1 === "true" &&
+      env.SANTO_SINGLE_PASS_GENERATION_V1 === "true" &&
+      env.SANTO_PLAIN_TEXT_LUNA_V1 === "true"
+    ) {
       return new CloudflareGlmFlashModel(env.AI);
     }
     // Opt-in cost guard: never generate a second paid model response after

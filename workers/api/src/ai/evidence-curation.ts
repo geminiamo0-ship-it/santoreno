@@ -90,7 +90,10 @@ export class CuratedEvidenceRetrieval implements RetrievalPort {
           const result = await original.retrieveWithGallery!(request);
           return {
             ...result,
-            evidence: curateRetrievedEvidence(request.preparedQuery ?? request.query, result.evidence),
+            evidence: curateRetrievedEvidence(
+              request.preparedQuery ?? request.query,
+              result.evidence,
+            ),
           };
         }
       : undefined;

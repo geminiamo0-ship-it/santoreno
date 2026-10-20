@@ -134,7 +134,7 @@ describe("Staging forward-all evidence curation", () => {
   it("preserves one search, optional route and gallery images", async () => {
     const data = [
       source("amboss:a", "# Aortic stenosis\nAortic stenosis causes obstruction."),
-      source("usmle:bad", "# Renal artery stenosis\nRenal narrowing.", "usmle"),
+      source("usmle:bad", "# Renal artery stenosis\nRenal narrowing.", "usmle", "Renal artery stenosis"),
     ];
     const retrieve = vi.fn(async () => data);
     const retrieveWithGallery = vi.fn(async () => ({

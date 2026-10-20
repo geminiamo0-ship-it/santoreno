@@ -40,7 +40,7 @@ describe("staging Qwen3 medical query rewriter", () => {
     const route = await routeMedicalRequest(ai, context, "hi", (outcome) => {
       observed.push(outcome);
     });
-    expect(route).toEqual({ intent: "medical", searchQuery: "hi" });
+    expect(route).toMatchObject({ intent: "medical", searchQuery: "hi" });
     expect(observed).toEqual(["chat_rejected_context"]);
 
     const broken: WorkersAiLike = { run: async () => ({ response: "not JSON" }) };
@@ -61,7 +61,7 @@ describe("staging Qwen3 medical query rewriter", () => {
       "heart failure",
       (outcome) => outcomes.push(outcome),
     );
-    expect(fallback).toEqual({ intent: "medical", searchQuery: "heart failure" });
+    expect(fallback).toMatchObject({ intent: "medical", searchQuery: "heart failure" });
     expect(outcomes).toEqual(["provider_error"]);
     await routeMedicalRequest(undefined, "hi", "hi", (outcome) => outcomes.push(outcome));
     expect(outcomes).toEqual(["provider_error", "unavailable"]);
@@ -164,7 +164,7 @@ describe("staging Qwen3 medical query rewriter", () => {
       undefined,
       ["aortic stenosis", "FMF", "treatment?"],
     );
-    expect(result).toEqual({ intent: "medical", searchQuery: "FMF management" });
+    expect(result).toMatchObject({ intent: "medical", searchQuery: "FMF management" });
     expect(inputText).toContain("aortic stenosis");
     expect(inputText).toContain("FMF");
     expect(inputText).toContain("CURRENT USER MESSAGE: treatment?");

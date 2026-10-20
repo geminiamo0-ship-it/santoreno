@@ -1,4 +1,4 @@
-name: Read-Only PMC JATS Identity Probe (NO DEPLOY)
+name: Read-Only PMC JATS Identity Probe v2 (NO DEPLOY)
 
 on:
   push:

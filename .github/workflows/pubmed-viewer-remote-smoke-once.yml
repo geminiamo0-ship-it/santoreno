@@ -74,7 +74,7 @@ jobs:
                   instanceId:sample.instanceId,itemKey:sample.itemKey,
                   title:sample.title,page:sample.page,section:sample.section,
                 }]);
-                const result = await new PubMedArticleViewerService(snapshots, tracedFetch as typeof fetch).fromCitation(
+                const result = await new PubMedArticleViewerService(snapshots).fromCitation(
                   {tenantId,externalUserId,sessionId:"33333333-3333-4333-8333-333333333333",expiresAt:new Date(Date.now()+60000).toISOString()},
                   {messageId,sourceId:sample.sourceId}
                 );

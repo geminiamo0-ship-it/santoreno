@@ -141,6 +141,19 @@ export async function rewriteMedicalSearchQuery(
   }
 }
 
+/** Deterministic, medically-neutral facet expansion for Qwen outages.
+ * The source disease is never replaced with a model-invented condition. */
+export function deterministicMedicalSearchPlan(focusedQuery: string, narrowQuestion: string): string[] {
+  const root = focusedQuery.trim().slice(0, 200);
+  if (!root) return [];
+  const narrow = /\b(management|treatment|therapy|diagnos|complication|prognosis|symptom|causes|pathophys|prevention|investigation|follow.up)\b/i.test(narrowQuestion);
+  const facets = narrow
+    ? ["clinical indications", "diagnostic criteria and monitoring", "treatment options complications"]
+    : ["definition etiology pathophysiology", "clinical features diagnosis severity",
+       "management treatment indications", "complications prognosis follow-up"];
+  return [root, ...facets.map((facet) => root + " " + facet).filter((q) => q.length <= 220)].slice(0, 6);
+}
+
 /** One Qwen inference classifies a student turn and normalizes medical search.
  * The generated CHAT answer is only accepted for short, unambiguous social
  * turns. All questionable output fails closed to medical retrieval. */
@@ -228,7 +241,11 @@ export async function routeMedicalRequest(
   qwenReplies?: readonly { sequence: number; answer: string }[],
 ): Promise<MedicalRoute> {
   const startedAt = performance.now();
-  const fallback: MedicalRoute = { intent: "medical", searchQuery: focusedQuery };
+  const fallback: MedicalRoute = {
+    intent: "medical",
+    searchQuery: focusedQuery,
+    searchQueries: deterministicMedicalSearchPlan(focusedQuery, latestStudentMessage(originalRequest)),
+  };
   const report = (outcome: QwenRouteOutcome): void => {
     onDiagnostic?.(outcome, Math.round(performance.now() - startedAt));
   };
@@ -322,14 +339,8 @@ export async function routeMedicalRequest(
       const focused = /\b(management|treatment|therapy|diagnos|complication|prognosis|symptom|causes|pathophys|prevention|investigation|follow.up)\b/i
         .test(current);
       if (anchored.length < 3) {
-        const fallbackFacets = focused
-          ? ["clinical indications and management", "diagnostic workup and monitoring",
-             "treatment options contraindications and complications"]
-          : ["definition etiology pathophysiology", "clinical presentation diagnosis severity",
-             "management treatment indications", "complications prognosis follow up"];
-        for (const facet of fallbackFacets) {
-          const candidate = query + " " + facet;
-          if (candidate.length <= 220 && !anchored.includes(candidate)) anchored.push(candidate);
+        for (const candidate of deterministicMedicalSearchPlan(query, current).slice(1)) {
+          if (!anchored.includes(candidate)) anchored.push(candidate);
         }
       }
       report("success_medical");

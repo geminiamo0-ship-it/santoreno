@@ -20,7 +20,7 @@ for provider, url in urls:
         if len(xml) > 1_500_000:
             raise RuntimeError("PMC article exceeds configured provider response limit")
         decoded = xml.decode("utf-8")
-        pattern = r"<article-id\b[^>]*\bpub-id-type=['\"]pmc['\"][^>]*>\s*(?:PMC)?" + PMCID + r"\s*</article-id>"
+        pattern = r"<article-id\b[^>]*\bpub-id-type=['\"](?:pmcid|pmc)['\"][^>]*>\s*(?:PMC)?" + PMCID + r"\s*</article-id>"
         if not re.search(pattern, decoded, re.I):
             ids = re.findall(r"<article-id\b[^>]*>[^<]{0,85}</article-id>", decoded, re.I)
             alternate = re.findall(r"<articleid\b[^>]*>[^<]{0,85}</articleid>", decoded, re.I)

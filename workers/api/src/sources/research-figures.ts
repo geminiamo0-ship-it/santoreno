@@ -74,7 +74,7 @@ interface DatasetMetadata {
 }
 
 export class PmcResearchFigureProvider implements ResearchFigureProvider {
-  constructor(private readonly fetcher: typeof fetch = fetch) {}
+  constructor(private readonly fetcher: typeof fetch = (input, init) => fetch(input, init)) {}
 
   private async fetchText(url: URL, maxBytes: number): Promise<string | null> {
     try {

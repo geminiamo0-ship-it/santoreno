@@ -1,0 +1,84 @@
+name: Research Cloudflare Egress Diagnostic (One-Time)
+on:
+  push:
+    branches: [feat/pubmed-research-mode-203]
+    paths: [".github/workflows/research-cloudflare-egress-diagnostic-once.yml"]
+permissions:
+  contents: read
+concurrency:
+  group: research-egress-diagnostic
+  cancel-in-progress: false
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Deploy disposable Cloudflare Worker and run fixed provider probes
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+          corepack enable
+          pnpm install --frozen-lockfile
+          PROBE_TOKEN="$(openssl rand -hex 32)"
+          cat > workers/api/research-egress-probe.mjs <<'JAVASCRIPT'
+          const secret = "__PROBE_TOKEN__";
+          async function inspect(url, timeoutMs = 5000) {
+            const started = Date.now();
+            try {
+              const response = await fetch(url, {
+                signal: AbortSignal.timeout(timeoutMs),
+                headers: { accept: "application/json, application/xml" },
+              });
+              const body = await response.text();
+              const summary = {status: response.status, ok: response.ok, mime: response.headers.get("content-type")?.slice(0,80),
+                bytes: new TextEncoder().encode(body).byteLength, elapsedMs: Date.now() - started};
+              if (body.startsWith("{")) {
+                try {
+                  const json = JSON.parse(body);
+                  summary.searchCount = json?.esearchresult?.idlist?.length ??
+                    json?.resultList?.result?.length ?? null;
+                  summary.errorPresent = Boolean(json?.error);
+                } catch {summary.invalidJson = true;}
+              } else {
+                summary.xmlRecords = (body.match(/<PubmedArticle>/g) || []).length;
+                summary.mentionsBlock = /access denied|blocked|rate limit|error 403/i.test(body.slice(0,400));
+              }
+              return summary;
+            } catch (error) {
+              return {failed: true, name: error?.name || "Error", elapsedMs: Date.now() - started};
+            }
+          }
+          export default {
+            async fetch(request) {
+              if (request.headers.get("X-Probe-Token") !== secret) return new Response("Not found", {status:404});
+              const base="https://eutils.ncbi.nlm.nih.gov/entrez/eutils/";
+              const esearch = base+"esearch.fcgi?db=pubmed&term=aortic%20stenosis&retmax=60&retmode=json&sort=relevance";
+              const europe = "https://www.ebi.ac.uk/europepmc/webservices/rest/search?query=aortic%20stenosis&format=json&resultType=core&pageSize=60";
+              const list = await Promise.all([inspect(esearch),inspect(europe)]);
+              const efetch = await inspect(base+"efetch.fcgi?db=pubmed&id=38900001,38000001&retmode=xml");
+              return Response.json({esearch:list[0],europePmc:list[1],efetch});
+            },
+          };
+          JAVASCRIPT
+          sed -i "s/__PROBE_TOKEN__/$PROBE_TOKEN/g" workers/api/research-egress-probe.mjs
+          cd workers/api
+          pnpm exec wrangler deploy research-egress-probe.mjs --name santo-research-egress-probe --compatibility-date 2026-10-01 --workers-dev
+          curl --fail-with-body --silent --show-error --max-time 30 -H "X-Probe-Token: $PROBE_TOKEN" https://santo-research-egress-probe.geminiamo0.workers.dev | jq -e '.esearch and .europePmc and .efetch'
+      - name: Delete disposable Cloudflare probe Worker
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          if [ -n "$CLOUDFLARE_API_TOKEN" ] && [ -n "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            cd workers/api
+            pnpm exec wrangler delete --name santo-research-egress-probe --force
+          fi

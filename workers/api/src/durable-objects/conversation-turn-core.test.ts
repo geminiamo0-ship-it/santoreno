@@ -32,6 +32,8 @@ class State implements DurableObjectStorageLike {
       let rows: Row[] = [];
       if (query.trimStart().startsWith("CREATE TABLE")) {
         // Production validates SQLite SQL in the separate live staging gate.
+      } else if (query.startsWith("PRAGMA table_info(conversation_turns)")) {
+        rows = [{ name: "source_mode" }];
       } else if (query.includes("INSERT INTO conversation_meta")) {
         this.meta = {
           conversation_id: params[0],
@@ -59,11 +61,12 @@ class State implements DurableObjectStorageLike {
           expected_sequence: params[3],
           question: params[4],
           library_id: params[5],
+          source_mode: params[6],
           status: "pending",
-          attempt_id: params[6],
-          lease_until_ms: params[7],
+          attempt_id: params[7],
+          lease_until_ms: params[8],
           response_json: null,
-          context_text: params[8],
+          context_text: params[9],
           quota_epoch: 0,
         });
       } else if (query.startsWith("UPDATE conversation_turns SET status = 'pending'")) {

@@ -499,7 +499,10 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
 
     // Reciprocal-rank fusion across query results. Return only original
     // server-validated chunk IDs, original text and whitelisted indexes.
-    const pool = new Map<string, { item: RetrievedEvidence; rrf: number; original: number; firstQuery: number }>();
+    const pool = new Map<
+      string,
+      { item: RetrievedEvidence; rrf: number; original: number; firstQuery: number }
+    >();
     const images = new Map<string, GallerySearchHit>();
     const ankingPool: RetrievedEvidence[] = [];
     for (const [searchIndex, result] of success.entries()) {
@@ -509,7 +512,13 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
         const previous = pool.get(item.sourceId);
         const fused = 1 / (60 + position) + (searchIndex === 0 ? 0.002 : 0);
         if (previous) previous.rrf += fused;
-        else pool.set(item.sourceId, { item, rrf: fused, original: position, firstQuery: searchIndex });
+        else
+          pool.set(item.sourceId, {
+            item,
+            rrf: fused,
+            original: position,
+            firstQuery: searchIndex,
+          });
       }
       const root = asRecord(source);
       if (includeGallery && Array.isArray(root?.chunks)) {
@@ -537,7 +546,9 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
       }
     }
     const allRanked = [...pool.values()].sort(
-      (a, b) => b.rrf - a.rrf || b.item.score - a.item.score ||
+      (a, b) =>
+        b.rrf - a.rrf ||
+        b.item.score - a.item.score ||
         a.item.sourceId.localeCompare(b.item.sourceId),
     );
     // Reserve candidates per search facet, not just the first broad query.

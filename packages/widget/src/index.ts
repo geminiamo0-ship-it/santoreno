@@ -155,6 +155,7 @@ export class SantoAiElement extends LitElement {
           open: this.ui.expanded,
           fullscreen: this.ui.fullscreen,
           libraryId: this.ui.libraryId,
+          sourceMode: this.ui.sourceMode,
         },
         bubbles: true,
         composed: true,
@@ -190,15 +191,24 @@ export class SantoAiElement extends LitElement {
     this.transition({ type: "library", libraryId: value });
   }
 
+  private onSourceModeChange(event: Event): void {
+    const target = event.currentTarget;
+    if (!(target instanceof HTMLSelectElement)) return;
+    if (target.value === "libraries" || target.value === "research") {
+      this.transition({ type: "source-mode", sourceMode: target.value });
+    }
+  }
+
   private async sendQuestion(): Promise<void> {
     if (!this.client || this.busy) return;
     const question = this.client.pending?.text ?? this.draft.trim();
-    const library = this.client.pending?.libraryId ?? this.ui.libraryId;
+    const mode = this.client.pending?.sourceMode ?? this.ui.sourceMode;
+    const library = mode === "research" ? null : (this.client.pending?.libraryId ?? this.ui.libraryId);
     if (!question || question.length > 4000) return;
     this.busy = true;
     this.statusText = "Searching verified medical evidence…";
     try {
-      const answer = await this.client.ask(question, library);
+      const answer = await this.client.ask(question, library, mode);
       this.latestAnswer = answer;
       this.latestQuestion = question;
       this.draft = "";
@@ -456,8 +466,13 @@ export class SantoAiElement extends LitElement {
               </div>
             </header>
             <div class="controls">
-              <label for="santo-library">Library</label>
-              <select
+              <label for="santo-source-mode">Source</label>
+              <select id="santo-source-mode" aria-label="Medical evidence source" .value=${this.ui.sourceMode} @change=${this.onSourceModeChange}>
+                <option value="libraries">Royal Libraries</option>
+                <option value="research">PubMed Research</option>
+              </select>
+              ${this.ui.sourceMode === "libraries" ? html`<label for="santo-library">Library</label>` : ""}
+              ${this.ui.sourceMode === "libraries" ? html`<select
                 id="santo-library"
                 aria-label="Medical knowledge library"
                 .value=${this.ui.libraryId ?? ""}
@@ -465,10 +480,10 @@ export class SantoAiElement extends LitElement {
               >
                 <option value="">All libraries</option>
                 ${options.map((option) => html`<option value="${option.id}">${option.label}</option>`)}
-              </select>
-              <button type="button" class="citation" @click=${() => void this.browseLibraries()}>
+              </select>` : ""}
+              ${this.ui.sourceMode === "libraries" ? html`<button type="button" class="citation" @click=${() => void this.browseLibraries()}>
                 Browse library
-              </button>
+              </button>` : ""}
             </div>
             <main class="messages">${this.renderTranscript()}</main>
             ${

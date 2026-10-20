@@ -27,6 +27,7 @@ interface TurnRow {
   expected_sequence: number;
   question: string;
   library_id: string | null;
+  source_mode: "libraries" | "research";
   status: "pending" | "completed" | "retryable";
   attempt_id: string;
   lease_until_ms: number;
@@ -47,6 +48,7 @@ CREATE TABLE IF NOT EXISTS conversation_turns (
   expected_sequence INTEGER NOT NULL,
   question TEXT NOT NULL,
   library_id TEXT,
+  source_mode TEXT NOT NULL DEFAULT 'libraries',
   status TEXT NOT NULL CHECK (status IN ('pending','completed','retryable')),
   attempt_id TEXT NOT NULL,
   lease_until_ms INTEGER NOT NULL,
@@ -91,6 +93,7 @@ function toTurn(row: TurnRow): ConversationTurn {
     sequence: row.sequence,
     question: row.question,
     libraryId: row.library_id,
+    sourceMode: row.source_mode ?? "libraries",
     status: row.status,
     response,
   });
@@ -128,6 +131,10 @@ export class ConversationTurnCore {
     private readonly newId: () => string = () => crypto.randomUUID(),
   ) {
     storage.sql.exec(TURN_SCHEMA);
+    const columns = storage.sql.exec<{ name: string }>("PRAGMA table_info(conversation_turns)").toArray();
+    if (!columns.some((column) => column.name === "source_mode")) {
+      storage.sql.exec("ALTER TABLE conversation_turns ADD COLUMN source_mode TEXT NOT NULL DEFAULT 'libraries'");
+    }
   }
 
   begin(input: unknown): ConversationBeginTurnResponse {
@@ -144,6 +151,7 @@ export class ConversationTurnCore {
         if (
           existing.question !== request.text ||
           existing.library_id !== (request.libraryId ?? null) ||
+          (existing.source_mode ?? "libraries") !== (request.sourceMode ?? "libraries") ||
           existing.expected_sequence !== request.expectedSequence
         ) {
           throw new ConversationStateError(409, "CONVERSATION_IDEMPOTENCY_CONFLICT");
@@ -217,14 +225,15 @@ export class ConversationTurnCore {
       );
       sql.exec(
         `INSERT INTO conversation_turns
-          (idempotency_key, message_id, sequence, expected_sequence, question, library_id, status, attempt_id, lease_until_ms, response_json, context_text, quota_epoch)
-         VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, NULL, ?, 0)`,
+          (idempotency_key, message_id, sequence, expected_sequence, question, library_id, source_mode, status, attempt_id, lease_until_ms, response_json, context_text, quota_epoch)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, NULL, ?, 0)`,
         request.idempotencyKey,
         messageId,
         next,
         request.expectedSequence,
         request.text,
         request.libraryId ?? null,
+        request.sourceMode ?? "libraries",
         attemptId,
         now + LEASE_MS,
         context,
@@ -239,6 +248,7 @@ export class ConversationTurnCore {
           sequence: next,
           question: request.text,
           libraryId: request.libraryId ?? null,
+          sourceMode: request.sourceMode ?? "libraries",
           status: "pending",
           response: null,
         },

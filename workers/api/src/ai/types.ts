@@ -13,6 +13,7 @@ export interface RetrievedEvidence {
 export interface RetrievalRequest {
   query: string;
   libraryId: string | null;
+  sourceMode?: "libraries" | "research";
 }
 
 export interface RetrievalPort {

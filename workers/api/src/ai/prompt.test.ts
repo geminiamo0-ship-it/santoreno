@@ -233,8 +233,26 @@ describe("deterministic grounded prompt builder", () => {
     });
   });
 
+  it("keeps all 200 distinct clinical source IDs and their original order without ranking or dropping entries", () => {
+    const sources = Array.from({ length: 200 }, (_, i) => ({
+      ...evidence,
+      sourceId: "usmle:chunk-" + i,
+      libraryId: i % 2 ? "usmle" : "amboss",
+      title: "Aortic stenosis detail " + i,
+      text: "Authentic textbook section " + i + " about management and symptoms. ".repeat(32),
+    }));
+    const payload = buildGroundedPrompt("Aortic stenosis", sources, "markdown", true);
+    const parsed = promptSections(payload);
+    expect(parsed.sources).toHaveLength(200);
+    const references = parsed.sources.map((e) => (e as { source_id: string }).source_id);
+    expect(references).toEqual(sources.map((e) => e.sourceId));
+    expect(parsed.sources.every((e) => !!(e as {text:string}).text)).toBe(true);
+    const encoded = payload.split("EVIDENCE_JSON:\\n")[1]!;
+    expect(encoded.length).toBeLessThanOrEqual(52_000);
+  });
+
   it("fails closed instead of silently dropping additional or unbounded source identifiers", () => {
-    expect(() => buildGroundedPrompt("test", Array(46).fill(evidence))).toThrowError(
+    expect(() => buildGroundedPrompt("test", Array(221).fill(evidence))).toThrowError(
       "Retrieved evidence exceeds prompt limits",
     );
     expect(() =>

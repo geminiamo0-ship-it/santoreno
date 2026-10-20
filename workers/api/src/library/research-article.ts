@@ -62,9 +62,20 @@ export class PubMedArticleViewerService {
     try {
       response = await this.fetcher(url.toString(), {
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-        redirect: "error",
+        // Europe PMC may redirect to its canonical EBI URL.
+        redirect: "follow",
         headers: { accept: "application/json, application/xml" },
       });
+      if (response.redirected) {
+        const finalUrl = new URL(response.url);
+        if (
+          finalUrl.protocol !== "https:" ||
+          finalUrl.hostname !== "www.ebi.ac.uk" ||
+          !finalUrl.pathname.startsWith("/europepmc/webservices/rest/")
+        ) {
+          throw new Error("Unexpected provider redirect");
+        }
+      }
       if (!response.ok) throw new Error("upstream status");
       if (Number(response.headers.get("content-length") ?? 0) > MAX_BYTES)
         throw new Error("too large");

@@ -32,10 +32,10 @@ const MAX_DOWNLOAD_BYTES = 1_500_000;
 const TIMEOUT_MS = 4000;
 /** JATS PMC article identity permits additional attributes and PMC-prefixed IDs. */
 function pmcArticleIdentity(xml: string): string | null {
-  const found = /<article-id\b[^>]*\bpub-id-type=["']pmc["'][^>]*>\s*(?:PMC)?(\d+)\s*<\/article-id>/i.exec(xml);
+  const found =
+    /<article-id\b[^>]*\bpub-id-type=["']pmc["'][^>]*>\s*(?:PMC)?(\d+)\s*<\/article-id>/i.exec(xml);
   return found ? "PMC" + found[1] : null;
 }
-
 
 function decodeXml(value: string): string {
   return value

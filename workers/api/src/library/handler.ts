@@ -6,6 +6,8 @@ import { SantoSessionTokenService, SessionTokenError } from "../session/token";
 import { D1TenantRepository, type TenantRepository } from "../tenancy/repository";
 import { SourceResolutionError } from "../sources/store";
 import { LibraryReaderService, LibraryReaderError } from "./reader";
+import { PubMedArticleViewerService } from "./research-article";
+import { R2VerifiedSourceStore } from "../sources/store";
 
 export interface LibraryReaderDependencies {
   tenants?: (env: SantoBindings) => TenantRepository;
@@ -31,12 +33,17 @@ export function createLibraryReaderHandler(deps: LibraryReaderDependencies = {})
     const path = url.pathname;
     const catalog = path === "/v1/libraries";
     const citation = path === "/v1/sources/article";
+    const researchArticle = path === "/v1/sources/research-article";
     const imageBatch = path === "/v1/sources/article-images/batch";
     const listed = /^\/v1\/libraries\/([^/]+)\/articles$/.exec(path);
     const detail = /^\/v1\/libraries\/([^/]+)\/articles\/([^/]+)$/.exec(path);
-    if (!catalog && !citation && !imageBatch && !listed && !detail)
+    if (!catalog && !citation && !researchArticle && !imageBatch && !listed && !detail)
       return error("LIBRARY_NOT_FOUND", 404);
-    if (citation || imageBatch ? request.method !== "POST" : request.method !== "GET") {
+    if (
+      citation || researchArticle || imageBatch
+        ? request.method !== "POST"
+        : request.method !== "GET"
+    ) {
       return error("METHOD_NOT_ALLOWED", 405);
     }
     try {
@@ -73,6 +80,18 @@ export function createLibraryReaderHandler(deps: LibraryReaderDependencies = {})
           await service.batchImages(session, await request.json().catch(() => null)),
           { headers: HEADERS },
         );
+      if (researchArticle) {
+        if (env.SANTO_RESEARCH_ENABLED !== "true" || !env.CONTENT_BUCKET) {
+          return error("LIBRARY_NOT_FOUND", 404);
+        }
+        const viewer = new PubMedArticleViewerService(
+          new R2VerifiedSourceStore(env.CONTENT_BUCKET),
+        );
+        return Response.json(
+          await viewer.fromCitation(session, await request.json().catch(() => null)),
+          { headers: HEADERS },
+        );
+      }
       if (citation)
         return Response.json(
           await service.fromCitation(session, await request.json().catch(() => null)),

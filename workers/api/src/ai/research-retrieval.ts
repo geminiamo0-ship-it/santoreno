@@ -33,7 +33,9 @@ const TIMEOUT_MS = 4000;
 /** Real NCBI/Europe PMC JATS uses pub-id-type='pmcid' with 'PMC' prefix; allow older 'pmc' too. */
 function pmcArticleIdentity(xml: string): string | null {
   const found =
-    /<article-id\b[^>]*\bpub-id-type=["'](?:pmcid|pmc)["'][^>]*>\s*(?:PMC)?(\d+)\s*<\/article-id>/i.exec(xml);
+    /<article-id\b[^>]*\bpub-id-type=["'](?:pmcid|pmc)["'][^>]*>\s*(?:PMC)?(\d+)\s*<\/article-id>/i.exec(
+      xml,
+    );
   return found ? "PMC" + found[1] : null;
 }
 

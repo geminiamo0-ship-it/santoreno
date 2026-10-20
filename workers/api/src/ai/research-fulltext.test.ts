@@ -127,7 +127,9 @@ describe("PMC full-text-first original medical evidence", () => {
   it("recognizes the real NCBI/Europe PMC JATS pub-id-type=pmcid and preserves the original PMID citation", async () => {
     const { fetcher } = provider();
     const evidence = await new PubMedResearchRetrieval({ fetcher }).retrieve({
-      query: question, libraryId: null, sourceMode: "research",
+      query: question,
+      libraryId: null,
+      sourceMode: "research",
     });
     expect(evidence).toHaveLength(1);
     expect(evidence[0]?.sourceId).toBe("pubmed:40980300");

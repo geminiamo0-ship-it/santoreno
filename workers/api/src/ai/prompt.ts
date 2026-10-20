@@ -3,7 +3,7 @@ import type { RetrievedEvidence } from "./types";
 
 const MAX_QUERY_CHARS = 4000;
 // Cloudflare returns up to 50 chunks in one request; at most ten adjacent
-// AMBOSS sections may supplement them. Verified cited sources stay capped at 15.
+// AMBOSS sections may supplement them. Citations are independently verified.
 const MAX_EVIDENCE_ITEMS = 60;
 const MAX_EVIDENCE_CHARS = 3500;
 const MAX_SOURCE_ID_CHARS = 512;
@@ -68,7 +68,7 @@ export function buildGroundedPrompt(
         ]
       : [
           "Every citation_id must exactly match a source_id from EVIDENCE_JSON and genuinely support claims grounded in those passages. The server, not the model, owns links and source displays. NEVER print raw source_id strings such as passmedicine:chunk-id or bracketed machine citation IDs inside answer Markdown; include source identifiers ONLY in citation_ids. If adding substantial general-background reasoning, distinguish it without attaching an unsupported library citation.",
-          "Review EACH retrieved EVIDENCE_JSON source. Cite claims across distinct libraries when genuinely supported, using up to fifteen citation_ids. NEVER add an unrelated source, favor a brand, or attribute general background knowledge to a library.",
+          "Review EACH retrieved EVIDENCE_JSON source. Cite claims across distinct libraries when genuinely supported, using citations supported by the retrieved evidence. NEVER add an unrelated source, favor a brand, or attribute general background knowledge to a library.",
           "Return JSON only with this exact shape:",
           '{"answer":"evidence-grounded, richly structured medical explanation in Markdown","citation_ids":["source_id"]}',
           "Use at least one legitimate citation_id for a successful sourced answer. Never invent a citation, a specific guideline recommendation/date, statistics, drug dose or decision threshold beyond evidence; uncertainty must be visible when clinical precision matters.",

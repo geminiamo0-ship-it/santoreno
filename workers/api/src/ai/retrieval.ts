@@ -213,6 +213,7 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
       focused,
       request.onRouteDiagnostic,
       userMessages,
+      request.recentQwenReplies,
     );
   }
 

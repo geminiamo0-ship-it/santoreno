@@ -247,7 +247,7 @@ describe("deterministic grounded prompt builder", () => {
     const references = parsed.sources.map((e) => (e as { source_id: string }).source_id);
     expect(references).toEqual(sources.map((e) => e.sourceId));
     expect(parsed.sources.every((e) => !!(e as {text:string}).text)).toBe(true);
-    const encoded = payload.split("EVIDENCE_JSON:\\n")[1]!;
+    const encoded = payload.split("EVIDENCE_JSON:\n")[1]!;
     expect(encoded.length).toBeLessThanOrEqual(52_000);
   });
 

@@ -8,7 +8,8 @@ import type { SourceSnapshotWriter } from "../sources/store";
 import { validateGroundedCitations } from "./citations";
 import { AI_STAGE_TIMEOUTS, withAiDeadline } from "./deadline";
 import { GroundedAiError } from "./errors";
-import { buildGeneralMedicalPrompt, buildGroundedPrompt } from "./prompt";
+import { buildGeneralMedicalPrompt } from "./prompt";
+import { buildBudgetedResearchPrompt } from "./research-budget";
 import type { AiTelemetryPort, ModelPort, RetrievalPort } from "./types";
 
 function quotaDenial(reason: string | null): GroundedAiError {
@@ -40,9 +41,10 @@ async function deriveQuotaIdempotencyKey(
   clientKey: string,
   query: string,
   libraryId: string | null,
+  sourceMode: "libraries" | "research",
 ): Promise<string> {
   const bytes = new TextEncoder().encode(
-    `${externalUserId}\u0000${clientKey}\u0000${libraryId ?? ""}\u0000${query}`,
+    `${externalUserId}\u0000${clientKey}\u0000${sourceMode}\u0000${libraryId ?? ""}\u0000${query}`,
   );
   const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
   const hex = Array.from(digest, (byte) => byte.toString(16).padStart(2, "0")).join("");
@@ -70,11 +72,20 @@ export class GroundedAiService {
     const requestId = crypto.randomUUID();
     const messageId = crypto.randomUUID();
     const libraryId = input.library_id ?? null;
+    const sourceMode = input.source_mode ?? "libraries";
+    if (sourceMode === "research" && libraryId !== null) {
+      throw new GroundedAiError(
+        400,
+        "INVALID_SOURCE_MODE",
+        "Research mode cannot use a library filter",
+      );
+    }
     const quotaIdempotencyKey = await deriveQuotaIdempotencyKey(
       session.externalUserId,
       input.idempotency_key,
       input.query,
       libraryId,
+      sourceMode,
     );
 
     if (signal?.aborted) {
@@ -110,7 +121,12 @@ export class GroundedAiService {
     let responseMode: "santo" | "general" = "santo";
     try {
       const evidence = await withAiDeadline(
-        () => this.retrieval.retrieve({ query: input.query, libraryId }),
+        () =>
+          this.retrieval.retrieve({
+            query: input.query,
+            libraryId,
+            ...(sourceMode === "research" ? { sourceMode, signal } : {}),
+          }),
         signal,
         this.timeouts.retrievalMs,
         "SEARCH_TIMEOUT",
@@ -118,7 +134,7 @@ export class GroundedAiService {
       // A genuinely empty result is different from SEARCH_FAILED / SEARCH_TIMEOUT:
       // infrastructure outages still fail closed, never silently become "general".
       let groundingMode: "santo" | "general" = "santo";
-      if (evidence.length === 0 && !this.generalFallbackEnabled) {
+      if (evidence.length === 0 && (sourceMode === "research" || !this.generalFallbackEnabled)) {
         throw new GroundedAiError(
           422,
           "INSUFFICIENT_EVIDENCE",
@@ -131,7 +147,7 @@ export class GroundedAiService {
           this.model.generate(
             groundingMode === "general"
               ? buildGeneralMedicalPrompt(input.query)
-              : buildGroundedPrompt(input.query, evidence),
+              : buildBudgetedResearchPrompt(input.query, evidence),
           ),
         signal,
         this.timeouts.modelMs,
@@ -143,7 +159,8 @@ export class GroundedAiService {
       if (
         draft.answer === "INSUFFICIENT_EVIDENCE" &&
         groundingMode === "santo" &&
-        this.generalFallbackEnabled
+        this.generalFallbackEnabled &&
+        sourceMode !== "research"
       ) {
         groundingMode = "general";
         draft = await withAiDeadline(

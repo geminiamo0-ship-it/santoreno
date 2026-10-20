@@ -9,9 +9,17 @@ import {
 } from "@santo/contracts/source";
 
 import { R2VerifiedSourceStore, SourceResolutionError } from "./store";
+import {
+  PmcResearchFigureProvider,
+  pmcidFromSavedSource,
+  type ResearchFigureProvider,
+} from "./research-figures";
 
 export class TrustedSourceService {
-  constructor(private readonly store: R2VerifiedSourceStore) {}
+  constructor(
+    private readonly store: R2VerifiedSourceStore,
+    private readonly figureProvider: ResearchFigureProvider = new PmcResearchFigureProvider(),
+  ) {}
 
   private async resolve(
     session: SessionContextResponse,
@@ -34,8 +42,14 @@ export class TrustedSourceService {
     request: TrustedSourceDetailRequest,
   ): Promise<TrustedSourceDetailResponse> {
     const { source, entries } = await this.resolve(session, request);
+    const pmcid = pmcidFromSavedSource(source);
+    const researchFigures = pmcid ? await this.figureProvider.find(pmcid) : [];
     return TrustedSourceDetailResponseSchema.parse({
       source,
+      ...(pmcid ? { researchFigures } : {}),
+      ...(source.instanceId === "pubmed" && /^pubmed:\d+$/.test(source.sourceId)
+        ? { externalUrl: "https://pubmed.ncbi.nlm.nih.gov/" + source.sourceId.slice(7) + "/" }
+        : {}),
       images: entries.map(({ assetId, altText, caption, contentType, width, height }) => ({
         assetId,
         altText,

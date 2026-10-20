@@ -5,7 +5,7 @@ import type { GroundedModelDraft, ModelPort } from "./types";
 export const GROUNDED_MODEL_POLICY = {
   temperature: 0.1,
   // Headroom for evidence-supported mechanisms; simple facts remain brief by prompt policy.
-  maxTokens: 1500,
+  maxTokens: 3000,
 } as const;
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -88,7 +88,7 @@ const groundedResponseSchema = {
     citation_ids: {
       type: "array",
       items: { type: "string" },
-      maxItems: 5,
+      maxItems: 10,
     },
   },
   required: ["answer", "citation_ids"],

@@ -94,11 +94,11 @@ describe("deterministic grounded prompt builder", () => {
 
     expect(parsed.question.length).toBe(4000);
     expect(parsed.sources).toHaveLength(5);
-    for (const source of parsed.sources) {
+    for (const [index, source] of parsed.sources.entries()) {
       const item = source as { title: string; section: string; text: string };
       expect(item.title.length).toBe(500);
       expect(item.section.length).toBe(200);
-      expect(item.text.length).toBe(3500);
+      expect(item.text.length).toBe(index < 4 ? 3500 : 500);
     }
     expect(result.length).toBeLessThan(27000);
   });
@@ -117,7 +117,7 @@ describe("deterministic grounded prompt builder", () => {
   });
 
   it("fails closed instead of silently dropping additional or unbounded source identifiers", () => {
-    expect(() => buildGroundedPrompt("test", Array(6).fill(evidence))).toThrowError(
+    expect(() => buildGroundedPrompt("test", Array(13).fill(evidence))).toThrowError(
       "Retrieved evidence exceeds prompt limits",
     );
     expect(() =>

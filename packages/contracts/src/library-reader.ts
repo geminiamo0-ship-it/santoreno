@@ -34,6 +34,10 @@ export const LibraryArticleSchema = z
     title: z.string().min(1).max(500),
     category: z.string().max(300),
     source: z.string().max(120),
+    // Preserve rich HTML from the imported article; the browser DOM sanitizer is the rendering boundary.
+    contentHtml: z.string().max(1_500_000).optional(),
+    contentHtmlGzipBase64: z.string().max(1_500_000).optional(),
+    contentHtmlDecodedLength: z.number().int().nonnegative().max(5_000_000).optional(),
     sections: z.array(LibraryArticleSectionSchema).min(1).max(300),
   })
   .strict()

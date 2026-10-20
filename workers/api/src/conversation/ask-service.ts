@@ -24,7 +24,12 @@ export class ConversationAskService {
     private readonly generateVerifiedAnswer: (
       bearer: string,
       env: SantoBindings,
-      input: { query: string; idempotency_key: string; library_id?: string },
+      input: {
+        query: string;
+        idempotency_key: string;
+        library_id?: string;
+        source_mode?: "libraries" | "research";
+      },
       signal: AbortSignal,
     ) => Promise<GroundedAiQueryResponse> = invokeGroundedAnswer,
   ) {}
@@ -135,6 +140,7 @@ export class ConversationAskService {
           query: effectiveQuery,
           idempotency_key: key,
           ...(body.libraryId ? { library_id: body.libraryId } : {}),
+          ...(body.sourceMode === "research" ? { source_mode: "research" as const } : {}),
         },
         signal,
       );

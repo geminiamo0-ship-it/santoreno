@@ -13,6 +13,7 @@ import { GroundedAiError } from "./errors";
 import { AiSearchNamespaceLibraryCatalog } from "./library-catalog";
 import { createGroundedModel } from "./model";
 import { CloudflareAiSearchRetrieval } from "./retrieval";
+import { PubMedResearchRetrieval, SourceModeRetrieval } from "./research-retrieval";
 import { GroundedAiService } from "./service";
 import { streamValidatedGroundedAnswer } from "./stream";
 import { AnalyticsEngineAiTelemetry } from "./telemetry";
@@ -70,9 +71,15 @@ export function createGroundedAiHandler(dependencies: GroundedAiHandlerDependenc
           .map((id) => id.trim())
           .filter((id) => /^[a-z0-9][a-z0-9-]{0,63}$/.test(id)),
       );
-      return new CloudflareAiSearchRetrieval(
-        env.AI_SEARCH,
-        new AiSearchNamespaceLibraryCatalog(env.AI_SEARCH, allowed),
+      return new SourceModeRetrieval(
+        new CloudflareAiSearchRetrieval(
+          env.AI_SEARCH,
+          new AiSearchNamespaceLibraryCatalog(env.AI_SEARCH, allowed),
+        ),
+        new PubMedResearchRetrieval({
+          ncbiApiKey: env.NCBI_API_KEY,
+          openAlexApiKey: env.OPENALEX_API_KEY,
+        }),
       );
     });
   const modelFactory = dependencies.modelFactory ?? createGroundedModel;
@@ -106,6 +113,11 @@ export function createGroundedAiHandler(dependencies: GroundedAiHandlerDependenc
         tenantRepositoryFactory(env),
         tokens,
       ).resolve(principal);
+
+      // Feature selection must never reveal enablement before authenticating.
+      if (parsed.data.source_mode === "research" && env.SANTO_RESEARCH_ENABLED !== "true") {
+        return errorResponse("RESEARCH_MODE_DISABLED", 403);
+      }
 
       const response = await new GroundedAiService(
         quotaServiceFactory(env),

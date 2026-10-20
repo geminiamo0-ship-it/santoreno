@@ -8,11 +8,15 @@ export const GroundedAiLibraryIdSchema = z
   .regex(/^[a-z0-9][a-z0-9_-]*$/);
 export type GroundedAiLibraryId = z.infer<typeof GroundedAiLibraryIdSchema>;
 
+export const SantoSourceModeSchema = z.enum(["libraries", "research"]);
+export type SantoSourceMode = z.infer<typeof SantoSourceModeSchema>;
+
 export const GroundedAiQueryRequestSchema = z
   .object({
     query: z.string().trim().min(1).max(4000),
     idempotency_key: z.string().trim().min(1).max(128),
     library_id: GroundedAiLibraryIdSchema.optional(),
+    source_mode: SantoSourceModeSchema.optional(),
   })
   .strict();
 export type GroundedAiQueryRequest = z.infer<typeof GroundedAiQueryRequestSchema>;
@@ -37,7 +41,7 @@ export const GroundedAiQueryResponseSchema = z
     answer: z.string().min(1),
     /** Legacy responses without this property are always source-grounded. */
     groundingMode: z.enum(["santo", "general"]).optional(),
-    citations: z.array(GroundedAiCitationSchema).max(5),
+    citations: z.array(GroundedAiCitationSchema).max(10),
     usage: GroundedAiUsageSchema,
   })
   .superRefine((response, ctx) => {

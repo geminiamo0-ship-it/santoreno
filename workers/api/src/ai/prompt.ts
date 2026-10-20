@@ -2,8 +2,9 @@ import { GroundedAiError } from "./errors";
 import type { RetrievedEvidence } from "./types";
 
 const MAX_QUERY_CHARS = 4000;
-const MAX_EVIDENCE_ITEMS = 5;
+const MAX_EVIDENCE_ITEMS = 12;
 const MAX_EVIDENCE_CHARS = 3500;
+const TOTAL_EVIDENCE_CHARS = 14500;
 const MAX_SOURCE_ID_CHARS = 512;
 const MAX_LIBRARY_ID_CHARS = 64;
 const MAX_TITLE_CHARS = 500;
@@ -20,14 +21,22 @@ export function buildGroundedPrompt(query: string, evidence: readonly RetrievedE
     throw new GroundedAiError(502, "SEARCH_FAILED", "Retrieved evidence exceeds prompt limits");
   }
 
-  const sources = evidence.map((item) => ({
-    source_id: item.sourceId,
-    library_id: item.libraryId,
-    title: item.title.slice(0, MAX_TITLE_CHARS),
-    page: item.page,
-    section: item.section?.slice(0, MAX_SECTION_CHARS) ?? null,
-    text: item.text.slice(0, MAX_EVIDENCE_CHARS),
-  }));
+  let remainingChars = TOTAL_EVIDENCE_CHARS;
+  const sources = evidence
+    .map((item) => {
+      const allowed = Math.max(0, Math.min(MAX_EVIDENCE_CHARS, remainingChars));
+      const trimmed = item.text.slice(0, allowed);
+      remainingChars -= trimmed.length;
+      return {
+        source_id: item.sourceId,
+        library_id: item.libraryId,
+        title: item.title.slice(0, MAX_TITLE_CHARS),
+        page: item.page,
+        section: item.section?.slice(0, MAX_SECTION_CHARS) ?? null,
+        text: trimmed,
+      };
+    })
+    .filter((item) => item.text.length > 0);
 
   return [
     "You are Santo, a professor-grade Medical Education Copilot.",

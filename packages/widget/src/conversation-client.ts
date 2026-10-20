@@ -45,6 +45,7 @@ export interface PendingQuestion {
   expectedSequence: number;
   text: string;
   libraryId: string | null;
+  sourceMode?: "libraries" | "research";
 }
 
 interface PersistedState {
@@ -87,6 +88,8 @@ function readState(value: string | null): PersistedState | null {
         typeof pending.text !== "string" ||
         pending.text.length < 1 ||
         pending.text.length > 4000 ||
+        (pending.sourceMode !== undefined &&
+          !["libraries", "research"].includes(String(pending.sourceMode))) ||
         (pending.libraryId !== null &&
           (typeof pending.libraryId !== "string" || !LIBRARY.test(pending.libraryId)))
       )
@@ -244,8 +247,14 @@ export class SantoConversationClient {
     return id;
   }
 
-  async ask(text: string, libraryId: string | null): Promise<GroundedAiQueryResponse> {
+  async ask(
+    text: string,
+    libraryId: string | null,
+    sourceMode: "libraries" | "research" = "libraries",
+  ): Promise<GroundedAiQueryResponse> {
     const question = text.trim();
+    if (sourceMode === "research" && libraryId !== null)
+      throw new SantoWidgetApiError(400, "INVALID_SOURCE_MODE");
     if (!question || question.length > 4000 || (libraryId !== null && !LIBRARY.test(libraryId))) {
       throw new SantoWidgetApiError(400, "INVALID_CONVERSATION_REQUEST");
     }
@@ -253,7 +262,9 @@ export class SantoConversationClient {
     // finalized/uncertain turn; only an identical request may be replayed.
     if (
       this.state?.pending &&
-      (this.state.pending.text !== question || this.state.pending.libraryId !== libraryId)
+      (this.state.pending.text !== question ||
+        this.state.pending.libraryId !== libraryId ||
+        (this.state.pending.sourceMode ?? "libraries") !== sourceMode)
     ) {
       throw new SantoWidgetApiError(409, "PENDING_TURN_REQUIRES_RETRY");
     }
@@ -265,6 +276,7 @@ export class SantoConversationClient {
         expectedSequence: this.sequence,
         text: question,
         libraryId,
+        sourceMode,
       };
       this.persist();
     }
@@ -277,6 +289,7 @@ export class SantoConversationClient {
         expectedSequence: pending.expectedSequence,
         text: pending.text,
         ...(pending.libraryId ? { libraryId: pending.libraryId } : {}),
+        ...(pending.sourceMode === "research" ? { sourceMode: "research" } : {}),
       },
     );
     this.sequence = Math.max(this.sequence, pending.expectedSequence + 1);
@@ -288,7 +301,11 @@ export class SantoConversationClient {
 
   async retryPending(): Promise<GroundedAiQueryResponse> {
     if (!this.state?.pending) throw new SantoWidgetApiError(400, "NO_PENDING_TURN");
-    return this.ask(this.state.pending.text, this.state.pending.libraryId);
+    return this.ask(
+      this.state.pending.text,
+      this.state.pending.libraryId,
+      this.state.pending.sourceMode ?? "libraries",
+    );
   }
 
   async refreshTurns(): Promise<readonly ConversationTurn[]> {

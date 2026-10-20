@@ -20,10 +20,10 @@ jobs:
           set -euo pipefail
           corepack enable
           pnpm install --frozen-lockfile
-          pnpm exec prettier --write packages/contracts/src/ai.ts packages/contracts/src/conversation.ts workers/api/src/ai/types.ts workers/api/src/ai/errors.ts workers/api/src/runtime/bindings.ts workers/api/src/ai/handler.ts workers/api/src/ai/service.ts workers/api/src/ai/research-retrieval.ts workers/api/src/ai/research-retrieval.test.ts workers/api/src/conversation/ask-service.ts workers/api/src/durable-objects/conversation-turn-core.ts
+          pnpm exec prettier --write packages/contracts/src/ai.ts packages/contracts/src/conversation.ts workers/api/src/ai/types.ts workers/api/src/ai/errors.ts workers/api/src/runtime/bindings.ts workers/api/src/ai/handler.ts workers/api/src/ai/service.ts workers/api/src/ai/research-retrieval.ts workers/api/src/ai/research-retrieval.test.ts workers/api/src/conversation/ask-service.ts workers/api/src/durable-objects/conversation-turn-core.ts .github/workflows/pubmed-luna-integration-verify-once.yml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add packages/contracts/src workers/api/src
+          git add packages/contracts/src workers/api/src .github/workflows/pubmed-luna-integration-verify-once.yml
           if ! git diff --cached --quiet; then
             git commit -m "style(research): format Luna-safe source mode feature"
             git push origin HEAD:feat/pubmed-on-working-luna-20261020

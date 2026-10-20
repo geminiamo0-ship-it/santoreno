@@ -249,6 +249,20 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
           : Promise.resolve(currentTopicQuery);
       const [catalog, searchQuery] = await Promise.all([catalogPromise, queryPromise]);
       const selectedLibraries = selectLibraries(catalog, request.libraryId);
+      if (
+        this.medicalRetrievalV2 &&
+        this.singleMultiInstanceSearchV1 &&
+        request.preparedQueries &&
+        request.preparedQueries.length > 1
+      ) {
+        return this.retrievePlannedMultiInstance(
+          currentTopicQuery,
+          selectedLibraries,
+          request.preparedQueries,
+          includeGallery && request.libraryId === null,
+          this.ankingCardsV1 && request.libraryId === null,
+        );
+      }
       if (this.medicalRetrievalV2) {
         if (this.singleMultiInstanceSearchV1)
           return this.retrieveSingleMultiInstance(
@@ -410,6 +424,156 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
       galleryHits,
       // Cards never hydrate on the Luna path. Find the Card owns a separate
       // authenticated R2-only endpoint with independent lifecycle and quota.
+    };
+  }
+
+  /**
+   * Qwen creates one bounded plan. Run up to FOUR Cloudflare searches in
+   * parallel, each natively capped at 50 hits; deduplicate up to 90 pooled
+   * candidates and pass a balanced maximum 30 original clinical excerpts to
+   * Luna. One Qwen inference only. No evidence fabrication or new index.
+   */
+  private async retrievePlannedMultiInstance(
+    question: string,
+    libraries: readonly LibraryCatalogEntry[],
+    plan: readonly string[],
+    includeGallery: boolean,
+    includeAnking: boolean,
+  ): Promise<CombinedSearchResult> {
+    const cleanQueries = [...new Set(plan.map((item) => item.trim()).filter(
+      (item) => item.length >= 3 && item.length <= 220 && !/[\r\n{}<>]/.test(item),
+    ))].slice(0, 4);
+    if (!cleanQueries.length) {
+      throw new GroundedAiError(502, "SEARCH_FAILED", "No valid medical search plan");
+    }
+    const instances = [
+      ...libraries.map((library) => library.instanceId),
+      ...(includeGallery ? [IMAGE_SEARCH_INSTANCE] : []),
+      ...(includeAnking
+        ? [this.ankingFullV12 ? ANKING_FULL_V12_INSTANCE : ANKING_SEARCH_INSTANCE]
+        : []),
+    ];
+    const started = performance.now();
+    const results = await Promise.allSettled(cleanQueries.map(async (query) => {
+      const result = await this.namespace!.search({
+        query,
+        ai_search_options: {
+          instance_ids: instances,
+          retrieval: {
+            retrieval_type: "hybrid",
+            match_threshold: MATCH_THRESHOLD,
+            max_num_results: 50,
+            return_on_failure: true,
+            fusion_method: "rrf",
+          },
+          reranking: { enabled: false },
+          query_rewrite: { enabled: false },
+        },
+      });
+      const root = asRecord(result);
+      if (!Array.isArray(root?.chunks) ||
+          (Array.isArray(root?.errors) && root.errors.length > 0)) {
+        throw new GroundedAiError(502, "SEARCH_FAILED", "Medical search call failed");
+      }
+      return result;
+    }));
+    const success = results.filter(
+      (result): result is PromiseFulfilledResult<unknown> => result.status === "fulfilled",
+    );
+    console.info("santo_medical_search_plan", {
+      queries: cleanQueries.length,
+      succeeded: success.length,
+      milliseconds: Math.round(performance.now() - started),
+    });
+    if (!success.length) throw new GroundedAiError(502, "SEARCH_FAILED", "All medical search queries failed");
+
+    // Reciprocal-rank fusion across query results. Return only original
+    // server-validated chunk IDs, original text and whitelisted indexes.
+    const pool = new Map<string, { item: RetrievedEvidence; rrf: number; original: number }>();
+    const images = new Map<string, GallerySearchHit>();
+    const ankingPool: RetrievedEvidence[] = [];
+    for (const [searchIndex, result] of success.entries()) {
+      const source = result.value;
+      const chunks = evidenceFromSearch(source, libraries, 50);
+      for (const [position, item] of chunks.entries()) {
+        const previous = pool.get(item.sourceId);
+        const fused = 1 / (60 + position) + (searchIndex === 0 ? 0.002 : 0);
+        if (previous) previous.rrf += fused;
+        else pool.set(item.sourceId, { item, rrf: fused, original: position });
+      }
+      const root = asRecord(source);
+      if (includeGallery && Array.isArray(root?.chunks)) {
+        for (const raw of root.chunks) {
+          const chunk = asRecord(raw);
+          if (stringField(chunk, "instance_id") !== IMAGE_SEARCH_INSTANCE) continue;
+          const key = stringField(asRecord(chunk?.item), "key");
+          const match = key ? /(?:^|\/)(img_\d{6})\.json$/.exec(key) : null;
+          const score = numberField(chunk, "score");
+          if (match && score !== null && score >= MATCH_THRESHOLD) {
+            const previous = images.get(match[1]!);
+            if (!previous || score > previous.score)
+              images.set(match[1]!, { imageId: match[1]!, score });
+          }
+        }
+      }
+      if (includeAnking && this.ankingFullV12) {
+        ankingPool.push(...evidenceFromSearch(
+          source,
+          [{ id: "anking", instanceId: ANKING_FULL_V12_INSTANCE, title: "AnKing v12" }],
+          15,
+        ).filter((item) => /(?:^|\/)note_\d{10,16}\.json$/.test(item.itemKey)));
+      }
+    }
+    const ranked = [...pool.values()]
+      .sort((a, b) => b.rrf - a.rrf || b.item.score - a.item.score ||
+        a.item.sourceId.localeCompare(b.item.sourceId))
+      .slice(0, 90);
+    // Preserve library diversity in the first 20 results, then fill by RRF.
+    const selected: RetrievedEvidence[] = [];
+    const used = new Set<string>();
+    const duplicateText = new Set<string>();
+    const usedPerArticle = new Map<string, number>();
+    const pick = (item: RetrievedEvidence): boolean => {
+      if (used.has(item.sourceId)) return false;
+      const fingerprint = item.instanceId + ":" + item.text.replace(/\s+/g, " ").trim();
+      if (duplicateText.has(fingerprint)) return false;
+      const article = item.instanceId + ":" + item.itemKey;
+      if ((usedPerArticle.get(article) ?? 0) >= 3) return false;
+      used.add(item.sourceId);
+      duplicateText.add(fingerprint);
+      usedPerArticle.set(article, (usedPerArticle.get(article) ?? 0) + 1);
+      // Short extracts reserve context for ~30 meaningful citations and
+      // 3,000 output tokens; never add unverified language-model content.
+      const cut = item.text.length <= 1100
+        ? item.text
+        : item.text.slice(0, Math.max(300, item.text.lastIndexOf(". ", 1100) + 1 || 1100));
+      selected.push({ ...item, text: cut });
+      return true;
+    };
+    for (const library of libraries) {
+      for (const entry of ranked.filter((row) => row.item.instanceId === library.instanceId)) {
+        if (selected.filter((item) => item.instanceId === library.instanceId).length >= 4) break;
+        pick(entry.item);
+      }
+    }
+    for (const entry of ranked) {
+      if (selected.length >= 30) break;
+      pick(entry.item);
+    }
+    const bestAnking = includeAnking && this.ankingFullV12
+      ? rankMedicalCandidates(question, ankingPool.map((evidence, position) =>
+          ({ evidence, position })), 1)
+          .map((item) => ({ ...item, title: "AnKing v12 — " + item.title }))
+      : [];
+    console.info("santo_medical_search_candidates", {
+      candidates: Math.min(90, pool.size),
+      selected: selected.length,
+      libraries: new Set(selected.map((item) => item.instanceId)).size,
+      gallery: images.size,
+    });
+    return {
+      evidence: [...selected, ...bestAnking],
+      galleryHits: [...images.values()].sort((a, b) => b.score - a.score).slice(0, 15),
     };
   }
 

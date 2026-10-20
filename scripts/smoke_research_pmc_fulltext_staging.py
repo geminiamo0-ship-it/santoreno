@@ -20,15 +20,21 @@ for provider, url in urls:
         if len(xml) > 1_500_000:
             raise RuntimeError("PMC article exceeds configured provider response limit")
         decoded = xml.decode("utf-8")
-        assert re.search(r"<article-id\s+pub-id-type=['\"]pmc['\"]>\s*(?:PMC)?" + PMCID + r"\s*</article-id>", decoded, re.I)
+        pattern = r"<article-id\b[^>]*\bpub-id-type=['\"]pmc['\"][^>]*>\s*(?:PMC)?" + PMCID + r"\s*</article-id>"
+        if not re.search(pattern, decoded, re.I):
+            raise RuntimeError("PMC identity missing or invalid JATS structure")
         readable = re.sub(r"<[^>]+>", " ", decoded).lower()
-        assert all(term in readable for term in ("pregnan", "insulin", "potassium", "kidney", "heart failure", "children"))
-        assert "250" in readable
+        missing = [term for term in ("pregnan", "insulin", "potassium", "kidney", "heart failure", "children")
+                   if term not in readable]
+        if missing:
+            raise RuntimeError("PMC text missing expected categories: " + ",".join(missing))
+        if "250" not in readable:
+            raise RuntimeError("Expected renal volume detail not found in PMC article")
         print("REAL_PMC_FULLTEXT_AVAILABLE", {"provider": provider, "bytes": len(xml),
                                              "has_renal_fluid_detail": True,
                                              "has_multiple_special_conditions": True})
         break
     except Exception as exc:
-        print("PMC_PROVIDER_UNAVAILABLE", {"provider": provider, "reason": type(exc).__name__})
+        print("PMC_PROVIDER_UNAVAILABLE", {"provider": provider, "reason": type(exc).__name__, "detail": str(exc)[:180]}, flush=True)
 else:
     raise SystemExit("Neither NCBI nor Europe PMC returned the complete, identified clinical article")

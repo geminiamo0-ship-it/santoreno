@@ -30,10 +30,10 @@ const FIRST_PAPER_BYTES = 15_000;
 const FOLLOWUP_PAPER_BYTES = 2_500;
 const MAX_DOWNLOAD_BYTES = 1_500_000;
 const TIMEOUT_MS = 4000;
-/** JATS PMC article identity permits additional attributes and PMC-prefixed IDs. */
+/** Real NCBI/Europe PMC JATS uses pub-id-type='pmcid' with 'PMC' prefix; allow older 'pmc' too. */
 function pmcArticleIdentity(xml: string): string | null {
   const found =
-    /<article-id\b[^>]*\bpub-id-type=["']pmc["'][^>]*>\s*(?:PMC)?(\d+)\s*<\/article-id>/i.exec(xml);
+    /<article-id\b[^>]*\bpub-id-type=["'](?:pmcid|pmc)["'][^>]*>\s*(?:PMC)?(\d+)\s*<\/article-id>/i.exec(xml);
   return found ? "PMC" + found[1] : null;
 }
 

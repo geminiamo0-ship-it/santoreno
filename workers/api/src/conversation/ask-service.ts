@@ -142,6 +142,7 @@ async function invokeGroundedAnswer(
     }),
     env,
     onProvisionalAnswer,
+    input.recent_qwen_replies,
   );
   const payload: unknown = await response.json().catch(() => null);
   if (!response.ok) {

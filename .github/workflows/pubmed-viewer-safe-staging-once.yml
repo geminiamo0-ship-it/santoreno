@@ -1,0 +1,79 @@
+name: PubMed Viewer - Safe Santo Staging Deploy
+on:
+  push:
+    branches: [fix/pubmed-citation-internal-viewer-20261020]
+    paths: [.github/workflows/pubmed-viewer-safe-staging-once.yml]
+permissions:
+  contents: read
+concurrency:
+  group: santo-research-viewer-safe-staging
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      URL: https://santo-api-staging.geminiamo0.workers.dev
+      RESTORE_SHA: c3da470dd333b0e6b7ab4a91bc9f2f78b02f2f4b
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Verify Luna and both search modes are unchanged before deploying
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+          git fetch origin "$RESTORE_SHA" || true
+          for file in workers/api/src/ai/model.ts workers/api/src/ai/service.ts workers/api/src/ai/research-retrieval.ts workers/api/src/conversation/ask-service.ts workers/api/src/durable-objects/conversation-turn-core.ts workers/api/wrangler.toml; do
+            git show "$RESTORE_SHA:$file" > /tmp/santo-stable-file
+            cmp -s /tmp/santo-stable-file "$file" || { echo "Blocked: stable Luna, PubMed, DO or settings changed: $file"; exit 1; }
+          done
+          grep -Fq 'SANTO_LUNA_PREVIEW = "true"' workers/api/wrangler.toml
+          grep -Fq 'SANTO_RESEARCH_ENABLED = "true"' workers/api/wrangler.toml
+          corepack enable
+          pnpm install --frozen-lockfile
+          rm -f .github/workflows/pubmed-citation-viewer-verify-once.yml
+          rm -f .github/workflows/pubmed-viewer-remote-smoke-once.yml
+          rm -f .github/workflows/pubmed-viewer-safe-staging-once.yml
+          pnpm lint
+          pnpm typecheck
+          pnpm test
+          pnpm build
+          pnpm smoke
+      - name: Publish PubMed citation viewer to Santo Staging only
+        shell: bash
+        run: |
+          set -euo pipefail
+          touch "$RUNNER_TEMP/DEPLOY_STARTED"
+          cd workers/api
+          pnpm exec wrangler deploy --env staging --keep-vars
+      - name: Check live staging health and auth
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsS --retry 6 --retry-delay 3 --retry-all-errors "$URL/health" |
+            jq -e '.service=="santo-api" and .status=="ok"'
+          status="$(curl --silent --output /dev/null --write-out '%{http_code}' -X POST "$URL/v1/sources/research-article" -H 'content-type: application/json' --data '{"messageId":"22222222-2222-4222-8222-222222222222","sourceId":"pubmed:123"}')"
+          echo "Anonymous PubMed reader HTTP $status"
+          test "$status" = 401
+          echo 'New PubMed Viewer on Staging; Luna/Libraries/PubMed retrieval remain unchanged.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Restore previously working Luna + PubMed if deploy or check fails
+        if: failure()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ ! -f "$RUNNER_TEMP/DEPLOY_STARTED" ]; then
+            echo "Pre-deploy failure; shared Santo Staging was not changed"
+            exit 0
+          fi
+          git reset --hard "$RESTORE_SHA"
+          cd workers/api
+          pnpm exec wrangler deploy --env staging --keep-vars
+          echo 'Restored pre-viewer working Luna + PubMed Staging.' >> "$GITHUB_STEP_SUMMARY"

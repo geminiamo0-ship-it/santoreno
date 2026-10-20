@@ -893,7 +893,7 @@ describe("Santo five licensed library retrieval", () => {
 });
 
 describe("Qwen planned multi-query cross-library evidence retrieval", () => {
-  it("searches up to four facets and fuses up to 90 candidates into 30 diverse original sources", async () => {
+  it("forwards all 200 distinct Cloudflare hits in provider order, without best-30/90 ranking", async () => {
     const searches: Array<{
       query: string;
       ai_search_options: {
@@ -961,10 +961,66 @@ describe("Qwen planned multi-query cross-library evidence retrieval", () => {
       expect(call.ai_search_options.reranking.enabled).toBe(false);
       expect(call.ai_search_options.instance_ids).toHaveLength(7);
     }
-    expect(results.evidence.length).toBe(30);
-    expect(new Set(results.evidence.map((e) => e.sourceId)).size).toBe(30);
+    expect(results.evidence.length).toBe(200);
+    expect(new Set(results.evidence.map((e) => e.sourceId)).size).toBe(200);
     expect(new Set(results.evidence.map((e) => e.libraryId)).size).toBe(5);
     expect(results.evidence.every((e) => e.text.includes("evidence"))).toBe(true);
+    expect(results.evidence.slice(0, 2).map((e) => e.sourceId)).toEqual([
+      "amboss:chunk-amboss-100",
+      "amboss:chunk-amboss-101",
+    ]);
     expect(results.galleryHits.map((h) => h.imageId)).toEqual(["img_000001"]);
+  });
+
+  it("removes only exact source/content duplicates, preserving Cloudflare ordering and all sections of one article", async () => {
+    let count = 0;
+    const oneArticle = Array.from({ length: 8 }, (_, index) => ({
+      ...chunk("amboss", index + 10, 0.45 + index / 20),
+      item: {
+        key: "medical-search/v1/amboss/the-same-article/s-0001.md",
+        metadata: { title: "Aortic stenosis" },
+      },
+    }));
+    const namespace: AiSearchNamespaceLike = {
+      list: async () => ({ result: catalogItems }),
+      search: async () => {
+        count++;
+        return count === 1
+          ? { chunks: oneArticle }
+          : {
+              chunks: [
+                { ...oneArticle[0], score: 0.999 },
+                { ...chunk("usmle", 99), text: oneArticle[1]!.text },
+                chunk("usmle", 100),
+              ],
+            };
+      },
+    };
+    const retrieval = new CloudflareAiSearchRetrieval(
+      namespace,
+      undefined,
+      true,
+      true,
+      undefined,
+      true,
+      true,
+      true,
+      true,
+      true,
+    );
+    const results = await retrieval.retrieve({
+      query: "Aortic stenosis",
+      libraryId: null,
+      preparedQuery: "aortic stenosis",
+      preparedQueries: ["aortic stenosis", "aortic stenosis treatment"],
+    });
+    expect(count).toBe(2);
+    expect(results).toHaveLength(9);
+    expect(results.slice(0, 8).map((item) => item.sourceId)).toEqual(
+      oneArticle.map((item) => "amboss:" + item.id),
+    );
+    expect(results[8]?.sourceId).toBe("usmle:chunk-usmle-100");
+    // Later, higher-score duplicates do NOT replace the original first source.
+    expect(results[0]?.score).toBeCloseTo(0.45);
   });
 });

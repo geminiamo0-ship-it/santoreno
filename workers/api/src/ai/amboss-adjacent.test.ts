@@ -96,6 +96,23 @@ describe("AMBOSS-only adjacent R2 evidence expansion", () => {
     expect(output).toContain(result[3]!.sourceId);
   });
 
+  it("preserves 200 unique original results when expanding AMBOSS; never caps the cloudflare collection at 45", async () => {
+    const original = [
+      anchor,
+      ...Array.from({ length: 199 }, (_, i) => ({
+        ...usmle,
+        sourceId: "usmle:original-" + i,
+        itemKey: "medical-search/v1/usmle/article-" + i + "/s-0001.md",
+        text: "Original unique clinical section " + i,
+      })),
+    ];
+    const expanded = await expandAmbossAdjacentEvidence(original, fakeBucket(files()).bucket);
+    expect(expanded).toHaveLength(210);
+    expect(
+      expanded.map((entry) => entry.sourceId).filter((sourceId) => sourceId.startsWith("usmle:")),
+    ).toHaveLength(199);
+  });
+
   it("starts all ten R2 reads before awaiting any individual object and preserves neighbor ordering", async () => {
     let release!: () => void;
     const waiting = new Promise<void>((resolve) => {

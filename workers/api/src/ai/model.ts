@@ -1,7 +1,7 @@
 import type { SantoBindings, WorkersAiLike } from "../runtime/bindings";
 import { GroundedAiError } from "./errors";
 import type { GroundedModelDraft, ModelPort } from "./types";
-import { MAX_GROUNDED_CITATIONS } from "@santo/contracts/ai";
+import { MAX_GROUNDED_CITATIONS, MAX_VERIFIED_EVIDENCE_SOURCES } from "@santo/contracts/ai";
 import { collectLunaEventStream } from "./luna-event-stream";
 import { LUNA_PLAIN_TEXT_INSTRUCTIONS, parsePlainLunaAnswer, previewPlainLuna } from "./plain-luna";
 import { LUNA_UNIFIED_INSTRUCTIONS } from "./luna-unified-prompt";
@@ -212,7 +212,7 @@ const groundedResponseSchema = {
 export function groundedSchemaForCitationIds(allowedCitationIds?: readonly string[]) {
   if (allowedCitationIds === undefined) return groundedResponseSchema;
   const ids = [...new Set(allowedCitationIds)];
-  if (ids.length > MAX_GROUNDED_CITATIONS || ids.some((id) => !id || id.length > 512)) {
+  if (ids.length > MAX_VERIFIED_EVIDENCE_SOURCES || ids.some((id) => !id || id.length > 512)) {
     throw new GroundedAiError(502, "SEARCH_FAILED", "Invalid verified source references");
   }
   return {

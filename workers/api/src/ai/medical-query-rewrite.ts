@@ -145,7 +145,7 @@ export async function rewriteMedicalSearchQuery(
  * The generated CHAT answer is only accepted for short, unambiguous social
  * turns. All questionable output fails closed to medical retrieval. */
 export type MedicalRoute =
-  | { intent: "medical"; searchQuery: string }
+  | { intent: "medical"; searchQuery: string; searchQueries?: string[] }
   | { intent: "chat"; answer: string }
   | { intent: "clarify"; question: string };
 
@@ -169,9 +169,9 @@ const ROUTE_PROMPT =
   "Do NOT ask for clarification just because a medical topic is broad, unfamiliar, improbable, or briefly worded: a disease name requests teaching. " +
   "If the previous medical topic resolves a short follow-up (e.g. ttt, management, dx), use MEDICAL. Never invent a diagnosis, symptom, disease name, patient fact or missing detail. " +
   "For CLARIFY, write ONE short, friendly question in the student's language, optionally offering a tentative interpretation as a QUESTION, not claiming certainty; do not provide clinical advice or guess the answer. " +
-  "For MEDICAL, produce one concise English search query preserving the resolved disease, negation, severity, clinical intent and population; translate Arabic, expand clear abbreviations, repair typos. " +
+  "For MEDICAL, produce a concise English main search_query AND search_queries array of 3-6 distinct queries for the SAME medical condition. For broad disease-name questions cover definition/etiology, pathophysiology, symptoms, diagnosis/severity, treatment, complications/prognosis. For narrow management or diagnosis questions focus ALL queries on that intent and key subtopics. Preserve current population, disease, negation and clinical intent; never introduce unrelated diseases, recommendations or patient facts. Translate Arabic and correct clear spelling mistakes. Prefer each query under 20 words. " +
   "For CHAT, provide a warm brief Santo answer without medical claims or sources. " +
-  'Return ONLY one JSON object: {"intent":"MEDICAL","search_query":"..."}, {"intent":"CHAT","answer":"..."}, or {"intent":"CLARIFY","question":"..."}. ' +
+  'Return ONLY one JSON object: {"intent":"MEDICAL","search_query":"...","search_queries":["...","..."]}, {"intent":"CHAT","answer":"..."}, or {"intent":"CLARIFY","question":"..."}. ' +
   "No extra keys, Markdown or explanations. /no_think";
 
 function modelOutput(raw: unknown): string | null {
@@ -225,6 +225,7 @@ export async function routeMedicalRequest(
   focusedQuery: string,
   onDiagnostic?: (outcome: QwenRouteOutcome, milliseconds: number) => void,
   userMessages?: readonly string[],
+  qwenReplies?: readonly { sequence: number; answer: string }[],
 ): Promise<MedicalRoute> {
   const startedAt = performance.now();
   const fallback: MedicalRoute = { intent: "medical", searchQuery: focusedQuery };
@@ -258,6 +259,10 @@ export async function routeMedicalRequest(
       "Previous USER messages (oldest first):",
       ...previous,
       "CURRENT USER MESSAGE: " + latest.slice(0, 1000),
+      ...(qwenReplies?.length
+        ? ["PREVIOUS SHORT QWEN REPLIES (not clinical sources):",
+           ...qwenReplies.slice(-5).map((reply) => reply.answer.slice(0, 350))]
+        : []),
     ].join("\n");
   }
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -298,8 +303,37 @@ export async function routeMedicalRequest(
     if (result.intent === "MEDICAL") {
       const query = acceptMedicalRewrite(focusedQuery, result.search_query);
       if (!query) return fail("invalid_output");
+      // Legacy one-query model responses are expanded deterministically.
+      // A malicious/off-topic model query cannot become clinical evidence.
+      const rawPlan = Array.isArray(result.search_queries) ? result.search_queries : [];
+      const anchored = [query];
+      const anchors = query.toLowerCase().match(/[a-z]{4,}/g) ?? [];
+      const common = new Set(["diagnosis", "treatment", "management", "symptoms", "causes",
+        "etiology", "clinical", "approach", "overview", "complications", "prognosis", "therapy",
+        "pathophysiology", "severity", "with", "from", "and", "the"]);
+      const topic = anchors.filter((word) => !common.has(word)).slice(0, 4);
+      for (const proposed of rawPlan.slice(0, 6)) {
+        const accepted = acceptMedicalRewrite(query, proposed);
+        if (!accepted) continue;
+        if (topic.length && !topic.some((word) => accepted.toLowerCase().includes(word))) continue;
+        if (!anchored.some((old) => old.toLowerCase() === accepted.toLowerCase())) anchored.push(accepted);
+      }
+      const current = latestStudentMessage(originalRequest);
+      const focused = /\b(management|treatment|therapy|diagnos|complication|prognosis|symptom|causes|pathophys|prevention|investigation|follow.up)\b/i
+        .test(current);
+      if (anchored.length < 3) {
+        const fallbackFacets = focused
+          ? ["clinical indications and management", "diagnostic workup and monitoring",
+             "treatment options contraindications and complications"]
+          : ["definition etiology pathophysiology", "clinical presentation diagnosis severity",
+             "management treatment indications", "complications prognosis follow up"];
+        for (const facet of fallbackFacets) {
+          const candidate = query + " " + facet;
+          if (candidate.length <= 220 && !anchored.includes(candidate)) anchored.push(candidate);
+        }
+      }
       report("success_medical");
-      return { intent: "medical", searchQuery: query };
+      return { intent: "medical", searchQuery: query, searchQueries: anchored.slice(0, 6) };
     }
     if (result.intent === "CLARIFY") {
       const question = acceptedClarification(result.question);

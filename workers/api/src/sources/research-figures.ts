@@ -1,5 +1,3 @@
-import { GroundedAiError } from "../ai/errors";
-
 /**
  * Resolve PMC figures only from an AUTHORIZED, saved PubMed citation.
  * Every remote URL is constrained to the official anonymous PMC dataset.

@@ -5,8 +5,7 @@
 - Santo Staging's single-call search returns up to 50 native Cloudflare hits; optional R2 AMBOSS adjacency adds up to 10 more. An owner-requested cleanup now removes byte-equivalent medical content after normalization of source headers/whitespace and filters passages lacking the current clearly named disease topic. It **does not** add another number-based top-k cut-off or a second AI Search/model call.
 - Original ranked order, distinct supplemental content, authentic source IDs, source-card verification, related gallery images, AnKing, and existing tenant/quota paths are preserved. Ambiguous prompts (e.g. bare acronyms) are not aggressively lexical-filtered to avoid dropping all evidence. The deduplication does not discard related but materially different PassMedicine sections.
 - Applied through a shared retrieval decorator after optional AMBOSS R2 enrichment, only under the existing Staging forward-all flag. **Production remains unchanged.** Test cases cover Pastest literal duplicates, longer non-identical PassMedicine source retention, renal artery stenosis/aortic dissection exclusion, relevant rheumatic causes and AnKing, full 60-item preservation, conversation topic isolation, and one-search/gallery behavior.
-- **Pending:** exact-head CI validation, deployment, signed-in Royal Preview verification of complete sourced answers and citation cards; do not claim Staging live acceptance yet. See Issue #200.
-
+- **Pending:** exact-head CI validation, deployment, signed-in Royal Preview verification of complete sourced answers and citation cards; do not claim Staging live acceptance yet. See Issue #200 and draft PR #201.
 
 ### Staging GLM-4.7-Flash generation — 20 Oct 2026 (PR #198)
 

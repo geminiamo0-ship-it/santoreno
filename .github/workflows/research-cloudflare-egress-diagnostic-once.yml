@@ -78,7 +78,7 @@ jobs:
           workers_dev = true
           CFG
           pnpm exec wrangler deploy --config wrangler.research-egress-diagnostic.toml
-          curl --fail-with-body --silent --show-error --max-time 30 -H "X-Probe-Token: $PROBE_TOKEN" https://santo-research-egress-probe.geminiamo0.workers.dev | jq -e '.esearch and .europePmc and .efetch'
+          curl --fail-with-body --silent --show-error --retry 10 --retry-delay 3 --retry-all-errors --max-time 30 -H "X-Probe-Token: $PROBE_TOKEN" https://santo-research-egress-probe.geminiamo0.workers.dev | jq -e '.esearch and .europePmc and .efetch'
       - name: Delete disposable Cloudflare probe Worker
         if: always()
         shell: bash

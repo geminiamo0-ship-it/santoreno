@@ -38,7 +38,7 @@ class Bucket implements R2BucketLike {
 async function fixture() {
   const bucket = new Bucket();
   const snapshots = new R2VerifiedSourceStore(bucket);
-  await snapshots.save({ ...session, messageId }, [source]);
+  await snapshots.save({ tenantId: session.tenantId, externalUserId: session.externalUserId, messageId }, [source]);
   const external = vi.fn(async (raw: RequestInfo | URL) => {
     const url = String(raw);
     if (url.includes("/search?")) {

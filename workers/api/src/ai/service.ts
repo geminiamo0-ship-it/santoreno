@@ -8,7 +8,7 @@ import type { SourceSnapshotWriter } from "../sources/store";
 import { validateGroundedCitations } from "./citations";
 import { AI_STAGE_TIMEOUTS, withAiDeadline } from "./deadline";
 import { GroundedAiError } from "./errors";
-import { buildGeneralMedicalPrompt, buildGroundedPrompt } from "./prompt";
+import { buildGeneralMedicalPrompt } from "./prompt";
 import { buildBudgetedResearchPrompt } from "./research-budget";
 import type { AiTelemetryPort, ModelPort, RetrievalPort } from "./types";
 
@@ -147,9 +147,7 @@ export class GroundedAiService {
           this.model.generate(
             groundingMode === "general"
               ? buildGeneralMedicalPrompt(input.query)
-              : sourceMode === "research"
-                ? buildBudgetedResearchPrompt(input.query, evidence)
-                : buildGroundedPrompt(input.query, evidence),
+              : buildBudgetedResearchPrompt(input.query, evidence),
           ),
         signal,
         this.timeouts.modelMs,

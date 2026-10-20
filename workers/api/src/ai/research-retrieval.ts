@@ -318,6 +318,7 @@ export class PubMedResearchRetrieval implements RetrievalPort {
       );
     }
     const signal = request.signal;
+    const startedAt = Date.now();
     const cleanQuestion = request.query.includes("Follow-up question:")
       ? request.query.split("Follow-up question:").at(-1)!.trim()
       : request.query;
@@ -355,14 +356,15 @@ export class PubMedResearchRetrieval implements RetrievalPort {
       }
     }
     if (!papers.length) return [];
-    await this.enrichOpenAlex(papers, signal);
+    // Metadata enrichment is advisory; never let an optional API consume the retrieval deadline.
+    if (Date.now() - startedAt < 8500) await this.enrichOpenAlex(papers, signal);
     const ranked = rankPapers(papers, cleanQuestion);
 
     // Expand relevant complete PMC articles when the full text is available.
     // The PMC request is best effort; valid PubMed abstracts remain usable.
     const eligible = ranked.filter((p) => p.pmcid).slice(0, 12);
     const fullText = new Map<string, string>();
-    if (eligible.length) {
+    if (eligible.length && Date.now() - startedAt < 10_000) {
       try {
         const records = await this.get(
           this.ncbiUrl("efetch", {

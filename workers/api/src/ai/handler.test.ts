@@ -702,6 +702,40 @@ describe("grounded AI handler", () => {
     expect(quota.releaseCalls).toBe(0);
   });
 
+  it("completes a 60-source Luna answer and persists real AnKing and clinical source IDs", async () => {
+    const evidence = Array.from({ length: 60 }, (_, index) => {
+      const anking = index >= 50;
+      return {
+        sourceId: (anking ? "santo-anking-step-v12:" : "amboss:") + "chunk-" + index,
+        libraryId: anking ? "anking" : "amboss",
+        instanceId: anking ? "santo-anking-step-v12" : "amboss",
+        itemKey: anking
+          ? "note_" + (1471558916902 + index) + ".json"
+          : "medical-search/v1/amboss/unnamed-2746/s-" + String(index + 1).padStart(4, "0") + ".md",
+        title: anking ? "AnKing v12 — high yield" : "Aortic valve stenosis",
+        page: null,
+        section: "Aortic stenosis",
+        text: "Source-verified aortic stenosis context " + index,
+        score: 0.91,
+      };
+    });
+    retrieval.retrieve = vi.fn(async () => evidence);
+    model.generate = vi.fn(async () => ({
+      answer: "Aortic stenosis " + evidence.map((_, i) => "[" + (i + 1) + "]").join(" "),
+      citationIds: evidence.map((source) => source.sourceId),
+    }));
+    const save = vi.fn(async () => undefined);
+    const response = await handler({ save })(request(token, "all-hits-sixty-source-recovery"), env);
+    expect(response.status).toBe(200);
+    const result = await response.json();
+    expect(result.citations).toHaveLength(60);
+    expect(result.citations.at(-1).title).toContain("AnKing v12");
+    expect(save).toHaveBeenCalledOnce();
+    expect(save.mock.calls[0]?.[1]).toHaveLength(60);
+    expect(quota.finalizeCalls).toBe(1);
+    expect(quota.releaseCalls).toBe(0);
+  });
+
   it("saves only verified citation metadata before finalizing quota", async () => {
     const save = vi.fn(async () => undefined);
     const response = await handler({ save })(request(token), env);

@@ -61,13 +61,25 @@ jobs:
           compatibility_date = "2026-10-01"
           workers_dev = true
           TOML
-          cleanup() {
-            cd "$GITHUB_WORKSPACE/workers/api"
-            pnpm exec wrangler delete --config research-netprobe.wrangler.toml --force > /dev/null 2>&1 || true
-          }
-          trap cleanup EXIT
           cd workers/api
-          pnpm exec wrangler deploy --config research-netprobe.wrangler.toml --var "PROBE_KEY:$PROBE_KEY"
-          curl -sS --max-time 25 --retry 2 --retry-delay 2 --fail-with-body \
-            -H "x-santo-probe: $PROBE_KEY" \
-            "https://santo-research-netprobe.geminiamo0.workers.dev/" | jq .
+          # --remote executes the script in Cloudflare's actual Worker runtime,
+          # but exposes the probe ONLY on GitHub Actions loopback.
+          pnpm exec wrangler dev --remote --config research-netprobe.wrangler.toml \
+            --ip 127.0.0.1 --port 8787 --var "PROBE_KEY:$PROBE_KEY" \
+            > /tmp/santo-research-dev.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 35); do
+            if curl --fail --silent --max-time 3 -H "x-santo-probe: $PROBE_KEY" \
+                 "http://127.0.0.1:8787/" > /tmp/santo-research-probe.json; then
+              jq . /tmp/santo-research-probe.json
+              exit 0
+            fi
+            if ! kill -0 "$SERVER_PID" 2>/dev/null; then
+              tail -35 /tmp/santo-research-dev.log
+              exit 1
+            fi
+            sleep 2
+          done
+          tail -45 /tmp/santo-research-dev.log
+          exit 1

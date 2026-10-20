@@ -29,6 +29,22 @@ describe("staging single-pass plain-Luna citation contract", () => {
     expect(result.answer).not.toContain("SANTO_REF");
   });
 
+  it("preserves source aliases 16–60 and verifies citations beyond the old 15-source ceiling", () => {
+    const ids = Array.from({ length: 60 }, (_, i) =>
+      (i >= 50 ? "santo-anking-step-v12:" : "amboss:") + "chunk-" + (i + 1),
+    );
+    const text = ids
+      .map((_, i) => "Finding [[" + (i + 1) + "]] or [[N]](SANTO_REF_" + (i + 1) + ").")
+      .join(" ");
+    const parsed = parsePlainLunaAnswer(text, ids);
+    expect(parsed.citationIds).toEqual(ids);
+    expect(parsed.answer).toContain("Finding [60] or [60].");
+    expect(parsed.answer).not.toContain("SANTO_REF_");
+    const invalid = parsePlainLunaAnswer("Verified [[60]]; unverified [[61]].", ids);
+    expect(invalid.citationIds).toEqual([ids[59]]);
+    expect(invalid.answer).not.toContain("[61]");
+  });
+
   const sourceA = "amboss:chunk-012345678900000000000001";
   const sourceB = "usmle:chunk-abcdef112233445566778899";
 

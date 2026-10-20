@@ -966,8 +966,8 @@ describe("Qwen planned multi-query cross-library evidence retrieval", () => {
     expect(new Set(results.evidence.map((e) => e.libraryId)).size).toBe(5);
     expect(results.evidence.every((e) => e.text.includes("evidence"))).toBe(true);
     expect(results.evidence.slice(0, 2).map((e) => e.sourceId)).toEqual([
-      expectedIds[0] + ":chunk-101",
-      expectedIds[0] + ":chunk-102",
+      "amboss:chunk-amboss-100",
+      "amboss:chunk-amboss-101",
     ]);
     expect(results.galleryHits.map((h) => h.imageId)).toEqual(["img_000001"]);
   });

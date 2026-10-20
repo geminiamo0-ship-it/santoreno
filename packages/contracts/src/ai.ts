@@ -26,6 +26,9 @@ export const GroundedAiCitationSchema = z.object({
 });
 export type GroundedAiCitation = z.infer<typeof GroundedAiCitationSchema>;
 
+/** Server-verified citations may reference any of the 50 search hits + 10 AMBOSS neighbors. */
+export const MAX_GROUNDED_CITATIONS = 60;
+
 /** Verified gallery figures are visual aids, NEVER sources for clinical claims.
  * The URL is an immutable R2 media asset from the backend image manifest.
  */
@@ -84,7 +87,7 @@ export const GroundedAiQueryResponseSchema = z
     answer: z.string().min(1),
     /** Legacy responses without this property are always source-grounded. */
     groundingMode: z.enum(["santo", "general"]).optional(),
-    citations: z.array(GroundedAiCitationSchema).max(15),
+    citations: z.array(GroundedAiCitationSchema).max(MAX_GROUNDED_CITATIONS),
     /** Optional persisted candidates not selected for inline Luna figures. */
     relatedPics: z.array(GroundedAiRelatedPicSchema).max(7).optional(),
     /** Exact backend-owned AnKing CIDs; not model-generated clinical citations. */

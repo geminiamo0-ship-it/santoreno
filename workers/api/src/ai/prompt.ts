@@ -53,10 +53,7 @@ export function buildGroundedPrompt(
     title: item.title.slice(0, MAX_TITLE_CHARS),
     page: item.page,
     section: item.section?.slice(0, MAX_SECTION_CHARS) ?? null,
-    text: item.text.slice(
-      0,
-      research ? MAX_RESEARCH_EVIDENCE_CHARS : MAX_EVIDENCE_CHARS,
-    ),
+    text: item.text.slice(0, research ? MAX_RESEARCH_EVIDENCE_CHARS : MAX_EVIDENCE_CHARS),
   }));
 
   if (dataOnly) {

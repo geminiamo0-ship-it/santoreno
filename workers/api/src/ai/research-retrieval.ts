@@ -419,7 +419,14 @@ export class PubMedResearchRetrieval implements RetrievalPort {
           "https://www.ebi.ac.uk/europepmc/webservices/rest/" + firstPmc + "/fullTextXML",
         );
         const xml = await this.get(url, signal, 2_500);
-        if (new RegExp("<article-id\\s+pub-id-type=[\"']pmc[\"']>\\s*" + firstPmc.slice(3) + "\\s*<\\/article-id>", "i").test(xml)) {
+        if (
+          new RegExp(
+            "<article-id\\s+pub-id-type=[\"']pmc[\"']>\\s*" +
+              firstPmc.slice(3) +
+              "\\s*<\\/article-id>",
+            "i",
+          ).test(xml)
+        ) {
           const article = xmlChunks(xml, "article")[0];
           if (article) fullText.set(firstPmc, article);
         }
@@ -461,14 +468,14 @@ export class PubMedResearchRetrieval implements RetrievalPort {
         "Evidence coverage: " + status,
         "PubMed abstract: " + paper.abstract.slice(0, fullTextSelection.text ? 650 : 1_900),
       ].join("\n");
-      const text = header + (fullTextSelection.text
-        ? "\nVerified PMC full-text excerpts by section:\n" + fullTextSelection.text
-        : "");
-      const selected = new TextEncoder().encode(text).length <= perPaper
-        ? text
-        : header; // Never silently cut medical numbers or dosing mid-sentence.
+      const text =
+        header +
+        (fullTextSelection.text
+          ? "\nVerified PMC full-text excerpts by section:\n" + fullTextSelection.text
+          : "");
+      const selected = new TextEncoder().encode(text).length <= perPaper ? text : header; // Never silently cut medical numbers or dosing mid-sentence.
       const consumed = new TextEncoder().encode(selected).length;
-      if (consumed > budget || !paper.abstract.trim() && !fullTextSelection.text) continue;
+      if (consumed > budget || (!paper.abstract.trim() && !fullTextSelection.text)) continue;
       budget -= consumed;
       output.push({
         sourceId: "pubmed:" + paper.pmid,

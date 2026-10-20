@@ -11,8 +11,10 @@ function plain(xml: string): string {
     .replace(/<[^>]*>/g, " ")
     .replace(/&#x([0-9a-f]+);/gi, (_, hex: string) => String.fromCodePoint(parseInt(hex, 16)))
     .replace(/&#([0-9]+);/g, (_, number: string) => String.fromCodePoint(parseInt(number, 10)))
-    .replace(/&(amp|lt|gt|quot|apos);/gi, (_, name: string) =>
-      ({ amp: "&", lt: "<", gt: ">", quot: '"', apos: "'" })[name.toLowerCase()] ?? "",
+    .replace(
+      /&(amp|lt|gt|quot|apos);/gi,
+      (_, name: string) =>
+        ({ amp: "&", lt: "<", gt: ">", quot: '"', apos: "'" })[name.toLowerCase()] ?? "",
     )
     .replace(/\s+/g, " ")
     .trim();
@@ -31,8 +33,22 @@ const SPECIAL_GROUPS: { name: string; test: RegExp }[] = [
 
 function keywords(query: string): string[] {
   const stop = new Set([
-    "the", "for", "and", "with", "from", "into", "that", "this", "what", "how",
-    "difficulties", "dilemmas", "managing", "management", "conditions", "special",
+    "the",
+    "for",
+    "and",
+    "with",
+    "from",
+    "into",
+    "that",
+    "this",
+    "what",
+    "how",
+    "difficulties",
+    "dilemmas",
+    "managing",
+    "management",
+    "conditions",
+    "special",
   ]);
   return [...new Set((query.toLowerCase().match(/[a-z]{3,}/g) ?? []).filter((x) => !stop.has(x)))];
 }
@@ -71,9 +87,14 @@ function collectPassages(xml: string, query: string): Passage[] {
     const section = headings.filter(Boolean).join(" / ") || "Article text";
     const lower = (section + " " + body).toLowerCase();
     const matches = terms.filter((word) => lower.includes(word)).length;
-    const clinical = /\b(?:insulin|fluid|potassium|dextrose|dialysis|dose|infusion|monitor|replacement|treatment)\b/i.test(body);
+    const clinical =
+      /\b(?:insulin|fluid|potassium|dextrose|dialysis|dose|infusion|monitor|replacement|treatment)\b/i.test(
+        body,
+      );
     const therapy = /management|treatment|therap|insulin|fluid|electrolyt/i.test(section);
-    const numerical = /\b\d+(?:\.\d+)?\s*(?:mL|L|mmol|mg|units?|hours?|minutes?|%|kg)\b/i.test(body);
+    const numerical = /\b\d+(?:\.\d+)?\s*(?:mL|L|mmol|mg|units?|hours?|minutes?|%|kg)\b/i.test(
+      body,
+    );
     const score = matches * 3 + (clinical ? 3 : 0) + (therapy ? 4 : 0) + (numerical ? 2 : 0);
     passages.push({ section, text: body, score, order: index++ });
   }
@@ -89,7 +110,9 @@ function collectPassages(xml: string, query: string): Passage[] {
       .slice(0, 14);
     if (!rows.length) continue;
     const text = sentenceBounded(rows.join(" | "));
-    const matches = terms.filter((word) => (section + " " + text).toLowerCase().includes(word)).length;
+    const matches = terms.filter((word) =>
+      (section + " " + text).toLowerCase().includes(word),
+    ).length;
     passages.push({ section, text, score: matches * 3 + 5, order: index++ });
   }
   for (const illustration of xml.matchAll(/<fig(?:\s[^>]*)?>[\s\S]*?<\/fig>/gi)) {
@@ -109,7 +132,10 @@ export function selectPmcTeachingPassages(
   maxCharacters: number,
 ): { text: string; sectionCount: number } {
   const candidates = collectPassages(xml, question);
-  const broadSpecial = /special conditions|difficulties and dilemmas|special populations|complex patients/i.test(question);
+  const broadSpecial =
+    /special conditions|difficulties and dilemmas|special populations|complex patients/i.test(
+      question,
+    );
   const chosen: Passage[] = [];
   const used = new Set<number>();
   let characters = 0;

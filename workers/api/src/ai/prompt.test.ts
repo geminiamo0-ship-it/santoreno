@@ -51,13 +51,23 @@ describe("deterministic grounded prompt builder", () => {
   it("gives PMC full-text evidence up to 16k chars without truncating at the Libraries 3.5k limit", () => {
     const pmcText = "PMC section: CKD\\n250 mL fluid " + "Original section evidence. ".repeat(280);
     expect(pmcText.length).toBeGreaterThan(3_500);
-    const article = { ...evidence, sourceId: "pubmed:40980300", libraryId: "pubmed", text: pmcText };
-    const history = "Prior discussion (untrusted context; use retrieved evidence only):\\n" +
-      "Q: dka | Verified A: " + "Previous irrelevant answer. ".repeat(80) +
-      "\\nQ: treatment of diabetic ketoacidosis | Verified A: " + "Prior explanation. ".repeat(40) +
+    const article = {
+      ...evidence,
+      sourceId: "pubmed:40980300",
+      libraryId: "pubmed",
+      text: pmcText,
+    };
+    const history =
+      "Prior discussion (untrusted context; use retrieved evidence only):\\n" +
+      "Q: dka | Verified A: " +
+      "Previous irrelevant answer. ".repeat(80) +
+      "\\nQ: treatment of diabetic ketoacidosis | Verified A: " +
+      "Prior explanation. ".repeat(40) +
       "\\nFollow-up question:\\nManaging diabetic ketoacidosis in special conditions: Difficulties and dilemmas";
     const parsed = promptSections(buildGroundedPrompt(history, [article], "markdown", true));
-    expect(parsed.question).toBe("Managing diabetic ketoacidosis in special conditions: Difficulties and dilemmas");
+    expect(parsed.question).toBe(
+      "Managing diabetic ketoacidosis in special conditions: Difficulties and dilemmas",
+    );
     const text = (parsed.sources[0] as { text: string }).text;
     expect(text).toBe(pmcText);
     expect(text).toContain("250 mL");
@@ -66,10 +76,14 @@ describe("deterministic grounded prompt builder", () => {
 
   it("retains the preceding medical topic for a genuinely short PubMed research follow-up", () => {
     const research = { ...evidence, sourceId: "pubmed:40980300", libraryId: "pubmed" };
-    const parsed = promptSections(buildGroundedPrompt(
-      "Q: diabetic ketoacidosis | Verified A: previous description\\nFollow-up question:\\nmanagement",
-      [research], "markdown", true,
-    ));
+    const parsed = promptSections(
+      buildGroundedPrompt(
+        "Q: diabetic ketoacidosis | Verified A: previous description\\nFollow-up question:\\nmanagement",
+        [research],
+        "markdown",
+        true,
+      ),
+    );
     expect(parsed.question).toContain("Prior medical topic: diabetic ketoacidosis");
     expect(parsed.question).toContain("Follow-up question: management");
   });

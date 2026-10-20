@@ -560,9 +560,15 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
         ranked.push(entry);
       }
     };
+    // First reserve four candidates per (facet, licensed library), because
+    // a globally ranked top-22 can contain only the earliest two indexes.
     for (let i = 0; i < success.length; i++) {
-      for (const entry of allRanked.filter((row) => row.firstQuery === i).slice(0, 22))
-        include(entry);
+      for (const library of libraries) {
+        const perLibrary = allRanked.filter((row) =>
+          row.firstQuery === i && row.item.instanceId === library.instanceId,
+        );
+        for (const entry of perLibrary.slice(0, 4)) include(entry);
+      }
     }
     for (const entry of allRanked) include(entry);
     // Preserve library diversity in the first 20 results, then fill by RRF.

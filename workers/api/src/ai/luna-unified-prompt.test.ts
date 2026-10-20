@@ -38,7 +38,7 @@ describe("Santo high-yield clinical-reference unified Luna instructions", () => 
   it("preserves citations, clinical uncertainty, image safety and topic boundaries", () => {
     expect(LUNA_UNIFIED_INSTRUCTIONS).toContain("EVIDENCE_JSON");
     expect(LUNA_UNIFIED_INSTRUCTIONS).toContain("SANTO_REF_N (1-60)");
-    expect(LUNA_UNIFIED_INSTRUCTIONS).toContain("cite up to 15 [[N]]");
+    expect(LUNA_UNIFIED_INSTRUCTIONS).toContain("cite [[N]] if SANTO_REF_N (1-60)");
     expect(LUNA_UNIFIED_INSTRUCTIONS).toContain("[[N]]");
     expect(LUNA_UNIFIED_INSTRUCTIONS).toContain("directly supports the claim");
     expect(LUNA_UNIFIED_INSTRUCTIONS).toContain('"General medical teaching:"');

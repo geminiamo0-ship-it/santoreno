@@ -64,7 +64,9 @@ describe("Santo widget shell state", () => {
     });
     const research = reduceWidgetUi(filtered, { type: "source-mode", sourceMode: "research" });
     expect(research).toMatchObject({ sourceMode: "research", libraryId: null });
-    expect(reduceWidgetUi(research, { type: "source-mode", sourceMode: "libraries" })).toMatchObject({
+    expect(
+      reduceWidgetUi(research, { type: "source-mode", sourceMode: "libraries" }),
+    ).toMatchObject({
       sourceMode: "libraries",
       libraryId: null,
     });

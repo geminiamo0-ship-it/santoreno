@@ -8,6 +8,9 @@ export const GroundedAiLibraryIdSchema = z
   .regex(/^[a-z0-9][a-z0-9_-]*$/);
 export type GroundedAiLibraryId = z.infer<typeof GroundedAiLibraryIdSchema>;
 
+/** Covers 30 planned evidence chunks plus verified AMBOSS neighbors. */
+export const MAX_GROUNDED_CITATIONS = 60;
+
 export const SantoSourceModeSchema = z.enum(["libraries", "research"]);
 export type SantoSourceMode = z.infer<typeof SantoSourceModeSchema>;
 
@@ -95,7 +98,7 @@ export const GroundedAiQueryResponseSchema = z
     responder: z.literal("qwen").optional(),
     /** Legacy responses without this property are always source-grounded. */
     groundingMode: z.enum(["santo", "general"]).optional(),
-    citations: z.array(GroundedAiCitationSchema).max(15),
+    citations: z.array(GroundedAiCitationSchema).max(MAX_GROUNDED_CITATIONS),
     /** Optional persisted candidates not selected for inline Luna figures. */
     relatedPics: z.array(GroundedAiRelatedPicSchema).max(7).optional(),
     /** Exact backend-owned AnKing CIDs; not model-generated clinical citations. */

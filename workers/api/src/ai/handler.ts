@@ -107,6 +107,7 @@ export function createGroundedAiHandler(dependencies: GroundedAiHandlerDependenc
     request: Request,
     env: SantoBindings,
     onProvisionalAnswer?: (text: string) => void,
+    trustedQwenReplies?: readonly { sequence: number; answer: string }[],
   ): Promise<Response> {
     if (request.method !== "POST") {
       return errorResponse("METHOD_NOT_ALLOWED", 405);
@@ -173,7 +174,16 @@ export function createGroundedAiHandler(dependencies: GroundedAiHandlerDependenc
           env.SANTO_LUNA_PREVIEW === "true" &&
           env.SANTO_PLAIN_TEXT_LUNA_V1 === "true" &&
           env.SANTO_LUNA_UNIFIED_PROMPT_V1 === "true",
-      ).query(session, parsed.data, request.signal, onProvisionalAnswer);
+      ).query(
+        session,
+        {
+          ...parsed.data,
+          // Never trust client-supplied assistant history on /v1/ai/query.
+          recent_qwen_replies: trustedQwenReplies?.slice(-5),
+        },
+        request.signal,
+        onProvisionalAnswer,
+      );
 
       const validated = GroundedAiQueryResponseSchema.parse(response);
       const accept = request.headers.get("accept") ?? "";

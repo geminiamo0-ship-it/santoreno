@@ -1,4 +1,4 @@
-name: Verify PMC full text and Deploy Santo Research Staging Only
+name: Deploy Verified PMC Full Text to Santo Staging (PMCID Fixed)
 
 on:
   push:
@@ -56,6 +56,8 @@ jobs:
           grep -Fq 'SourceModeRetrieval' workers/api/src/ai/research-retrieval.ts
           grep -Fq 'PubMedResearchRetrieval' workers/api/src/ai/handler.ts
           grep -Fq 'selectPmcTeachingPassages' workers/api/src/ai/research-retrieval.ts
+          grep -Fq 'pub-id-type=["' workers/api/src/ai/research-retrieval.ts
+          grep -Fq 'pmcid|pmc' workers/api/src/ai/research-retrieval.ts
           grep -Fq 'MAX_RESEARCH_EVIDENCE_CHARS = 16_000;' workers/api/src/ai/prompt.ts
           test -n "${CLOUDFLARE_ACCOUNT_ID:-}"
           test -n "${CLOUDFLARE_API_TOKEN:-}"

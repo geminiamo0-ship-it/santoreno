@@ -27,6 +27,7 @@ jobs:
           test -n "$CLOUDFLARE_ACCOUNT_ID"
           PROBE_KEY="$(openssl rand -hex 24)"
           cat > workers/api/src/__research_netprobe_temp.mjs <<'JS'
+          import { PubMedResearchRetrieval } from './ai/research-retrieval.ts';
           export default {
             async fetch(req, env) {
               if (req.headers.get("x-santo-probe") !== env.PROBE_KEY) return new Response("Not Found", {status: 404});
@@ -51,7 +52,17 @@ jobs:
                   return {name,http:response.status,elapsedMs:Date.now()-started,bytes:payload.length,recognized,edge:response.headers.get("cf-ray")?"cloudflare":null};
                 }catch(e){return{name,http:null,elapsedMs:Date.now()-started,errorName:e?.name??"unknown",errorMessage:String(e?.message??e).slice(0,160)}}
               }));
-              return Response.json({probes},{headers:{"Cache-Control":"no-store"}});
+              let retrieval;
+              const began=Date.now();
+              try {
+                const results=await new PubMedResearchRetrieval().retrieve({
+                  query: "Aortic stenosis", libraryId:null, sourceMode:"research"
+                });
+                retrieval={ok:true,count:results.length,firstSourceId:results[0]?.sourceId??null,elapsedMs:Date.now()-began};
+              }catch(error){
+                retrieval={ok:false,code:error?.code??null,name:error?.name??null,message:String(error?.message??error).slice(0,180),elapsedMs:Date.now()-began};
+              }
+              return Response.json({probes,retrieval},{headers:{"Cache-Control":"no-store"}});
             }
           };
           JS

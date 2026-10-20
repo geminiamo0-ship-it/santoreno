@@ -28,6 +28,7 @@ export class ConversationAskService {
         library_id?: string;
         source_mode?: "libraries" | "research";
         recent_user_messages?: string[];
+        recent_qwen_replies?: { sequence: number; answer: string }[];
       },
       signal: AbortSignal,
       onProvisionalAnswer?: (text: string) => void,
@@ -85,6 +86,9 @@ export class ConversationAskService {
           ...(started.recentUserMessages?.length
             ? { recent_user_messages: started.recentUserMessages }
             : {}),
+          ...(started.recentQwenReplies?.length
+            ? { recent_qwen_replies: started.recentQwenReplies }
+            : {}),
         },
         signal,
         onProvisionalAnswer,
@@ -124,19 +128,22 @@ async function invokeGroundedAnswer(
     library_id?: string;
     source_mode?: "libraries" | "research";
     recent_user_messages?: string[];
+    recent_qwen_replies?: { sequence: number; answer: string }[];
   },
   signal: AbortSignal,
   onProvisionalAnswer?: (text: string) => void,
 ): Promise<GroundedAiQueryResponse> {
+  const { recent_qwen_replies: _trustedReplies, ...publicInput } = input;
   const response = await handleGroundedAiQuery(
     new Request("https://santo.internal/v1/ai/query", {
       method: "POST",
       headers: { authorization: bearer, "content-type": "application/json" },
-      body: JSON.stringify(input),
+      body: JSON.stringify(publicInput),
       signal,
     }),
     env,
     onProvisionalAnswer,
+    input.recent_qwen_replies,
   );
   const payload: unknown = await response.json().catch(() => null);
   if (!response.ok) {

@@ -140,6 +140,50 @@ function recentUserMessages(sql: SqlStorageLike, upToSequence: number): string[]
   );
 }
 
+/** Read ONLY Qwen-authored replies from recently completed turns, never Luna text.
+ * Same-owner ConversationDO only, bounded to preceding four user turns.
+ * Pending/retryable turns cannot inject a reply. */
+function recentQwenReplies(
+  sql: SqlStorageLike,
+  upToSequence: number,
+): { sequence: number; answer: string }[] {
+  const seen = sql
+    .exec<{ sequence: number }>(
+      "SELECT sequence FROM conversation_messages WHERE role = 'user' AND sequence <= ? ORDER BY sequence DESC LIMIT 5",
+      upToSequence,
+    )
+    .toArray();
+  const oldest = seen.at(-1)?.sequence ?? upToSequence;
+  const rows = sql
+    .exec<{ sequence: number; response_json: string }>(
+      "SELECT sequence, response_json FROM conversation_turns WHERE status = 'completed' AND sequence >= ? AND sequence < ? ORDER BY sequence DESC LIMIT 5",
+      oldest,
+      upToSequence,
+    )
+    .toArray();
+  return rows
+    .filter((row) => {
+      try {
+        const parsed: unknown = JSON.parse(row.response_json);
+        return (
+          ConversationAnswerSchema.safeParse(parsed).success &&
+          !!parsed &&
+          typeof parsed === "object" &&
+          "responder" in parsed &&
+          parsed.responder === "qwen"
+        );
+      } catch {
+        return false;
+      }
+    })
+    .slice(0, 5)
+    .reverse()
+    .map((row) => {
+      const response = ConversationAnswerSchema.parse(JSON.parse(row.response_json));
+      return { sequence: row.sequence, answer: response.answer.slice(0, 350) };
+    });
+}
+
 /** This core owns only conversation sequencing and verified response persistence, never quota. */
 export class ConversationTurnCore {
   constructor(
@@ -212,6 +256,7 @@ export class ConversationTurnCore {
           turn: toTurn(renewed),
           context: existing.context_text,
           recentUserMessages: recentUserMessages(sql, existing.sequence),
+          recentQwenReplies: recentQwenReplies(sql, existing.sequence),
           quotaEpoch: existing.quota_epoch,
         });
       }
@@ -267,6 +312,7 @@ export class ConversationTurnCore {
         attemptId,
         context,
         recentUserMessages: recentUserMessages(sql, next),
+        recentQwenReplies: recentQwenReplies(sql, next),
         quotaEpoch: 0,
         turn: {
           messageId,

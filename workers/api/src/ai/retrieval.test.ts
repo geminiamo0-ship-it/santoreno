@@ -891,3 +891,80 @@ describe("Santo five licensed library retrieval", () => {
     });
   });
 });
+
+describe("Qwen planned multi-query cross-library evidence retrieval", () => {
+  it("searches up to four facets and fuses up to 90 candidates into 30 diverse original sources", async () => {
+    const searches: Array<{
+      query: string;
+      ai_search_options: {
+        instance_ids: string[];
+        retrieval: { max_num_results: number };
+        reranking: { enabled: boolean };
+      };
+    }> = [];
+    const namespace: AiSearchNamespaceLike = {
+      list: async () => ({ result: catalogItems }),
+      search: async (input: unknown) => {
+        const request = input as (typeof searches)[number];
+        searches.push(request);
+        const index = searches.length;
+        const hits = expectedIds.flatMap((id) =>
+          Array.from({ length: 10 }, (_, n) => ({
+            ...chunk(id, index * 100 + n, 0.96 - n * 0.01),
+            item: {
+              key: "medical-search/v1/" + id + "/article" + (index * 100 + n) + "/s-0001.md",
+              metadata: { title: id + " article " + (index * 100 + n) },
+            },
+          })),
+        );
+        return {
+          chunks: [
+            ...hits,
+            {
+              id: "image",
+              text: "aortic valve illustration",
+              score: 0.95,
+              instance_id: "santo-medical-images",
+              item: { key: "images/img_000001.json" },
+            },
+          ],
+        };
+      },
+    };
+    const retrieval = new CloudflareAiSearchRetrieval(
+      namespace,
+      undefined,
+      true,
+      true,
+      undefined,
+      true,
+      true,
+      true,
+      true,
+      true,
+    );
+    const results = await retrieval.retrieveWithGallery({
+      query: "Aortic stenosis",
+      libraryId: null,
+      preparedQuery: "aortic stenosis",
+      preparedQueries: [
+        "aortic stenosis",
+        "aortic stenosis pathophysiology",
+        "aortic stenosis diagnosis echocardiography",
+        "aortic stenosis management SAVR TAVR",
+        "aortic stenosis complications prognosis",
+      ],
+    });
+    expect(searches).toHaveLength(4);
+    for (const call of searches) {
+      expect(call.ai_search_options.retrieval.max_num_results).toBe(50);
+      expect(call.ai_search_options.reranking.enabled).toBe(false);
+      expect(call.ai_search_options.instance_ids).toHaveLength(7);
+    }
+    expect(results.evidence.length).toBe(30);
+    expect(new Set(results.evidence.map((e) => e.sourceId)).size).toBe(30);
+    expect(new Set(results.evidence.map((e) => e.libraryId)).size).toBe(5);
+    expect(results.evidence.every((e) => e.text.includes("evidence"))).toBe(true);
+    expect(results.galleryHits.map((h) => h.imageId)).toEqual(["img_000001"]);
+  });
+});

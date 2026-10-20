@@ -40,7 +40,7 @@ describe("staging Qwen3 medical query rewriter", () => {
     const route = await routeMedicalRequest(ai, context, "hi", (outcome) => {
       observed.push(outcome);
     });
-    expect(route).toEqual({ intent: "medical", searchQuery: "hi" });
+    expect(route).toMatchObject({ intent: "medical", searchQuery: "hi" });
     expect(observed).toEqual(["chat_rejected_context"]);
 
     const broken: WorkersAiLike = { run: async () => ({ response: "not JSON" }) };
@@ -61,7 +61,7 @@ describe("staging Qwen3 medical query rewriter", () => {
       "heart failure",
       (outcome) => outcomes.push(outcome),
     );
-    expect(fallback).toEqual({ intent: "medical", searchQuery: "heart failure" });
+    expect(fallback).toMatchObject({ intent: "medical", searchQuery: "heart failure" });
     expect(outcomes).toEqual(["provider_error"]);
     await routeMedicalRequest(undefined, "hi", "hi", (outcome) => outcomes.push(outcome));
     expect(outcomes).toEqual(["provider_error", "unavailable"]);
@@ -164,7 +164,7 @@ describe("staging Qwen3 medical query rewriter", () => {
       undefined,
       ["aortic stenosis", "FMF", "treatment?"],
     );
-    expect(result).toEqual({ intent: "medical", searchQuery: "FMF management" });
+    expect(result).toMatchObject({ intent: "medical", searchQuery: "FMF management" });
     expect(inputText).toContain("aortic stenosis");
     expect(inputText).toContain("FMF");
     expect(inputText).toContain("CURRENT USER MESSAGE: treatment?");
@@ -224,7 +224,7 @@ describe("staging Qwen3 medical query rewriter", () => {
         }),
       }),
     };
-    expect(await routeMedicalRequest(unsafe, "ttt", "ttt")).toEqual({
+    expect(await routeMedicalRequest(unsafe, "ttt", "ttt")).toMatchObject({
       intent: "medical",
       searchQuery: "ttt",
     });
@@ -233,7 +233,7 @@ describe("staging Qwen3 medical query rewriter", () => {
         response: JSON.stringify({ intent: "CLARIFY", question: "I know you have diabetes." }),
       }),
     };
-    expect(await routeMedicalRequest(notQuestion, "?", "?")).toEqual({
+    expect(await routeMedicalRequest(notQuestion, "?", "?")).toMatchObject({
       intent: "medical",
       searchQuery: "?",
     });
@@ -261,7 +261,7 @@ describe("staging Qwen3 medical query rewriter", () => {
     const original =
       "Prior discussion (untrusted context; use retrieved evidence only):\n" +
       "Q: Aortic stenosis | Verified A: wrong context\nFollow-up question:\nmanagement";
-    expect(await routeMedicalRequest(ai, original, "management of aortic stenosis")).toEqual({
+    expect(await routeMedicalRequest(ai, original, "management of aortic stenosis")).toMatchObject({
       intent: "medical",
       searchQuery: "aortic stenosis management",
     });
@@ -274,18 +274,20 @@ describe("staging Qwen3 medical query rewriter", () => {
         response: '{"intent":"CHAT","answer":"Hello!"}',
       }),
     };
-    expect(await routeMedicalRequest(ai, "Hi, explain heart failure", "heart failure")).toEqual({
+    expect(
+      await routeMedicalRequest(ai, "Hi, explain heart failure", "heart failure"),
+    ).toMatchObject({
       intent: "medical",
       searchQuery: "heart failure",
     });
     const context =
       "Prior discussion (untrusted context; use retrieved evidence only):\n" +
       "Aortic stenosis\nFollow-up question:\nmanagement?";
-    expect(await routeMedicalRequest(ai, context, "aortic stenosis management")).toEqual({
+    expect(await routeMedicalRequest(ai, context, "aortic stenosis management")).toMatchObject({
       intent: "medical",
       searchQuery: "aortic stenosis management",
     });
-    expect(await routeMedicalRequest(ai, "علاج السكر", "diabetes treatment")).toEqual({
+    expect(await routeMedicalRequest(ai, "علاج السكر", "diabetes treatment")).toMatchObject({
       intent: "medical",
       searchQuery: "diabetes treatment",
     });
@@ -293,10 +295,50 @@ describe("staging Qwen3 medical query rewriter", () => {
 
   it("fails closed on malformed output instead of skipping medical libraries", async () => {
     const malformed: WorkersAiLike = { run: async () => ({ response: "Hi there" }) };
-    expect(await routeMedicalRequest(malformed, "aspirin", "aspirin")).toEqual({
+    expect(await routeMedicalRequest(malformed, "aspirin", "aspirin")).toMatchObject({
       intent: "medical",
       searchQuery: "aspirin",
     });
+  });
+
+  it("uses one inference to build several on-topic search queries with past Qwen replies, never Luna", async () => {
+    const calls: Array<{ model: string; input: unknown }> = [];
+    const ai: WorkersAiLike = {
+      run: async (model, input) => {
+        calls.push({ model, input });
+        return {
+          response: JSON.stringify({
+            intent: "MEDICAL",
+            search_query: "aortic stenosis",
+            search_queries: [
+              "aortic stenosis pathophysiology",
+              "aortic stenosis diagnosis echocardiography",
+              "aortic stenosis management SAVR TAVR",
+              "sarcoidosis unrelated disease",
+            ],
+          }),
+        };
+      },
+    };
+    const result = await routeMedicalRequest(
+      ai,
+      "Aortic stenosis",
+      "aortic stenosis",
+      undefined,
+      ["Hi", "Cardiology", "Aortic stenosis"],
+      [
+        { sequence: 0, answer: "Hi, which medical topic?" },
+        { sequence: 1, answer: "Let's study cardiology." },
+      ],
+    );
+    expect(calls).toHaveLength(1);
+    expect(result.intent).toBe("medical");
+    if (result.intent !== "medical") throw Error("Incorrect route");
+    expect(result.searchQueries?.length).toBeGreaterThanOrEqual(3);
+    expect(result.searchQueries?.every((q) => q.includes("aortic stenosis"))).toBe(true);
+    const payload = JSON.stringify(calls[0]?.input);
+    expect(payload).toContain("Let's study cardiology");
+    expect(payload).not.toContain("LUNA_PRIVATE");
   });
 
   it("makes exactly one small model call, preserving the old topic for a short follow-up", async () => {

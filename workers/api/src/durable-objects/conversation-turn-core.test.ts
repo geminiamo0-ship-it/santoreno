@@ -116,6 +116,20 @@ class State implements DurableObjectStorageLike {
               (!query.includes("idempotency_key != ?") || t.idempotency_key !== params[1]),
           )
           .slice(0, 1);
+      } else if (
+        query.startsWith(
+          "SELECT sequence, response_json FROM conversation_turns WHERE status = 'completed'",
+        )
+      ) {
+        rows = this.turns
+          .filter(
+            (t) =>
+              t.status === "completed" &&
+              Number(t.sequence) >= Number(params[0]) &&
+              Number(t.sequence) < Number(params[1]),
+          )
+          .sort((a, b) => Number(b.sequence) - Number(a.sequence))
+          .slice(0, 5);
       } else if (query.includes("FROM conversation_turns WHERE status = 'completed'")) {
         rows = this.turns
           .filter((t) => t.status === "completed")
@@ -123,6 +137,14 @@ class State implements DurableObjectStorageLike {
           .slice(0, 3);
       } else if (query.includes("FROM conversation_turns ORDER BY sequence DESC")) {
         rows = [...this.turns].reverse().slice(0, 10);
+      } else if (
+        query.startsWith("SELECT sequence FROM conversation_messages WHERE role = 'user'")
+      ) {
+        rows = this.messages
+          .filter((m) => m.role === "user" && Number(m.sequence) <= Number(params[0]))
+          .sort((a, b) => Number(b.sequence) - Number(a.sequence))
+          .slice(0, 5)
+          .map((m) => ({ sequence: m.sequence }));
       } else if (query.includes("FROM conversation_messages WHERE role = 'user'")) {
         rows = this.messages
           .filter((m) => m.role === "user" && Number(m.sequence) <= Number(params[0]))
@@ -202,6 +224,46 @@ describe("verified conversation turn state", () => {
       if (i === questions.length - 1) {
         expect(start.recentUserMessages).toEqual(questions.slice(-5));
         expect(JSON.stringify(start.recentUserMessages)).not.toContain("LUNA_PRIVATE");
+      }
+    }
+  });
+
+  it("retrieves only Qwen authored short replies among last five user messages; excludes Luna and older turns", () => {
+    const { turns } = setup();
+    const questions = [
+      "Hi",
+      "Let's study cardiology",
+      "Explain anemia",
+      "Aortic stenosis",
+      "management?",
+    ];
+    for (let i = 0; i < questions.length; i++) {
+      const start = turns.begin(ask("q" + i, questions[i]!, i));
+      if (i === 4) {
+        expect(start.recentUserMessages).toEqual(questions);
+        expect(start.recentQwenReplies?.map((reply) => reply.answer)).toEqual([
+          "Hello! What are we studying?",
+          "Sure, which cardiology topic?",
+        ]);
+        expect(JSON.stringify(start.recentQwenReplies)).not.toContain("SECRET_LUNA");
+      } else {
+        turns.complete({
+          actor,
+          conversationId,
+          idempotencyKey: "q" + i,
+          attemptId: start.attemptId!,
+          response:
+            i < 2
+              ? {
+                  ...answer,
+                  answer:
+                    i === 0 ? "Hello! What are we studying?" : "Sure, which cardiology topic?",
+                  citations: [],
+                  groundingMode: "general" as const,
+                  responder: "qwen" as const,
+                }
+              : { ...answer, answer: "SECRET_LUNA_ANSWER_NOT_FOR_ROUTER" },
+        });
       }
     }
   });

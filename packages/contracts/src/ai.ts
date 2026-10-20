@@ -8,6 +8,9 @@ export const GroundedAiLibraryIdSchema = z
   .regex(/^[a-z0-9][a-z0-9_-]*$/);
 export type GroundedAiLibraryId = z.infer<typeof GroundedAiLibraryIdSchema>;
 
+/** Covers 30 planned evidence chunks plus verified AMBOSS neighbors. */
+export const MAX_GROUNDED_CITATIONS = 60;
+
 export const SantoSourceModeSchema = z.enum(["libraries", "research"]);
 export type SantoSourceMode = z.infer<typeof SantoSourceModeSchema>;
 
@@ -17,6 +20,15 @@ export const GroundedAiQueryRequestSchema = z
     idempotency_key: z.string().trim().min(1).max(128),
     library_id: GroundedAiLibraryIdSchema.optional(),
     source_mode: SantoSourceModeSchema.optional(),
+    /** Trusted Qwen-only replies from ConversationDO; no Luna outputs. */
+    recent_qwen_replies: z
+      .array(
+        z
+          .object({ sequence: z.number().int().nonnegative(), answer: z.string().max(350) })
+          .strict(),
+      )
+      .max(5)
+      .optional(),
     /** Optional bounded router context; constructed by trusted ConversationDO on /ask. */
     recent_user_messages: z.array(z.string().max(1000)).max(5).optional(),
   })
@@ -86,9 +98,11 @@ export const GroundedAiQueryResponseSchema = z
     requestId: z.string().uuid(),
     messageId: z.string().uuid(),
     answer: z.string().min(1),
+    /** Only for genuine Qwen CHAT/CLARIFY turns; Luna never sets this. */
+    responder: z.literal("qwen").optional(),
     /** Legacy responses without this property are always source-grounded. */
     groundingMode: z.enum(["santo", "general"]).optional(),
-    citations: z.array(GroundedAiCitationSchema).max(15),
+    citations: z.array(GroundedAiCitationSchema).max(MAX_GROUNDED_CITATIONS),
     /** Optional persisted candidates not selected for inline Luna figures. */
     relatedPics: z.array(GroundedAiRelatedPicSchema).max(7).optional(),
     /** Exact backend-owned AnKing CIDs; not model-generated clinical citations. */

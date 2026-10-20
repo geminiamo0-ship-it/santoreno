@@ -234,7 +234,7 @@ describe("deterministic grounded prompt builder", () => {
   });
 
   it("fails closed instead of silently dropping additional or unbounded source identifiers", () => {
-    expect(() => buildGroundedPrompt("test", Array(16).fill(evidence))).toThrowError(
+    expect(() => buildGroundedPrompt("test", Array(46).fill(evidence))).toThrowError(
       "Retrieved evidence exceeds prompt limits",
     );
     expect(() =>

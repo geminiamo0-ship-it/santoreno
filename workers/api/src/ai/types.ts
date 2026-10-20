@@ -19,6 +19,10 @@ export interface RetrievalRequest {
   preparedQuery?: string;
   /** Up to five user-only turns from ConversationDO; never Luna messages. */
   recentUserMessages?: readonly string[];
+  /** Short prior Qwen replies from authenticated ConversationDO; excludes Luna. */
+  recentQwenReplies?: readonly { sequence: number; answer: string }[];
+  /** Qwen-proposed searches; validate and deduplicate before provider use. */
+  preparedQueries?: readonly string[];
   /** Optional request-scoped observer: outcome and duration only, never prompts. */
   onRouteDiagnostic?: (
     outcome: import("./medical-query-rewrite").QwenRouteOutcome,

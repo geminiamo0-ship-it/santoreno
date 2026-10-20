@@ -1,6 +1,7 @@
 import type { SantoBindings, WorkersAiLike } from "../runtime/bindings";
 import { GroundedAiError } from "./errors";
 import type { GroundedModelDraft, ModelPort } from "./types";
+import { MAX_GROUNDED_CITATIONS } from "@santo/contracts/ai";
 import { collectLunaEventStream } from "./luna-event-stream";
 import { LUNA_PLAIN_TEXT_INSTRUCTIONS, parsePlainLunaAnswer, previewPlainLuna } from "./plain-luna";
 import { LUNA_UNIFIED_INSTRUCTIONS } from "./luna-unified-prompt";
@@ -184,7 +185,7 @@ function parseDraft(text: string): GroundedModelDraft {
 
   return {
     answer: answer.trim(),
-    citationIds: citationIds.slice(0, 15),
+    citationIds: citationIds.slice(0, MAX_GROUNDED_CITATIONS),
   };
 }
 
@@ -195,7 +196,7 @@ const groundedResponseSchema = {
     citation_ids: {
       type: "array",
       items: { type: "string" },
-      maxItems: 15,
+      maxItems: MAX_GROUNDED_CITATIONS,
     },
   },
   required: ["answer", "citation_ids"],
@@ -211,7 +212,7 @@ const groundedResponseSchema = {
 export function groundedSchemaForCitationIds(allowedCitationIds?: readonly string[]) {
   if (allowedCitationIds === undefined) return groundedResponseSchema;
   const ids = [...new Set(allowedCitationIds)];
-  if (ids.length > 15 || ids.some((id) => !id || id.length > 512)) {
+  if (ids.length > MAX_GROUNDED_CITATIONS || ids.some((id) => !id || id.length > 512)) {
     throw new GroundedAiError(502, "SEARCH_FAILED", "Invalid verified source references");
   }
   return {
@@ -223,7 +224,7 @@ export function groundedSchemaForCitationIds(allowedCitationIds?: readonly strin
         items:
           ids.length > 0 ? { type: "string" as const, enum: ids } : { type: "string" as const },
         minItems: ids.length > 0 ? 1 : 0,
-        maxItems: ids.length > 0 ? 15 : 0,
+        maxItems: ids.length > 0 ? MAX_GROUNDED_CITATIONS : 0,
       },
     },
   };

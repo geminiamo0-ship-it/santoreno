@@ -28,8 +28,8 @@ const image = {
 };
 
 describe("trusted source contracts", () => {
-  it("persists fifteen authentic AMBOSS source references, never a sixteenth or forged source", () => {
-    const sources = Array.from({ length: 15 }, (_, index) => ({
+  it("persists sixty authentic AMBOSS source references, never a sixty-first or forged source", () => {
+    const sources = Array.from({ length: 60 }, (_, index) => ({
       ...source,
       sourceId: "amboss:r2-" + String(index).padStart(32, "0"),
       libraryId: "amboss",
@@ -55,7 +55,7 @@ describe("trusted source contracts", () => {
     expect(
       VerifiedSourceSnapshotSchema.safeParse({
         ...snapshot,
-        sources: [...sources.slice(0, 14), { ...sources[14], sourceId: "usmle:forged" }],
+        sources: [...sources.slice(0, 59), { ...sources[59], sourceId: "usmle:forged" }],
       }).success,
     ).toBe(false);
   });

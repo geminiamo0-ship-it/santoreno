@@ -4,8 +4,6 @@ on:
   push:
     branches:
       - fix/research-pmc-fulltext-priority-20261021
-    paths:
-      - .github/workflows/research-pmc-verify-once.yml
 
 permissions:
   contents: write

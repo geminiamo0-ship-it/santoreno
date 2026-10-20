@@ -9,6 +9,7 @@ import { validateGroundedCitations } from "./citations";
 import { AI_STAGE_TIMEOUTS, withAiDeadline } from "./deadline";
 import { GroundedAiError } from "./errors";
 import { buildGeneralMedicalPrompt, buildGroundedPrompt } from "./prompt";
+import { buildBudgetedResearchPrompt } from "./research-budget";
 import type { AiTelemetryPort, ModelPort, RetrievalPort } from "./types";
 
 function quotaDenial(reason: string | null): GroundedAiError {
@@ -146,7 +147,9 @@ export class GroundedAiService {
           this.model.generate(
             groundingMode === "general"
               ? buildGeneralMedicalPrompt(input.query)
-              : buildGroundedPrompt(input.query, evidence),
+              : sourceMode === "research"
+                ? buildBudgetedResearchPrompt(input.query, evidence)
+                : buildGroundedPrompt(input.query, evidence),
           ),
         signal,
         this.timeouts.modelMs,

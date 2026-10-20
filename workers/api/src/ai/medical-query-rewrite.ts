@@ -301,9 +301,12 @@ export async function routeMedicalRequest(
       ...(qwenReplies?.length
         ? [
             "PREVIOUS SHORT QWEN REPLIES (not clinical sources):",
-            ...qwenReplies.slice(-5).map((reply) =>
-              "Reply to USER turn " + reply.sequence + ": " + reply.answer.slice(0, 350),
-            ),
+            ...qwenReplies
+              .slice(-5)
+              .map(
+                (reply) =>
+                  "Reply to USER turn " + reply.sequence + ": " + reply.answer.slice(0, 350),
+              ),
           ]
         : []),
     ].join("\n");
@@ -376,8 +379,11 @@ export async function routeMedicalRequest(
         const accepted = acceptMedicalRewrite(query, proposed);
         if (!accepted) continue;
         const acceptedWords = new Set(accepted.toLowerCase().match(/[a-z]{4,}/g) ?? []);
-        if (topic.length && topic.filter((word) => acceptedWords.has(word)).length <
-          Math.min(2, topic.length)) continue;
+        if (
+          topic.length &&
+          topic.filter((word) => acceptedWords.has(word)).length < Math.min(2, topic.length)
+        )
+          continue;
         if (!anchored.some((old) => old.toLowerCase() === accepted.toLowerCase()))
           anchored.push(accepted);
       }

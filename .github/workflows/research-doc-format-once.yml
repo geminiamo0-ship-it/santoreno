@@ -1,0 +1,31 @@
+name: Format Research Runbook (Temporary)
+on:
+  push:
+    branches: [feat/pubmed-research-mode-203]
+    paths: [".github/workflows/research-doc-format-once.yml"]
+permissions:
+  contents: write
+jobs:
+  prettier:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - shell: bash
+        run: |
+          set -euo pipefail
+          corepack enable
+          pnpm install --frozen-lockfile
+          pnpm exec prettier --write docs/RESEARCH_MODE_OPERATIONS.md
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/RESEARCH_MODE_OPERATIONS.md
+          if ! git diff --cached --quiet; then
+            git commit -m "style(docs): format research operations"
+            git push origin HEAD:feat/pubmed-research-mode-203
+          fi

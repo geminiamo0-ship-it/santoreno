@@ -2,6 +2,7 @@ import type { SantoBindings, WorkersAiLike } from "../runtime/bindings";
 import { GroundedAiError } from "./errors";
 import type { GroundedModelDraft, ModelPort } from "./types";
 import { collectLunaEventStream } from "./luna-event-stream";
+import { collectGlmEventStream } from "./glm-event-stream";
 import { LUNA_PLAIN_TEXT_INSTRUCTIONS, parsePlainLunaAnswer, previewPlainLuna } from "./plain-luna";
 import { LUNA_UNIFIED_INSTRUCTIONS } from "./luna-unified-prompt";
 
@@ -387,6 +388,51 @@ export class CloudflareLunaModel implements ModelPort {
   }
 }
 
+/** Staging-only Cloudflare-hosted Workers AI model. Exactly one model call. */
+export class CloudflareGlmFlashModel implements ModelPort {
+  constructor(private readonly ai: WorkersAiLike | undefined) {}
+
+  async generate(
+    prompt: string,
+    onProvisionalAnswer?: (text: string) => void,
+    allowedCitationIds?: readonly string[],
+  ): Promise<GroundedModelDraft> {
+    if (!this.ai) {
+      throw new GroundedAiError(503, "AI_NOT_CONFIGURED", "Workers AI binding required for GLM");
+    }
+    // Reuse Luna's already-tested source alias mapping and citation parser.
+    // Original IDs never leave the backend; the model sees SANTO_REF_N only.
+    const citations = createLunaCitationAliases(prompt, allowedCitationIds, "markdown", false);
+    try {
+      const raw = await this.ai.run("@cf/zai-org/glm-4.7-flash", {
+        messages: [
+          { role: "system", content: LUNA_UNIFIED_INSTRUCTIONS },
+          { role: "user", content: citations.prompt },
+        ],
+        ...(onProvisionalAnswer ? { stream: true } : {}),
+        max_completion_tokens: LUNA_MAX_OUTPUT_TOKENS,
+        temperature: GROUNDED_MODEL_POLICY.temperature,
+        // Prevent hidden reasoning tokens from consuming the 3000-token
+        // answer budget or delaying the first medical answer text.
+        chat_template_kwargs: { enable_thinking: false },
+      });
+      const text = onProvisionalAnswer
+        ? await collectGlmEventStream(raw, (draft) =>
+            onProvisionalAnswer(previewPlainLuna(draft, citations.privateIds)),
+          )
+        : modelText(raw);
+      if (!text) {
+        throw new GroundedAiError(502, "MODEL_RESPONSE_INVALID", "GLM produced no answer");
+      }
+      return parsePlainLunaAnswer(text, allowedCitationIds);
+    } catch (error) {
+      if (error instanceof GroundedAiError) throw error;
+      // Do not silently call Luna as a second paid model.
+      throw new GroundedAiError(502, "MODEL_FAILED", "GLM Worker AI request failed");
+    }
+  }
+}
+
 /**
  * A transient provider error or malformed generation can trigger the configured
  * legacy model under the *same* validated evidence, quota reservation and
@@ -428,6 +474,7 @@ export function createGroundedModel(
     | "SANTO_AI_MODEL"
     | "SANTO_ENV"
     | "SANTO_LUNA_PREVIEW"
+    | "SANTO_GLM_47_FLASH_V1"
     | "SANTO_SINGLE_PASS_GENERATION_V1"
     | "SANTO_COMPACT_CITATION_ALIASES_V1"
     | "SANTO_PLAIN_TEXT_LUNA_V1"
@@ -435,6 +482,13 @@ export function createGroundedModel(
   >,
 ): ModelPort {
   if (env.SANTO_ENV === "staging" && env.SANTO_LUNA_PREVIEW === "true") {
+    // Opt-in GLM adapter preserves the existing one-call and verified-source
+    // contract. No change to the Production or non-GLM Luna model path.
+    if (env.SANTO_GLM_47_FLASH_V1 === "true" &&
+        env.SANTO_SINGLE_PASS_GENERATION_V1 === "true" &&
+        env.SANTO_PLAIN_TEXT_LUNA_V1 === "true") {
+      return new CloudflareGlmFlashModel(env.AI);
+    }
     // Opt-in cost guard: never generate a second paid model response after
     // Luna returns malformed output or an upstream failure. Callers receive
     // an explicit error and retain the same-key recovery path.

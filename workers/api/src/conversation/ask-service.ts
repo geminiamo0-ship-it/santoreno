@@ -129,15 +129,17 @@ async function invokeGroundedAnswer(
     library_id?: string;
     source_mode?: "libraries" | "research";
     recent_user_messages?: string[];
+    recent_qwen_replies?: { sequence: number; answer: string }[];
   },
   signal: AbortSignal,
   onProvisionalAnswer?: (text: string) => void,
 ): Promise<GroundedAiQueryResponse> {
+  const { recent_qwen_replies: _trustedReplies, ...publicInput } = input;
   const response = await handleGroundedAiQuery(
     new Request("https://santo.internal/v1/ai/query", {
       method: "POST",
       headers: { authorization: bearer, "content-type": "application/json" },
-      body: JSON.stringify(input),
+      body: JSON.stringify(publicInput),
       signal,
     }),
     env,

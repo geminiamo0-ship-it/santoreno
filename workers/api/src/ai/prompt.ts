@@ -5,6 +5,23 @@ const MAX_QUERY_CHARS = 4000;
 // Five ranked source passages plus at most ten verified AMBOSS R2 neighbors.
 const MAX_EVIDENCE_ITEMS = 15;
 const MAX_EVIDENCE_CHARS = 3500;
+// Research is full-text-aware: a PubMed article may include multiple directly
+// supporting treatment sections. Keep the 3,500-character limit for Libraries.
+const MAX_RESEARCH_EVIDENCE_CHARS = 16_000;
+
+function researchQuestion(query: string): string {
+  const marker = "Follow-up question:";
+  const index = query.lastIndexOf(marker);
+  if (index < 0) return query;
+  const followUp = query.slice(index + marker.length).trim();
+  if (followUp.length >= 25) return followUp;
+  const earlier = query.slice(0, index);
+  const matches = [...earlier.matchAll(/(?:^|\\n)Q:\\s*([^\\n|]+)/g)];
+  const last = matches.at(-1)?.[1]?.trim() ?? "";
+  return last
+    ? "Prior medical topic: " + last.slice(0, 160) + "\\nFollow-up question: " + followUp
+    : followUp;
+}
 const MAX_SOURCE_ID_CHARS = 512;
 const MAX_LIBRARY_ID_CHARS = 64;
 const MAX_TITLE_CHARS = 500;
@@ -28,19 +45,24 @@ export function buildGroundedPrompt(
     throw new GroundedAiError(502, "SEARCH_FAILED", "Retrieved evidence exceeds prompt limits");
   }
 
+  const research = evidence.length > 0 && evidence.every((item) => item.libraryId === "pubmed");
+  const question = research ? researchQuestion(query) : query;
   const sources = evidence.map((item) => ({
     source_id: item.sourceId,
     library_id: item.libraryId,
     title: item.title.slice(0, MAX_TITLE_CHARS),
     page: item.page,
     section: item.section?.slice(0, MAX_SECTION_CHARS) ?? null,
-    text: item.text.slice(0, MAX_EVIDENCE_CHARS),
+    text: item.text.slice(
+      0,
+      research ? MAX_RESEARCH_EVIDENCE_CHARS : MAX_EVIDENCE_CHARS,
+    ),
   }));
 
   if (dataOnly) {
     return [
       "USER_QUESTION_JSON:",
-      JSON.stringify(query.slice(0, MAX_QUERY_CHARS)),
+      JSON.stringify(question.slice(0, MAX_QUERY_CHARS)),
       "",
       "EVIDENCE_JSON:",
       JSON.stringify(sources),
@@ -75,7 +97,7 @@ export function buildGroundedPrompt(
         ]),
     "",
     "USER_QUESTION_JSON:",
-    JSON.stringify(query.slice(0, MAX_QUERY_CHARS)),
+    JSON.stringify(question.slice(0, MAX_QUERY_CHARS)),
     "",
     "EVIDENCE_JSON:",
     JSON.stringify(sources),
@@ -92,7 +114,7 @@ export function buildGeneralMedicalPrompt(
     return [
       "RUNTIME_GROUNDING_MODE: GENERAL_MEDICAL_KNOWLEDGE",
       "USER_QUESTION_JSON:",
-      JSON.stringify(query.slice(0, MAX_QUERY_CHARS)),
+      JSON.stringify(question.slice(0, MAX_QUERY_CHARS)),
     ].join("\n");
   }
   return [
@@ -121,6 +143,6 @@ export function buildGeneralMedicalPrompt(
         ]),
     "",
     "USER_QUESTION_JSON:",
-    JSON.stringify(query.slice(0, MAX_QUERY_CHARS)),
+    JSON.stringify(question.slice(0, MAX_QUERY_CHARS)),
   ].join("\n");
 }

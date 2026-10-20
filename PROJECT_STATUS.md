@@ -1,5 +1,14 @@
 # Santo Project Status — Living Handoff
 
+### Current Staging — Libraries evidence passthrough, exact Dedup only (21 Oct 2026, PR #210)
+
+- **Deployed successfully to Santo Staging**, exact immutable Worker source SHA `53e282c13f521823ede97ffcc7cf655ffe54c728`: [GitHub verified report](https://github.com/geminiamo0-ship-it/santoreno/issues/209#issuecomment-6304004290). Full lint, typecheck, unit tests, build and smoke, real Qwen/seven-index provider test, Wrangler Staging deploy and health/auth **all succeeded**. **Production untouched.** GitHub housekeeping commits after deployment are not new Worker deployments.
+- **Current Libraries path:** Qwen creates up to 6 medical search queries, Worker issues up to four native seven-index Cloudflare AI Search calls (50 provider hits each), collects results in original query/provider order; Santo removes **only exact duplicate source IDs or identical normalized source text**, keeping all other original chunks. **No post-search RRF, score sort, best-30, top-90, per-library quota, or per-article passage limit**. Cloudflare itself continues its native hybrid/RRF ranking/0.4 provider threshold.
+- Input schema/prompt supports up to **220 original verified evidence IDs**, distinct from output limit **60 actually used citations**. Preserves all unique reference identities but may shorten individual original text excerpts to keep large Luna evidence JSON within an approximate **52,000-character** limit; never synthesizes medical claims. This is an approximate character budget **not an exact 10k-token total guarantee**. Large-source token cost and answer depth must be measured and tuned after authenticated acceptance.
+- AMBOSS private-R2 original adjacent evidence, gallery images, AnKing, short Qwen-only conversational replies, Luna GPT-6, General Medical Fallback for genuinely empty medical library hits, PubMed/PMC Research, identity/quota and Source Viewer remain unchanged.
+- **Acceptance still pending:** signed-in Royal Bank Preview medical question and follow-up, source/image/citation rendering, real first-token latency and full input/output token consumption. PR #210 remains Draft; no Production change.
+
+
 ### Qwen Medical Search Planner — Live Santo Staging (21 Oct 2026, Issue #209, PR #208)
 
 - **DEPLOYED Santo Staging only**, exact immutable source SHA `fa0872f83f582d474bc3037d9c6c1ed5a19ba7d6`; [GitHub verified rollout](https://github.com/geminiamo0-ship-it/santoreno/issues/209#issuecomment-6303478445) reports full lint/typecheck/tests/build/smoke **success**, config/security guard **success**, real Qwen/7-index Cloudflare probe **success**, Worker Staging deploy **success**, /health and unauthorized POST check **success**. **Production unchanged.**

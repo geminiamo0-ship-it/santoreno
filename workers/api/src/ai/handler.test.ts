@@ -724,7 +724,7 @@ describe("grounded AI handler", () => {
       answer: "Aortic stenosis " + evidence.map((_, i) => "[" + (i + 1) + "]").join(" "),
       citationIds: evidence.map((source) => source.sourceId),
     }));
-    const save = vi.fn(async () => undefined);
+    const save = vi.fn(async (_identity: unknown, _sources: readonly unknown[]) => undefined);
     const response = await handler({ save })(request(token, "all-hits-sixty-source-recovery"), env);
     expect(response.status).toBe(200);
     const result = await response.json();

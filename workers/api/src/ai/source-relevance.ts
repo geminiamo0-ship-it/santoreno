@@ -230,6 +230,11 @@ function topicAnchors(query: string): string[] {
   ];
 }
 
+/** Whether this query contains a concrete lexical topic usable for evidence filtering. */
+export function hasSearchSubjectAnchors(query: string): boolean {
+  return topicAnchors(query).length > 0;
+}
+
 function containsAcronymExpansion(textWords: readonly string[], acronym: string): boolean {
   if (!/^[a-z]{2,6}$/.test(acronym)) return false;
   const meaningful = textWords.filter(

@@ -1,0 +1,88 @@
+name: Verify GLM-4.7-Flash and Deploy Santo Staging Only
+
+on:
+  push:
+    branches:
+      - feat/santo-glm-47-flash-staging-20261020
+    paths:
+      - .github/workflows/santo-glm-47-staging-deploy-once.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: santo-glm-47-staging-20261020
+  cancel-in-progress: true
+
+jobs:
+  verify-live-deploy:
+    if: github.repository == 'geminiamo0-ship-it/santoreno'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      WORKER_URL: https://santo-api-staging.geminiamo0.workers.dev
+    steps:
+      - name: Checkout exact GLM Staging candidate
+        uses: actions/checkout@v4
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install pinned dependencies
+        run: |
+          set -euo pipefail
+          corepack enable
+          pnpm install --frozen-lockfile
+      - name: Require complete Lint TypeScript Tests Build Smoke
+        run: |
+          set -euo pipefail
+          pnpm lint
+          pnpm typecheck
+          pnpm test
+          pnpm build
+          pnpm smoke
+      - name: Verify Staging model config, one inference, original citation rules
+        run: |
+          set -euo pipefail
+          grep -Fq 'SANTO_ENV = "staging"' workers/api/wrangler.toml
+          grep -Fq 'SANTO_LUNA_PREVIEW = "true"' workers/api/wrangler.toml
+          grep -Fq 'SANTO_GLM_47_FLASH_V1 = "true"' workers/api/wrangler.toml
+          grep -Fq 'SANTO_SINGLE_PASS_GENERATION_V1 = "true"' workers/api/wrangler.toml
+          grep -Fq 'SANTO_PLAIN_TEXT_LUNA_V1 = "true"' workers/api/wrangler.toml
+          grep -Fq 'SANTO_FORWARD_ALL_SEARCH_HITS_V1 = "true"' workers/api/wrangler.toml
+          grep -Fq 'SANTO_ANKING_V12_FULL_SEARCH_V1 = "true"' workers/api/wrangler.toml
+          grep -Fq '@cf/zai-org/glm-4.7-flash' workers/api/src/ai/model.ts
+          grep -Fq 'MODEL_STREAM_UNFINISHED' workers/api/src/ai/glm-event-stream.ts
+          grep -Fq 'export const MAX_GROUNDED_CITATIONS = 60' packages/contracts/src/ai.ts
+          test -n "${CLOUDFLARE_ACCOUNT_ID:-}"
+          test -n "${CLOUDFLARE_API_TOKEN:-}"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Verify live GLM-4.7-Flash Cloudflare SSE at negligible token cost
+        run: |
+          set -euo pipefail
+          python -m pip install requests==2.32.3
+          python scripts/smoke_glm_47_workers_ai_staging.py
+      - name: Verify exact immutable source SHA
+        run: |
+          set -euo pipefail
+          test "$(git ls-remote origin refs/heads/feat/santo-glm-47-flash-staging-20261020 | cut -f1)" = "$(git rev-parse HEAD)"
+          echo "GLM_STAGING_DEPLOY_SHA=$(git rev-parse HEAD)"
+      - name: Deploy Cloudflare Santo STAGING only (production never touched)
+        run: |
+          set -euo pipefail
+          cd workers/api
+          pnpm exec wrangler deploy --env staging --keep-vars
+      - name: Verify Staging health and unauthorized model endpoint rejection
+        run: |
+          set -euo pipefail
+          health="$(curl --retry 10 --retry-delay 3 --retry-all-errors --fail --silent --show-error "$WORKER_URL/health")"
+          jq -e '.service=="santo-api" and .status=="ok"' <<< "$health" >/dev/null
+          status="$(curl -sS -o /dev/null -w '%{http_code}' -X POST "$WORKER_URL/v1/ai/query" -H 'content-type: application/json' --data '{"query":"aortic stenosis","idempotency_key":"glm-47-unauthorized-smoke"}')"
+          test "$status" = 401
+          echo "GLM_47_FLASH_SANTO_STAGING_DEPLOYED_AND_AUTH_VERIFIED" >> "$GITHUB_STEP_SUMMARY"
+          echo "Deployed source SHA: $(git rev-parse HEAD)" >> "$GITHUB_STEP_SUMMARY"
+          echo "One-call RAG unchanged; authenticated Royal Preview end-to-end test still required." >> "$GITHUB_STEP_SUMMARY"

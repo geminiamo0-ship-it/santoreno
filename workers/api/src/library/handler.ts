@@ -39,7 +39,11 @@ export function createLibraryReaderHandler(deps: LibraryReaderDependencies = {})
     const detail = /^\/v1\/libraries\/([^/]+)\/articles\/([^/]+)$/.exec(path);
     if (!catalog && !citation && !researchArticle && !imageBatch && !listed && !detail)
       return error("LIBRARY_NOT_FOUND", 404);
-    if (citation || researchArticle || imageBatch ? request.method !== "POST" : request.method !== "GET") {
+    if (
+      citation || researchArticle || imageBatch
+        ? request.method !== "POST"
+        : request.method !== "GET"
+    ) {
       return error("METHOD_NOT_ALLOWED", 405);
     }
     try {
@@ -80,7 +84,9 @@ export function createLibraryReaderHandler(deps: LibraryReaderDependencies = {})
         if (env.SANTO_RESEARCH_ENABLED !== "true" || !env.CONTENT_BUCKET) {
           return error("LIBRARY_NOT_FOUND", 404);
         }
-        const viewer = new PubMedArticleViewerService(new R2VerifiedSourceStore(env.CONTENT_BUCKET));
+        const viewer = new PubMedArticleViewerService(
+          new R2VerifiedSourceStore(env.CONTENT_BUCKET),
+        );
         return Response.json(
           await viewer.fromCitation(session, await request.json().catch(() => null)),
           { headers: HEADERS },

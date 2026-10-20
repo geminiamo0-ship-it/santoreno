@@ -71,7 +71,13 @@ jobs:
           JAVASCRIPT
           sed -i "s/__PROBE_TOKEN__/$PROBE_TOKEN/g" workers/api/research-egress-probe.mjs
           cd workers/api
-          pnpm exec wrangler deploy research-egress-probe.mjs --name santo-research-egress-probe --compatibility-date 2026-10-01 --workers-dev
+          cat > wrangler.research-egress-diagnostic.toml <<'CFG'
+          name = "santo-research-egress-probe"
+          main = "research-egress-probe.mjs"
+          compatibility_date = "2026-10-01"
+          workers_dev = true
+          CFG
+          pnpm exec wrangler deploy --config wrangler.research-egress-diagnostic.toml
           curl --fail-with-body --silent --show-error --max-time 30 -H "X-Probe-Token: $PROBE_TOKEN" https://santo-research-egress-probe.geminiamo0.workers.dev | jq -e '.esearch and .europePmc and .efetch'
       - name: Delete disposable Cloudflare probe Worker
         if: always()
@@ -80,5 +86,5 @@ jobs:
           set +e
           if [ -n "$CLOUDFLARE_API_TOKEN" ] && [ -n "$CLOUDFLARE_ACCOUNT_ID" ]; then
             cd workers/api
-            pnpm exec wrangler delete --name santo-research-egress-probe --force
+            pnpm exec wrangler delete --config wrangler.research-egress-diagnostic.toml --force >/dev/null 2>&1 || true
           fi

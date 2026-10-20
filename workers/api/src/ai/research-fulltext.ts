@@ -92,8 +92,8 @@ function collectPassages(xml: string, query: string): Passage[] {
     const matches = terms.filter((word) => (section + " " + text).toLowerCase().includes(word)).length;
     passages.push({ section, text, score: matches * 3 + 5, order: index++ });
   }
-  for (const illustration of xml.matchAll(/<fig(?:\\s[^>]*)?>[\\s\\S]*?<\\/fig>/gi)) {
-    const caption = /<caption(?:\\s[^>]*)?>[\\s\\S]*?<\\/caption>/i.exec(illustration[0])?.[0];
+  for (const illustration of xml.matchAll(/<fig(?:\s[^>]*)?>[\s\S]*?<\/fig>/gi)) {
+    const caption = /<caption(?:\s[^>]*)?>[\s\S]*?<\/caption>/i.exec(illustration[0])?.[0];
     if (!caption) continue;
     const body = sentenceBounded(plain(caption));
     if (body.length < 40) continue;

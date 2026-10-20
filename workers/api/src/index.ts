@@ -29,6 +29,7 @@ const fetch: typeof app.fetch = async (request, env, executionContext) => {
     url.pathname === "/v1/libraries" ||
     url.pathname.startsWith("/v1/libraries/") ||
     url.pathname === "/v1/sources/article" ||
+    url.pathname === "/v1/sources/research-article" ||
     url.pathname === "/v1/sources/article-images/batch"
   ) {
     return handleLibraryReader(request, env as SantoBindings);

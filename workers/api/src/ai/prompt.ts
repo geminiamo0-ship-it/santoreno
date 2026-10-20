@@ -111,7 +111,7 @@ export function buildGeneralMedicalPrompt(
     return [
       "RUNTIME_GROUNDING_MODE: GENERAL_MEDICAL_KNOWLEDGE",
       "USER_QUESTION_JSON:",
-      JSON.stringify(question.slice(0, MAX_QUERY_CHARS)),
+      JSON.stringify(query.slice(0, MAX_QUERY_CHARS)),
     ].join("\n");
   }
   return [
@@ -140,6 +140,6 @@ export function buildGeneralMedicalPrompt(
         ]),
     "",
     "USER_QUESTION_JSON:",
-    JSON.stringify(question.slice(0, MAX_QUERY_CHARS)),
+    JSON.stringify(query.slice(0, MAX_QUERY_CHARS)),
   ].join("\n");
 }

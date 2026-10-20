@@ -1,0 +1,41 @@
+name: Research Figures Formatting (Temporary)
+on:
+  push:
+    branches:
+      - feat/pubmed-research-mode-203
+    paths:
+      - ".github/workflows/format-research-figures-once.yml"
+permissions:
+  contents: write
+jobs:
+  prettier:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Autoformat current research feature files
+        shell: bash
+        run: |
+          set -euo pipefail
+          corepack enable
+          pnpm install --frozen-lockfile
+          pnpm exec prettier --write \
+            workers/api/src/sources/research-figures.ts \
+            workers/api/src/sources/research-figures.test.ts \
+            workers/api/src/sources/service.ts \
+            workers/api/src/ai/service.ts \
+            workers/api/src/ai/research-budget.ts \
+            workers/api/src/ai/research-budget.test.ts \
+            packages/contracts/src/source.ts
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add workers/api/src/sources/research-figures.ts workers/api/src/sources/research-figures.test.ts workers/api/src/sources/service.ts workers/api/src/ai/service.ts workers/api/src/ai/research-budget.ts workers/api/src/ai/research-budget.test.ts packages/contracts/src/source.ts
+          if ! git diff --cached --quiet; then
+            git commit -m "style(research): format PMC figures and token budget code"
+            git push origin HEAD:feat/pubmed-research-mode-203
+          fi

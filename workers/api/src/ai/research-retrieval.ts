@@ -289,7 +289,7 @@ export class PubMedResearchRetrieval implements RetrievalPort {
       if (
         record.source !== "MED" ||
         typeof pmid !== "string" ||
-        !/^\\d+$/.test(pmid) ||
+        !/^\d+$/.test(pmid) ||
         typeof title !== "string" ||
         title.trim().length < 4 ||
         seen.has(pmid)
@@ -306,7 +306,7 @@ export class PubMedResearchRetrieval implements RetrievalPort {
           ? normalizedDoi(record.doi)
           : null;
       const pmcid =
-        typeof record.pmcid === "string" && /^PMC\\d+$/i.test(record.pmcid)
+        typeof record.pmcid === "string" && /^PMC\d+$/i.test(record.pmcid)
           ? record.pmcid.toUpperCase()
           : null;
       const yearRaw = typeof record.pubYear === "string" ? record.pubYear : "";
@@ -368,7 +368,7 @@ export class PubMedResearchRetrieval implements RetrievalPort {
           ? (result as { esearchresult?: { idlist?: unknown } }).esearchresult
           : null;
       const ids = Array.isArray(root?.idlist)
-        ? root.idlist.filter((id): id is string => typeof id === "string" && /^\\d+$/.test(id))
+        ? root.idlist.filter((id): id is string => typeof id === "string" && /^\d+$/.test(id))
         : [];
       if (!ids.length) return [];
       const xml = await this.get(

@@ -84,7 +84,7 @@ export const TrustedResearchFigureSchema = z
     caption: z.string().min(1).max(1000),
     altText: z.string().min(1).max(300),
     license: z.string().min(1).max(64),
-    pmcid: z.string().regex(/^PMC\\d+$/),
+    pmcid: z.string().regex(/^PMC\d+$/),
   })
   .strict();
 

@@ -66,6 +66,7 @@ jobs:
           for i in $(seq 1 30); do
             if curl --fail --silent --show-error --max-time 16 http://127.0.0.1:8788/ > /tmp/research-adapter-result.json 2>/dev/null; then
               jq . /tmp/research-adapter-result.json
+              jq -e '.succeeded == true and .count > 0' /tmp/research-adapter-result.json
               exit 0
             fi
             if ! kill -0 "$PID" 2>/dev/null; then tail -40 /tmp/research-adapter-probe.log; exit 1; fi

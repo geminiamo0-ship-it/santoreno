@@ -111,10 +111,13 @@ describe("verified source explorer and private article browser", () => {
   });
   it("accepts the original rich HTML field in imported medical articles", async () => {
     const { service, bucket } = await setup();
-    bucket.data.set(articleKey, JSON.stringify({
-      ...article,
-      contentHtml: '<h2 id="overview">Overview</h2><p>Indexed source article</p>',
-    }));
+    bucket.data.set(
+      articleKey,
+      JSON.stringify({
+        ...article,
+        contentHtml: '<h2 id="overview">Overview</h2><p>Indexed source article</p>',
+      }),
+    );
     const result = await service.article("passmedicine", "passmed-5683");
     expect(result.contentHtml).toContain("Indexed source article");
   });

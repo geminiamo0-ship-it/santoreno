@@ -33,7 +33,8 @@ export function createLibraryReaderHandler(deps: LibraryReaderDependencies = {})
     const researchCitation = path === "/v1/sources/research-article";
     const listed = /^\/v1\/libraries\/([^/]+)\/articles$/.exec(path);
     const detail = /^\/v1\/libraries\/([^/]+)\/articles\/([^/]+)$/.exec(path);
-    if (!catalog && !citation && !researchCitation && !listed && !detail) return error("LIBRARY_NOT_FOUND", 404);
+    if (!catalog && !citation && !researchCitation && !listed && !detail)
+      return error("LIBRARY_NOT_FOUND", 404);
     if (citation || researchCitation ? request.method !== "POST" : request.method !== "GET") {
       return error("METHOD_NOT_ALLOWED", 405);
     }
@@ -70,7 +71,9 @@ export function createLibraryReaderHandler(deps: LibraryReaderDependencies = {})
         if (env.SANTO_RESEARCH_ENABLED !== "true" || !env.CONTENT_BUCKET) {
           return error("LIBRARY_NOT_FOUND", 404);
         }
-        const reader = new PubMedArticleViewerService(new R2VerifiedSourceStore(env.CONTENT_BUCKET));
+        const reader = new PubMedArticleViewerService(
+          new R2VerifiedSourceStore(env.CONTENT_BUCKET),
+        );
         return Response.json(
           await reader.fromCitation(session, await request.json().catch(() => null)),
           { headers: HEADERS },

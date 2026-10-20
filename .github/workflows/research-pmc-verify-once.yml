@@ -1,0 +1,51 @@
+name: Research PMC Full-Text Candidate Verification (NO DEPLOY)
+
+on:
+  push:
+    branches:
+      - fix/research-pmc-fulltext-priority-20261021
+    paths:
+      - .github/workflows/research-pmc-verify-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install pinned dependencies
+        run: |
+          set -euo pipefail
+          corepack enable
+          pnpm install --frozen-lockfile
+      - name: Format only changed Research files
+        run: |
+          set -euo pipefail
+          pnpm exec prettier --write workers/api/src/ai/research-fulltext.ts workers/api/src/ai/research-fulltext.test.ts workers/api/src/ai/research-retrieval.ts workers/api/src/ai/prompt.ts workers/api/src/ai/prompt.test.ts
+          if ! git diff --quiet; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add workers/api/src/ai/research-fulltext.ts workers/api/src/ai/research-fulltext.test.ts workers/api/src/ai/research-retrieval.ts workers/api/src/ai/prompt.ts workers/api/src/ai/prompt.test.ts
+            git commit -m "style(research): format PMC full-text priority and regression tests"
+            git push origin HEAD:fix/research-pmc-fulltext-priority-20261021
+          fi
+      - name: Lint TypeScript tests build and smoke (no deployment)
+        run: |
+          set -euo pipefail
+          pnpm lint
+          pnpm typecheck
+          pnpm test
+          pnpm build
+          pnpm smoke
+      - name: Record tested SHA
+        run: |
+          echo "RESEARCH_FULLTEXT_TESTED_SHA=$(git rev-parse HEAD)" >> "$GITHUB_STEP_SUMMARY"
+          echo "Cloudflare Worker NOT deployed." >> "$GITHUB_STEP_SUMMARY"

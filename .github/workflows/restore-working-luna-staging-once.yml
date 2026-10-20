@@ -1,0 +1,92 @@
+name: Restore Working Luna — Santo Staging Only
+on:
+  push:
+    branches:
+      - fix/restore-working-luna-staging-20261020
+    paths:
+      - ".github/workflows/restore-working-luna-staging-once.yml"
+permissions:
+  contents: read
+concurrency:
+  group: santo-staging-restore-luna-20261020
+  cancel-in-progress: false
+jobs:
+  verify-luna-and-restore:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      WORKER_URL: https://santo-api-staging.geminiamo0.workers.dev
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Verify exact existing Luna model and staging-only switches
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'SANTO_ENV = "staging"' workers/api/wrangler.toml
+          grep -Fq 'SANTO_LUNA_PREVIEW = "true"' workers/api/wrangler.toml
+          grep -Fq 'SANTO_SINGLE_PASS_GENERATION_V1 = "true"' workers/api/wrangler.toml
+          grep -Fq 'SANTO_PLAIN_TEXT_LUNA_V1 = "true"' workers/api/wrangler.toml
+          grep -Fq 'openai/gpt-6-luna' workers/api/src/ai/model.ts
+          grep -Fq 'export class CloudflareLunaModel' workers/api/src/ai/model.ts
+          grep -Fq 'SANTO_LUNA_PREVIEW = "false"' workers/api/wrangler.toml
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+      - name: Verify workspace without modifications
+        shell: bash
+        run: |
+          set -euo pipefail
+          corepack enable
+          pnpm install --frozen-lockfile
+          pnpm lint
+          pnpm typecheck
+          pnpm test
+          pnpm build
+          pnpm smoke
+      - name: Small funded Luna provider smoke before any deploy
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/luna-smoke.json" <<'JSON'
+          {
+            "model":"openai/gpt-6-luna",
+            "input":"Return one brief medical education sentence about cardiac valves.",
+            "instructions":"Use strict JSON with nonempty answer and empty citation_ids; do not cite any article.",
+            "max_output_tokens":180,
+            "reasoning":{"effort":"low"},
+            "service_tier":"fast",
+            "store":false,
+            "text":{"format":{"type":"json_schema","name":"santo_grounded","strict":true,"schema":{"type":"object","properties":{"answer":{"type":"string"},"citation_ids":{"type":"array","items":{"type":"string"},"maxItems":5}},"required":["answer","citation_ids"],"additionalProperties":false}}}
+          }
+          JSON
+          status="$(curl --silent --show-error --max-time 110 -o "$RUNNER_TEMP/luna-smoke-response.json" -w '%{http_code}' -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" -H "Content-Type: application/json" --data-binary @"$RUNNER_TEMP/luna-smoke.json" "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/ai/v1/responses")"
+          echo "Luna actual provider HTTP status: $status"
+          if [ "$status" != 200 ]; then
+            jq -c '{type:(.error.type//.errors[0].code//"unknown"),message:(.error.message//.errors[0].message//"provider error")}' "$RUNNER_TEMP/luna-smoke-response.json" || true
+            exit 1
+          fi
+          jq -e '[.output[]? | select(.type=="message") | .content[]? | select(.type=="output_text") | .text | fromjson? | select(.answer|type=="string" and length>0)] | length > 0' "$RUNNER_TEMP/luna-smoke-response.json" >/dev/null
+          echo "Actual Luna response validated; no user prompt, medical corpus, or credentials logged."
+      - name: Restore last known working Luna gateway to staging only
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd workers/api
+          pnpm exec wrangler deploy --env staging --keep-vars
+      - name: Verify restored Worker health and authentication
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --retry 6 --retry-delay 3 --retry-all-errors --fail --silent "$WORKER_URL/health" | jq -e '.service=="santo-api" and .status=="ok"'
+          status="$(curl --silent -o /dev/null -w '%{http_code}' -X POST "$WORKER_URL/v1/ai/query" -H "content-type: application/json" --data '{"query":"aortic stenosis","idempotency_key":"luna-restore-unauthenticated-check"}')"
+          echo "Anonymous Luna request rejection: HTTP $status"
+          test "$status" = 401
+          echo "Luna restored on Staging; Production unchanged. Research-mode source remains paused until correct Luna integration." >> "$GITHUB_STEP_SUMMARY"
+      - name: Remove synthetic prompt and response files
+        if: always()
+        shell: bash
+        run: rm -f "$RUNNER_TEMP/luna-smoke.json" "$RUNNER_TEMP/luna-smoke-response.json"

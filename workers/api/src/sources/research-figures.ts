@@ -44,7 +44,11 @@ function cleanText(value: string): string {
 
 function validArticleUrl(raw: string, version: string, extensions: RegExp): string | null {
   try {
-    // Official metadata may expose S3 URIs; map only this fixed public bucket.\n    const httpUrl = raw.startsWith("s3://pmc-oa-opendata/")\n      ? BASE + raw.slice("s3://pmc-oa-opendata".length)\n      : raw;\n    const url = new URL(httpUrl);
+    // Official metadata may expose S3 URIs; map only this fixed public bucket.
+    const httpUrl = raw.startsWith("s3://pmc-oa-opendata/")
+      ? BASE + raw.slice("s3://pmc-oa-opendata".length)
+      : raw;
+    const url = new URL(httpUrl);
     if (
       url.protocol !== "https:" ||
       url.hostname !== "pmc-oa-opendata.s3.amazonaws.com" ||

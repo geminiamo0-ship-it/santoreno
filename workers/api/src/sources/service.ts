@@ -36,7 +36,7 @@ export class TrustedSourceService {
     const { source, entries } = await this.resolve(session, request);
     return TrustedSourceDetailResponseSchema.parse({
       source,
-      ...(source.instanceId === "pubmed" && /^pubmed:\\d+$/.test(source.sourceId)
+      ...(source.instanceId === "pubmed" && /^pubmed:\d+$/.test(source.sourceId)
         ? { externalUrl: "https://pubmed.ncbi.nlm.nih.gov/" + source.sourceId.slice(7) + "/" }
         : {}),
       images: entries.map(({ assetId, altText, caption, contentType, width, height }) => ({

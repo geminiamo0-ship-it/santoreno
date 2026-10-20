@@ -499,7 +499,7 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
 
     // Reciprocal-rank fusion across query results. Return only original
     // server-validated chunk IDs, original text and whitelisted indexes.
-    const pool = new Map<string, { item: RetrievedEvidence; rrf: number; original: number }>();
+    const pool = new Map<string, { item: RetrievedEvidence; rrf: number; original: number; firstQuery: number }>();
     const images = new Map<string, GallerySearchHit>();
     const ankingPool: RetrievedEvidence[] = [];
     for (const [searchIndex, result] of success.entries()) {
@@ -509,7 +509,7 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
         const previous = pool.get(item.sourceId);
         const fused = 1 / (60 + position) + (searchIndex === 0 ? 0.002 : 0);
         if (previous) previous.rrf += fused;
-        else pool.set(item.sourceId, { item, rrf: fused, original: position });
+        else pool.set(item.sourceId, { item, rrf: fused, original: position, firstQuery: searchIndex });
       }
       const root = asRecord(source);
       if (includeGallery && Array.isArray(root?.chunks)) {
@@ -536,14 +536,24 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
         );
       }
     }
-    const ranked = [...pool.values()]
-      .sort(
-        (a, b) =>
-          b.rrf - a.rrf ||
-          b.item.score - a.item.score ||
-          a.item.sourceId.localeCompare(b.item.sourceId),
-      )
-      .slice(0, 90);
+    const allRanked = [...pool.values()].sort(
+      (a, b) => b.rrf - a.rrf || b.item.score - a.item.score ||
+        a.item.sourceId.localeCompare(b.item.sourceId),
+    );
+    // Reserve candidates per search facet, not just the first broad query.
+    const ranked: typeof allRanked = [];
+    const pooledIds = new Set<string>();
+    const include = (entry: (typeof allRanked)[number]): void => {
+      if (ranked.length < 90 && !pooledIds.has(entry.item.sourceId)) {
+        pooledIds.add(entry.item.sourceId);
+        ranked.push(entry);
+      }
+    };
+    for (let i = 0; i < success.length; i++) {
+      for (const entry of allRanked.filter((row) => row.firstQuery === i).slice(0, 22))
+        include(entry);
+    }
+    for (const entry of allRanked) include(entry);
     // Preserve library diversity in the first 20 results, then fill by RRF.
     const selected: RetrievedEvidence[] = [];
     const used = new Set<string>();
@@ -571,6 +581,13 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
       for (const entry of ranked.filter((row) => row.item.instanceId === library.instanceId)) {
         if (selected.filter((item) => item.instanceId === library.instanceId).length >= 4) break;
         pick(entry.item);
+      }
+    }
+    for (let i = 0; i < success.length; i++) {
+      let facetSelected = 0;
+      for (const entry of ranked.filter((row) => row.firstQuery === i)) {
+        if (selected.length >= 30 || facetSelected >= 4) break;
+        if (pick(entry.item)) facetSelected++;
       }
     }
     for (const entry of ranked) {

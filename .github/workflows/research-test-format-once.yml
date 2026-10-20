@@ -1,0 +1,32 @@
+name: Research State Test Format
+on:
+  push:
+    branches:
+      - feat/pubmed-research-mode-203
+    paths:
+      - ".github/workflows/research-test-format-once.yml"
+permissions:
+  contents: write
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - shell: bash
+        run: |
+          set -euo pipefail
+          corepack enable
+          pnpm install --frozen-lockfile
+          pnpm exec prettier --write packages/widget/src/ui-state.test.ts
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add packages/widget/src/ui-state.test.ts
+          if ! git diff --cached --quiet; then
+            git commit -m "style(widget): format source-mode tests"
+            git push origin HEAD:feat/pubmed-research-mode-203
+          fi

@@ -30,21 +30,35 @@ const GRAPHIC_TAG = /<(?:graphic|inline-graphic)\b[^>]*?\bxlink:href=["']([^"']+
 const HEX = /^PMC[0-9]{1,12}$/;
 
 function cleanText(value: string): string {
-  return value.replace(/<[^>]*>/g, " ")
+  return value
+    .replace(/<[^>]*>/g, " ")
     .replace(/&#x([a-f0-9]+);/gi, (_, value: string) => String.fromCodePoint(parseInt(value, 16)))
     .replace(/&#([0-9]+);/g, (_, value: string) => String.fromCodePoint(parseInt(value, 10)))
-    .replace(/&(amp|lt|gt|quot|apos);/g, (_, key: string) => ({amp:"&",lt:"<",gt:">",quot:'"',apos:"'"}[key] ?? ""))
-    .replace(/\s+/g, " ").trim();
+    .replace(
+      /&(amp|lt|gt|quot|apos);/g,
+      (_, key: string) => ({ amp: "&", lt: "<", gt: ">", quot: '"', apos: "'" })[key] ?? "",
+    )
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function validArticleUrl(raw: string, version: string, extensions: RegExp): string | null {
   try {
     const url = new URL(raw);
-    if (url.protocol !== "https:" || url.hostname !== "pmc-oa-opendata.s3.amazonaws.com" ||
-        url.port || url.username || url.password) return null;
-    if (!url.pathname.startsWith("/" + version + "/") || !extensions.test(url.pathname)) return null;
+    if (
+      url.protocol !== "https:" ||
+      url.hostname !== "pmc-oa-opendata.s3.amazonaws.com" ||
+      url.port ||
+      url.username ||
+      url.password
+    )
+      return null;
+    if (!url.pathname.startsWith("/" + version + "/") || !extensions.test(url.pathname))
+      return null;
     return url.toString();
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
 interface DatasetMetadata {
@@ -64,10 +78,13 @@ export class PmcResearchFigureProvider implements ResearchFigureProvider {
         signal: AbortSignal.timeout(NETWORK_TIMEOUT_MS),
         redirect: "error",
       });
-      if (!response.ok || Number(response.headers.get("content-length") ?? 0) > maxBytes) return null;
+      if (!response.ok || Number(response.headers.get("content-length") ?? 0) > maxBytes)
+        return null;
       const text = await response.text();
       return new TextEncoder().encode(text).byteLength <= maxBytes ? text : null;
-    } catch { return null; }
+    } catch {
+      return null;
+    }
   }
 
   async find(pmcid: string): Promise<ResearchFigure[]> {
@@ -81,10 +98,11 @@ export class PmcResearchFigureProvider implements ResearchFigureProvider {
     if (!prefixes) return [];
     const versions = [...prefixes.matchAll(/<Prefix>(PMC\d+\.(\d+)\/) <\/Prefix>/g)];
     // Also support the actual compact S3 XML with no whitespace before closing tag.
-    const matches = versions.length ? versions :
-      [...prefixes.matchAll(/<Prefix>(PMC\d+\.(\d+)\/)<\/Prefix>/g)];
+    const matches = versions.length
+      ? versions
+      : [...prefixes.matchAll(/<Prefix>(PMC\d+\.(\d+)\/)<\/Prefix>/g)];
     const candidates = matches
-      .filter(match => match[1]?.startsWith(pmcid + "."))
+      .filter((match) => match[1]?.startsWith(pmcid + "."))
       .sort((a, b) => Number(b[2]) - Number(a[2]));
     if (!candidates.length) return [];
     const version = candidates[0]![1]!.replace(/\/$/, "");
@@ -94,9 +112,16 @@ export class PmcResearchFigureProvider implements ResearchFigureProvider {
     const raw = await this.fetchText(metadataUrl, MAX_METADATA_BYTES);
     if (!raw) return [];
     let data: DatasetMetadata;
-    try { data = JSON.parse(raw) as DatasetMetadata; } catch { return []; }
+    try {
+      data = JSON.parse(raw) as DatasetMetadata;
+    } catch {
+      return [];
+    }
     if (data.pmcid !== pmcid || data.is_retracted === true) return [];
-    const license = typeof data.license_code === "string" ? data.license_code.toLowerCase().replace(/_/g,"-") : "";
+    const license =
+      typeof data.license_code === "string"
+        ? data.license_code.toLowerCase().replace(/_/g, "-")
+        : "";
     if (!REDISTRIBUTABLE.has(license)) return [];
     if (typeof data.xml_url !== "string" || !Array.isArray(data.media_urls)) return [];
     const xmlUrl = validArticleUrl(data.xml_url, version, /\.xml$/i);
@@ -106,7 +131,9 @@ export class PmcResearchFigureProvider implements ResearchFigureProvider {
       if (typeof rawUrl !== "string") continue;
       const checked = validArticleUrl(rawUrl, version, /\.(?:jpe?g|png|webp)$/i);
       if (!checked) continue;
-      const name = decodeURIComponent(new URL(checked).pathname.split("/").at(-1) ?? "").toLowerCase();
+      const name = decodeURIComponent(
+        new URL(checked).pathname.split("/").at(-1) ?? "",
+      ).toLowerCase();
       if (name) media.set(name, checked);
     }
     if (media.size === 0) return [];
@@ -117,7 +144,8 @@ export class PmcResearchFigureProvider implements ResearchFigureProvider {
     for (const match of xml.matchAll(FIG_TAG)) {
       const block = match[1] ?? "";
       const graphic = GRAPHIC_TAG.exec(block)?.[1]?.trim();
-      if (!graphic || graphic.includes("/") || graphic.includes("\\") || graphic.includes("..")) continue;
+      if (!graphic || graphic.includes("/") || graphic.includes("\\") || graphic.includes(".."))
+        continue;
       const url = media.get(graphic.toLowerCase());
       const caption = cleanText(CAPTION_TAG.exec(block)?.[1] ?? "").slice(0, 1000);
       if (!url || !caption || seen.has(url)) continue;

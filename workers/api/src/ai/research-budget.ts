@@ -27,7 +27,8 @@ export function buildBudgetedResearchPrompt(
   retrieved: readonly RetrievedEvidence[],
 ): string {
   const selected = retrieved.map((item) => ({ ...item }));
-  if (!selected.length) throw new GroundedAiError(422, "INSUFFICIENT_EVIDENCE", "No research evidence");
+  if (!selected.length)
+    throw new GroundedAiError(422, "INSUFFICIENT_EVIDENCE", "No research evidence");
 
   for (let i = 0; i < 150; i += 1) {
     const prompt = buildGroundedPrompt(question, selected);

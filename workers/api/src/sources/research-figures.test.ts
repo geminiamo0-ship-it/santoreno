@@ -19,11 +19,13 @@ function mockFetch(changes: Partial<typeof metadata> = {}) {
   const request = vi.fn(async (url: RequestInfo | URL) => {
     const href = String(url);
     if (href.includes("list-type=2")) {
-      return new Response("<ListBucketResult><CommonPrefixes><Prefix>PMC12345.1/</Prefix></CommonPrefixes><CommonPrefixes><Prefix>PMC12345.2/</Prefix></CommonPrefixes></ListBucketResult>");
+      return new Response(
+        "<ListBucketResult><CommonPrefixes><Prefix>PMC12345.1/</Prefix></CommonPrefixes><CommonPrefixes><Prefix>PMC12345.2/</Prefix></CommonPrefixes></ListBucketResult>",
+      );
     }
     if (href.includes("/metadata/")) return Response.json({ ...metadata, ...changes });
     if (href.includes(".xml")) return new Response(xml);
-    return new Response("not found", {status:404});
+    return new Response("not found", { status: 404 });
   });
   return request;
 }
@@ -34,7 +36,8 @@ describe("authorized PMC research figures", () => {
     const result = await new PmcResearchFigureProvider(fetcher as typeof fetch).find("PMC12345");
     expect(result).toHaveLength(1);
     expect(result[0]).toMatchObject({
-      pmcid: "PMC12345", license: "cc-by",
+      pmcid: "PMC12345",
+      license: "cc-by",
       caption: "Cardiac valve anatomy in aortic stenosis",
     });
     expect(result[0]?.url).toContain("pmc-oa-opendata.s3.amazonaws.com/PMC12345.2/fig-1.jpg");
@@ -42,16 +45,34 @@ describe("authorized PMC research figures", () => {
   });
 
   it("omits all media for NC or unknown licenses", async () => {
-    expect(await new PmcResearchFigureProvider(mockFetch({license_code:"cc-by-nc"}) as typeof fetch)
-      .find("PMC12345")).toEqual([]);
+    expect(
+      await new PmcResearchFigureProvider(
+        mockFetch({ license_code: "cc-by-nc" }) as typeof fetch,
+      ).find("PMC12345"),
+    ).toEqual([]);
   });
 
   it("omits retracted articles and rejects mismatched source identifiers", async () => {
-    expect(await new PmcResearchFigureProvider(mockFetch({is_retracted:true}) as typeof fetch)
-      .find("PMC12345")).toEqual([]);
+    expect(
+      await new PmcResearchFigureProvider(mockFetch({ is_retracted: true }) as typeof fetch).find(
+        "PMC12345",
+      ),
+    ).toEqual([]);
     const finder = new PmcResearchFigureProvider(mockFetch() as typeof fetch);
     expect(await finder.find("https://evil.test")).toEqual([]);
-    expect(pmcidFromSavedSource({ instanceId:"pubmed", sourceId:"pubmed:101", section:"PubMed / PMC PMC12345" })).toBe("PMC12345");
-    expect(pmcidFromSavedSource({ instanceId:"amboss", sourceId:"pubmed:101", section:"PubMed / PMC PMC12345" })).toBeNull();
+    expect(
+      pmcidFromSavedSource({
+        instanceId: "pubmed",
+        sourceId: "pubmed:101",
+        section: "PubMed / PMC PMC12345",
+      }),
+    ).toBe("PMC12345");
+    expect(
+      pmcidFromSavedSource({
+        instanceId: "amboss",
+        sourceId: "pubmed:101",
+        section: "PubMed / PMC PMC12345",
+      }),
+    ).toBeNull();
   });
 });

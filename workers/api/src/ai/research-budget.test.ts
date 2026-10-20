@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { buildBudgetedResearchPrompt, estimateResearchInputTokens, RESEARCH_TOKEN_POLICY } from "./research-budget";
+import {
+  buildBudgetedResearchPrompt,
+  estimateResearchInputTokens,
+  RESEARCH_TOKEN_POLICY,
+} from "./research-budget";
 import type { RetrievedEvidence } from "./types";
 
 function item(index: number, chars = 3000): RetrievedEvidence {
@@ -24,15 +28,21 @@ describe("Research token preflight", () => {
     expect(estimateResearchInputTokens(result)).toBeLessThanOrEqual(7000);
   });
   it("adapts long evidence to 10k total including 3k output reserved", () => {
-    const articles = Array.from({length: 12}, (_, i) => item(i, 3000));
-    const prompt = buildBudgetedResearchPrompt("Compare interventions for severe aortic stenosis", articles);
-    expect(estimateResearchInputTokens(prompt)).toBeLessThanOrEqual(RESEARCH_TOKEN_POLICY.maximumInput);
+    const articles = Array.from({ length: 12 }, (_, i) => item(i, 3000));
+    const prompt = buildBudgetedResearchPrompt(
+      "Compare interventions for severe aortic stenosis",
+      articles,
+    );
+    expect(estimateResearchInputTokens(prompt)).toBeLessThanOrEqual(
+      RESEARCH_TOKEN_POLICY.maximumInput,
+    );
     expect(prompt).toContain("pubmed:10000");
     expect(prompt).toContain("USER_QUESTION_JSON");
     expect(prompt).not.toContain("undefined");
   });
   it("fails closed on excessive required user/query/context bytes", () => {
-    expect(() => buildBudgetedResearchPrompt("س".repeat(4000), [item(0, 400)]))
-      .toThrowError("Research question and source metadata exceed the token budget");
+    expect(() => buildBudgetedResearchPrompt("س".repeat(4000), [item(0, 400)])).toThrowError(
+      "Research question and source metadata exceed the token budget",
+    );
   });
 });

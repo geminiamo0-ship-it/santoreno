@@ -9,7 +9,11 @@ import {
 } from "@santo/contracts/source";
 
 import { R2VerifiedSourceStore, SourceResolutionError } from "./store";
-import { PmcResearchFigureProvider, pmcidFromSavedSource, type ResearchFigureProvider } from "./research-figures";
+import {
+  PmcResearchFigureProvider,
+  pmcidFromSavedSource,
+  type ResearchFigureProvider,
+} from "./research-figures";
 
 export class TrustedSourceService {
   constructor(

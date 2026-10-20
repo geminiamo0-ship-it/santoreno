@@ -78,13 +78,15 @@ export const TrustedSourceDetailRequestSchema = z
 
 export type TrustedSourceDetailRequest = z.infer<typeof TrustedSourceDetailRequestSchema>;
 
-export const TrustedResearchFigureSchema = z.object({
-  url: z.string().url(),
-  caption: z.string().min(1).max(1000),
-  altText: z.string().min(1).max(300),
-  license: z.string().min(1).max(64),
-  pmcid: z.string().regex(/^PMC\\d+$/),
-}).strict();
+export const TrustedResearchFigureSchema = z
+  .object({
+    url: z.string().url(),
+    caption: z.string().min(1).max(1000),
+    altText: z.string().min(1).max(300),
+    license: z.string().min(1).max(64),
+    pmcid: z.string().regex(/^PMC\\d+$/),
+  })
+  .strict();
 
 export const TrustedSourceDetailResponseSchema = z
   .object({

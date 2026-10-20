@@ -31,6 +31,7 @@ jobs:
             workers/api/src/ai/types.ts \
             workers/api/src/ai/service.ts \
             workers/api/src/ai/research-retrieval.ts \
+            workers/api/src/ai/research-retrieval.test.ts \
             workers/api/src/ai/handler.ts \
             workers/api/src/ai/model.ts \
             workers/api/src/ai/prompt.ts \

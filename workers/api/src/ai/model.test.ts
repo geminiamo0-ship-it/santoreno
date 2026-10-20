@@ -121,12 +121,12 @@ describe("Cloudflare Workers AI model adapter", () => {
 });
 
 describe("AMBOSS expanded evidence model source guard", () => {
-  it("accepts sixty verified source IDs and rejects sixty-one output citations", () => {
-    const sourceIds = Array.from({ length: 60 }, (_, index) => "amboss:source-" + index);
+  it("accepts 210 verified input sources while citations remain bounded to 60", () => {
+    const sourceIds = Array.from({ length: 210 }, (_, index) => "amboss:source-" + index);
     const schema = groundedSchemaForCitationIds(sourceIds);
     expect(schema.properties.citation_ids.items).toMatchObject({ enum: sourceIds });
     expect(schema.properties.citation_ids.maxItems).toBe(60);
-    expect(() => groundedSchemaForCitationIds([...sourceIds, "amboss:source-61"])).toThrow(
+    expect(() => groundedSchemaForCitationIds([...sourceIds, ...Array.from({ length: 11 }, (_, i) => "amboss:extra-" + i)])).toThrow(
       "Invalid verified source references",
     );
   });
@@ -500,7 +500,7 @@ describe("strict server-bound citation schema regression", () => {
         },
       },
     });
-    const tooMany = Array.from({ length: 61 }, (_, index) => `amboss:source-${index}`);
+    const tooMany = Array.from({ length: 221 }, (_, index) => `amboss:source-${index}`);
     expect(() => groundedSchemaForCitationIds(tooMany)).toThrowError(
       "Invalid verified source references",
     );

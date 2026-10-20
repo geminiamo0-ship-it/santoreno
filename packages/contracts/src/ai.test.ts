@@ -40,8 +40,8 @@ describe("Santo grounded-versus-general response contract", () => {
     answer: "A clear medical educational answer.",
     usage: { unitsCharged: 1, remaining: 9 },
   };
-  it("accepts fifteen verified cited sources and rejects sixteen", () => {
-    const citations = Array.from({ length: 15 }, (_, i) => ({
+  it("accepts sixty verified cited sources and rejects sixty-one", () => {
+    const citations = Array.from({ length: 60 }, (_, i) => ({
       sourceId: "amboss:r2-" + i,
       title: "Aortic valve stenosis",
       page: null,

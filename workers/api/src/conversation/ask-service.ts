@@ -28,6 +28,8 @@ export class ConversationAskService {
         library_id?: string;
         source_mode?: "libraries" | "research";
         recent_user_messages?: string[];
+        recent_qwen_replies?: { sequence: number; answer: string }[];
+    recent_qwen_replies?: { sequence: number; answer: string }[];
       },
       signal: AbortSignal,
       onProvisionalAnswer?: (text: string) => void,
@@ -84,6 +86,9 @@ export class ConversationAskService {
           ...(body.sourceMode === "research" ? { source_mode: "research" as const } : {}),
           ...(started.recentUserMessages?.length
             ? { recent_user_messages: started.recentUserMessages }
+            : {}),
+          ...(started.recentQwenReplies?.length
+            ? { recent_qwen_replies: started.recentQwenReplies }
             : {}),
         },
         signal,

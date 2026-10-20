@@ -151,7 +151,7 @@ export function deterministicMedicalSearchPlan(
   if (!root) return [];
   const narrow =
     /\b(management|treatment|therapy|diagnos|complication|prognosis|symptom|causes|pathophys|prevention|investigation|follow.up)\b/i.test(
-      narrowQuestion,
+      narrowQuestion + " " + root,
     );
   const facets = narrow
     ? [
@@ -296,10 +296,14 @@ export async function routeMedicalRequest(
       "Previous USER messages (oldest first):",
       ...previous,
       "CURRENT USER MESSAGE: " + latest.slice(0, 1000),
+      "Resolved clinical topic and intent (trusted context, keep if follow-up): " +
+        focusedQuery.slice(0, MAX_FOCUSED_CHARS),
       ...(qwenReplies?.length
         ? [
             "PREVIOUS SHORT QWEN REPLIES (not clinical sources):",
-            ...qwenReplies.slice(-5).map((reply) => reply.answer.slice(0, 350)),
+            ...qwenReplies.slice(-5).map((reply) =>
+              "Reply to USER turn " + reply.sequence + ": " + reply.answer.slice(0, 350),
+            ),
           ]
         : []),
     ].join("\n");
@@ -367,11 +371,13 @@ export async function routeMedicalRequest(
         "and",
         "the",
       ]);
-      const topic = anchors.filter((word) => !common.has(word)).slice(0, 4);
+      const topic = [...new Set(anchors.filter((word) => !common.has(word)))].slice(0, 4);
       for (const proposed of rawPlan.slice(0, 6)) {
         const accepted = acceptMedicalRewrite(query, proposed);
         if (!accepted) continue;
-        if (topic.length && !topic.some((word) => accepted.toLowerCase().includes(word))) continue;
+        const acceptedWords = new Set(accepted.toLowerCase().match(/[a-z]{4,}/g) ?? []);
+        if (topic.length && topic.filter((word) => acceptedWords.has(word)).length <
+          Math.min(2, topic.length)) continue;
         if (!anchored.some((old) => old.toLowerCase() === accepted.toLowerCase()))
           anchored.push(accepted);
       }

@@ -14,6 +14,7 @@ import { AI_STAGE_TIMEOUTS } from "./deadline";
 import { AiSearchNamespaceLibraryCatalog } from "./library-catalog";
 import { createGroundedModel } from "./model";
 import { CloudflareAiSearchRetrieval } from "./retrieval";
+import { CuratedEvidenceRetrieval } from "./evidence-curation";
 import { AmbossAdjacentRetrieval } from "./amboss-adjacent";
 import { CloudflareGalleryImageRetrieval } from "./image-gallery";
 import { GroundedAiService } from "./service";
@@ -92,11 +93,20 @@ export function createGroundedAiHandler(dependencies: GroundedAiHandlerDependenc
           env.SANTO_PLAIN_TEXT_LUNA_V1 === "true" &&
           env.SANTO_FORWARD_ALL_SEARCH_HITS_V1 === "true",
       );
-      return env.SANTO_ENV === "staging" &&
+      const expanded =
+        env.SANTO_ENV === "staging" &&
         env.SANTO_AMBOSS_ADJACENT_R2_V1 === "true" &&
         env.CONTENT_BUCKET
-        ? new AmbossAdjacentRetrieval(retrieval, env.CONTENT_BUCKET)
-        : retrieval;
+          ? new AmbossAdjacentRetrieval(retrieval, env.CONTENT_BUCKET)
+          : retrieval;
+      // Only the staged one-call forward-all route is curated. Preserve
+      // legacy retrieval, Production, source identities and gallery hits.
+      return env.SANTO_ENV === "staging" &&
+        env.SANTO_LUNA_PREVIEW === "true" &&
+        env.SANTO_PLAIN_TEXT_LUNA_V1 === "true" &&
+        env.SANTO_FORWARD_ALL_SEARCH_HITS_V1 === "true"
+        ? new CuratedEvidenceRetrieval(expanded)
+        : expanded;
     });
   const modelFactory = dependencies.modelFactory ?? createGroundedModel;
   const sourceStoreFactory =

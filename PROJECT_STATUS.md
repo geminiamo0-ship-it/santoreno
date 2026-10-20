@@ -1,5 +1,13 @@
 # Santo Project Status — Living Handoff
 
+### Full-hit evidence curation — 20 Oct 2026 (Issue #200, Staging PR candidate)
+
+- Santo Staging's single-call search returns up to 50 native Cloudflare hits; optional R2 AMBOSS adjacency adds up to 10 more. An owner-requested cleanup now removes byte-equivalent medical content after normalization of source headers/whitespace and filters passages lacking the current clearly named disease topic. It **does not** add another number-based top-k cut-off or a second AI Search/model call.
+- Original ranked order, distinct supplemental content, authentic source IDs, source-card verification, related gallery images, AnKing, and existing tenant/quota paths are preserved. Ambiguous prompts (e.g. bare acronyms) are not aggressively lexical-filtered to avoid dropping all evidence. The deduplication does not discard related but materially different PassMedicine sections.
+- Applied through a shared retrieval decorator after optional AMBOSS R2 enrichment, only under the existing Staging forward-all flag. **Production remains unchanged.** Test cases cover Pastest literal duplicates, longer non-identical PassMedicine source retention, renal artery stenosis/aortic dissection exclusion, relevant rheumatic causes and AnKing, full 60-item preservation, conversation topic isolation, and one-search/gallery behavior.
+- **Staging deployment verified on 20 Oct 2026** from source SHA `c91fcd3ad5e6a83863515a20724f145e23238e06`. [Verify 39355864206](https://github.com/geminiamo0-ship-it/santoreno/actions/runs/39355864206) passed and [gated Staging deploy 39355860691](https://github.com/geminiamo0-ship-it/santoreno/actions/runs/39355860691) passed lint/typecheck/tests/build/smoke, two REAL read-only 50-hit seven-index searches (5.85s and 5.37s, clinical+AnKing+Gallery), Cloudflare Worker deployment (version `9985a921-33c3-474f-abbe-05dd651f02d1`), stage health 200 and anonymous AI 401. The temporary deployment workflow was deleted after success. Production was not deployed or altered.
+- **Still pending**: authenticated Royal Preview medical answer `complete` with valid mapped source cards and comparative number of relevant/duplicate passages. This operator-visible E2E gate has not been proven. Issue #200 and Draft PR #201 remain open until it passes.
+
 ### Staging GLM-4.7-Flash generation — 20 Oct 2026 (PR #198)
 
 - Owner chose Cloudflare-hosted `@cf/zai-org/glm-4.7-flash` as Santo's medical-generation model. Staging opt-in `SANTO_GLM_47_FLASH_V1=true`, combined with single-pass and plain-Markdown flags; Production unchanged.

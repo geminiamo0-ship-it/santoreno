@@ -66,7 +66,7 @@ jobs:
         id: real_pmc
         run: |
           set -euo pipefail
-          python scripts/smoke_research_pmc_fulltext_staging.py
+          python scripts/smoke_research_pmc_fulltext_staging.py 2>&1 | tee /tmp/santo_pmc_live_provider.log
       - name: Confirm exact current branch SHA
         run: |
           set -euo pipefail
@@ -89,6 +89,19 @@ jobs:
           echo "SANTO_RESEARCH_PMC_FULLTEXT_STAGING_DEPLOYED" >> "$GITHUB_STEP_SUMMARY"
           echo "Source SHA: $(git rev-parse HEAD)" >> "$GITHUB_STEP_SUMMARY"
           echo "Production unchanged; signed-in Royal Preview Research mode remains pending." >> "$GITHUB_STEP_SUMMARY"
+      - name: Record live PMC provider diagnostics on failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          {
+            echo "Research PMC provider smoke on commit $(git rev-parse HEAD):"
+            echo '~~~'
+            tail -n 20 /tmp/santo_pmc_live_provider.log 2>/dev/null || echo "No PMC probe log"
+            echo '~~~'
+            echo "Santo Staging/Production unchanged if deploy was skipped."
+          } > /tmp/santo_pmc_failure.md
+          gh issue comment 203 --repo geminiamo0-ship-it/santoreno --body-file /tmp/santo_pmc_failure.md
       - name: Record result in Research issue even when blocked
         if: always()
         env:

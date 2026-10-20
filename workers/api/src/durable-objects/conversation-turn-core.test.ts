@@ -163,6 +163,18 @@ function setup() {
 }
 
 describe("verified conversation turn state", () => {
+  it("pins Research vs Libraries to the same conversation idempotency key", () => {
+    const { turns } = setup();
+    const research = { ...ask(), sourceMode: "research" as const };
+    const started = turns.begin(research);
+    expect(started.turn.sourceMode).toBe("research");
+    expect(() => turns.begin({ ...ask(), sourceMode: "libraries" as const })).toThrowError(ConversationStateError);
+    turns.fail({ actor, conversationId, idempotencyKey: "first", attemptId: started.attemptId! });
+    const retry = turns.begin(research);
+    expect(retry.turn.sourceMode).toBe("research");
+    expect(retry.quotaEpoch).toBe(0);
+  });
+
   it("returns only the five latest user messages, never Luna answers, from begin-turn", () => {
     const { turns } = setup();
     const questions = [

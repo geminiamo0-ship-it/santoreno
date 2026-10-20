@@ -10,12 +10,15 @@ const MAX_EVIDENCE_CHARS = 3500;
 const MAX_RESEARCH_EVIDENCE_CHARS = 16_000;
 
 function researchQuestion(query: string): string {
+  // Accept both decoded newlines and literally escaped history from older
+  // conversation serializers; never send raw prior answer dumps to Luna.
+  const normalized = query.replace(/\\n/g, "\n");
   const marker = "Follow-up question:";
-  const index = query.lastIndexOf(marker);
-  if (index < 0) return query;
-  const followUp = query.slice(index + marker.length).trim();
+  const index = normalized.lastIndexOf(marker);
+  if (index < 0) return normalized;
+  const followUp = normalized.slice(index + marker.length).trim();
   if (followUp.length >= 25) return followUp;
-  const earlier = query.slice(0, index);
+  const earlier = normalized.slice(0, index);
   const matches = [...earlier.matchAll(/(?:^|\n)Q:\s*([^\n|]+)/g)];
   const last = matches.at(-1)?.[1]?.trim() ?? "";
   return last

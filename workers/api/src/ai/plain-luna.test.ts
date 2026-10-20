@@ -18,6 +18,34 @@ function sse(text: string): ReadableStream<Uint8Array> {
 }
 
 describe("staging single-pass plain-Luna citation contract", () => {
+  it("maps fifteen real inline references to their verified retrieval IDs without dropping claims", () => {
+    const ids = Array.from({ length: 15 }, (_, index) => "amboss:r2-" + index);
+    const answer = ids
+      .map((_, index) => "Finding " + index + " [[" + (index + 1) + "]].")
+      .join(" ");
+    const result = parsePlainLunaAnswer(answer, ids);
+    expect(result.citationIds).toEqual(ids);
+    expect(result.answer).toContain("Finding 14 [15].");
+    expect(result.answer).not.toContain("SANTO_REF");
+  });
+
+  it("preserves source aliases 16–60 and verifies citations beyond the old 15-source ceiling", () => {
+    const ids = Array.from(
+      { length: 60 },
+      (_, i) => (i >= 50 ? "santo-anking-step-v12:" : "amboss:") + "chunk-" + (i + 1),
+    );
+    const text = ids
+      .map((_, i) => "Finding [[" + (i + 1) + "]] or [[N]](SANTO_REF_" + (i + 1) + ").")
+      .join(" ");
+    const parsed = parsePlainLunaAnswer(text, ids);
+    expect(parsed.citationIds).toEqual(ids);
+    expect(parsed.answer).toContain("Finding [60] or [60].");
+    expect(parsed.answer).not.toContain("SANTO_REF_");
+    const invalid = parsePlainLunaAnswer("Verified [[60]]; unverified [[61]].", ids);
+    expect(invalid.citationIds).toEqual([ids[59]]);
+    expect(invalid.answer).not.toContain("[61]");
+  });
+
   const sourceA = "amboss:chunk-012345678900000000000001";
   const sourceB = "usmle:chunk-abcdef112233445566778899";
 
@@ -32,6 +60,31 @@ describe("staging single-pass plain-Luna citation contract", () => {
         "## Diagnosis\nEcho confirms valve obstruction [1].\n## Causes\nCalcification [2].\nManagement [1].",
       citationIds: [sourceB, sourceA],
     });
+  });
+
+  it("maps provider [[N]](SANTO_REF_4) syntax to an actual server-verified reference", () => {
+    const ids = Array.from({ length: 15 }, (_, index) => "medical:verified-source-" + index);
+    const raw =
+      "## Aortic stenosis\\nMechanism [[N]](SANTO_REF_4). " +
+      "Management [[N]](SANTO_REF_15) [[N]](SANTO_REF_4).";
+    const parsed = parsePlainLunaAnswer(raw, ids);
+    expect(parsed.citationIds).toEqual([ids[3], ids[14]]);
+    expect(parsed.answer).toBe("## Aortic stenosis\\nMechanism [1]. Management [2] [1].");
+    expect(parsed.answer).not.toContain("SANTO_REF");
+    expect(parsed.answer).not.toContain("[[N]]");
+  });
+
+  it("rejects fabricated aliases, never invents citations, and hides streaming citation syntax", () => {
+    const ids = ["amboss:real"];
+    const result = parsePlainLunaAnswer(
+      "Supported [[N]](SANTO_REF_1). Fabricated [[N]](SANTO_REF_15).",
+      ids,
+    );
+    expect(result.citationIds).toEqual(ids);
+    expect(result.answer).toBe("Supported [1]. Fabricated .");
+    expect(parsePlainLunaAnswer("Unknown [[N]](SANTO_REF_13).", ids).citationIds).toEqual([]);
+    expect(previewPlainLuna("Supported [[N]](SANTO_REF_1).", ids)).not.toContain("SANTO_REF");
+    expect(previewPlainLuna("Supported [[N]](SANTO_", ids)).not.toContain("[[N]]");
   });
 
   it("preserves completed uncited medical teaching with related source status", () => {

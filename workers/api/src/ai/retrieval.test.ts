@@ -674,4 +674,287 @@ describe("Santo five licensed library retrieval", () => {
     expect(partial.searchInputs).toHaveLength(1);
     expect(malformed.searchInputs).toHaveLength(1);
   });
+  it("optional seventh AnKing instance uses same call but never becomes medical citation", async () => {
+    const namespace = new FakeAiSearchNamespace(undefined, {
+      __merged: {
+        chunks: [
+          chunk("amboss", 1, 0.95),
+          {
+            id: "anking-chunk-1",
+            text: "Aortic stenosis causes systolic crescendo-decrescendo murmur",
+            score: 0.91,
+            instance_id: "santo-anking-cardiology",
+            item: { key: "note_1471558916902.json", metadata: { title: "Aortic stenosis" } },
+          },
+          {
+            id: "anking-duplicate",
+            text: "Duplicate of the same note",
+            score: 0.86,
+            instance_id: "santo-anking-cardiology",
+            item: { key: "note_1471558916902.json" },
+          },
+          {
+            id: "anking-traversal",
+            text: "Adversarial key",
+            score: 0.99,
+            instance_id: "santo-anking-cardiology",
+            item: { key: "../../secrets.json" },
+          },
+        ],
+      },
+    });
+    const retrieval = new CloudflareAiSearchRetrieval(
+      namespace,
+      undefined,
+      true,
+      false,
+      undefined,
+      false,
+      true,
+      true,
+    );
+    const result = await retrieval.retrieveWithGallery({
+      query: "aortic stenosis",
+      libraryId: null,
+    });
+    expect(namespace.searchInputs).toHaveLength(1);
+    expect(namespace.searchInputs[0]).toMatchObject({
+      ai_search_options: {
+        instance_ids: [
+          ...expectedIds.map(instanceFor),
+          "santo-medical-images",
+          "santo-anking-cardiology",
+        ],
+        retrieval: { max_num_results: 50 },
+      },
+    });
+    expect(result.evidence).toHaveLength(1);
+    expect(result.evidence[0]?.libraryId).toBe("amboss");
+    expect(result.ankingHits).toBeUndefined(); // Never hydrate flashcards with a Luna answer.
+    expect(result.galleryHits).toEqual([]);
+  });
+
+  it("full v12 replaces cardio in ONE seven-instance search without becoming a medical citation", async () => {
+    const namespace = new FakeAiSearchNamespace(undefined, {
+      __merged: {
+        chunks: [
+          chunk("amboss", 1, 0.94),
+          {
+            id: "anking-v12",
+            text: "Aortic stenosis creates a systolic crescendo-decrescendo murmur with radiation to the carotid arteries",
+            score: 0.95,
+            instance_id: "santo-anking-step-v12",
+            item: { key: "note_1471558916902.json" },
+          },
+          {
+            id: "old-cardio-should-not-count",
+            text: "Wrong isolated index",
+            score: 0.98,
+            instance_id: "santo-anking-cardiology",
+            item: { key: "note_1000000000000.json" },
+          },
+          {
+            id: "invalid-note-key",
+            text: "Invalid private R2 identity",
+            score: 0.99,
+            instance_id: "santo-anking-step-v12",
+            item: { key: "../secrets.json" },
+          },
+          {
+            id: "img",
+            text: "On-topic figure",
+            score: 0.9,
+            instance_id: "santo-medical-images",
+            item: { key: "img_000123.json" },
+          },
+        ],
+      },
+    });
+    const retrieval = new CloudflareAiSearchRetrieval(
+      namespace,
+      undefined,
+      true,
+      false,
+      undefined,
+      false,
+      true,
+      true,
+      true,
+    );
+    const result = await retrieval.retrieveWithGallery({
+      query: "aortic stenosis systolic murmur",
+      libraryId: null,
+    });
+    expect(namespace.searchInputs).toHaveLength(1);
+    expect(namespace.searchInputs[0]).toMatchObject({
+      ai_search_options: {
+        instance_ids: [
+          ...expectedIds.map(instanceFor),
+          "santo-medical-images",
+          "santo-anking-step-v12",
+        ],
+        retrieval: { max_num_results: 50 },
+      },
+    });
+    expect(result.ankingHits).toBeUndefined();
+    expect(result.galleryHits).toEqual([{ imageId: "img_000123", score: 0.9 }]);
+    expect(result.evidence.map((item) => item.libraryId)).toEqual(["amboss", "anking"]);
+    expect(result.evidence[1]).toMatchObject({
+      instanceId: "santo-anking-step-v12",
+      itemKey: "note_1471558916902.json",
+    });
+    expect(result.evidence[1]?.sourceId).toBe("santo-anking-step-v12:anking-v12");
+  });
+
+  it("measured staging fast mode makes ONE seven-index 30-result RRF search, no reranker", async () => {
+    const namespace = new FakeAiSearchNamespace(undefined, {
+      __merged: {
+        chunks: [
+          chunk("amboss", 1, 0.95),
+          chunk("usmle", 1, 0.88),
+          {
+            id: "anking-note-1",
+            text: "Aortic stenosis is an obstruction of flow through the aortic valve",
+            score: 0.91,
+            instance_id: "santo-anking-step-v12",
+            item: { key: "note_1471558916902.json", metadata: { title: "Aortic stenosis" } },
+          },
+          {
+            id: "gallery-1",
+            text: "Aortic valve",
+            score: 0.92,
+            instance_id: "santo-medical-images",
+            item: { key: "img_000123.json" },
+          },
+        ],
+      },
+    });
+    const retrieval = new CloudflareAiSearchRetrieval(
+      namespace,
+      undefined,
+      true,
+      false,
+      undefined,
+      false,
+      true,
+      true,
+      true,
+      true,
+    );
+    const result = await retrieval.retrieveWithGallery({
+      query: "aortic stenosis",
+      libraryId: null,
+      preparedQuery: "aortic stenosis severity treatment",
+    });
+    expect(namespace.searchInputs).toHaveLength(1);
+    expect(namespace.searchInputs[0]).toMatchObject({
+      query: "aortic stenosis severity treatment",
+      ai_search_options: {
+        instance_ids: [
+          ...expectedIds.map(instanceFor),
+          "santo-medical-images",
+          "santo-anking-step-v12",
+        ],
+        retrieval: {
+          retrieval_type: "hybrid",
+          max_num_results: 30,
+          match_threshold: 0.4,
+          fusion_method: "rrf",
+        },
+        reranking: { enabled: false },
+        query_rewrite: { enabled: false },
+      },
+    });
+    expect(result.evidence.map((e) => e.libraryId)).toEqual(["amboss", "usmle", "anking"]);
+    expect(result.galleryHits).toEqual([{ imageId: "img_000123", score: 0.92 }]);
+    expect(result.ankingHits).toBeUndefined();
+  });
+
+  it("forwards every valid one-call search hit to Luna: 38 clinical, 11 AnKing, gallery separated", async () => {
+    const medical = Array.from({ length: 38 }, (_, i) => ({
+      ...chunk(expectedIds[i % expectedIds.length]!, i + 1),
+      item: {
+        key:
+          "medical-search/v1/" +
+          expectedIds[i % expectedIds.length] +
+          "/article/s-" +
+          String(i + 1).padStart(4, "0") +
+          ".md",
+        metadata: { title: "Clinical topic " + i },
+      },
+    }));
+    const anking = Array.from({ length: 11 }, (_, i) => ({
+      id: "anking-full-" + i,
+      text: "Original AnKing v12 high-yield clinical note number " + i,
+      score: 0.91,
+      instance_id: "santo-anking-step-v12",
+      item: {
+        key: "note_" + (1471558916902 + i) + ".json",
+        metadata: { title: "AnKing note " + i },
+      },
+    }));
+    const gallery = {
+      id: "gallery-one",
+      text: "Clinically relevant figure",
+      score: 0.93,
+      instance_id: "santo-medical-images",
+      item: { key: "img_000123.json" },
+    };
+    const namespace = new FakeAiSearchNamespace(undefined, {
+      __merged: { chunks: [medical[0], ...anking, ...medical.slice(1), gallery] },
+    });
+    const retrieval = new CloudflareAiSearchRetrieval(
+      namespace,
+      undefined,
+      true,
+      false,
+      undefined,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+    );
+    const result = await retrieval.retrieveWithGallery({
+      query: "aortic stenosis pathophysiology",
+      libraryId: null,
+    });
+    expect(namespace.searchInputs).toHaveLength(1);
+    expect(namespace.searchInputs[0]).toMatchObject({
+      ai_search_options: {
+        retrieval: { max_num_results: 50, match_threshold: 0.4 },
+        reranking: { enabled: false },
+      },
+    });
+    expect(result.evidence).toHaveLength(49);
+    expect(result.evidence.filter((source) => source.libraryId === "anking")).toHaveLength(11);
+    expect(result.evidence.filter((source) => source.libraryId !== "anking")).toHaveLength(38);
+    expect(result.evidence[0]?.libraryId).toBe("amboss");
+    expect(result.evidence[1]?.libraryId).toBe("anking");
+    expect(result.evidence[12]?.libraryId).not.toBe("anking");
+    expect(result.galleryHits).toEqual([{ imageId: "img_000123", score: 0.93 }]);
+    expect(result.ankingHits).toBeUndefined();
+  });
+
+  it("explicit clinical library filter never adds AnKing, even when opt-in enabled", async () => {
+    const namespace = new FakeAiSearchNamespace(undefined, {
+      amboss: { chunks: [chunk("amboss")] },
+    });
+    const retrieval = new CloudflareAiSearchRetrieval(
+      namespace,
+      undefined,
+      true,
+      false,
+      undefined,
+      false,
+      true,
+      true,
+    );
+    await retrieval.retrieve({ query: "aortic stenosis", libraryId: "amboss" });
+    expect(namespace.searchInputs).toHaveLength(1);
+    expect(namespace.searchInputs[0]).toMatchObject({
+      ai_search_options: { instance_ids: ["amboss"] },
+    });
+  });
 });

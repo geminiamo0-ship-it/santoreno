@@ -19,6 +19,7 @@ import { GroundedAiError } from "./errors";
 import { buildGeneralMedicalPrompt, buildGroundedPrompt } from "./prompt";
 import type { AiTelemetryEvent, AiTelemetryPort, ModelPort, RetrievalPort } from "./types";
 import type { GalleryImageRetriever } from "./image-gallery";
+import type { AnkingSupplementRetriever } from "./anking-flashcards";
 
 function quotaDenial(reason: string | null): GroundedAiError {
   switch (reason) {
@@ -83,6 +84,8 @@ export class GroundedAiService {
     private readonly articleBucket?: R2BucketLike,
     private readonly intentRoutingEnabled = false,
     private readonly imageGallery?: GalleryImageRetriever,
+    private readonly ankingSupplement?: AnkingSupplementRetriever,
+    private readonly unifiedLunaPrompt = false,
   ) {}
 
   async query(
@@ -133,6 +136,7 @@ export class GroundedAiService {
     let answer: string;
     let citations: GroundedAiQueryResponse["citations"];
     let relatedPics: NonNullable<GroundedAiQueryResponse["relatedPics"]> = [];
+
     let responseMode: "santo" | "general" = "santo";
     let retrievedSourceCount = 0;
     let validCitationCount = 0;
@@ -245,26 +249,22 @@ export class GroundedAiService {
                 "SEARCH_TIMEOUT",
               ).catch(() => [])
             : Promise.resolve([]);
+        // No flashcards, card-shard reads or extra AI operations in the Luna
+        // answer path. AnKing scientific excerpts are already part of evidence.
         const [originalImages, galleryImages] = await Promise.all([
-          originalImagesPromise.then((images) => {
-            if (imageDiagnostics) {
-              console.info("santo_runtime_stage_ms", {
-                stage: "image_hydration",
-                milliseconds: Math.round(performance.now() - imagesStartedAt),
-              });
-            }
-            return images;
-          }),
-          galleryImagesPromise.then((images) => {
-            if (imageDiagnostics) {
-              console.info("santo_runtime_stage_ms", {
-                stage: "gallery_hydration",
-                milliseconds: Math.round(performance.now() - galleryStartedAt),
-              });
-            }
-            return images;
-          }),
+          originalImagesPromise,
+          galleryImagesPromise,
         ]);
+        if (imageDiagnostics) {
+          console.info("santo_runtime_stage_ms", {
+            stage: "image_hydration",
+            milliseconds: Math.round(performance.now() - imagesStartedAt),
+          });
+          console.info("santo_runtime_stage_ms", {
+            stage: "gallery_hydration",
+            milliseconds: Math.round(performance.now() - galleryStartedAt),
+          });
+        }
         if (imageDiagnostics) {
           console.info("santo_luna_image_pipeline", {
             phase: "before_model",
@@ -286,8 +286,8 @@ export class GroundedAiService {
         });
         const answerFormat = this.markdownOutput ? "markdown" : "json";
         const sourcedPrompt =
-          buildGroundedPrompt(input.query, evidence, answerFormat) +
-          medicalImagePrompt(availableImages, input.query);
+          buildGroundedPrompt(input.query, evidence, answerFormat, this.unifiedLunaPrompt) +
+          medicalImagePrompt(availableImages, input.query, this.unifiedLunaPrompt);
         console.info("santo_runtime_stage_ms", {
           stage: "pre_model",
           milliseconds: Math.round(performance.now() - routeStartedAt),
@@ -310,7 +310,7 @@ export class GroundedAiService {
           () =>
             this.model.generate(
               groundingMode === "general"
-                ? buildGeneralMedicalPrompt(input.query, answerFormat)
+                ? buildGeneralMedicalPrompt(input.query, answerFormat, this.unifiedLunaPrompt)
                 : sourcedPrompt,
               progress,
               groundingMode === "general" ? [] : evidence.map((item) => item.sourceId),
@@ -341,7 +341,11 @@ export class GroundedAiService {
           onProvisionalAnswer?.("");
           draft = await withAiDeadline(
             () =>
-              this.model.generate(buildGeneralMedicalPrompt(input.query), onProvisionalAnswer, []),
+              this.model.generate(
+                buildGeneralMedicalPrompt(input.query, answerFormat, this.unifiedLunaPrompt),
+                onProvisionalAnswer,
+                [],
+              ),
             signal,
             this.timeouts.modelMs,
             "MODEL_TIMEOUT",
@@ -468,6 +472,15 @@ export class GroundedAiService {
         : error instanceof GroundedAiError
           ? error
           : new GroundedAiError(502, "MODEL_FAILED", "Grounded AI request failed");
+      // Privacy-safe request-stage diagnostic (no query, user, source or token data).
+      // This makes SEARCH_TIMEOUT identifiable in Cloudflare request logs instead
+      // of surfacing as HTTP 200 on an unfinished SSE channel.
+      console.warn("santo_query_failure_stage", {
+        requestId,
+        code: mapped.code,
+        stage: failureStage(mapped.code),
+        milliseconds: Math.max(0, this.nowMs() - startedAt),
+      });
       this.recordFailure(requestId, session, startedAt, mapped.code, {
         failureStage: failureStage(mapped.code),
         responseFormat: this.markdownOutput ? "markdown" : "json",
@@ -518,6 +531,7 @@ export class GroundedAiService {
       answer,
       citations,
       ...(relatedPics.length ? { relatedPics } : {}),
+
       ...(responseMode === "general" ? { groundingMode: "general" as const } : {}),
       usage: {
         unitsCharged: 1,

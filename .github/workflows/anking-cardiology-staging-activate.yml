@@ -1,0 +1,120 @@
+name: AnKing Full v12 Staging Activation
+
+on:
+  push:
+    branches:
+      - feat/anking-cardiology-suggestions-staging-20261018
+    paths:
+      - .github/workflows/anking-cardiology-staging-activate.yml
+
+permissions:
+  contents: read
+  checks: read
+  actions: read
+
+concurrency:
+  group: santo-pilot-staging-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy-staging:
+    if: github.repository == 'geminiamo0-ship-it/santoreno'
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      GH_TOKEN: ${{ github.token }}
+      WORKER_URL: https://santo-api-staging.geminiamo0.workers.dev
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Wait until isolated Cloudflare index is fully processed
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 315); do
+            stats="$(curl -fsS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/ai-search/namespaces/default/instances/santo-anking-step-v12/stats")"
+            jq -e '.success == true and (.result | type == "object")' <<< "$stats" >/dev/null
+            completed="$(jq -r '.result.completed // 0' <<< "$stats")"
+            queued="$(jq -r '.result.queued // 0' <<< "$stats")"
+            running="$(jq -r '.result.running // 0' <<< "$stats")"
+            failed="$(jq -r '.result.error // 0' <<< "$stats")"
+            degraded="$(jq -r '.result.degraded // false' <<< "$stats")"
+            if (( failed > 0 )) || [[ "$degraded" == "true" ]]; then
+              echo "Cloudflare reported indexing failures; staging deploy forbidden"; exit 1
+            fi
+            if (( completed >= 30477 && queued == 0 && running == 0 )); then
+              echo "Cloudflare confirms all 30477 AnKing notes indexed"; break
+            fi
+            if (( attempt % 10 == 0 )); then
+              echo "Index readiness: $completed / 30477 completed; queued=$queued running=$running errors=$failed"
+            fi
+            if [[ "$attempt" == "315" ]]; then echo "Still indexing; do not deploy"; exit 1; fi
+            sleep 60
+          done
+
+      - name: Wait for both exact-head Verify checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 120); do
+            checks="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/check-runs")"
+            policy="$(jq -r '[.check_runs[] | select(.name == "repository-policy") | .conclusion] | map(select(. != null)) | .[0] // ""' <<<"$checks")"
+            quality="$(jq -r '[.check_runs[] | select(.name == "code-quality") | .conclusion] | map(select(. != null)) | .[0] // ""' <<<"$checks")"
+            if [[ "$policy" == "success" && "$quality" == "success" ]]; then
+              echo "Exact branch commit has green Verify"; break
+            fi
+            for state in "$policy" "$quality"; do
+              case "$state" in
+                failure|cancelled|timed_out|action_required|startup_failure|stale)
+                  echo "Verify failed: policy=$policy quality=$quality"; exit 1;;
+              esac
+            done
+            if [[ "$attempt" == "120" ]]; then echo "Verify timed out"; exit 1; fi
+            sleep 10
+          done
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run read-only seven-library namespace smoke
+        run: |
+          set -euo pipefail
+          python -m pip install requests==2.32.3
+          python scripts/smoke_anking_seven_index_staging.py
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install dependencies
+        run: |
+          corepack enable
+          pnpm install --frozen-lockfile
+
+      - name: Deploy ONLY Santo Staging Worker with owner-cleared CID navigation
+        run: |
+          set -euo pipefail
+          test -n "${CLOUDFLARE_ACCOUNT_ID:-}"
+          test -n "${CLOUDFLARE_API_TOKEN:-}"
+          cd workers/api
+          pnpm exec wrangler deploy --env staging --keep-vars
+
+      - name: Health and unauthorized medical AI denial
+        run: |
+          set -euo pipefail
+          data="$(curl --fail -sS --retry 8 --retry-delay 2 --retry-all-errors "$WORKER_URL/health")"
+          jq -e '.service=="santo-api" and .status=="ok"' <<< "$data" >/dev/null
+          code="$(curl -sS -o /dev/null -w '%{http_code}' -X POST "$WORKER_URL/v1/ai/query" -H 'content-type: application/json' --data '{"query":"aortic stenosis","idempotency_key":"anking-no-auth-smoke"}')"
+          test "$code" = "401"
+          {
+            echo '## AnKing Cardiology — STAGING ONLY'
+            echo '- R2: 128 private metadata shards; Cloudflare index: 30,477 note records'
+            echo '- 36,896 owner-confirmed stable CIDs; zero model-generated IDs'
+            echo '- One combined AI Search request; five medical citation indexes remain authoritative'
+            echo '- Medical-review-pending AnKing facts are NOT fed into Luna; card navigation only'
+            echo '- Health/unauthenticated deny passed, clinical browser QA still required'
+            echo '- Production untouched'
+          } >> "$GITHUB_STEP_SUMMARY"

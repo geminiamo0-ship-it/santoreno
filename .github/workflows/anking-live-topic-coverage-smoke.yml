@@ -1,0 +1,44 @@
+name: Verify Real AnKing v12 Find the Card Topics — Staging (Read Only)
+on:
+  push:
+    branches:
+      - feat/anking-reference-isolated-find-card-20261019
+    paths:
+      - .github/workflows/anking-live-topic-coverage-smoke.yml
+permissions:
+  contents: read
+jobs:
+  topic-coverage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/anking-reference-isolated-find-card-20261019
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install exact locked project dependencies
+        shell: bash
+        run: |
+          corepack enable
+          pnpm install --frozen-lockfile
+      - name: Read ONLY original published 10-MB AnKing CID index from staging R2
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${CLOUDFLARE_ACCOUNT_ID:-}"
+          test -n "${CLOUDFLARE_API_TOKEN:-}"
+          pnpm --dir workers/api exec wrangler r2 object get "santo-content-staging/anking/v12/full/topic-index-v1.json" --file /tmp/anking-find-the-card-real-index.json --remote
+          test "$(stat -c%s /tmp/anking-find-the-card-real-index.json)" -gt 1000000
+      - name: Exercise actual TypeScript topic matcher, 20-CID pages, zero R2 writes or AI
+        shell: bash
+        env:
+          SANTO_ANKING_TOPIC_INDEX_FILE: /tmp/anking-find-the-card-real-index.json
+        run: |
+          set -euo pipefail
+          pnpm --dir workers/api exec vitest run src/ai/anking-topic-finder.test.ts
+          echo "ANKING_REAL_V12_TOPIC_CID_SEARCH_VERIFIED" >> "$GITHUB_STEP_SUMMARY"

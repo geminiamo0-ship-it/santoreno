@@ -1,0 +1,119 @@
+name: Verify Full AnKing v12 Single Search and Deploy — Santo Staging
+# Owner-confirmed AnKing v12 indexing complete; activate via existing single 7-index search
+
+on:
+  push:
+    branches:
+      - feat/anking-v12-single-search-staging-20261019
+    paths:
+      - .github/workflows/anking-v12-single-search-staging.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  # Dedicated verified v12 staging rollout; old queued jobs fail exact-head SHA check.
+  group: santo-staging-anking-v12-activation-20261019
+  # Supersede stale queued deploys from this branch, so they cannot later overwrite the verified full-index release.
+  cancel-in-progress: true
+
+jobs:
+  verify-and-deploy:
+    if: github.repository == 'geminiamo0-ship-it/santoreno'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      WORKER_URL: https://santo-api-staging.geminiamo0.workers.dev
+    steps:
+      - name: Checkout verified candidate
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install workspace packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          corepack enable
+          pnpm install --frozen-lockfile
+      - name: Persist formatting on isolated unified Luna branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm exec prettier --write workers/api/src/ai/retrieval.ts workers/api/src/ai/retrieval.test.ts workers/api/src/ai/anking-flashcards.ts workers/api/src/ai/anking-flashcards.test.ts workers/api/src/ai/handler.ts workers/api/src/runtime/bindings.ts
+          if ! git diff --quiet; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add workers/api/src/ai/retrieval.ts workers/api/src/ai/retrieval.test.ts workers/api/src/ai/anking-flashcards.ts workers/api/src/ai/anking-flashcards.test.ts workers/api/src/ai/handler.ts workers/api/src/runtime/bindings.ts
+            git commit -m "style(staging): format AnKing v12 one-call search changes"
+            git push origin HEAD:feat/anking-v12-single-search-staging-20261019
+          fi
+          echo "Exact verified working commit: $(git rev-parse HEAD)"
+      - name: Verify lint, typecheck, all tests, build and smoke before deploy
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm lint
+          pnpm typecheck
+          pnpm test
+          pnpm build
+          pnpm smoke
+      - name: Require AnKing and AMBOSS source-only configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'SANTO_ENV = "staging"' workers/api/wrangler.toml
+          grep -Fq 'SANTO_ANKING_CARDS_V1 = "true"' workers/api/wrangler.toml
+          grep -Fq 'SANTO_ANKING_RIGHTS_CLEARED_V1 = "true"' workers/api/wrangler.toml
+          grep -Fq 'SANTO_AMBOSS_ADJACENT_R2_V1 = "true"' workers/api/wrangler.toml
+          grep -Fq 'SANTO_LUNA_UNIFIED_PROMPT_V1 = "true"' workers/api/wrangler.toml
+          grep -Fq 'const ADJACENT_FILES = 10;' workers/api/src/ai/amboss-adjacent.ts
+          grep -Fq 'const MAX_TOTAL_EVIDENCE = 15;' workers/api/src/ai/amboss-adjacent.ts
+          grep -Fq 'LUNA_UNIFIED_MAX_INSTRUCTION_BYTES = 1_000' workers/api/src/ai/luna-unified-prompt.ts
+          grep -Fq 'clinical reference for medical students and doctors' workers/api/src/ai/luna-unified-prompt.ts
+          grep -Fq 'bold-led bullets' workers/api/src/ai/luna-unified-prompt.ts
+          grep -Fq 'SANTO_ANKING_V12_FULL_SEARCH_V1 = "true"' workers/api/wrangler.toml
+          grep -Fq 'const ANKING_FULL_V12_INSTANCE = "santo-anking-step-v12";' workers/api/src/ai/retrieval.ts
+          grep -Fq 'const FULL_V12_SHARD_COUNT = 128;' workers/api/src/ai/anking-flashcards.ts
+          grep -Fq 'export const LUNA_MAX_OUTPUT_TOKENS = 3_000;' workers/api/src/ai/model.ts
+          grep -Fq 'SANTO_AI_SEARCH_SINGLE_REQUEST_V1 = "true"' workers/api/wrangler.toml
+          test -n "${CLOUDFLARE_ACCOUNT_ID:-}"
+          test -n "${CLOUDFLARE_API_TOKEN:-}"
+          test "$(git ls-remote origin refs/heads/feat/anking-v12-single-search-staging-20261019 | cut -f1)" = "$(git rev-parse HEAD)"
+          echo "VERIFIED_DEPLOY_SOURCE_SHA=$(git rev-parse HEAD)"
+      - name: Setup Python for read-only Cloudflare full-index and search verification
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Verify live seven-index search (skip index-status readiness probe)
+        shell: bash
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          python -m pip install requests==2.32.3
+          python scripts/smoke_anking_full_v12_single_search_staging.py
+          echo 'Full v12 indexing accepted as owner-confirmed; index-count gating skipped.'
+      - name: Deploy Santo staging only, retaining secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd workers/api
+          pnpm exec wrangler deploy --env staging --keep-vars
+      - name: Verify Worker health and unauthorized request rejection
+        shell: bash
+        run: |
+          set -euo pipefail
+          health="$(curl --retry 10 --retry-delay 3 --retry-all-errors --fail --silent --show-error "$WORKER_URL/health")"
+          jq -e '.service=="santo-api" and .status=="ok"' <<< "$health" >/dev/null
+          status="$(curl -sS -o /dev/null -w '%{http_code}' -X POST "$WORKER_URL/v1/ai/query" -H 'content-type: application/json' --data '{"query":"aortic stenosis","idempotency_key":"santo-anking-v12-unauth-smoke"}')"
+          test "$status" = 401
+          echo "SANTO_ANKING_V12_ONE_CALL_STAGING_DEPLOYED" >> "$GITHUB_STEP_SUMMARY"
+          echo "Source SHA: $(git rev-parse HEAD)" >> "$GITHUB_STEP_SUMMARY"
+          echo "No Production deployment. Live authenticated answer/source-card acceptance remains pending." >> "$GITHUB_STEP_SUMMARY"

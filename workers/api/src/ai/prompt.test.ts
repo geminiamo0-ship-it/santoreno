@@ -31,6 +31,23 @@ function promptSections(prompt: string): { question: string; sources: unknown[] 
 }
 
 describe("deterministic grounded prompt builder", () => {
+  it("sends only trusted data, not duplicated instructions, in unified Luna mode", () => {
+    const compact = buildGroundedPrompt("Treatment by severity", [evidence], "markdown", true);
+    expect(compact).toContain("USER_QUESTION_JSON:");
+    expect(compact).toContain("EVIDENCE_JSON:");
+    expect(promptSections(compact)).toEqual({
+      question: "Treatment by severity",
+      sources: [expect.objectContaining({ source_id: evidence.sourceId, text: evidence.text })],
+    });
+    expect(compact).not.toContain("Teach, do not merely retrieve");
+    expect(compact).not.toContain("OUTPUT CONTRACT:");
+    expect(compact).not.toContain("citations");
+    const general = buildGeneralMedicalPrompt("Aortic stenosis", "markdown", true);
+    expect(general).toContain("RUNTIME_GROUNDING_MODE: GENERAL_MEDICAL_KNOWLEDGE");
+    expect(general).not.toContain("Respond freely and thoughtfully");
+    expect(general).not.toContain("No Santo references were retrieved");
+  });
+
   it("uses Markdown-only grounded output instructions without any JSON-response requirements", () => {
     const prompt = buildGroundedPrompt("Teach aortic stenosis", [evidence], "markdown");
     const trusted = promptSections(prompt);
@@ -176,8 +193,22 @@ describe("deterministic grounded prompt builder", () => {
     });
   });
 
+  it("forwards all fifty search hits and ten AMBOSS neighbors to Luna without truncating source identities", () => {
+    const items = Array.from({ length: 60 }, (_, i) => ({
+      ...evidence,
+      sourceId: "mrcp:chunk-" + (i + 1),
+      text: "Verified clinical material " + (i + 1),
+    }));
+    const parsed = promptSections(
+      buildGroundedPrompt("Explain aortic stenosis", items, "markdown", true),
+    );
+    expect(parsed.sources).toHaveLength(60);
+    expect((parsed.sources[0] as { source_id: string }).source_id).toBe("mrcp:chunk-1");
+    expect((parsed.sources[59] as { source_id: string }).source_id).toBe("mrcp:chunk-60");
+  });
+
   it("fails closed instead of silently dropping additional or unbounded source identifiers", () => {
-    expect(() => buildGroundedPrompt("test", Array(6).fill(evidence))).toThrowError(
+    expect(() => buildGroundedPrompt("test", Array(61).fill(evidence))).toThrowError(
       "Retrieved evidence exceeds prompt limits",
     );
     expect(() =>

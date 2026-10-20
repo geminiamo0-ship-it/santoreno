@@ -40,4 +40,4 @@ jobs:
           pnpm test
           pnpm build
           pnpm smoke
-          echo "CI verified after updated R2 test. Staging and Production were not changed." >> "$GITHUB_STEP_SUMMARY"
+          echo "CI verified after corrected citation snapshot fixture. Staging and Production were not changed." >> "$GITHUB_STEP_SUMMARY"

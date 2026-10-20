@@ -17,6 +17,11 @@ export const GroundedAiQueryRequestSchema = z
     idempotency_key: z.string().trim().min(1).max(128),
     library_id: GroundedAiLibraryIdSchema.optional(),
     source_mode: SantoSourceModeSchema.optional(),
+    /** Trusted Qwen-only replies from ConversationDO; no Luna outputs. */
+    recent_qwen_replies: z
+      .array(z.object({ sequence: z.number().int().nonnegative(), answer: z.string().max(350) }).strict())
+      .max(5)
+      .optional(),
     /** Optional bounded router context; constructed by trusted ConversationDO on /ask. */
     recent_user_messages: z.array(z.string().max(1000)).max(5).optional(),
   })
@@ -86,6 +91,8 @@ export const GroundedAiQueryResponseSchema = z
     requestId: z.string().uuid(),
     messageId: z.string().uuid(),
     answer: z.string().min(1),
+    /** Only for genuine Qwen CHAT/CLARIFY turns; Luna never sets this. */
+    responder: z.literal("qwen").optional(),
     /** Legacy responses without this property are always source-grounded. */
     groundingMode: z.enum(["santo", "general"]).optional(),
     citations: z.array(GroundedAiCitationSchema).max(15),

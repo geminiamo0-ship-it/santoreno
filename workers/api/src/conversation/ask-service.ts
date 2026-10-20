@@ -26,6 +26,7 @@ export class ConversationAskService {
         query: string;
         idempotency_key: string;
         library_id?: string;
+        source_mode?: "libraries" | "research";
         recent_user_messages?: string[];
       },
       signal: AbortSignal,
@@ -80,6 +81,7 @@ export class ConversationAskService {
           query: effectiveQuery,
           idempotency_key: key,
           ...(body.libraryId ? { library_id: body.libraryId } : {}),
+          ...(body.sourceMode === "research" ? { source_mode: "research" as const } : {}),
           ...(started.recentUserMessages?.length
             ? { recent_user_messages: started.recentUserMessages }
             : {}),
@@ -120,6 +122,7 @@ async function invokeGroundedAnswer(
     query: string;
     idempotency_key: string;
     library_id?: string;
+    source_mode?: "libraries" | "research";
     recent_user_messages?: string[];
   },
   signal: AbortSignal,

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { GroundedAiQueryResponseSchema } from "./ai";
+import { GroundedAiQueryResponseSchema, SantoSourceModeSchema } from "./ai";
 
 export const ConversationIdSchema = z.string().uuid();
 export const ConversationIdempotencyKeySchema = z.string().trim().min(1).max(128);
@@ -94,12 +94,16 @@ export const ConversationAskRequestSchema = z
     idempotencyKey: ConversationIdempotencyKeySchema,
     expectedSequence: z.number().int().nonnegative().max(200),
     text: ConversationTextSchema,
+    sourceMode: SantoSourceModeSchema.optional(),
     libraryId: z
       .string()
       .regex(/^[a-z0-9][a-z0-9_-]{0,63}$/)
       .optional(),
   })
-  .strict();
+  .strict()
+  .refine((req) => req.sourceMode !== "research" || !req.libraryId, {
+    message: "Research mode cannot filter a Santo library",
+  });
 export type ConversationAskRequest = z.infer<typeof ConversationAskRequestSchema>;
 
 /** Deterministic, authorized non-clinical conversation; never a fabricated sourced answer. */
@@ -161,6 +165,7 @@ export const ConversationTurnSchema = z
     sequence: z.number().int().nonnegative(),
     question: ConversationTextSchema,
     libraryId: z.string().nullable(),
+    sourceMode: SantoSourceModeSchema.optional(),
     status: ConversationTurnStatusSchema,
     response: ConversationAnswerSchema.nullable(),
   })

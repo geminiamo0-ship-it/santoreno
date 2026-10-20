@@ -69,6 +69,9 @@ export interface SantoBindings {
   SANTO_SESSION_TTL_SECONDS?: string;
   SANTO_AI_MODEL?: string;
   SANTO_LUNA_PREVIEW?: string;
+  SANTO_RESEARCH_ENABLED?: string;
+  NCBI_API_KEY?: string;
+  OPENALEX_API_KEY?: string;
   SANTO_SINGLE_PASS_GENERATION_V1?: string;
   SANTO_COMPACT_CITATION_ALIASES_V1?: string;
   SANTO_PLAIN_TEXT_LUNA_V1?: string;

@@ -769,6 +769,57 @@ describe("grounded AI handler", () => {
     expect(telemetryEvents.at(-1)?.status).toBe("success");
   });
 
+  it("sends actual PubMed evidence into the SAME Luna model and shared quota without Qwen", async () => {
+    env.SANTO_RESEARCH_ENABLED = "true";
+    retrieval.route = vi.fn(async () => ({ intent: "chat" as const, answer: "Qwen-only answer" }));
+    const originalGenerate = model.generate;
+    model.generate = vi.fn(async () => ({
+      answer: "This medical trial helps explain aortic stenosis treatment.",
+      citationIds: ["pubmed:123"],
+    }));
+    const net = vi.fn(async (raw: RequestInfo | URL) => {
+      const url = String(raw);
+      if (url.includes("esearch.fcgi")) {
+        return Response.json({ esearchresult: { idlist: ["123"] } });
+      }
+      if (url.includes("efetch.fcgi") && url.includes("db=pubmed")) {
+        return new Response(`<PubmedArticleSet><PubmedArticle><MedlineCitation><PMID>123</PMID>
+          <Article><ArticleTitle>Severe aortic stenosis randomized treatment trial</ArticleTitle>
+          <Abstract><AbstractText>Aortic stenosis randomized treatment trial shows outcomes.</AbstractText></Abstract>
+          </Article></MedlineCitation></PubmedArticle></PubmedArticleSet>`);
+      }
+      return new Response("provider unavailable", { status: 503 });
+    });
+    vi.stubGlobal("fetch", net);
+    try {
+      const old = request(token, "real-research", "aortic stenosis treatment");
+      const payload = JSON.parse(await old.clone().text()) as Record<string, unknown>;
+      payload.source_mode = "research";
+      const req = new Request(old.url, {
+        method: "POST",
+        headers: old.headers,
+        body: JSON.stringify(payload),
+      });
+      const response = await handler()(req, env);
+      expect(response.status).toBe(200);
+      const result = (await response.json()) as { citations: Array<{ sourceId: string }> };
+      expect(result.citations.map((x) => x.sourceId)).toContain("pubmed:123");
+      expect(model.generate).toHaveBeenCalledTimes(1);
+      expect(retrieval.route).not.toHaveBeenCalled();
+      expect(retrieval.retrieve).not.toHaveBeenCalled();
+      expect(quota.used).toBe(1);
+
+      // The existing Libraries route is unchanged and uses the SAME quota engine.
+      model.generate = originalGenerate;
+      const libraries = await handler()(request(token, "old-libraries", "serum sodium"), env);
+      expect(libraries.status).toBe(200);
+      expect(retrieval.retrieve).toHaveBeenCalledTimes(1);
+      expect(quota.used).toBe(2);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("passes a validated library filter into retrieval", async () => {
     const response = await handler()(request(token, "library-key", "sodium", "mrcp"), env);
 

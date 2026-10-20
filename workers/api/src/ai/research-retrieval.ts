@@ -166,29 +166,6 @@ function rankPapers(papers: Paper[], query: string): Paper[] {
     .sort((a, b) => b.score - a.score || a.position - b.position);
 }
 
-function snippetsFromFullText(xml: string, terms: readonly string[]): string[] {
-  const paras = xmlChunks(xml, "p")
-    .map(decodeXml)
-    .filter((p) => p.length >= 60 && p.length <= 2600);
-  const captions = xmlChunks(xml, "fig")
-    .map((fig) => tag(fig, "caption"))
-    .filter((caption): caption is string => !!caption && caption.length > 30)
-    .map((caption) => "Figure caption: " + caption);
-  const tableCaptions = xmlChunks(xml, "table-wrap")
-    .map((tbl) => tag(tbl, "caption"))
-    .filter((caption): caption is string => !!caption && caption.length > 30)
-    .map((caption) => "Table caption: " + caption);
-  return [...paras, ...captions, ...tableCaptions]
-    .map((text) => ({
-      text,
-      score: terms.filter((term) => text.toLowerCase().includes(term)).length,
-    }))
-    .filter((item) => item.score > 0)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 4)
-    .map((item) => item.text);
-}
-
 /** Fixed provider hosts and response-size bounds; no arbitrary URLs from papers or users. */
 export class PubMedResearchRetrieval implements RetrievalPort {
   private readonly fetcher: typeof fetch;

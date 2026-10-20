@@ -47,8 +47,8 @@ jobs:
               const tracedFetch = async (input: RequestInfo | URL, init?: RequestInit) => {
                 const url = new URL(String(input));
                 try {
-                  const response = await fetch(input, init);
-                  providerStatuses.push({status:response.status,host:url.hostname,path:url.pathname});
+                  const response = await fetch(input, { ...init, redirect: "follow" });
+                  providerStatuses.push({status:response.status,host:new URL(response.url).hostname,path:url.pathname});
                   return response;
                 } catch (cause) {
                   providerStatuses.push({error:cause instanceof Error ? cause.name : "FetchError",

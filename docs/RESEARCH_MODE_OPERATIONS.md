@@ -28,7 +28,7 @@ when the request is pinned by the conversation state; no double charging.
 6. Only selected evidence enters the one Luna/Santo model pathway. Server
    verifies citation IDs and writes authenticated source snapshots.
 7. Research source details open the original PubMed record. PMC media from
-   official AWS Article Datasets are resolved *after* answer completion,
+   official AWS Article Datasets are resolved _after_ answer completion,
    matched to the article JATS `graphic xlink:href` and caption, and embedded
    in Royal Bank's answer display. This doesn't delay the first answer.
 8. Figure delivery currently allows CC0, CC BY, CC BY-SA dataset records,

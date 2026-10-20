@@ -1,4 +1,4 @@
-name: Read-Only PMC JATS Identity Probe v2 (NO DEPLOY)
+name: Read-Only PMC Full-Text Smoke v3 (NO DEPLOY)
 
 on:
   push:

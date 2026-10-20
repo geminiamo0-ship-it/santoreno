@@ -1,4 +1,4 @@
-import type { GroundedAiCitation } from "@santo/contracts/ai";
+import { MAX_GROUNDED_CITATIONS, type GroundedAiCitation } from "@santo/contracts/ai";
 
 import { GroundedAiError } from "./errors";
 import type { GroundedModelDraft, RetrievedEvidence } from "./types";
@@ -35,7 +35,7 @@ export function validateGroundedCitations(
     } satisfies GroundedAiCitation;
   });
 
-  if (citations.length > 15) {
+  if (citations.length > MAX_GROUNDED_CITATIONS) {
     throw new GroundedAiError(502, "CITATION_INVALID", "Model returned too many citations");
   }
 

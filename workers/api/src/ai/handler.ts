@@ -104,9 +104,6 @@ export function createGroundedAiHandler(dependencies: GroundedAiHandlerDependenc
     }
 
     try {
-      if (parsed.data.source_mode === "research" && env.SANTO_RESEARCH_ENABLED !== "true") {
-        return errorResponse("RESEARCH_MODE_DISABLED", 403);
-      }
       const tokens = new SantoSessionTokenService(env);
       const principal = await tokens.verifyBearerToken(
         request.headers.get("authorization") ?? undefined,
@@ -116,6 +113,11 @@ export function createGroundedAiHandler(dependencies: GroundedAiHandlerDependenc
         tenantRepositoryFactory(env),
         tokens,
       ).resolve(principal);
+
+      // Feature selection must never reveal enablement before authenticating.
+      if (parsed.data.source_mode === "research" && env.SANTO_RESEARCH_ENABLED !== "true") {
+        return errorResponse("RESEARCH_MODE_DISABLED", 403);
+      }
 
       const response = await new GroundedAiService(
         quotaServiceFactory(env),

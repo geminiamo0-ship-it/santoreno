@@ -56,7 +56,9 @@ jobs:
         run: |
           set -euo pipefail
           curl --retry 5 --retry-delay 3 --retry-all-errors --fail --silent "$WORKER_URL/health" | jq -e '.service == "santo-api" and .status == "ok"'
-          code="$(curl --silent --output /dev/null --write-out '%{http_code}' -X POST "$WORKER_URL/v1/ai/query" -H 'content-type: application/json' --data '{"query":"Aortic stenosis clinical trials","idempotency_key":"research-no-session-smoke","source_mode":"research"}')"
+          code="$(curl --silent --output /tmp/santo-smoke-response.json --write-out '%{http_code}' -X POST "$WORKER_URL/v1/ai/query" -H 'content-type: application/json' --data '{"query":"Aortic stenosis clinical trials","idempotency_key":"research-no-session-smoke","source_mode":"research"}')"
+          echo "Anonymous research request HTTP status: $code"
+          jq -r '.error // "unknown"' /tmp/santo-smoke-response.json
           test "$code" = 401
           echo "Staging health and unauthenticated Research Mode denial OK" >> "$GITHUB_STEP_SUMMARY"
           echo "Provider-authenticated and browser medical QA still required" >> "$GITHUB_STEP_SUMMARY"

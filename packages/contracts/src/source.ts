@@ -82,6 +82,7 @@ export const TrustedSourceDetailResponseSchema = z
   .object({
     source: TrustedSourceMetadataSchema,
     images: z.array(TrustedSourceImageSchema).max(50),
+    externalUrl: z.string().url().optional(),
   })
   .strict();
 
@@ -137,7 +138,7 @@ export const VerifiedSourceSnapshotSchema = z
     externalUserId: z.string().min(1).max(255),
     messageId: z.string().uuid(),
     createdAt: z.number().int().nonnegative(),
-    sources: z.array(TrustedSourceMetadataSchema).min(1).max(5),
+    sources: z.array(TrustedSourceMetadataSchema).min(1).max(10),
   })
   .strict();
 

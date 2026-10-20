@@ -498,6 +498,7 @@ export class SantoAiElement extends LitElement {
                       ×
                     </button>
                     <strong>${this.source.source.title}</strong>
+                    ${this.source.externalUrl ? html`<a href=${this.source.externalUrl} target="_blank" rel="noopener noreferrer">Open original research ↗</a>` : ""}
                     <p>
                       ${this.source.source.section ?? "Verified source"}
                       ${this.source.source.page ? ` · page ${this.source.source.page}` : ""}

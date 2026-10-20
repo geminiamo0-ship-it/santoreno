@@ -41,7 +41,7 @@ export const GroundedAiQueryResponseSchema = z
     answer: z.string().min(1),
     /** Legacy responses without this property are always source-grounded. */
     groundingMode: z.enum(["santo", "general"]).optional(),
-    citations: z.array(GroundedAiCitationSchema).max(5),
+    citations: z.array(GroundedAiCitationSchema).max(10),
     usage: GroundedAiUsageSchema,
   })
   .superRefine((response, ctx) => {

@@ -88,7 +88,7 @@ const groundedResponseSchema = {
     citation_ids: {
       type: "array",
       items: { type: "string" },
-      maxItems: 5,
+      maxItems: 10,
     },
   },
   required: ["answer", "citation_ids"],

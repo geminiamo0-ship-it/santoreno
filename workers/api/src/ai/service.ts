@@ -116,7 +116,7 @@ export class GroundedAiService {
     let responseMode: "santo" | "general" = "santo";
     try {
       const evidence = await withAiDeadline(
-        () => this.retrieval.retrieve({ query: input.query, libraryId, ...(sourceMode === "research" ? { sourceMode } : {}) }),
+        () => this.retrieval.retrieve({ query: input.query, libraryId, ...(sourceMode === "research" ? { sourceMode, signal } : {}) }),
         signal,
         this.timeouts.retrievalMs,
         "SEARCH_TIMEOUT",

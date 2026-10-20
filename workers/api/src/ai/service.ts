@@ -101,7 +101,11 @@ export class GroundedAiService {
     const libraryId = input.library_id ?? null;
     const sourceMode = input.source_mode ?? "libraries";
     if (sourceMode === "research" && libraryId !== null) {
-      throw new GroundedAiError(400, "INVALID_SOURCE_MODE", "Research cannot filter the internal libraries");
+      throw new GroundedAiError(
+        400,
+        "INVALID_SOURCE_MODE",
+        "Research cannot filter the internal libraries",
+      );
     }
     const quotaIdempotencyKey = await deriveQuotaIdempotencyKey(
       session.externalUserId,
@@ -150,7 +154,10 @@ export class GroundedAiService {
     try {
       const routeStartedAt = performance.now();
       const route =
-        this.intentRoutingEnabled && sourceMode !== "research" && libraryId === null && this.retrieval.route
+        this.intentRoutingEnabled &&
+        sourceMode !== "research" &&
+        libraryId === null &&
+        this.retrieval.route
           ? await withAiDeadline(
               () =>
                 this.retrieval.route!({
@@ -244,7 +251,10 @@ export class GroundedAiService {
         // image-source trust change or shuffled IMG_001 / IMG_081 identifiers.
         const imagesStartedAt = performance.now();
         const originalImagesPromise =
-          groundingMode === "santo" && sourceMode !== "research" && this.richImagesEnabled && this.articleBucket
+          groundingMode === "santo" &&
+          sourceMode !== "research" &&
+          this.richImagesEnabled &&
+          this.articleBucket
             ? loadMedicalImages(this.articleBucket, evidence, imageDiagnostics)
             : Promise.resolve([]);
         const galleryStartedAt = performance.now();

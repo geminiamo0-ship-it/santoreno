@@ -150,9 +150,13 @@ export class ConversationTurnCore {
     storage.sql.exec(TURN_SCHEMA);
     // Existing DO conversations were created without source_mode; migrate
     // once in place. Old rows remain implicitly Libraries.
-    const columns = storage.sql.exec<{ name: string }>("PRAGMA table_info(conversation_turns)").toArray();
+    const columns = storage.sql
+      .exec<{ name: string }>("PRAGMA table_info(conversation_turns)")
+      .toArray();
     if (!columns.some((column) => column.name === "source_mode")) {
-      storage.sql.exec("ALTER TABLE conversation_turns ADD COLUMN source_mode TEXT NOT NULL DEFAULT 'libraries'");
+      storage.sql.exec(
+        "ALTER TABLE conversation_turns ADD COLUMN source_mode TEXT NOT NULL DEFAULT 'libraries'",
+      );
     }
   }
 

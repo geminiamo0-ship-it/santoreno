@@ -135,9 +135,13 @@ export function createGroundedAiHandler(dependencies: GroundedAiHandlerDependenc
       if (sourceMode === "research" && parsed.data.library_id) {
         return errorResponse("INVALID_SOURCE_MODE", 400);
       }
-      const sourceAdapter = sourceMode === "research"
-        ? new PubMedResearchRetrieval({ ncbiApiKey: env.NCBI_API_KEY, openAlexApiKey: env.OPENALEX_API_KEY })
-        : retrievalFactory(env);
+      const sourceAdapter =
+        sourceMode === "research"
+          ? new PubMedResearchRetrieval({
+              ncbiApiKey: env.NCBI_API_KEY,
+              openAlexApiKey: env.OPENALEX_API_KEY,
+            })
+          : retrievalFactory(env);
       const response = await new GroundedAiService(
         quotaServiceFactory(env),
         sourceAdapter,

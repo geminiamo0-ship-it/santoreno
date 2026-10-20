@@ -30,8 +30,9 @@ describe("staging single-pass plain-Luna citation contract", () => {
   });
 
   it("preserves source aliases 16–60 and verifies citations beyond the old 15-source ceiling", () => {
-    const ids = Array.from({ length: 60 }, (_, i) =>
-      (i >= 50 ? "santo-anking-step-v12:" : "amboss:") + "chunk-" + (i + 1),
+    const ids = Array.from(
+      { length: 60 },
+      (_, i) => (i >= 50 ? "santo-anking-step-v12:" : "amboss:") + "chunk-" + (i + 1),
     );
     const text = ids
       .map((_, i) => "Finding [[" + (i + 1) + "]] or [[N]](SANTO_REF_" + (i + 1) + ").")

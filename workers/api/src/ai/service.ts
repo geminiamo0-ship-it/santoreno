@@ -59,9 +59,10 @@ async function deriveQuotaIdempotencyKey(
   clientKey: string,
   query: string,
   libraryId: string | null,
+  sourceMode: "libraries" | "research" = "libraries",
 ): Promise<string> {
   const bytes = new TextEncoder().encode(
-    `${externalUserId}\u0000${clientKey}\u0000${libraryId ?? ""}\u0000${query}`,
+    `${externalUserId}\u0000${clientKey}\u0000${libraryId ?? ""}\u0000${query}${sourceMode === "research" ? "\u0000research" : ""}`,
   );
   const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
   const hex = Array.from(digest, (byte) => byte.toString(16).padStart(2, "0")).join("");
@@ -98,11 +99,16 @@ export class GroundedAiService {
     const requestId = crypto.randomUUID();
     const messageId = crypto.randomUUID();
     const libraryId = input.library_id ?? null;
+    const sourceMode = input.source_mode ?? "libraries";
+    if (sourceMode === "research" && libraryId !== null) {
+      throw new GroundedAiError(400, "INVALID_SOURCE_MODE", "Research cannot filter the internal libraries");
+    }
     const quotaIdempotencyKey = await deriveQuotaIdempotencyKey(
       session.externalUserId,
       input.idempotency_key,
       input.query,
       libraryId,
+      sourceMode,
     );
 
     if (signal?.aborted) {
@@ -144,7 +150,7 @@ export class GroundedAiService {
     try {
       const routeStartedAt = performance.now();
       const route =
-        this.intentRoutingEnabled && libraryId === null && this.retrieval.route
+        this.intentRoutingEnabled && sourceMode !== "research" && libraryId === null && this.retrieval.route
           ? await withAiDeadline(
               () =>
                 this.retrieval.route!({
@@ -187,10 +193,12 @@ export class GroundedAiService {
         const retrievalRequest = {
           query: input.query,
           libraryId,
+          ...(sourceMode === "research" ? { sourceMode, signal } : {}),
           ...(route?.intent === "medical" ? { preparedQuery: route.searchQuery } : {}),
         };
         const combinedSearch =
           this.imageGallery &&
+          sourceMode !== "research" &&
           libraryId === null &&
           this.richImagesEnabled &&
           this.retrieval.retrieveWithGallery
@@ -218,7 +226,7 @@ export class GroundedAiService {
         // A genuinely empty result is different from SEARCH_FAILED / SEARCH_TIMEOUT:
         // infrastructure outages still fail closed, never silently become "general".
         let groundingMode: "santo" | "general" = "santo";
-        if (evidence.length === 0 && !this.generalFallbackEnabled) {
+        if (evidence.length === 0 && (sourceMode === "research" || !this.generalFallbackEnabled)) {
           throw new GroundedAiError(
             422,
             "INSUFFICIENT_EVIDENCE",
@@ -236,7 +244,7 @@ export class GroundedAiService {
         // image-source trust change or shuffled IMG_001 / IMG_081 identifiers.
         const imagesStartedAt = performance.now();
         const originalImagesPromise =
-          groundingMode === "santo" && this.richImagesEnabled && this.articleBucket
+          groundingMode === "santo" && sourceMode !== "research" && this.richImagesEnabled && this.articleBucket
             ? loadMedicalImages(this.articleBucket, evidence, imageDiagnostics)
             : Promise.resolve([]);
         const galleryStartedAt = performance.now();

@@ -13,6 +13,8 @@ export interface RetrievedEvidence {
 export interface RetrievalRequest {
   query: string;
   libraryId: string | null;
+  sourceMode?: "libraries" | "research";
+  signal?: AbortSignal;
   /** Validated single-Qwen medical search query; avoids calling Qwen twice. */
   preparedQuery?: string;
   /** Up to five user-only turns from ConversationDO; never Luna messages. */

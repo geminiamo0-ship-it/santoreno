@@ -14,6 +14,7 @@ import { AI_STAGE_TIMEOUTS } from "./deadline";
 import { AiSearchNamespaceLibraryCatalog } from "./library-catalog";
 import { createGroundedModel } from "./model";
 import { CloudflareAiSearchRetrieval } from "./retrieval";
+import { PubMedResearchRetrieval } from "./research-retrieval";
 import { AmbossAdjacentRetrieval } from "./amboss-adjacent";
 import { CloudflareGalleryImageRetrieval } from "./image-gallery";
 import { GroundedAiService } from "./service";
@@ -127,9 +128,19 @@ export function createGroundedAiHandler(dependencies: GroundedAiHandlerDependenc
         tokens,
       ).resolve(principal);
 
+      const sourceMode = parsed.data.source_mode ?? "libraries";
+      if (sourceMode === "research" && env.SANTO_RESEARCH_ENABLED !== "true") {
+        return errorResponse("RESEARCH_MODE_DISABLED", 403);
+      }
+      if (sourceMode === "research" && parsed.data.library_id) {
+        return errorResponse("INVALID_SOURCE_MODE", 400);
+      }
+      const sourceAdapter = sourceMode === "research"
+        ? new PubMedResearchRetrieval({ ncbiApiKey: env.NCBI_API_KEY, openAlexApiKey: env.OPENALEX_API_KEY })
+        : retrievalFactory(env);
       const response = await new GroundedAiService(
         quotaServiceFactory(env),
-        retrievalFactory(env),
+        sourceAdapter,
         modelFactory(env),
         telemetryFactory(env),
         undefined,

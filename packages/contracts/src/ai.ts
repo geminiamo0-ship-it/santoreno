@@ -8,11 +8,15 @@ export const GroundedAiLibraryIdSchema = z
   .regex(/^[a-z0-9][a-z0-9_-]*$/);
 export type GroundedAiLibraryId = z.infer<typeof GroundedAiLibraryIdSchema>;
 
+export const SantoSourceModeSchema = z.enum(["libraries", "research"]);
+export type SantoSourceMode = z.infer<typeof SantoSourceModeSchema>;
+
 export const GroundedAiQueryRequestSchema = z
   .object({
     query: z.string().trim().min(1).max(4000),
     idempotency_key: z.string().trim().min(1).max(128),
     library_id: GroundedAiLibraryIdSchema.optional(),
+    source_mode: SantoSourceModeSchema.optional(),
     /** Optional bounded router context; constructed by trusted ConversationDO on /ask. */
     recent_user_messages: z.array(z.string().max(1000)).max(5).optional(),
   })

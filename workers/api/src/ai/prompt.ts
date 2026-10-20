@@ -1,9 +1,15 @@
+import { MAX_VERIFIED_EVIDENCE_SOURCES } from "@santo/contracts/ai";
 import { GroundedAiError } from "./errors";
 import type { RetrievedEvidence } from "./types";
 
 const MAX_QUERY_CHARS = 4000;
-// Five ranked source passages plus at most ten verified AMBOSS R2 neighbors.
-const MAX_EVIDENCE_ITEMS = 45;
+// Clinical Libraries can provide up to four × 50 native search chunks and
+// ten original AMBOSS R2 neighbors, with strict source IDs and stable order.
+const MAX_EVIDENCE_ITEMS = MAX_VERIFIED_EVIDENCE_SOURCES;
+// Large result sets must not create an unbounded Luna prompt. This char-level
+// budget is approximate (not an exact tokenizer quota): source count/order is
+// NEVER reduced, but source excerpts become progressively shorter.
+const MAX_LIBRARY_EVIDENCE_JSON_CHARS = 52_000;
 const MAX_EVIDENCE_CHARS = 3500;
 // Research is full-text-aware: a PubMed article may include multiple directly
 // supporting treatment sections. Keep the 3,500-character limit for Libraries.
@@ -30,6 +36,44 @@ const MAX_LIBRARY_ID_CHARS = 64;
 const MAX_TITLE_CHARS = 500;
 const MAX_SECTION_CHARS = 200;
 
+/** Preserve ALL actual retrieved source IDs in encounter order (no ranking/selection).
+ * Only source text length is distributed to keep large-context prompts
+ * bounded; no generated/paraphrased evidence, and no hidden dropped sources.
+ * Server source cards still retain complete validated title/section metadata.
+ */
+function packOriginalLibrarySources(evidence: readonly RetrievedEvidence[]) {
+  // For very large result sets avoid repeated JSON fields: the source ID still
+  // carries exact provenance and gets replaced by an authenticated SANTO_REF_N.
+  const compact = evidence.length > 75;
+  const metadata = evidence.map((item) => compact
+    ? { source_id: item.sourceId, text: "" }
+    : {
+        source_id: item.sourceId,
+        library_id: item.libraryId,
+        title: item.title.slice(0, 120),
+        page: item.page,
+        section: item.section?.slice(0, 90) ?? null,
+        text: "",
+      },
+  );
+  const overhead = JSON.stringify(metadata).length;
+  const remaining = MAX_LIBRARY_EVIDENCE_JSON_CHARS - overhead;
+  if (remaining < evidence.length * 40) {
+    throw new GroundedAiError(502, "SEARCH_FAILED", "All original evidence IDs exceed the safe model context budget");
+  }
+  const perExcerpt = Math.min(3500, Math.max(40, Math.floor(remaining / evidence.length) - 6));
+  const packed = metadata.map((item, index) => {
+    const original = evidence[index]!.text;
+    if (original.length <= perExcerpt) return { ...item, text: original };
+    const end = original.lastIndexOf(" ", perExcerpt);
+    const cutoff = end >= Math.round(perExcerpt * 0.65) ? end : perExcerpt;
+    return { ...item, text: original.slice(0, cutoff).trimEnd() };
+  });
+  if (JSON.stringify(packed).length > MAX_LIBRARY_EVIDENCE_JSON_CHARS)
+    throw new GroundedAiError(502, "SEARCH_FAILED", "Safe evidence-prompt budget exceeded");
+  return packed;
+}
+
 export type SantoAnswerFormat = "json" | "markdown";
 
 export function buildGroundedPrompt(
@@ -50,14 +94,16 @@ export function buildGroundedPrompt(
 
   const research = evidence.length > 0 && evidence.every((item) => item.libraryId === "pubmed");
   const question = research ? researchQuestion(query) : query;
-  const sources = evidence.map((item) => ({
-    source_id: item.sourceId,
-    library_id: item.libraryId,
-    title: item.title.slice(0, MAX_TITLE_CHARS),
-    page: item.page,
-    section: item.section?.slice(0, MAX_SECTION_CHARS) ?? null,
-    text: item.text.slice(0, research ? MAX_RESEARCH_EVIDENCE_CHARS : MAX_EVIDENCE_CHARS),
-  }));
+  const sources = research || evidence.length <= 15
+    ? evidence.map((item) => ({
+        source_id: item.sourceId,
+        library_id: item.libraryId,
+        title: item.title.slice(0, MAX_TITLE_CHARS),
+        page: item.page,
+        section: item.section?.slice(0, MAX_SECTION_CHARS) ?? null,
+        text: item.text.slice(0, research ? MAX_RESEARCH_EVIDENCE_CHARS : MAX_EVIDENCE_CHARS),
+      }))
+    : packOriginalLibrarySources(evidence);
 
   if (dataOnly) {
     return [
@@ -83,7 +129,7 @@ export function buildGroundedPrompt(
     ...(format === "markdown"
       ? [
           "OUTPUT CONTRACT: Write the teaching response directly in Markdown. Do not use structured response wrappers, code fences, or raw machine source identifiers.",
-          "EVIDENCE_JSON contains original, server-verified medical excerpts selected from ranked multi-query Libraries retrieval or PMC Research. Each source_id will be replaced by a temporary SANTO_REF_N label in this same model request. Cite a supported clinical statement using [[N]], where N is the integer in that excerpt's SANTO_REF_N label. Use the marker only when the associated excerpt really supports the statement.",
+          "EVIDENCE_JSON contains original, server-verified medical excerpts from original multi-query Libraries hits (after exact Dedup, no application ranking or top-N selection) or PMC Research. Each source_id will be replaced by a temporary SANTO_REF_N label in this same model request. Cite a supported clinical statement using [[N]], where N is the integer in that excerpt's SANTO_REF_N label. Use the marker only when the associated excerpt really supports the statement.",
           "Review each relevant EVIDENCE_JSON excerpt and cite sources across libraries when supported. Include at least one [[N]] marker if evidence supports the answer; never add an unrelated or invented source, favor a brand, or attribute general medical background to a library.",
           "Source links and source cards belong to Santo, not the model. Never print SANTO_REF_N, original source_id strings, or internal IDs in prose. Finish complete paragraphs and sentences.",
         ]

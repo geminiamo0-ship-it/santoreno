@@ -564,8 +564,8 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
     // a globally ranked top-22 can contain only the earliest two indexes.
     for (let i = 0; i < success.length; i++) {
       for (const library of libraries) {
-        const perLibrary = allRanked.filter((row) =>
-          row.firstQuery === i && row.item.instanceId === library.instanceId,
+        const perLibrary = allRanked.filter(
+          (row) => row.firstQuery === i && row.item.instanceId === library.instanceId,
         );
         for (const entry of perLibrary.slice(0, 4)) include(entry);
       }

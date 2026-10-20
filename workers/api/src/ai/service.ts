@@ -157,7 +157,6 @@ export class GroundedAiService {
       const route =
         this.intentRoutingEnabled &&
         sourceMode !== "research" &&
-        libraryId === null &&
         this.retrieval.route
           ? await withAiDeadline(
               () =>
@@ -207,6 +206,9 @@ export class GroundedAiService {
           libraryId,
           ...(sourceMode === "research" ? { sourceMode, signal } : {}),
           ...(route?.intent === "medical" ? { preparedQuery: route.searchQuery } : {}),
+          ...(route?.intent === "medical" && route.searchQueries?.length
+            ? { preparedQueries: route.searchQueries }
+            : {}),
         };
         const combinedSearch =
           this.imageGallery &&

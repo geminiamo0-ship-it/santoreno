@@ -190,7 +190,9 @@ function snippetsFromFullText(xml: string, terms: readonly string[]): string[] {
 export class PubMedResearchRetrieval implements RetrievalPort {
   private readonly fetcher: typeof fetch;
   constructor(private readonly config: ResearchProviderConfig = {}) {
-    this.fetcher = config.fetcher ?? fetch;
+    // Cloudflare's native fetch must be invoked as a global function, not
+    // extracted and called as a class method (which causes Illegal invocation).
+    this.fetcher = config.fetcher ?? ((input, init) => fetch(input, init));
   }
 
   private async get(url: URL, signal?: AbortSignal, timeoutMs = TIMEOUT_MS): Promise<string> {

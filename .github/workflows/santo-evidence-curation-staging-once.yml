@@ -1,0 +1,73 @@
+name: One-shot Santo Evidence Curation Staging Deploy
+on:
+  push:
+    branches:
+      - fix/santo-curate-evidence-staging-20261020
+    paths:
+      - .github/workflows/santo-evidence-curation-staging-once.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: santo-evidence-curation-staging-once-20261020
+  cancel-in-progress: false
+
+jobs:
+  verify-and-deploy:
+    if: github.repository == 'geminiamo0-ship-it/santoreno'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      WORKER_URL: https://santo-api-staging.geminiamo0.workers.dev
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install pinned packages
+        run: |
+          set -euo pipefail
+          corepack enable
+          pnpm install --frozen-lockfile
+      - name: Full repo verification before deploy
+        run: |
+          set -euo pipefail
+          pnpm lint
+          pnpm typecheck
+          pnpm test
+          pnpm build
+          pnpm smoke
+      - name: Require stage isolation, exact source head, and credentials
+        run: |
+          set -euo pipefail
+          test -n "${CLOUDFLARE_ACCOUNT_ID:-}"
+          test -n "${CLOUDFLARE_API_TOKEN:-}"
+          test "$(git ls-remote origin refs/heads/fix/santo-curate-evidence-staging-20261020 | cut -f1)" = "$(git rev-parse HEAD)"
+          grep -Fq 'SANTO_ENV = "staging"' workers/api/wrangler.toml
+          grep -Fq 'SANTO_GLM_47_FLASH_V1 = "true"' workers/api/wrangler.toml
+          grep -Fq 'SANTO_FORWARD_ALL_SEARCH_HITS_V1 = "true"' workers/api/wrangler.toml
+          grep -Fq 'SANTO_AI_SEARCH_SINGLE_REQUEST_V1 = "true"' workers/api/wrangler.toml
+          grep -Fq 'SANTO_AMBOSS_ADJACENT_R2_V1 = "true"' workers/api/wrangler.toml
+          grep -Fq 'new CuratedEvidenceRetrieval(expanded)' workers/api/src/ai/handler.ts
+          echo "DEPLOY_SOURCE_SHA=$(git rev-parse HEAD)" >> "$GITHUB_STEP_SUMMARY"
+      - name: Read-only seven-index single-call search validation
+        run: |
+          set -euo pipefail
+          python -m pip install requests==2.32.3
+          python scripts/smoke_santo_all_results_staging.py
+      - name: Deploy Santo STAGING only
+        run: |
+          set -euo pipefail
+          cd workers/api
+          pnpm exec wrangler deploy --env staging --keep-vars
+      - name: Check stage endpoint health and unauthorized access
+        run: |
+          set -euo pipefail
+          health="$(curl --retry 8 --retry-delay 2 --retry-all-errors --fail --silent --show-error "$WORKER_URL/health")"
+          jq -e '.service=="santo-api" and .status=="ok"' <<< "$health" > /dev/null
+          status="$(curl -sS -o /dev/null -w '%{http_code}' -X POST "$WORKER_URL/v1/ai/query" -H 'content-type: application/json' --data '{"query":"aortic stenosis","idempotency_key":"curation-unauth-smoke"}')"
+          test "$status" = "401"
+          echo 'SANTO_EVIDENCE_CURATION_STAGING_DEPLOYED_HEALTH_OK_AUTH_401' >> "$GITHUB_STEP_SUMMARY"

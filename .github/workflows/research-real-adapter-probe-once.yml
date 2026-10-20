@@ -1,0 +1,75 @@
+name: Research Adapter Real-Worker Probe (One-Time)
+on:
+  push:
+    branches: [feat/pubmed-research-mode-203]
+    paths: [".github/workflows/research-real-adapter-probe-once.yml"]
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Exercise actual PubMed adapter in remote Cloudflare runtime without quota
+        shell: bash
+        run: |
+          set -euo pipefail
+          corepack enable
+          pnpm install --frozen-lockfile
+          mkdir -p workers/api/src
+          cat > workers/api/src/__research_adapter_probe_temp.ts <<'TYPESCRIPT'
+          import { PubMedResearchRetrieval } from "./ai/research-retrieval";
+          export default {
+            async fetch() {
+              const started = Date.now();
+              try {
+                const evidence = await new PubMedResearchRetrieval().retrieve({
+                  query: "Aortic stenosis", libraryId: null, sourceMode: "research",
+                });
+                return Response.json({
+                  succeeded: true,
+                  count: evidence.length,
+                  ids: evidence.slice(0, 8).map(x => x.sourceId),
+                  sampleLengths: evidence.slice(0, 3).map(x => x.text.length),
+                  elapsedMs: Date.now() - started,
+                });
+              } catch (e) {
+                const err = e as { code?: string; message?: string; name?: string };
+                return Response.json({
+                  succeeded: false,
+                  code: typeof err.code === "string" ? err.code : null,
+                  errorName: err.name ?? null,
+                  errorMessage: String(err.message ?? "").slice(0, 150),
+                  elapsedMs: Date.now() - started,
+                });
+              }
+            },
+          };
+          TYPESCRIPT
+          cat > workers/api/research-adapter-probe.wrangler.toml <<'TOML'
+          name = "santo-research-adapter-remote-probe"
+          main = "src/__research_adapter_probe_temp.ts"
+          compatibility_date = "2026-10-01"
+          workers_dev = true
+          TOML
+          cd workers/api
+          pnpm exec wrangler dev --remote --config research-adapter-probe.wrangler.toml --ip 127.0.0.1 --port 8788 > /tmp/research-adapter-probe.log 2>&1 &
+          PID=$!
+          trap 'kill "$PID" 2>/dev/null || true' EXIT
+          for i in $(seq 1 30); do
+            if curl --fail --silent --show-error --max-time 16 http://127.0.0.1:8788/ > /tmp/research-adapter-result.json 2>/dev/null; then
+              jq . /tmp/research-adapter-result.json
+              exit 0
+            fi
+            if ! kill -0 "$PID" 2>/dev/null; then tail -40 /tmp/research-adapter-probe.log; exit 1; fi
+            sleep 2
+          done
+          tail -40 /tmp/research-adapter-probe.log
+          exit 1

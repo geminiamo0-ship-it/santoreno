@@ -16,10 +16,10 @@ function researchQuestion(query: string): string {
   const followUp = query.slice(index + marker.length).trim();
   if (followUp.length >= 25) return followUp;
   const earlier = query.slice(0, index);
-  const matches = [...earlier.matchAll(/(?:^|\\n)Q:\\s*([^\\n|]+)/g)];
+  const matches = [...earlier.matchAll(/(?:^|\n)Q:\s*([^\n|]+)/g)];
   const last = matches.at(-1)?.[1]?.trim() ?? "";
   return last
-    ? "Prior medical topic: " + last.slice(0, 160) + "\\nFollow-up question: " + followUp
+    ? "Prior medical topic: " + last.slice(0, 160) + "\nFollow-up question: " + followUp
     : followUp;
 }
 const MAX_SOURCE_ID_CHARS = 512;

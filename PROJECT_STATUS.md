@@ -1,5 +1,14 @@
 # Santo Project Status — Living Handoff
 
+### 60-source citation finalization restored — 20 Oct 2026 (Santo Staging LIVE, PR #197)
+
+- Authenticated Royal preview showed `CITATION_INVALID` on `aortic stenosis in detail` even though Luna returned 1,127 output tokens against 16,174 input tokens (approx. $0.002585 model cost). The 50-hit forwarding trial added up to 10 AMBOSS neighbors, but server citation validation / response schema / R2 verified snapshot still had an old **15 distinct cited sources** ceiling.
+- Fixed on branch `fix/santo-all-hits-citation-contract-staging-20261020`: maximum **60 server-verified cited source IDs**, matching 50 Cloudflare search hits plus 10 AMBOSS adjacent excerpts. Includes original exact-source validation, R2 tenant/message snapshot binding, and truthful AnKing note titles; no permissive or fabricated citations. Luna still runs once and AI Search still called once; 3k output cap and full-result retrieval unchanged. Legacy structured-JSON model source schema is still capped at 15.
+- Regression test now exercises 60 original citations, AnKing + clinical source metadata persistence, rejects 61 citations or forged source IDs, and parses numbered aliases 16–60.
+- GitHub exact-head Verify green; **STAGING WORKER DEPLOYED AND VERIFIED** from code SHA `dca49504f798d9e52518c8a5b18b24f6ed01a980`. Real seven-index fast 50-hit search passed; Wrangler staging deployment, health 200, unauthenticated AI 401 passed. [Deployment proof](https://github.com/geminiamo0-ship-it/santoreno/issues/195#issuecomment-6280189327).
+- **Still pending:** signed-in Royal Bank Preview response.complete with real AnKing source cards and true p95 first-token/runtime and provider input cost. Do not claim user-visible end-to-end acceptance until that is observed. Santo Production / Royal Production untouched.
+
+
 ### All Cloudflare search hits forwarded to Luna — 20 Oct 2026 (STAGING candidate, not yet deployed)
 
 - Owner requested removal of Santo's 5-clinical/1-AnKing post-search truncation. `SANTO_FORWARD_ALL_SEARCH_HITS_V1=true` enables passing **every valid retrieved chunk**, including all original AnKing v12 notes, in Cloudflare's merged order to **one** Luna inference. Gallery IDs remain images only, never fabricated clinical citations.

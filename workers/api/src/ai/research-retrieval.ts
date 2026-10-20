@@ -30,6 +30,12 @@ const FIRST_PAPER_BYTES = 15_000;
 const FOLLOWUP_PAPER_BYTES = 2_500;
 const MAX_DOWNLOAD_BYTES = 1_500_000;
 const TIMEOUT_MS = 4000;
+/** JATS PMC article identity permits additional attributes and PMC-prefixed IDs. */
+function pmcArticleIdentity(xml: string): string | null {
+  const found = /<article-id\b[^>]*\bpub-id-type=["']pmc["'][^>]*>\s*(?:PMC)?(\d+)\s*<\/article-id>/i.exec(xml);
+  return found ? "PMC" + found[1] : null;
+}
+
 
 function decodeXml(value: string): string {
   return value
@@ -396,11 +402,9 @@ export class PubMedResearchRetrieval implements RetrievalPort {
           4_500,
         );
         for (const article of xmlChunks(records, "article")) {
-          const pmcid = /<article-id\s+pub-id-type=["']pmc["']>(\d+)<\/article-id>/i.exec(
-            article,
-          )?.[1];
-          if (pmcid && eligible.some((paper) => paper.pmcid === "PMC" + pmcid)) {
-            fullText.set("PMC" + pmcid, article);
+          const pmcid = pmcArticleIdentity(article);
+          if (pmcid && eligible.some((paper) => paper.pmcid === pmcid)) {
+            fullText.set(pmcid, article);
           }
         }
         providerStatus = fullText.size ? "ok" : "failed";
@@ -419,14 +423,7 @@ export class PubMedResearchRetrieval implements RetrievalPort {
           "https://www.ebi.ac.uk/europepmc/webservices/rest/" + firstPmc + "/fullTextXML",
         );
         const xml = await this.get(url, signal, 2_500);
-        if (
-          new RegExp(
-            "<article-id\\s+pub-id-type=[\"']pmc[\"']>\\s*" +
-              firstPmc.slice(3) +
-              "\\s*<\\/article-id>",
-            "i",
-          ).test(xml)
-        ) {
+        if (pmcArticleIdentity(xml) === firstPmc) {
           const article = xmlChunks(xml, "article")[0];
           if (article) fullText.set(firstPmc, article);
         }

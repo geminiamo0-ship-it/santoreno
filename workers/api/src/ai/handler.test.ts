@@ -802,8 +802,8 @@ describe("grounded AI handler", () => {
       });
       const response = await handler()(req, env);
       expect(response.status).toBe(200);
-      const result = await response.json() as { citations: Array<{ sourceId: string }> };
-      expect(result.citations.map(x => x.sourceId)).toContain("pubmed:123");
+      const result = (await response.json()) as { citations: Array<{ sourceId: string }> };
+      expect(result.citations.map((x) => x.sourceId)).toContain("pubmed:123");
       expect(model.generate).toHaveBeenCalledTimes(1);
       expect(retrieval.route).not.toHaveBeenCalled();
       expect(retrieval.retrieve).not.toHaveBeenCalled();

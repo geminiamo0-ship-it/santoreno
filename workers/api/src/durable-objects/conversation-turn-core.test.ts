@@ -168,7 +168,9 @@ describe("verified conversation turn state", () => {
     const research = { ...ask(), sourceMode: "research" as const };
     const started = turns.begin(research);
     expect(started.turn.sourceMode).toBe("research");
-    expect(() => turns.begin({ ...ask(), sourceMode: "libraries" as const })).toThrowError(ConversationStateError);
+    expect(() => turns.begin({ ...ask(), sourceMode: "libraries" as const })).toThrowError(
+      ConversationStateError,
+    );
     turns.fail({ actor, conversationId, idempotencyKey: "first", attemptId: started.attemptId! });
     const retry = turns.begin(research);
     expect(retry.turn.sourceMode).toBe("research");

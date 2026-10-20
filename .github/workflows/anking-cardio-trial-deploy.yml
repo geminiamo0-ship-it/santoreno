@@ -1,0 +1,130 @@
+name: AnKing Cardiology Partial Staging Trial
+
+on:
+  push:
+    branches:
+      - experiment/anking-cardiology-partial-staging-20261018
+    paths:
+      - .github/workflows/anking-cardio-trial-deploy.yml
+
+permissions:
+  contents: read
+  checks: read
+
+concurrency:
+  group: santo-anking-cardio-trial-staging
+  cancel-in-progress: false
+
+jobs:
+  cardio-trial:
+    if: github.repository == 'geminiamo0-ship-it/santoreno'
+    runs-on: ubuntu-latest
+    timeout-minutes: 24
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      GH_TOKEN: ${{ github.token }}
+      WORKER_URL: https://santo-api-staging.geminiamo0.workers.dev
+    steps:
+      - uses: actions/checkout@v4
+      - name: Wait for exact-head Verify (never deploy untested code)
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 75); do
+            runs="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/check-runs" --jq '.check_runs | map({name,conclusion})')"
+            repo_gate="$(jq -r '[.[] | select(.name == "repository-policy") | .conclusion] | map(select(.!=null)) | .[0] // ""' <<< "$runs")"
+            quality_gate="$(jq -r '[.[] | select(.name == "code-quality") | .conclusion] | map(select(.!=null)) | .[0] // ""' <<< "$runs")"
+            if [[ "$repo_gate" == "success" && "$quality_gate" == "success" ]]; then
+              echo 'Exact-head GitHub Verify passed'; break
+            fi
+            for gate in "$repo_gate" "$quality_gate"; do
+              if [[ "$gate" == "failure" || "$gate" == "cancelled" || "$gate" == "timed_out" ]]; then
+                echo 'CI gate failed; no deployment'; exit 1
+              fi
+            done
+            if [[ "$attempt" == 75 ]]; then echo 'Verify timeout'; exit 1; fi
+            sleep 7
+          done
+      - name: Check previously indexed Cardiology docs and one seven-index search
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,os,urllib.request,urllib.error
+          root=f"https://api.cloudflare.com/client/v4/accounts/{os.environ['CLOUDFLARE_ACCOUNT_ID']}/ai-search/namespaces/default"
+          headers={"Authorization":"Bearer "+os.environ["CLOUDFLARE_API_TOKEN"],"Content-Type":"application/json"}
+          def call(url,data=None):
+            request=urllib.request.Request(url,data=json.dumps(data).encode() if data else None,headers=headers)
+            try:
+              with urllib.request.urlopen(request,timeout=75) as response:
+                status=response.status; text=response.read()
+                retry=response.headers.get("Retry-After")
+            except urllib.error.HTTPError as ex:
+              status=ex.code; text=ex.read();retry=ex.headers.get("Retry-After")
+            try: body=json.loads(text)
+            except (ValueError,UnicodeDecodeError):body={}
+            return status,body,retry
+          status,stats,retry=call(root+"/instances/santo-anking-cardiology/stats")
+          if status!=200 or stats.get("success") is not True:
+            print("Cardiology status check failed, HTTP",status,"retry-after",retry,flush=True)
+            raise SystemExit(1)
+          counts=stats.get("result") or {}
+          print("Cardiology Cloudflare status:",{x:counts.get(x) for x in ("completed","queued","running","error")},flush=True)
+          if int(counts.get("completed") or 0) < 100:
+            raise RuntimeError("No usable indexed Cardiology records")
+          opts={
+            "instance_ids":["amboss","usmle","passmedicine","pastest","one-examination-isolated","santo-medical-images","santo-anking-cardiology"],
+            "retrieval":{"retrieval_type":"hybrid","match_threshold":0.4,"max_num_results":50,"return_on_failure":True,"fusion_method":"rrf"},
+            "reranking":{"enabled":True,"model":"@cf/baai/bge-reranker-base"},
+            "query_rewrite":{"enabled":False}
+          }
+          status,result,retry=call(root+"/search",{"query":"aortic stenosis murmur radiates to carotids","ai_search_options":opts})
+          errors=[{"code":e.get("code"),"message":str(e.get("message",""))[:100]} for e in result.get("errors",[]) if isinstance(e,dict)]
+          if status!=200 or result.get("success") is not True:
+            print("Seven-index single call denied: HTTP",status,"errors",errors,"Retry-After",retry,flush=True)
+            raise SystemExit(1)
+          details=result.get("result") or {}
+          if details.get("errors"):
+            print("Partial index failure (including AnKing):",str(details["errors"])[:400],flush=True)
+            raise SystemExit(1)
+          chunks=details.get("chunks")
+          if not isinstance(chunks,list):raise RuntimeError("Malformed Cloudflare results")
+          counts={}
+          for row in chunks:
+            key=row.get("instance_id","unknown")
+            counts[key]=counts.get(key,0)+1
+          clinical=sum(counts.get(k,0) for k in ("amboss","usmle","passmedicine","pastest","one-examination-isolated"))
+          anking=counts.get("santo-anking-cardiology",0)
+          print("Seven-index merged response: ",{"clinical":clinical,"anking":anking,"gallery":counts.get("santo-medical-images",0)},flush=True)
+          if clinical<1 or anking<1:raise RuntimeError("Clinical or Cardiology hits missing; do not deploy")
+          print("CARDIOLOGY_7_INSTANCE_SINGLE_SEARCH_SUCCESS",flush=True)
+          PY
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install locked workspace packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          corepack enable
+          pnpm install --frozen-lockfile
+      - name: Deploy isolated Cardiology trial to Santo STAGING only
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${CLOUDFLARE_ACCOUNT_ID:-}"
+          test -n "${CLOUDFLARE_API_TOKEN:-}"
+          test "$(grep -c 'SANTO_ANKING_CARDS_V1 = "true"' workers/api/wrangler.toml)" -eq 1
+          test "$(grep -c 'const ANKING_SEARCH_INSTANCE = "santo-anking-cardiology"' workers/api/src/ai/retrieval.ts)" -eq 1
+          cd workers/api
+          pnpm exec wrangler deploy --env staging --keep-vars
+      - name: Live health and unauthenticated-user deny
+        shell: bash
+        run: |
+          set -euo pipefail
+          response="$(curl --fail --silent --show-error --retry 4 --retry-delay 2 "$WORKER_URL/health")"
+          jq -e '.service=="santo-api" and .status=="ok"' <<<"$response" >/dev/null
+          code="$(curl -sS -o /dev/null -w '%{http_code}' -X POST "$WORKER_URL/v1/ai/query" -H 'content-type: application/json' --data '{"query":"aortic stenosis","idempotency_key":"anking-cardio-staging-no-auth"}')"
+          test "$code" = "401"
+          echo "STAGING_CARDIOLOGY_TRIAL_DEPLOY_SUCCESS"

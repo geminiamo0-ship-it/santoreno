@@ -190,6 +190,57 @@ export class LibraryReaderService {
     const sources = await this.snapshots.load({ ...session, messageId: request.data.messageId });
     const source = sources.find((s) => s.sourceId === request.data.sourceId);
     if (!source) throw new LibraryReaderError(404, "LIBRARY_NOT_FOUND");
+    // Original AnKing v12 scientific note citations open as a source-backed
+    // study-note article. Never resolve/display an Anki card or CID here.
+    const ankingKey = /(?:^|\/)(note_(\d{10,16}))\.json$/.exec(source.itemKey);
+    if (
+      source.libraryId === "anking" &&
+      source.instanceId === "santo-anking-step-v12" &&
+      ankingKey
+    ) {
+      const noteId = Number(ankingKey[2]);
+      const raw = await readJson(
+        this.bucket,
+        `anking/v12/full/shards/shard_${String(noteId % 128).padStart(3, "0")}.json`,
+        MAX_ARTICLE_BYTES,
+      );
+      const notes =
+        raw && typeof raw === "object" && !Array.isArray(raw)
+          ? (raw as Record<string, unknown>)
+          : null;
+      const record = notes?.[ankingKey[1]!];
+      const note =
+        record && typeof record === "object" && !Array.isArray(record)
+          ? (record as Record<string, unknown>)
+          : null;
+      if (!note || note.note_id !== noteId || note.rights_status !== "licensed_for_santo") {
+        throw new LibraryReaderError(404, "LIBRARY_ARTICLE_NOT_AVAILABLE");
+      }
+      const fact = typeof note.medical_fact === "string" ? note.medical_fact.slice(0, 3000) : "";
+      const pearl =
+        typeof note.clinical_pearl === "string" ? note.clinical_pearl.slice(0, 1000) : "";
+      if (!fact.trim()) throw new LibraryReaderError(404, "LIBRARY_ARTICLE_NOT_AVAILABLE");
+      const topic = typeof note.topic === "string" ? note.topic.slice(0, 250) : "Medical concept";
+      const article = LibraryArticleSchema.parse({
+        schemaVersion: 1,
+        libraryId: "anking",
+        articleId: "note-" + noteId,
+        title: "AnKing v12 — " + topic,
+        category: "High-Yield Medical Study Notes",
+        source: "AnKing v12",
+        sections: [
+          { id: "medical-fact", heading: "Medical concept", text: fact, images: [] },
+          ...(pearl
+            ? [{ id: "clinical-pearl", heading: "Clinical Pearl", text: pearl, images: [] }]
+            : []),
+        ],
+      });
+      return SourceArticleResponseSchema.parse({
+        source,
+        article,
+        highlightSectionId: "medical-fact",
+      });
+    }
     const match = ITEM_KEY.exec(source.itemKey);
     if (!match || match[1] !== source.libraryId) {
       // Old citations or un-imported fixtures remain valid for metadata, not full article browsing.

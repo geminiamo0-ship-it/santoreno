@@ -1,5 +1,71 @@
 # Santo Project Status — Living Handoff
 
+### 60-source citation finalization restored — 20 Oct 2026 (Santo Staging LIVE, PR #197)
+
+- Authenticated Royal preview showed `CITATION_INVALID` on `aortic stenosis in detail` even though Luna returned 1,127 output tokens against 16,174 input tokens (approx. $0.002585 model cost). The 50-hit forwarding trial added up to 10 AMBOSS neighbors, but server citation validation / response schema / R2 verified snapshot still had an old **15 distinct cited sources** ceiling.
+- Fixed on branch `fix/santo-all-hits-citation-contract-staging-20261020`: maximum **60 server-verified cited source IDs**, matching 50 Cloudflare search hits plus 10 AMBOSS adjacent excerpts. Includes original exact-source validation, R2 tenant/message snapshot binding, and truthful AnKing note titles; no permissive or fabricated citations. Luna still runs once and AI Search still called once; 3k output cap and full-result retrieval unchanged. Legacy structured-JSON model source schema is still capped at 15.
+- Regression test now exercises 60 original citations, AnKing + clinical source metadata persistence, rejects 61 citations or forged source IDs, and parses numbered aliases 16–60.
+- GitHub exact-head Verify green; **STAGING WORKER DEPLOYED AND VERIFIED** from code SHA `dca49504f798d9e52518c8a5b18b24f6ed01a980`. Real seven-index fast 50-hit search passed; Wrangler staging deployment, health 200, unauthenticated AI 401 passed. [Deployment proof](https://github.com/geminiamo0-ship-it/santoreno/issues/195#issuecomment-6280189327).
+- **Still pending:** signed-in Royal Bank Preview response.complete with real AnKing source cards and true p95 first-token/runtime and provider input cost. Do not claim user-visible end-to-end acceptance until that is observed. Santo Production / Royal Production untouched.
+
+### All Cloudflare search hits forwarded to Luna — 20 Oct 2026 (STAGING candidate, not yet deployed)
+
+- Owner requested removal of Santo's 5-clinical/1-AnKing post-search truncation. `SANTO_FORWARD_ALL_SEARCH_HITS_V1=true` enables passing **every valid retrieved chunk**, including all original AnKing v12 notes, in Cloudflare's merged order to **one** Luna inference. Gallery IDs remain images only, never fabricated clinical citations.
+- Cloudflare AI Search itself supports **at most 50 returned chunks** in one namespace request (verified earlier by provider 400 when 60 requested). Fast RRF remains on, native reranker stays disabled, and the call now requests 50 instead of 30. Still one AI Search call; no reindexing, extra retrieval pass or added model invocation.
+- When needed, ten original AMBOSS adjacent R2 sections can join the preserved search hits (up to 60 evidence items). The prompt accepts 60 **distinct original server-verified source IDs**, but client-facing cited sources remain capped at 15; the unified instruction now allows SANTO_REF_1 through SANTO_REF_60 and says cite at most 15. Staging only and plain Luna Markdown only: the legacy JSON citation-schema 15-ID ceiling is not widened.
+- Larger prompts can materially increase first-token latency and paid **input** tokens; earlier measured 30-result no-rerank search 2.71–3.61s vs 50-result 4.06–8.97s. This change is an owner-directed **coverage-first experiment**, not a speed optimization.
+- **Santo Staging deployed and verified** from exact code SHA `e6a40dbb1f69bda6e380bdc5c159516b6b06194d`: full lint/typecheck/tests/build/smoke green; live read-only 50-result RRF search returned both clinical and AnKing hits on two fixed queries, each under 12s; Worker health 200 and unauthorized 401. Evidence: GitHub Issue #195, comments `6279988642` and `6279988851`. Authenticated Royal Preview AnKing citation-card frequency, Luna end-to-end verified complete, model input token cost and p95 first word remain **pending**. Santo/Royal Production unchanged; rollback by `SANTO_FORWARD_ALL_SEARCH_HITS_V1=false` + Staging redeploy.
+
+### Full AnKing v12 one-call search — 19 Oct 2026 (Issue #189)
+
+- Owner reports full AnKing v12 index finished. The existing one-call namespace search can now select `santo-anking-step-v12` instead of the cardio-only `santo-anking-cardiology`, under Staging rollback flag `SANTO_ANKING_V12_FULL_SEARCH_V1`.
+- Seven active search instances: five approved clinical libraries + `santo-medical-images` + full AnKing. Maximum global `max_num_results=50`; only the five licensed clinical libraries contribute authoritative medical source IDs/citations.
+- Full index input validation pins **30,477 eligible notes** and **36,896 original cards**; private R2 hydration switches from 32 cardio shards to **128 full v12 shards** (`anking/v12/full/shards/shard_000.json` ... `shard_127.json`). The old cardio Find More reader remains available.
+- Original CID suggestions remain rights-gated and query-relevant. `pending_expert_review` content **must not become Luna clinical evidence or exam-memory facts**. Full AnKing is not a sixth medical citation library.
+- **Owner explicitly confirmed completed indexing** and authorized skipping the stats/count readiness gate. No reindexing, no extra index status check. Still require real seven-instance clinical+AnKing search, all CI tests, Staging Worker deploy/health/auth before claiming activation. Production untouched.
+
+### Approved High-Yield Luna Clinical Reference style — 19 Oct 2026
+
+- Owner-approved **996-byte single unified instruction**: direct clinical answer, concise bold-led bullet points, practical numbered management steps, trustworthy cutoffs and drug names/doses, optional compact comparison tables, medically trained audience by default; depth adapts to "in detail" and broad requests without padding.
+- Uses up to 3,000 output tokens at runtime; verified citations up to 15 only when relevant, uncited background marked "General medical teaching:", medical uncertainty and high-risk dosing qualified, original source image markers preserved.
+- One search, AMBOSS +10 R2 neighbors, AnKing, Qwen and real model-token SSE unchanged. Staging-only PR for this iteration; see Issue #187. Production unchanged; authenticated in-browser answer-depth check remains pending.
+
+### Comprehensive Luna teaching prompt — 19 Oct 2026
+
+- Owner-approved detailed and broad medical education answers use up to 3,000 output tokens as useful, with clear explanations, comparisons, tables, and evidence synthesis across relevant libraries.
+- The single Staging-only unified instruction stays below 1,000 UTF-8 bytes; it is not a limit on medical evidence or the user's dynamic question.
+- Unified mode omits redundant citation-alias reminders but preserves server-verified `SANTO_REF_N` citation mapping, 15-source cap, 10 AMBOSS adjacent sections, image delivery, AnKing, and Qwen routing.
+- Production remains unchanged. Staging deployment and authenticated response/source-card verification are tracked in Issue #177 and PR #178.
+
+### Cardiology AnKing Staging trial LIVE — 18 Oct 2026 (PR #166)
+
+- **Successfully deployed to `santo-api-staging` Worker** from commit `eadaf0742003e7ffdde9d7fa4767e21e87c20e1e` in [Action #39161122303](https://github.com/geminiamo0-ship-it/santoreno/actions/runs/39161122303) after passing [exact-head Verify](https://github.com/geminiamo0-ship-it/santoreno/actions/runs/39161126309). Worker Version ID `1784ab33-ea9b-45e8-b948-e1c254e032a5`; health and unauthenticated 401 both passed. **Production untouched.**
+- **Cloudflare instance `santo-anking-cardiology` has 4,140 completed, 0 queued, 0 running and 11 failed embeddings**; trial uses only available documents without retrying or reindexing. Existing 32 private R2 CID shards retained.
+- Diagnosed Cloudflare HTTP 400 / code 7001 as requesting 60 results when max allowed is **50**; capped combined seven-instance retrieval at 50. One real namespace search returned 20 medical evidence passages, 5 AnKing note chunks and 1 image/gallery chunk for `aortic stenosis murmur radiates to carotids`.
+- AnKing chunks are educational suggestions only, not clinical citations. Original Card IDs are hydrated from private R2 and never invented by the model. Only individually medically approved AnKing pearls may reach the Luna prompt; pending review remains excluded.
+- Royal [Preview](https://royal-bank-2gcodh690-drmostafa5868-7427.vercel.app/santo) is READY with Suggested AnKing Flashcards UI. Authenticated live answer and CID usability must be tested with a signed-in session; the above smoke is infrastructure/retrieval only.
+- Maintain one `AI Search` namespace call and keep this experiment isolated from full `santo-anking-step-v12` index and Production.
+
+### Full AnKing Step v12 — 18 Oct 2026 isolated Staging ingestion
+
+- Owner provided [full-library ZIP](https://drive.google.com/file/d/1sr_XbG5KFC8hFuNXf23WKCthyFYWk4ls/view?usp=sharing), SHA-256 `3e75c1629a74423f012556ff0b52c87703ce12812cfa35b195f3bf57dcebfb25`; source verified 30,521 notes, 36,941 real card IDs, but only 36,937 cloze-match verified; 4 reported mismatches need explicit follow-up.
+- The full V12 library includes all 4,151 Cardiology V3 notes with the **same exact CIDs**. Do not index both as active Luna educational indexes.
+- Exclude 44 records from text search: 14 image-only, 13 Getting Started, 1 deck instructions, 1 note-creation instructions, 3 unusable previews, 12 audio markup. **Staging ingestion target: 30,477 note search documents and 36,896 owner-licensed CID mappings**. Original media and photos are not uploaded.
+- Full isolated index `santo-anking-step-v12` and 128 private R2 shards at `santo-content-staging/anking/v12/full/shards/`. [Full ingestion #39140939785](https://github.com/geminiamo0-ship-it/santoreno/actions/runs/39140939785) successfully advanced past SHA/source validation and first/last R2 readbacks and began submission of note documents. **AI Search indexing and staging deployment NOT yet complete**.
+- [Staging activation](https://github.com/geminiamo0-ship-it/santoreno/actions/workflows/anking-cardiology-staging-activate.yml) requires all 30,477 documents completed without error, one read-only seven-index search smoke, exact-head green checks; never deploy without passing all gates.
+- Earlier Cardiology-only instance `santo-anking-cardiology` accepted 4,151 submissions but subsequently recorded **2 Cloudflare embedding errors**, so its previous activation failed closed; it remains isolated and untouched. The new full index is separate; Cloudflare may have similar transient errors requiring surgical repair rather than duplicate all-items upload.
+- Educational original `cid:` navigation is allowed under owner-confirmed commercial text permission; `pending_expert_review` medical facts NEVER enter Luna's explanation prompt until independently approved. No AnKing audio/media are used. Royal Bank preview UI remains [PR #138](https://github.com/geminiamo0-ship-it/ROYAL-BANK/pull/138), already READY on Vercel; authenticated end-to-end answer not yet independently confirmed. Production unchanged.
+
+### AnKing Cardiology seventh search — isolated staging rollout (18 Oct 2026; issue #164)
+
+- The owner states commercial permission for AnKing text and verifies the supported AnKing V3 Card IDs. That confirms authorization for this pilot but does not imply that every third-party image/audio right is covered. No AnKing images or audio are uploaded.
+- V3 SHA-256-pinned source provides **4,151 notes and 5,156 distinct original `cid:` Card IDs**. The offline note/card join, cloze ordinal and search-document checks passed; offline TF-IDF 8/8 topical query smoke is not a clinical accuracy or live AI Search benchmark.
+- **R2 staging upload completed:** 32 private metadata shards written to `santo-content-staging/anking/v3/cardiology/shards/`, with a real readback-byte comparison. No Production R2/index changes.
+- Isolated `santo-anking-cardiology` built-in-storage AI Search ingestion is in progress: [Action #39137197811](https://github.com/geminiamo0-ship-it/santoreno/actions/runs/39137197811). At the 18 Oct 14:54 UTC snapshot: 202 completed, 1883 queued, 3 running, 0 indexing errors. **Do not report the full 4,151 as indexed yet.** Cloudflare indexing may continue beyond document upload.
+- Code branch `feat/anking-cardiology-suggestions-staging-20261018` passes Verify and is unmerged. Once the separate index has fully processed and seven-index live smoke passes, staging-only flags `SANTO_ANKING_CARDS_V1=true` and `SANTO_ANKING_RIGHTS_CLEARED_V1=true` deploy through the gated [Activation Action](https://github.com/geminiamo0-ship-it/santoreno/actions/workflows/anking-cardiology-staging-activate.yml). They are only branch configuration until deployed.
+- CID navigation may show licensed original study cards while `pending_expert_review`; unreviewed AnKing facts **never** enter Luna's clinical explanation prompt. Only individually medically approved facts can supplement Luna, and AnKing cannot replace the five clinical citations. Clinical review is still pending; no blanket approval.
+- Royal Bank card preview [PR #138](https://github.com/geminiamo0-ship-it/ROYAL-BANK/pull/138) has green tests, and Vercel preview is READY. Authenticated signed-in card retrieval, retrieval latency, medical answer quality and user quotas still require acceptance. Production remains untouched.
+
 ### Santo sixth image index — ONE merged AI Search call: deployed and live verified (17 Oct 2026)
 
 - **Verified Staging Worker deployment:** [Action #39070116851](https://github.com/geminiamo0-ship-it/santoreno/actions/runs/39070116851) success on commit `42ef04de62627f1f0b77f87f58e4b7d95f619d95`. The Worker uses the original one-namespace-call mode, now with the **five medical indexes PLUS `santo-medical-images`** in the same `instance_ids` list.

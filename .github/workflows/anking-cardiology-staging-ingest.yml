@@ -1,0 +1,81 @@
+name: AnKing Cardiology Isolated Staging Ingestion
+
+on:
+  push:
+    branches:
+      - feat/anking-cardiology-suggestions-staging-20261018
+    paths:
+      - .github/workflows/anking-cardiology-staging-ingest.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: santo-anking-cardiology-isolated-staging
+  cancel-in-progress: false
+
+jobs:
+  ingest-staging-only:
+    if: github.repository == 'geminiamo0-ship-it/santoreno'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install pinned staging HTTP client
+        run: python -m pip install requests==2.32.3
+
+      - name: Validate owner-provided commercial Cardiology V3 with SHA pinned source
+        run: |
+          set -euo pipefail
+          python scripts/ingest_anking_cardiology_staging.py --download --archive /tmp/santo-anking-v3.zip --output /tmp/santo-anking-output
+          test "$(find /tmp/santo-anking-output/items -maxdepth 1 -type f | wc -l)" -eq 4151
+          test "$(find /tmp/santo-anking-output/shards -maxdepth 1 -type f | wc -l)" -eq 32
+          python - <<'PY'
+          import json
+          d=json.load(open('/tmp/santo-anking-output/validation.json'))
+          assert d['notes']==4151 and d['cards']==5156 and d['image_assets_uploaded']==0
+          print('SHA pinned, CID joins valid and asset permission boundaries preserved')
+          PY
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install pinned Wrangler
+        run: |
+          corepack enable
+          pnpm install --frozen-lockfile
+
+      - name: Write 32 bounded Cardiology CID shards to STAGING R2 ONLY
+        run: |
+          set -euo pipefail
+          test -n "${CLOUDFLARE_ACCOUNT_ID:-}"
+          test -n "${CLOUDFLARE_API_TOKEN:-}"
+          for i in $(seq -w 0 31); do
+            pnpm --dir workers/api exec wrangler r2 object put "santo-content-staging/anking/v3/cardiology/shards/shard_${i}.json" --file "/tmp/santo-anking-output/shards/shard_${i}.json" --remote
+          done
+          pnpm --dir workers/api exec wrangler r2 object get "santo-content-staging/anking/v3/cardiology/shards/shard_00.json" --file /tmp/anking-shard-readback.json --remote
+          cmp /tmp/anking-shard-readback.json /tmp/santo-anking-output/shards/shard_00.json
+          echo 'All 32 private R2 shards written; first shard readback matches.'
+
+      - name: Index 4151 note-level records to isolated AnKing instance
+        run: |
+          set -euo pipefail
+          python scripts/ingest_anking_cardiology_staging.py --archive /tmp/santo-anking-v3.zip --output /tmp/santo-anking-output --execute
+          echo 'Isolated AnKing instance indexed; existing six instances untouched.'
+          {
+            echo '## AnKing Cardiology Staging (isolated)'
+            echo '- 4,151 exact note-level records, 5,156 real Card IDs'
+            echo '- 32 R2 shards in santo-content-staging, no original media'
+            echo '- New instance: santo-anking-cardiology'
+            echo '- Source licensing: owner-confirmed; medical review: pending'
+            echo '- No production or existing clinical index changes'
+          } >> "$GITHUB_STEP_SUMMARY"

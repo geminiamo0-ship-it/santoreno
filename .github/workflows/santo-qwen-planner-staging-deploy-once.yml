@@ -1,0 +1,125 @@
+name: Verify and Deploy Qwen Medical Planner to Santo STAGING Only
+on:
+  push:
+    branches:
+      - feat/qwen-medical-search-planner-20261021
+    paths:
+      - .github/workflows/santo-qwen-planner-staging-deploy-once.yml
+permissions:
+  contents: read
+  issues: write
+concurrency:
+  group: santo-medical-planner-staging-deploy-20261021
+  cancel-in-progress: true
+jobs:
+  guarded-staging:
+    if: github.repository == 'geminiamo0-ship-it/santoreno'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      WORKER_URL: https://santo-api-staging.geminiamo0.workers.dev
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install pinned workspace
+        run: |
+          set -euo pipefail
+          corepack enable
+          pnpm install --frozen-lockfile
+      - name: All CI checks
+        id: verify
+        run: |
+          set -euo pipefail
+          for stage in lint typecheck test build smoke; do
+            pnpm "$stage" > "/tmp/qwen_deploy_$stage.log" 2>&1 || {
+              tail -n 70 "/tmp/qwen_deploy_$stage.log"
+              exit 1
+            }
+          done
+      - name: Fail closed unless Luna/Research/full sources and General Fallback remain enabled
+        id: guard
+        run: |
+          set -euo pipefail
+          grep -Fq 'SANTO_ENV = "staging"' workers/api/wrangler.toml
+          grep -Fq 'SANTO_LUNA_PREVIEW = "true"' workers/api/wrangler.toml
+          grep -Fq 'SANTO_RESEARCH_ENABLED = "true"' workers/api/wrangler.toml
+          grep -Fq 'SANTO_SINGLE_PASS_GENERATION_V1 = "true"' workers/api/wrangler.toml
+          grep -Fq 'SANTO_GENERAL_MEDICAL_FALLBACK = "true"' workers/api/wrangler.toml
+          grep -Fq 'SANTO_QWEN_ROUTING_V1 = "true"' workers/api/wrangler.toml
+          grep -Fq 'SANTO_AI_SEARCH_SINGLE_REQUEST_V1 = "true"' workers/api/wrangler.toml
+          grep -Fq 'SANTO_ANKING_V12_FULL_SEARCH_V1 = "true"' workers/api/wrangler.toml
+          grep -Fq 'PubMedResearchRetrieval' workers/api/src/ai/handler.ts
+          grep -Fq 'pmcid|pmc' workers/api/src/ai/research-retrieval.ts
+          grep -Fq 'recentQwenReplies' workers/api/src/durable-objects/conversation-turn-core.ts
+          grep -Fq 'retrievePlannedMultiInstance' workers/api/src/ai/retrieval.ts
+          grep -Fq 'MAX_GROUNDED_CITATIONS = 60' packages/contracts/src/ai.ts
+          test -n "${CLOUDFLARE_ACCOUNT_ID:-}"
+          test -n "${CLOUDFLARE_API_TOKEN:-}"
+      - name: Test real Qwen3 planner and Cloudflare seven-index medical search
+        id: provider
+        run: |
+          set -euo pipefail
+          python -u scripts/smoke_santo_qwen_search_planner_staging.py > /tmp/qwen_live_deploy.log 2>&1 || {
+            tail -n 40 /tmp/qwen_live_deploy.log
+            exit 1
+          }
+          cat /tmp/qwen_live_deploy.log
+      - name: Verify source commit remains exact, never deploy a moving branch
+        run: |
+          set -euo pipefail
+          test "$(git ls-remote origin refs/heads/feat/qwen-medical-search-planner-20261021 | cut -f1)" = "$(git rev-parse HEAD)"
+          echo "PROTECTED_STAGING_SOURCE=$(git rev-parse HEAD)"
+      - name: Deploy Santo STAGING Worker ONLY and preserve existing secrets
+        id: deploy
+        run: |
+          set -euo pipefail
+          cd workers/api
+          pnpm exec wrangler deploy --env staging --keep-vars > /tmp/qwen_deploy.log 2>&1 || {
+            tail -n 70 /tmp/qwen_deploy.log
+            exit 1
+          }
+          tail -n 30 /tmp/qwen_deploy.log
+      - name: Verify Worker health + no unauthorized model or quota
+        id: health
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3 4 5 6 7 8; do
+            status="$(curl --retry 2 --retry-delay 2 --retry-all-errors --silent --show-error --max-time 12 "$WORKER_URL/health" || true)"
+            if jq -e '.service=="santo-api" and .status=="ok"' <<<"$status" >/dev/null 2>&1; then break; fi
+            sleep 3
+          done
+          jq -e '.service=="santo-api" and .status=="ok"' <<<"$status" > /dev/null
+          code="$(curl --silent --show-error -o /dev/null -w '%{http_code}' -X POST "$WORKER_URL/v1/ai/query" -H 'content-type: application/json' --data '{"query":"aortic stenosis","idempotency_key":"qwen-medical-planner-unauth-smoke"}')"
+          test "$code" = 401
+          echo "STAGING deployed $(git rev-parse HEAD)" >> "$GITHUB_STEP_SUMMARY"
+          echo "Production unchanged; signed-in Royal clinical answer verification pending." >> "$GITHUB_STEP_SUMMARY"
+      - name: Record Staging rollout proof on Issue 209 even if blocked
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_RESULT: ${{ job.status }}
+          VERIFY_RESULT: ${{ steps.verify.outcome }}
+          GUARD_RESULT: ${{ steps.guard.outcome }}
+          PROVIDER_RESULT: ${{ steps.provider.outcome }}
+          DEPLOY_RESULT: ${{ steps.deploy.outcome }}
+          HEALTH_RESULT: ${{ steps.health.outcome }}
+        run: |
+          {
+            echo "Qwen Contextual Search Planner Staging release SHA $(git rev-parse HEAD): job=$RUN_RESULT; tests=$VERIFY_RESULT; guard=$GUARD_RESULT; live_qwen_7index=$PROVIDER_RESULT; worker_deploy=$DEPLOY_RESULT; health_auth=$HEALTH_RESULT."
+            if test "$RUN_RESULT" != success; then
+              echo '~~~'
+              for step in /tmp/qwen_live_deploy.log /tmp/qwen_deploy.log /tmp/qwen_deploy_test.log; do
+                if test -f "$step"; then echo "Diagnostic from $step"; tail -n 18 "$step"; fi
+              done
+              echo '~~~'
+            fi
+            echo "Only Santo STAGING can be deployed. Production unchanged. Authenticated clinical answer + cited viewer still to be verified manually."
+          } > /tmp/qwen_rollout_issue.md
+          gh issue comment 209 --repo geminiamo0-ship-it/santoreno --body-file /tmp/qwen_rollout_issue.md

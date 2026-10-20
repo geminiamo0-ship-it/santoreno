@@ -10,6 +10,8 @@ export type GroundedAiLibraryId = z.infer<typeof GroundedAiLibraryIdSchema>;
 
 /** Covers 30 planned evidence chunks plus verified AMBOSS neighbors. */
 export const MAX_GROUNDED_CITATIONS = 60;
+/** Up to four 50-hit searches and ten verified AMBOSS R2 neighbors. */
+export const MAX_VERIFIED_EVIDENCE_SOURCES = 220;
 
 export const SantoSourceModeSchema = z.enum(["libraries", "research"]);
 export type SantoSourceMode = z.infer<typeof SantoSourceModeSchema>;

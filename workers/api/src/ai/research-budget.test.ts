@@ -40,9 +40,10 @@ describe("Research token preflight", () => {
     expect(prompt).toContain("USER_QUESTION_JSON");
     expect(prompt).not.toContain("undefined");
   });
-  it("fails closed on excessive required user/query/context bytes", () => {
-    expect(() => buildBudgetedResearchPrompt("🫀".repeat(4000), [item(0, 400)])).toThrowError(
-      "Research question and source metadata exceed the token budget",
-    );
+  it("bounds an unusually long multibyte question without dropping verified sources", () => {
+    const prompt = buildBudgetedResearchPrompt("🫀".repeat(4000), [item(0, 400)]);
+    expect(estimateResearchInputTokens(prompt)).toBeLessThanOrEqual(7000);
+    expect(prompt).toContain("pubmed:10000");
+    expect(prompt).toContain("USER_QUESTION_JSON");
   });
 });

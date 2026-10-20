@@ -36,7 +36,7 @@ export function buildBudgetedResearchPrompt(
       return prompt;
     }
     let longest = -1;
-    let longestLength = RESEARCH_TOKEN_POLICY.minimumExcerptChars;
+    let longestLength: number = RESEARCH_TOKEN_POLICY.minimumExcerptChars;
     for (let index = 0; index < selected.length; index += 1) {
       const length = selected[index]?.text.length ?? 0;
       if (length > longestLength) {

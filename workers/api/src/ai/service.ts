@@ -147,6 +147,7 @@ export class GroundedAiService {
     let citations: GroundedAiQueryResponse["citations"];
     let relatedPics: NonNullable<GroundedAiQueryResponse["relatedPics"]> = [];
 
+    let qwenResponded = false;
     let responseMode: "santo" | "general" = "santo";
     let retrievedSourceCount = 0;
     let validCitationCount = 0;
@@ -165,6 +166,9 @@ export class GroundedAiService {
                   libraryId,
                   ...(input.recent_user_messages
                     ? { recentUserMessages: input.recent_user_messages }
+                    : {}),
+                  ...(input.recent_qwen_replies?.length
+                    ? { recentQwenReplies: input.recent_qwen_replies }
                     : {}),
                   onRouteDiagnostic: (outcome, milliseconds) => {
                     console.info("santo_qwen_route_outcome", {
@@ -189,6 +193,7 @@ export class GroundedAiService {
         // Neither may fabricate library citations. Preserve the original
         // quota, identity, idempotency and ConversationDO completion lifecycle.
         answer = route.intent === "clarify" ? route.question : route.answer;
+        qwenResponded = true;
         citations = [];
         responseMode = "general";
         outputChars = answer.length;
@@ -551,6 +556,7 @@ export class GroundedAiService {
       ...(relatedPics.length ? { relatedPics } : {}),
 
       ...(responseMode === "general" ? { groundingMode: "general" as const } : {}),
+      ...(qwenResponded ? { responder: "qwen" as const } : {}),
       usage: {
         unitsCharged: 1,
         remaining,

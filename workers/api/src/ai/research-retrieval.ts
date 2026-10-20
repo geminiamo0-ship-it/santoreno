@@ -1,4 +1,5 @@
 import { GroundedAiError } from "./errors";
+import { selectPmcTeachingPassages } from "./research-fulltext";
 import type { RetrievalPort, RetrievalRequest, RetrievedEvidence } from "./types";
 
 export interface ResearchProviderConfig {
@@ -24,7 +25,9 @@ interface Paper {
 const PUBMED = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/";
 const OPENALEX = "https://api.openalex.org/works";
 const MAX_CANDIDATES = 60; // Network bound, not a model/source citation count.
-const MAX_EVIDENCE_BYTES = 14000; // Input headroom within the shared 10k token target.
+const MAX_EVIDENCE_BYTES = 22_000; // Approx. 5.5k input tokens; preserves room for prompt/history + 3k output.
+const FIRST_PAPER_BYTES = 15_000;
+const FOLLOWUP_PAPER_BYTES = 2_500;
 const MAX_DOWNLOAD_BYTES = 1_500_000;
 const TIMEOUT_MS = 4000;
 
@@ -397,62 +400,99 @@ export class PubMedResearchRetrieval implements RetrievalPort {
       }
     }
     if (!papers.length) return [];
-    // Metadata enrichment is advisory; never let an optional API consume the retrieval deadline.
-    if (Date.now() - startedAt < 8500) await this.enrichOpenAlex(papers, signal);
+    // Full-text is the primary evidence for a treatment question. Avoid
+    // spending the short retrieval deadline on optional citation-count ranking
+    // before contacting PMC. The first relevant articles get priority.
     const ranked = rankPapers(papers, cleanQuestion);
-
-    // Expand relevant complete PMC articles when the full text is available.
-    // The PMC request is best effort; valid PubMed abstracts remain usable.
-    const eligible = ranked.filter((p) => p.pmcid).slice(0, 12);
+    const eligible = ranked.filter((paper) => paper.pmcid).slice(0, 4);
     const fullText = new Map<string, string>();
-    if (eligible.length && Date.now() - startedAt < 10_000) {
+    let providerStatus: "not_applicable" | "ok" | "failed" = "not_applicable";
+    if (eligible.length && !signal?.aborted) {
       try {
         const records = await this.get(
           this.ncbiUrl("efetch", {
             db: "pmc",
-            id: eligible.map((p) => p.pmcid!.slice(3)).join(","),
+            id: eligible.map((paper) => paper.pmcid!.slice(3)).join(","),
             retmode: "xml",
           }),
           signal,
-          3000,
+          4_500,
         );
         for (const article of xmlChunks(records, "article")) {
           const pmcid = /<article-id\s+pub-id-type=["']pmc["']>(\d+)<\/article-id>/i.exec(
             article,
           )?.[1];
-          if (pmcid) fullText.set("PMC" + pmcid, article);
+          if (pmcid && eligible.some((paper) => paper.pmcid === "PMC" + pmcid)) {
+            fullText.set("PMC" + pmcid, article);
+          }
         }
+        providerStatus = fullText.size ? "ok" : "failed";
       } catch {
-        // Preserve the abstract answer pathway during PMC outages.
+        providerStatus = "failed";
       }
     }
-    const terms = keyTerms(cleanQuestion);
+
+    // A single targeted Europe PMC fullTextXML fallback rescues the most
+    // relevant original article if NCBI EFetch timed out or omitted it.
+    // Never add uncited material from another paper or fabricate passages.
+    const firstPmc = eligible[0]?.pmcid;
+    if (firstPmc && !fullText.has(firstPmc) && !signal?.aborted) {
+      try {
+        const url = new URL(
+          "https://www.ebi.ac.uk/europepmc/webservices/rest/" + firstPmc + "/fullTextXML",
+        );
+        const xml = await this.get(url, signal, 2_500);
+        if (new RegExp("<article-id\\s+pub-id-type=[\"']pmc[\"']>\\s*" + firstPmc.slice(3) + "\\s*<\\/article-id>", "i").test(xml)) {
+          const article = xmlChunks(xml, "article")[0];
+          if (article) fullText.set(firstPmc, article);
+        }
+      } catch {
+        // The article may still be cited as ABSTRACT ONLY, explicitly labeled.
+      }
+    }
+    // Citation counts are advisory metadata, not a reason to delay or suppress
+    // the clinical sections. Enrich only with remaining time.
+    if (Date.now() - startedAt < 7_500) await this.enrichOpenAlex(papers, signal);
+    console.info("santo_research_pmc_evidence", {
+      eligible: eligible.length,
+      fulltext: fullText.size,
+      abstractOnly: Math.max(0, eligible.length - fullText.size),
+      status: providerStatus,
+    });
+
     const output: RetrievedEvidence[] = [];
     let budget = MAX_EVIDENCE_BYTES;
     for (const paper of ranked) {
-      const excerpt =
-        paper.abstract ||
-        (paper.pmcid && fullText.has(paper.pmcid)
-          ? snippetsFromFullText(fullText.get(paper.pmcid)!, terms).join(" ")
-          : "");
-      if (!excerpt) continue;
-      const relevant =
-        paper.pmcid && fullText.has(paper.pmcid)
-          ? snippetsFromFullText(fullText.get(paper.pmcid)!, terms).join(" ")
-          : "";
-      const text = [
+      if (budget < 450 || output.length >= 12) break;
+      const pmc = paper.pmcid ? fullText.get(paper.pmcid) : undefined;
+      const perPaper = Math.min(
+        budget,
+        output.length === 0 ? FIRST_PAPER_BYTES : FOLLOWUP_PAPER_BYTES,
+      );
+      const fullTextSelection = pmc
+        ? selectPmcTeachingPassages(pmc, cleanQuestion, Math.max(0, perPaper - 1_200))
+        : { text: "", sectionCount: 0 };
+      const status = fullTextSelection.text
+        ? "PMC full-text passages available and included (selected relevant sections, not the entire article)."
+        : paper.pmcid
+          ? "PMC full-text unavailable or no relevant passage extracted: ABSTRACT ONLY. Do not claim this abstract verifies specific management doses or thresholds."
+          : "No indexed PMC full text: ABSTRACT ONLY.";
+      const header = [
         "Publication year: " + (paper.year ?? "unknown"),
         "Study type: " + (paper.types.join(", ") || "not classified"),
         "Citations indexed by OpenAlex: " + (paper.citations ?? "unavailable"),
-        "PubMed abstract: " + excerpt,
-        ...(relevant
-          ? ["Relevant PMC full-text passages and figure/table captions: " + relevant]
-          : []),
+        "Evidence coverage: " + status,
+        "PubMed abstract: " + paper.abstract.slice(0, fullTextSelection.text ? 650 : 1_900),
       ].join("\n");
-      const bytes = new TextEncoder().encode(text);
-      if (budget < 350) break;
-      const selected = bytes.length <= budget ? text : text.slice(0, Math.floor(budget / 3));
-      budget -= new TextEncoder().encode(selected).length;
+      const text = header + (fullTextSelection.text
+        ? "\nVerified PMC full-text excerpts by section:\n" + fullTextSelection.text
+        : "");
+      const selected = new TextEncoder().encode(text).length <= perPaper
+        ? text
+        : header; // Never silently cut medical numbers or dosing mid-sentence.
+      const consumed = new TextEncoder().encode(selected).length;
+      if (consumed > budget || !paper.abstract.trim() && !fullTextSelection.text) continue;
+      budget -= consumed;
       output.push({
         sourceId: "pubmed:" + paper.pmid,
         libraryId: "pubmed",
@@ -464,7 +504,6 @@ export class PubMedResearchRetrieval implements RetrievalPort {
         text: selected,
         score: paper.score,
       });
-      if (output.length >= 12) break; // bounded by prompt source serialization contract
     }
     return output;
   }

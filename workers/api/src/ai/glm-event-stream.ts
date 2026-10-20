@@ -40,7 +40,7 @@ export async function collectGlmEventStream(
       sawDone = true;
       return;
     }
-    if (sawDone || sawStop) {
+    if (sawDone) {
       throw new GroundedAiError(502, "MODEL_RESPONSE_INVALID", "GLM emitted text after completion");
     }
     let json: unknown;
@@ -53,6 +53,12 @@ export async function collectGlmEventStream(
       throw new GroundedAiError(502, "MODEL_RESPONSE_INVALID", "Invalid GLM stream event");
     }
     const event = json as Record<string, unknown>;
+    // Some workers send a usage-only frame between finish_reason and [DONE].
+    // It carries no model-authored answer text and is safe to ignore.
+    if (sawStop) {
+      if (event.usage && Array.isArray(event.choices) && event.choices.length === 0) return;
+      throw new GroundedAiError(502, "MODEL_RESPONSE_INVALID", "GLM emitted content after stop");
+    }
     if (event.error) {
       throw new GroundedAiError(502, "MODEL_FAILED", "GLM provider returned an error");
     }

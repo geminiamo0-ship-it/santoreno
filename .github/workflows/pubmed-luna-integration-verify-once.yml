@@ -1,0 +1,45 @@
+name: PubMed + Working Luna Integration — Verify Only
+on:
+  push:
+    branches: [feat/pubmed-on-working-luna-20261020]
+    paths: [.github/workflows/pubmed-luna-integration-verify-once.yml]
+permissions:
+  contents: write
+jobs:
+  verify-no-deployment:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: true }
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - name: Format modified feature files only
+        shell: bash
+        run: |
+          set -euo pipefail
+          corepack enable
+          pnpm install --frozen-lockfile
+          pnpm exec prettier --write packages/contracts/src/ai.ts packages/contracts/src/conversation.ts workers/api/src/ai/types.ts workers/api/src/ai/errors.ts workers/api/src/runtime/bindings.ts workers/api/src/ai/handler.ts workers/api/src/ai/service.ts workers/api/src/ai/research-retrieval.ts workers/api/src/ai/research-retrieval.test.ts workers/api/src/conversation/ask-service.ts workers/api/src/durable-objects/conversation-turn-core.ts workers/api/wrangler.toml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add packages/contracts/src workers/api/src
+          if ! git diff --cached --quiet; then
+            git commit -m "style(research): format Luna-safe source mode feature"
+            git push origin HEAD:feat/pubmed-on-working-luna-20261020
+          fi
+      - name: Validate no Luna regression, shared quota and contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'openai/gpt-6-luna' workers/api/src/ai/model.ts
+          grep -Fq 'SANTO_LUNA_PREVIEW = "true"' workers/api/wrangler.toml
+          grep -Fq 'SANTO_SINGLE_PASS_GENERATION_V1 = "true"' workers/api/wrangler.toml
+          grep -Fq 'SANTO_PLAIN_TEXT_LUNA_V1 = "true"' workers/api/wrangler.toml
+          grep -Fq 'SANTO_RESEARCH_ENABLED = "true"' workers/api/wrangler.toml
+          pnpm lint
+          pnpm typecheck
+          pnpm test
+          pnpm build
+          pnpm smoke
+          echo 'Verification complete. No Worker deployment; current Luna Staging remains untouched.' >> "$GITHUB_STEP_SUMMARY"

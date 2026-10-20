@@ -8,6 +8,7 @@ describe("Santo widget shell state", () => {
       expanded: false,
       fullscreen: false,
       libraryId: null,
+      sourceMode: "libraries",
     });
   });
 
@@ -54,6 +55,19 @@ describe("Santo widget shell state", () => {
     const filtered = reduceWidgetUi(initial, { type: "library", libraryId: "nbme" });
     expect(filtered.libraryId).toBe("nbme");
     expect(reduceWidgetUi(filtered, { type: "library", libraryId: null }).libraryId).toBeNull();
+  });
+
+  it("switches sources without retaining an incompatible library filter", () => {
+    const filtered = reduceWidgetUi(INITIAL_WIDGET_UI_STATE, {
+      type: "library",
+      libraryId: "usmle",
+    });
+    const research = reduceWidgetUi(filtered, { type: "source-mode", sourceMode: "research" });
+    expect(research).toMatchObject({ sourceMode: "research", libraryId: null });
+    expect(reduceWidgetUi(research, { type: "source-mode", sourceMode: "libraries" })).toMatchObject({
+      sourceMode: "libraries",
+      libraryId: null,
+    });
   });
 
   it("does not mutate state objects during a toggle or filter transition", () => {

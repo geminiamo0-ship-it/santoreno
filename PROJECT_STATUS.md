@@ -1,5 +1,13 @@
 # Santo Project Status — Living Handoff
 
+### Staging GLM-4.7-Flash generation — 20 Oct 2026 (PR #198)
+
+- Owner chose Cloudflare-hosted `@cf/zai-org/glm-4.7-flash` as Santo's medical-generation model. Staging opt-in `SANTO_GLM_47_FLASH_V1=true`, combined with single-pass and plain-Markdown flags; Production unchanged.
+- GLM needs Chat Completions SSE, not Luna Responses SSE. Dedicated parser requires both `finish_reason=stop` and `[DONE]` before finalizing; never leaks `reasoning_content`, handles CRLF boundaries and incomplete/truncated streams. The model runs once, with thinking disabled, 3,000 completion tokens, the existing clinical instructions and same source aliases.
+- The full seven-instance one-call medical search, all up-to-60 verified source IDs including AnKing, Gallery images, R2 snapshots, quota and existing Royal UI are unchanged. Flag `false` and redeploy Staging to restore Luna without a database migration.
+- **Live Santo Staging deployment verified** from source SHA `0f9d645529084480972ad8db91c5eb129ce67e24`: full CI passed, live Cloudflare GLM SSE smoke passed, Worker deployment passed and health/unauthorized API checks passed. [GitHub deployment record](https://github.com/geminiamo0-ship-it/santoreno/issues/199#issuecomment-6280904457).
+- **Pending acceptance:** signed-in Royal Bank Preview must verify complete final cited medical answer, AnKing source display, true first-token latency and real billed cost. No Production rollout until this is validated.
+
 ### 60-source citation finalization restored — 20 Oct 2026 (Santo Staging LIVE, PR #197)
 
 - Authenticated Royal preview showed `CITATION_INVALID` on `aortic stenosis in detail` even though Luna returned 1,127 output tokens against 16,174 input tokens (approx. $0.002585 model cost). The 50-hit forwarding trial added up to 10 AMBOSS neighbors, but server citation validation / response schema / R2 verified snapshot still had an old **15 distinct cited sources** ceiling.

@@ -43,6 +43,19 @@ jobs:
           export default {
             async fetch() {
               const start = Date.now();
+              const providerStatuses: Array<{status?:number;error?:string;host?:string;path?:string}> = [];
+              const tracedFetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+                const url = new URL(String(input));
+                try {
+                  const response = await fetch(input, init);
+                  providerStatuses.push({status:response.status,host:url.hostname,path:url.pathname});
+                  return response;
+                } catch (cause) {
+                  providerStatuses.push({error:cause instanceof Error ? cause.name : "FetchError",
+                    host:url.hostname,path:url.pathname});
+                  throw cause;
+                }
+              };
               try {
                 const query = "Aortic stenosis transcatheter valve randomized trial";
                 const evidence = await new PubMedResearchRetrieval().retrieve({
@@ -61,7 +74,7 @@ jobs:
                   instanceId:sample.instanceId,itemKey:sample.itemKey,
                   title:sample.title,page:sample.page,section:sample.section,
                 }]);
-                const result = await new PubMedArticleViewerService(snapshots).fromCitation(
+                const result = await new PubMedArticleViewerService(snapshots, tracedFetch as typeof fetch).fromCitation(
                   {tenantId,externalUserId,sessionId:"33333333-3333-4333-8333-333333333333",expiresAt:new Date(Date.now()+60000).toISOString()},
                   {messageId,sourceId:sample.sourceId}
                 );
@@ -70,11 +83,11 @@ jobs:
                   abstractExists:result.article.sections.some(s=>s.heading==="Abstract" && s.text.length>40),
                   sectionNames:result.article.sections.map(s=>s.heading),
                   isInternalArticle:result.article.libraryId==="pubmed",
-                  elapsedMs:Date.now()-start,
+                  providerStatuses,elapsedMs:Date.now()-start,
                 });
               } catch(error) {
                 const e=error as {code?:string,name?:string};
-                return Response.json({success:false,code:e.code??"PROBE_FAILED",name:e.name??"Error",elapsedMs:Date.now()-start});
+                return Response.json({success:false,code:e.code??"PROBE_FAILED",name:e.name??"Error",providerStatuses,elapsedMs:Date.now()-start});
               }
             }
           };
@@ -94,7 +107,7 @@ jobs:
             if ! kill -0 "$PID" 2>/dev/null; then tail -30 /tmp/pubmed-viewer-probe.log; exit 1; fi
             sleep 2
           done
-          jq -c '{success,sourceMatch,abstractExists,sectionNames,isInternalArticle,elapsedMs,code,name}' /tmp/pubmed-viewer-probe.json
+          jq -c '{success,sourceMatch,abstractExists,sectionNames,isInternalArticle,providerStatuses,elapsedMs,code,name}' /tmp/pubmed-viewer-probe.json
           jq -e '.success == true and .sourceMatch == true and .abstractExists == true and .isInternalArticle == true' /tmp/pubmed-viewer-probe.json
           echo 'Authenticated citation reader verified with real Europe PMC data in isolated Cloudflare runtime.' >> "$GITHUB_STEP_SUMMARY"
       - name: Remove temporary probe files from runner

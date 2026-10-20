@@ -23,14 +23,18 @@ function source(
 }
 
 describe("Staging forward-all evidence curation", () => {
-  it("removes literal book-import duplicates but keeps partly overlapping passages with extra facts", () => {
+  it("dedupes literal imports but keeps excerpts with extra facts", () => {
     const pastestText =
       "# Aortic Stenosis\nLibrary: Pastest\nCategory: Cardiology\nSection: Clinical Presentation\n\n" +
       "Initially asymptomatic, aortic stenosis may cause exertional syncope and dyspnoea.";
     const common = "Clinical features of aortic stenosis: syncope, angina and dyspnoea.";
     const sources = [
       source("pastest:46", pastestText, "pastest"),
-      source("passmedicine:34", "# Aortic stenosis\nLibrary: PassMedicine\n" + common, "passmedicine"),
+      source(
+        "passmedicine:34",
+        "# Aortic stenosis\nLibrary: PassMedicine\n" + common,
+        "passmedicine",
+      ),
       source("pastest:47", pastestText.replace(/\n/g, "\r\n"), "pastest"),
       source(
         "passmedicine:36",
@@ -49,7 +53,7 @@ describe("Staging forward-all evidence curation", () => {
     expect(kept[0]).toBe(sources[0]); // The original trusted source ID survives.
   });
 
-  it("filters different diseases without losing a clinically relevant cause or an AnKing teaching note", () => {
+  it("filters off-topic diseases but keeps relevant causes and AnKing", () => {
     const returned = [
       source(
         "amboss:1",
@@ -94,7 +98,7 @@ describe("Staging forward-all evidence curation", () => {
     ]);
   });
 
-  it("does not impose a new numerical top-k limit on 60 distinct relevant passages", () => {
+  it("keeps 60 distinct relevant passages without a new top-k", () => {
     const sixty = Array.from({ length: 60 }, (_, index) =>
       source(
         `amboss:real-${index}`,
@@ -115,7 +119,7 @@ describe("Staging forward-all evidence curation", () => {
     expect(curateRetrievedEvidence("tell me", result)).toEqual(result);
   });
 
-  it("uses the current subject from follow-up context, never the previous topic for a new disease", () => {
+  it("uses current follow-up subject instead of the previous disease", () => {
     const old = source("amboss:old", "# Aortic stenosis\nAortic stenosis is obstructive.");
     const next = source("amboss:new", "# Familial Mediterranean fever\nFMF causes episodic fever.");
     const prompt =
@@ -127,7 +131,7 @@ describe("Staging forward-all evidence curation", () => {
     ]);
   });
 
-  it("keeps the existing single search, optional route, and gallery images unchanged", async () => {
+  it("preserves one search, optional route and gallery images", async () => {
     const data = [
       source("amboss:a", "# Aortic stenosis\nAortic stenosis causes obstruction."),
       source("usmle:bad", "# Renal artery stenosis\nRenal narrowing.", "usmle"),
@@ -137,7 +141,10 @@ describe("Staging forward-all evidence curation", () => {
       evidence: data,
       galleryHits: [{ imageId: "img_000001", score: 0.91 }],
     }));
-    const route = vi.fn(async () => ({ intent: "medical" as const, searchQuery: "aortic stenosis" }));
+    const route = vi.fn(async () => ({
+      intent: "medical" as const,
+      searchQuery: "aortic stenosis",
+    }));
     const original: RetrievalPort = { retrieve, retrieveWithGallery, route };
     const curated = new CuratedEvidenceRetrieval(original);
     const request = { query: "aortic stenosis", libraryId: null };

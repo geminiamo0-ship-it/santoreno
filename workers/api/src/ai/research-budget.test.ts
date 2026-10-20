@@ -41,7 +41,7 @@ describe("Research token preflight", () => {
     expect(prompt).not.toContain("undefined");
   });
   it("fails closed on excessive required user/query/context bytes", () => {
-    expect(() => buildBudgetedResearchPrompt("س".repeat(4000), [item(0, 400)])).toThrowError(
+    expect(() => buildBudgetedResearchPrompt("🫀".repeat(4000), [item(0, 400)])).toThrowError(
       "Research question and source metadata exceed the token budget",
     );
   });

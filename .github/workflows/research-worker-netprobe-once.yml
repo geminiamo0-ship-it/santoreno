@@ -26,7 +26,7 @@ jobs:
           test -n "$CLOUDFLARE_API_TOKEN"
           test -n "$CLOUDFLARE_ACCOUNT_ID"
           PROBE_KEY="$(openssl rand -hex 24)"
-          cat > /tmp/santo-research-netprobe.mjs <<'JS'
+          cat > workers/api/src/__research_netprobe_temp.mjs <<'JS'
           export default {
             async fetch(req, env) {
               if (req.headers.get("x-santo-probe") !== env.PROBE_KEY) return new Response("Not Found", {status: 404});
@@ -61,7 +61,7 @@ jobs:
           }
           trap cleanup EXIT
           cd workers/api
-          pnpm exec wrangler deploy /tmp/santo-research-netprobe.mjs --name santo-research-netprobe --compatibility-date 2026-10-01 --no-bundle --var "PROBE_KEY:$PROBE_KEY"
+          pnpm exec wrangler deploy src/__research_netprobe_temp.mjs --name santo-research-netprobe --compatibility-date 2026-10-01 --no-bundle --var "PROBE_KEY:$PROBE_KEY"
           curl -sS --max-time 25 --retry 2 --retry-delay 2 --fail-with-body \
             -H "x-santo-probe: $PROBE_KEY" \
             "https://santo-research-netprobe.geminiamo0.workers.dev/" | jq .

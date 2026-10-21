@@ -1,4 +1,7 @@
 import { GroundedAiError } from "./errors";
+import type { WorkersAiLike } from "../runtime/bindings";
+import { routeMedicalRequest } from "./medical-query-rewrite";
+import { focusedSearchQuery, focusedUserMessageQuery } from "./source-relevance";
 import { selectPmcTeachingPassages } from "./research-fulltext";
 import type { RetrievalPort, RetrievalRequest, RetrievedEvidence } from "./types";
 
@@ -6,6 +9,8 @@ export interface ResearchProviderConfig {
   ncbiApiKey?: string;
   openAlexApiKey?: string;
   fetcher?: typeof fetch;
+  qwenAi?: WorkersAiLike;
+  enableQwenRouting?: boolean;
 }
 
 /** PubMed discovery is independent of Santo's indexed knowledge-library search. */
@@ -26,8 +31,8 @@ const PUBMED = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/";
 const OPENALEX = "https://api.openalex.org/works";
 const MAX_CANDIDATES = 60; // Network bound, not a model/source citation count.
 const MAX_EVIDENCE_BYTES = 22_000; // Approx. 5.5k input tokens; preserves room for prompt/history + 3k output.
-const FIRST_PAPER_BYTES = 15_000;
-const FOLLOWUP_PAPER_BYTES = 2_500;
+const FIRST_PAPER_BYTES = 7_000; // Leave room for a diverse set of PubMed abstracts.
+const FOLLOWUP_PAPER_BYTES = 2_200; // Keep 6-10 papers feasible under the same total budget.
 const MAX_DOWNLOAD_BYTES = 1_500_000;
 const TIMEOUT_MS = 4000;
 /** Real NCBI/Europe PMC JATS uses pub-id-type='pmcid' with 'PMC' prefix; allow older 'pmc' too. */
@@ -177,10 +182,29 @@ function rankPapers(papers: Paper[], query: string): Paper[] {
 /** Fixed provider hosts and response-size bounds; no arbitrary URLs from papers or users. */
 export class PubMedResearchRetrieval implements RetrievalPort {
   private readonly fetcher: typeof fetch;
+  readonly route?: RetrievalPort["route"];
   constructor(private readonly config: ResearchProviderConfig = {}) {
     // Cloudflare's native fetch must be invoked as a global function, not
     // extracted and called as a class method (which causes Illegal invocation).
     this.fetcher = config.fetcher ?? ((input, init) => fetch(input, init));
+    // Research is opt-in on Staging; production and the existing PubMed path
+    // do not change when this flag is absent.
+    if (config.enableQwenRouting && config.qwenAi) {
+      this.route = (request) => {
+        const history = request.recentUserMessages?.slice(-5);
+        const focused = history?.length
+          ? focusedUserMessageQuery(history)
+          : focusedSearchQuery(request.query);
+        return routeMedicalRequest(
+          config.qwenAi,
+          request.query,
+          focused,
+          request.onRouteDiagnostic,
+          history,
+          request.recentQwenReplies,
+        );
+      };
+    }
   }
 
   private async get(url: URL, signal?: AbortSignal, timeoutMs = TIMEOUT_MS): Promise<string> {
@@ -343,23 +367,51 @@ export class PubMedResearchRetrieval implements RetrievalPort {
     const cleanQuestion = request.query.includes("Follow-up question:")
       ? request.query.split("Follow-up question:").at(-1)!.trim()
       : request.query;
+    // One already-computed Qwen plan; at most two complementary NCBI ESearch
+    // requests, deduplicated by canonical PMID before the single EFetch.
+    const searchQuery = (request.preparedQuery ?? cleanQuestion).trim().slice(0, 1800);
+    const searchQueries = [
+      ...new Set(
+        [searchQuery, ...(request.preparedQueries ?? [])]
+          .map((q) => q.trim())
+          .filter((q) => q.length >= 3 && q.length <= 1800 && !/[\r\n{}<>]/.test(q)),
+      ),
+    ].slice(0, 2);
+    if (!searchQueries.length) searchQueries.push(cleanQuestion.slice(0, 1800));
     let papers: Paper[];
     try {
-      const search = this.ncbiUrl("esearch", {
-        db: "pubmed",
-        term: cleanQuestion.slice(0, 1800),
-        retmax: String(MAX_CANDIDATES),
-        retmode: "json",
-        sort: "relevance",
+      const discovered = await Promise.allSettled(
+        searchQueries.map(async (term) => {
+          const search = this.ncbiUrl("esearch", {
+            db: "pubmed",
+            term,
+            retmax: String(MAX_CANDIDATES),
+            retmode: "json",
+            sort: "relevance",
+          });
+          const result: unknown = JSON.parse(await this.get(search, signal));
+          const root =
+            result && typeof result === "object"
+              ? (result as { esearchresult?: { idlist?: unknown } }).esearchresult
+              : null;
+          if (!Array.isArray(root?.idlist))
+            throw new GroundedAiError(502, "SEARCH_FAILED", "Invalid PubMed search records");
+          return root.idlist.filter(
+            (id): id is string => typeof id === "string" && /^\d+$/.test(id),
+          );
+        }),
+      );
+      const successful = discovered.filter(
+        (entry): entry is PromiseFulfilledResult<string[]> => entry.status === "fulfilled",
+      );
+      if (!successful.length)
+        throw new GroundedAiError(502, "SEARCH_FAILED", "PubMed search discovery unavailable");
+      const ids = [...new Set(successful.flatMap((entry) => entry.value))].slice(0, MAX_CANDIDATES);
+      console.info("santo_research_discovery", {
+        attempted: searchQueries.length,
+        successful: successful.length,
+        uniquePmids: ids.length,
       });
-      const result: unknown = JSON.parse(await this.get(search, signal));
-      const root =
-        result && typeof result === "object"
-          ? (result as { esearchresult?: { idlist?: unknown } }).esearchresult
-          : null;
-      const ids = Array.isArray(root?.idlist)
-        ? root.idlist.filter((id): id is string => typeof id === "string" && /^\d+$/.test(id))
-        : [];
       if (!ids.length) return [];
       const xml = await this.get(
         this.ncbiUrl("efetch", {
@@ -377,7 +429,7 @@ export class PubMedResearchRetrieval implements RetrievalPort {
     } catch (primaryError) {
       if (signal?.aborted) throw primaryError;
       try {
-        papers = await this.fallbackEuropePmc(cleanQuestion, signal);
+        papers = await this.fallbackEuropePmc(searchQuery, signal);
       } catch {
         throw primaryError instanceof GroundedAiError
           ? primaryError
@@ -388,7 +440,7 @@ export class PubMedResearchRetrieval implements RetrievalPort {
     // Full-text is the primary evidence for a treatment question. Avoid
     // spending the short retrieval deadline on optional citation-count ranking
     // before contacting PMC. The first relevant articles get priority.
-    const ranked = rankPapers(papers, cleanQuestion);
+    const ranked = rankPapers(papers, searchQuery);
     const eligible = ranked.filter((paper) => paper.pmcid).slice(0, 4);
     const fullText = new Map<string, string>();
     let providerStatus: "not_applicable" | "ok" | "failed" = "not_applicable";
@@ -453,7 +505,7 @@ export class PubMedResearchRetrieval implements RetrievalPort {
         output.length === 0 ? FIRST_PAPER_BYTES : FOLLOWUP_PAPER_BYTES,
       );
       const fullTextSelection = pmc
-        ? selectPmcTeachingPassages(pmc, cleanQuestion, Math.max(0, perPaper - 1_200))
+        ? selectPmcTeachingPassages(pmc, searchQuery, Math.max(0, perPaper - 1_200))
         : { text: "", sectionCount: 0 };
       const status = fullTextSelection.text
         ? "PMC full-text passages available and included (selected relevant sections, not the entire article)."

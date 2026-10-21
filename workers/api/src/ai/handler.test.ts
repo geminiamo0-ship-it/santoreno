@@ -665,6 +665,26 @@ describe("grounded AI handler", () => {
     expect(quota.finalizeCalls).toBe(1);
   });
 
+  it("never replaces sourced AMBOSS prose with a clipped uncited General answer", async () => {
+    env.SANTO_ENV = "staging";
+    env.SANTO_LUNA_PREVIEW = "true";
+    env.SANTO_SINGLE_PASS_GENERATION_V1 = "true";
+    env.SANTO_PLAIN_TEXT_LUNA_V1 = "true";
+    env.SANTO_GENERAL_MEDICAL_FALLBACK = "true";
+    model.generate = vi.fn(async () => ({
+      answer: "Detailed AMBOSS diagnosis and treatment explanation. ".repeat(30),
+      citationIds: [],
+      sourcePresentation: "related" as const,
+    }));
+    const response = await handler()(request(token, "amboss-uncited", "aortic stenosis", "amboss"), env);
+    expect(response.status).toBe(502);
+    expect(await response.json()).toEqual({ error: "CITATION_INVALID" });
+    expect(model.generate).toHaveBeenCalledTimes(1);
+    expect(quota.finalizeCalls).toBe(0);
+    expect(quota.releaseCalls).toBe(1);
+    expect(quota.used).toBe(0);
+  });
+
   it("completes a real fifteen-citation AMBOSS answer with persisted verified sources", async () => {
     const evidence = Array.from({ length: 15 }, (_, index) => ({
       sourceId: "amboss:r2-" + String(index).padStart(32, "0"),

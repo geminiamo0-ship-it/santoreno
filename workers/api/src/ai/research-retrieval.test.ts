@@ -177,7 +177,9 @@ describe("PubMed Research Mode adapter", () => {
       const url = String(input);
       calls.push(url);
       if (url.includes("esearch.fcgi")) {
-        const isGuidelines = new URL(url).searchParams.get("term")?.includes("Practice Guideline[pt]");
+        const isGuidelines = new URL(url).searchParams
+          .get("term")
+          ?.includes("Practice Guideline[pt]");
         return Response.json({ esearchresult: { idlist: isGuidelines ? ["200"] : ["100"] } });
       }
       if (url.includes("efetch.fcgi") && url.includes("db=pubmed")) {

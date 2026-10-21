@@ -347,7 +347,7 @@ export class GroundedAiService {
         const sourcedPrompt =
           buildGroundedPrompt(input.query, evidence, answerFormat, this.unifiedLunaPrompt) +
           (libraryId === "amboss" && sourceMode !== "research"
-            ? "\\nAMBOSS SOURCE-FIRST RULE: The main explanation MUST be grounded in the supplied AMBOSS excerpts, with genuine AMBOSS citations for source-supported clinical claims. Do not replace an available AMBOSS explanation with an uncited general textbook chapter. If a small conceptual bridge is necessary, put it in a clearly separated 'General Medical Teaching' section limited to at most THREE concise sentences, never presenting it as an AMBOSS citation. If the user's clinical referent is genuinely ambiguous, ask a short clarification rather than inventing specifics.\\n"
+            ? "\nAMBOSS SOURCE-FIRST RULE: The main explanation MUST be grounded in the supplied AMBOSS excerpts, with genuine AMBOSS citations for source-supported clinical claims. Do not replace an available AMBOSS explanation with an uncited general textbook chapter. If a small conceptual bridge is necessary, put it in a clearly separated 'General Medical Teaching' section limited to at most THREE concise sentences, never presenting it as an AMBOSS citation. If the user's clinical referent is genuinely ambiguous, ask a short clarification rather than inventing specifics.\\n"
             : "") +
           medicalImagePrompt(availableImages, input.query, this.unifiedLunaPrompt);
         console.info("santo_runtime_stage_ms", {

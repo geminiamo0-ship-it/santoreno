@@ -16,7 +16,7 @@ import {
 import type { R2BucketLike } from "../runtime/bindings";
 import { AI_STAGE_TIMEOUTS, withAiDeadline } from "./deadline";
 import { GroundedAiError } from "./errors";
-import { buildGeneralMedicalPrompt, buildGroundedPrompt } from "./prompt";
+import { buildAmbossLimitedGeneralPrompt, buildGeneralMedicalPrompt, buildGroundedPrompt, limitUncitedAmbossTeaching } from "./prompt";
 import type { AiTelemetryEvent, AiTelemetryPort, ModelPort, RetrievalPort } from "./types";
 import type { GalleryImageRetriever } from "./image-gallery";
 import type { AnkingSupplementRetriever } from "./anking-flashcards";
@@ -208,7 +208,7 @@ export class GroundedAiService {
             ? { preparedQueries: route.searchQueries }
             : {}),
         };
-        const combinedSearch =
+        let combinedSearch =
           this.imageGallery &&
           sourceMode !== "research" &&
           this.richImagesEnabled &&
@@ -228,6 +228,43 @@ export class GroundedAiService {
                 ),
                 galleryHits: [],
               };
+        // AMBOSS is source-first: a truly empty result gets ONE on-topic
+        // reformulation from the already-computed Qwen plan. No second Qwen
+        // call, no other clinical library, no fallback on provider failures.
+        if (libraryId === "amboss" && sourceMode !== "research" &&
+            combinedSearch.evidence.length === 0 &&
+            route?.intent === "medical") {
+          const alternates = route.searchQueries ?? [];
+          const attempted = retrievalRequest.preparedQuery ?? input.query;
+          const reformulated = alternates.find((q) =>
+            q.toLowerCase() !== attempted.trim().toLowerCase() &&
+            q.length >= 3 && q.length <= 220
+          );
+          if (reformulated) {
+            console.info("santo_amboss_source_recovery", {
+              requestId, outcome: "retrying_scoped_search",
+            });
+            const revisedRequest = { ...retrievalRequest,
+              preparedQuery: reformulated,
+              preparedQueries: [reformulated],
+            };
+            combinedSearch = this.imageGallery && this.richImagesEnabled &&
+              this.retrieval.retrieveWithGallery
+                ? await withAiDeadline(
+                    () => this.retrieval.retrieveWithGallery!(revisedRequest),
+                    signal, this.timeouts.retrievalMs, "SEARCH_TIMEOUT",
+                  )
+                : { evidence: await withAiDeadline(
+                    () => this.retrieval.retrieve(revisedRequest),
+                    signal, this.timeouts.retrievalMs, "SEARCH_TIMEOUT",
+                  ), galleryHits: [] };
+            console.info("santo_amboss_source_recovery", {
+              requestId,
+              outcome: combinedSearch.evidence.length ? "recovered" : "no_sources",
+              verifiedExcerpts: combinedSearch.evidence.length,
+            });
+          }
+        }
         const evidence = combinedSearch.evidence;
         console.info("santo_runtime_stage_ms", {
           stage: "retrieval",
@@ -309,6 +346,9 @@ export class GroundedAiService {
         const answerFormat = this.markdownOutput ? "markdown" : "json";
         const sourcedPrompt =
           buildGroundedPrompt(input.query, evidence, answerFormat, this.unifiedLunaPrompt) +
+          (libraryId === "amboss" && sourceMode !== "research"
+            ? "\\nAMBOSS SOURCE-FIRST RULE: The main explanation MUST be grounded in the supplied AMBOSS excerpts, with genuine AMBOSS citations for source-supported clinical claims. Do not replace an available AMBOSS explanation with an uncited general textbook chapter. If a small conceptual bridge is necessary, put it in a clearly separated 'General Medical Teaching' section limited to at most THREE concise sentences, never presenting it as an AMBOSS citation. If the user's clinical referent is genuinely ambiguous, ask a short clarification rather than inventing specifics.\\n"
+            : "") +
           medicalImagePrompt(availableImages, input.query, this.unifiedLunaPrompt);
         console.info("santo_runtime_stage_ms", {
           stage: "pre_model",
@@ -332,7 +372,9 @@ export class GroundedAiService {
           () =>
             this.model.generate(
               groundingMode === "general"
-                ? buildGeneralMedicalPrompt(input.query, answerFormat, this.unifiedLunaPrompt)
+                ? (libraryId === "amboss" && sourceMode !== "research"
+                    ? buildAmbossLimitedGeneralPrompt(input.query, answerFormat)
+                    : buildGeneralMedicalPrompt(input.query, answerFormat, this.unifiedLunaPrompt))
                 : sourcedPrompt,
               progress,
               groundingMode === "general" ? [] : evidence.map((item) => item.sourceId),
@@ -430,6 +472,11 @@ export class GroundedAiService {
         )
           responseMode = "general";
         if (responseMode === "general") {
+          // When evidence was available but Luna offered NO actual citations,
+          // never display the entire output as an AMBOSS-grounded chapter.
+          if (libraryId === "amboss" && sourceMode !== "research" &&
+            evidence.length > 0 && draft.citationIds.length === 0)
+            answer = limitUncitedAmbossTeaching(answer);
           if (draft.citationIds.length !== 0) {
             throw new GroundedAiError(
               502,

@@ -676,7 +676,10 @@ describe("grounded AI handler", () => {
       citationIds: [],
       sourcePresentation: "related" as const,
     }));
-    const response = await handler()(request(token, "amboss-uncited", "aortic stenosis", "amboss"), env);
+    const response = await handler()(
+      request(token, "amboss-uncited", "aortic stenosis", "amboss"),
+      env,
+    );
     expect(response.status).toBe(502);
     expect(await response.json()).toEqual({ error: "CITATION_INVALID" });
     expect(model.generate).toHaveBeenCalledTimes(1);

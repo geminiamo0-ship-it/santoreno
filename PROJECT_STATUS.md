@@ -7,7 +7,6 @@
 - **PubMed:** Staging-only `SANTO_RESEARCH_QWEN_V1` enables one contextual Qwen routing inference using trusted recent USER turns. Use main plus one complementary PubMed ESearch query, combine up to 60 unique PMIDs then EFetch once; no new clinical source type. Reduce first PMC evidence cap from 15 KB to 7 KB and follow-up cap to 2.2 KB within unchanged 22 KB overall evidence budget, so several original PubMed abstracts can accompany selected PMC passages. Research is still strict original PubMed/PMC citations; no Shared Gallery, no unrelated AI Search indexes.
 - **Pending evidence:** exact-head CI run, authenticated Santo/Royal conversation showing source cards and research answer quality. Do not interpret passing unit tests alone as live signed-in acceptance.
 
-
 ### CURRENT — Five exclusive study modes + shared gallery, Staging verified (21 Oct 2026, API PR #211, Royal PR #147)
 
 - **Deployed Santo Staging**: immutable Worker SHA `e56e47d8252f0dcd52adaa0a5d9746b7722d850f`. All code checks, real Cloudflare per-mode provider, Wrangler deploy, /health and rejected unauthorized call **SUCCESS**. The GitHub Actions run's terminal `failure` was solely caused by its last attempt to post a comment with an underprivileged GitHub App token; [PR #211 verified receipt](https://github.com/geminiamo0-ship-it/santoreno/pull/211#issuecomment-6304831610).
@@ -17,7 +16,6 @@
 - **PubMed Research unchanged**: PMC full-text retrieval and citation-linked licensed PMC figures only; no shared gallery or extra Search call. Luna GPT-6, Qwen short reply context, General Medical Fallback, source authorization, saved messages and quota unchanged.
 - **Royal Bank** five-mode selector, standalone authenticated global AnKing Find Card topic/copy/pagination and after-answer per-citation R2 image batches are implemented on [Royal PR #147](https://github.com/geminiamo0-ship-it/ROYAL-BANK/pull/147). Royal verify CI passed SHA `26229f2be23bf3c19c098f7df8e7cf1d0439fc86`, and [Vercel Preview](https://royal-bank-mi349gh06-drmostafa5868-7427.vercel.app) is READY on that SHA, using the Preview Santo Staging URL. No Production deployments or aliases changed.
 - **Pending user acceptance**: sign in on Royal Preview, ask each mode, inspect Luna source cards/source viewer, after-answer article figures and Find Card CID search; collect actual complete-response latency/tokens. Preview may require Vercel authentication. Both PRs stay Draft until acceptance.
-
 
 ### Current Staging — Libraries evidence passthrough, exact Dedup only (21 Oct 2026, PR #210)
 

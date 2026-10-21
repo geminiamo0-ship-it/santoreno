@@ -170,20 +170,26 @@ describe("PubMed Research Mode adapter", () => {
 
   it("allocates PubMed abstracts across many distinct original PMIDs", async () => {
     const ids = Array.from({ length: 12 }, (_, i) => String(i + 1000));
-    const xml = "<PubmedArticleSet>" + ids.map((id) =>
-      "<PubmedArticle><MedlineCitation><PMID>" + id +
-      "</PMID><Article><ArticleTitle>Aortic stenosis trial " + id +
-      "</ArticleTitle><Abstract><AbstractText>" +
-      "Severe aortic stenosis treatment was studied across multiple cohorts. ".repeat(3) +
-      "</AbstractText></Abstract><Journal><JournalIssue><PubDate><Year>2026</Year>" +
-      "</PubDate></JournalIssue></Journal></Article></MedlineCitation></PubmedArticle>"
-    ).join("") + "</PubmedArticleSet>";
+    const xml =
+      "<PubmedArticleSet>" +
+      ids
+        .map(
+          (id) =>
+            "<PubmedArticle><MedlineCitation><PMID>" +
+            id +
+            "</PMID><Article><ArticleTitle>Aortic stenosis trial " +
+            id +
+            "</ArticleTitle><Abstract><AbstractText>" +
+            "Severe aortic stenosis treatment was studied across multiple cohorts. ".repeat(3) +
+            "</AbstractText></Abstract><Journal><JournalIssue><PubDate><Year>2026</Year>" +
+            "</PubDate></JournalIssue></Journal></Article></MedlineCitation></PubmedArticle>",
+        )
+        .join("") +
+      "</PubmedArticleSet>";
     const fake = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
-      if (url.includes("esearch.fcgi"))
-        return Response.json({ esearchresult: { idlist: ids } });
-      if (url.includes("efetch.fcgi") && url.includes("db=pubmed"))
-        return new Response(xml);
+      if (url.includes("esearch.fcgi")) return Response.json({ esearchresult: { idlist: ids } });
+      if (url.includes("efetch.fcgi") && url.includes("db=pubmed")) return new Response(xml);
       return new Response("unavailable", { status: 503 });
     });
     const found = await new PubMedResearchRetrieval({ fetcher: fake as typeof fetch }).retrieve({

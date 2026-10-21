@@ -1,4 +1,4 @@
-name: Verify Exclusive Santo Study Modes (NO DEPLOY)
+name: Verify Exclusive Santo Study Modes v2 (NO DEPLOY)
 on:
   push:
     branches:

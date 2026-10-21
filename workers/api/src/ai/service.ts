@@ -211,7 +211,6 @@ export class GroundedAiService {
         const combinedSearch =
           this.imageGallery &&
           sourceMode !== "research" &&
-          libraryId === null &&
           this.richImagesEnabled &&
           this.retrieval.retrieveWithGallery
             ? await withAiDeadline(

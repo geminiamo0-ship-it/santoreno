@@ -16,6 +16,11 @@ import { focusedSearchQuery, focusedUserMessageQuery } from "./source-relevance"
 import { rankMedicalCandidates, type RankedCandidate } from "./medical-ranking";
 import type { WorkersAiLike } from "../runtime/bindings";
 import { rewriteMedicalSearchQuery, routeMedicalRequest } from "./medical-query-rewrite";
+import {
+  exclusiveModeLibraries,
+  isExclusiveMode,
+  GALLERY_INSTANCE,
+} from "./exclusive-source-modes";
 
 const LIBRARIES = ["amboss", "usmle", "passmedicine", "pastest", "one-examination"] as const;
 const MAX_RESULTS = 5;
@@ -197,6 +202,7 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
     private readonly ankingCardsV1 = false,
     private readonly ankingFullV12 = false,
     private readonly fastOneSearchV1 = false,
+    private readonly exclusiveSourceModesV1 = false,
   ) {
     this.catalog = catalog ?? new AiSearchNamespaceLibraryCatalog(namespace);
   }
@@ -249,6 +255,17 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
           ? rewriteMedicalSearchQuery(this.smallQueryModel, request.query, currentTopicQuery)
           : Promise.resolve(currentTopicQuery);
       const [catalog, searchQuery] = await Promise.all([catalogPromise, queryPromise]);
+      // Chosen study mode has an explicit index allowlist and exactly ONE
+      // Cloudflare search, regardless of the size of Qwen's search plan.
+      // PubMed bypasses this adapter and remains unchanged.
+      if (this.exclusiveSourceModesV1 && isExclusiveMode(request.libraryId)) {
+        const selected = exclusiveModeLibraries(
+          catalog,
+          request.libraryId,
+          this.ankingCardsV1 && this.ankingFullV12,
+        );
+        return this.retrieveExclusiveMode(selected, searchQuery, includeGallery);
+      }
       const selectedLibraries = selectLibraries(catalog, request.libraryId);
       if (
         this.medicalRetrievalV2 &&
@@ -426,6 +443,92 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
       // Cards never hydrate on the Luna path. Find the Card owns a separate
       // authenticated R2-only endpoint with independent lifecycle and quota.
     };
+  }
+
+  /**
+   * Selected library mode: one native namespace-level search, dedup only.
+   * Selected evidence indexes are exclusive; gallery is a separate
+   * non-citable image index included in the SAME provider call.
+   */
+  private async retrieveExclusiveMode(
+    selectedLibraries: readonly LibraryCatalogEntry[],
+    query: string,
+    includeGallery: boolean,
+  ): Promise<CombinedSearchResult> {
+    const ids = [
+      ...selectedLibraries.map((entry) => entry.instanceId),
+      ...(includeGallery ? [GALLERY_INSTANCE] : []),
+    ];
+    const started = performance.now();
+    const response = await this.namespace!.search({
+      query,
+      ai_search_options: {
+        instance_ids: ids,
+        retrieval: {
+          retrieval_type: "hybrid",
+          match_threshold: MATCH_THRESHOLD,
+          max_num_results: 50,
+          return_on_failure: true,
+          fusion_method: "rrf",
+        },
+        reranking: { enabled: false },
+        query_rewrite: { enabled: false },
+      },
+    });
+    const root = asRecord(response);
+    if (!Array.isArray(root?.chunks) || (Array.isArray(root?.errors) && root.errors.length > 0)) {
+      throw new GroundedAiError(502, "SEARCH_FAILED", "Selected study-mode search failed");
+    }
+
+    const evidence: RetrievedEvidence[] = [];
+    const galleryHits: GallerySearchHit[] = [];
+    const seenIds = new Set<string>();
+    const seenText = new Set<string>();
+    const seenImages = new Set<string>();
+    const allowedEvidenceIds = new Set(selectedLibraries.map((entry) => entry.instanceId));
+    // Never use the single-library fallback for a namespace hit missing its
+    // instance identity: this mode must not cite foreign/unattributed sources.
+    const attributable = root.chunks.filter((raw) => {
+      const entry = asRecord(raw);
+      return allowedEvidenceIds.has(stringField(entry, "instance_id") ?? "");
+    });
+    for (const candidate of evidenceFromSearch({ chunks: attributable }, selectedLibraries, 50)) {
+      if (
+        candidate.libraryId === "anking" &&
+        !/(?:^|\/)note_\d{10,16}\.json$/.test(candidate.itemKey)
+      )
+        continue;
+      const normalized = candidate.text.replace(/\s+/g, " ").trim();
+      if (seenIds.has(candidate.sourceId) || seenText.has(normalized)) continue;
+      seenIds.add(candidate.sourceId);
+      seenText.add(normalized);
+      evidence.push(
+        candidate.libraryId === "anking"
+          ? { ...candidate, title: "AnKing v12 — " + candidate.title }
+          : candidate,
+      );
+    }
+    if (includeGallery) {
+      for (const raw of root.chunks) {
+        const hit = asRecord(raw);
+        if (stringField(hit, "instance_id") !== GALLERY_INSTANCE) continue;
+        const key = stringField(asRecord(hit?.item), "key");
+        const match = key ? /(?:^|\/)(img_\d{6})\.json$/.exec(key) : null;
+        const score = numberField(hit, "score");
+        if (!match || score === null || score < MATCH_THRESHOLD || seenImages.has(match[1]!))
+          continue;
+        seenImages.add(match[1]!);
+        galleryHits.push({ imageId: match[1]!, score });
+      }
+    }
+    console.info("santo_exclusive_mode_search", {
+      selectedIndexes: selectedLibraries.length,
+      gallery: includeGallery,
+      providerHits: root.chunks.length,
+      evidence: evidence.length,
+      milliseconds: Math.round(performance.now() - started),
+    });
+    return { evidence, galleryHits };
   }
 
   /**

@@ -136,11 +136,11 @@ export const BatchSourceImagesResponseSchema = z
                     citedSection: z.boolean(),
                     images: z
                       .array(z.object({ src: ImageUrlSchema, alt: z.string().max(250) }).strict())
-                      .max(24),
+                      .max(80),
                   })
                   .strict(),
               )
-              .max(24),
+              .max(80),
           })
           .strict(),
       )

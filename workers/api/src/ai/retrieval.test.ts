@@ -1024,3 +1024,144 @@ describe("Qwen planned multi-query cross-library evidence retrieval", () => {
     expect(results[0]?.score).toBeCloseTo(0.45);
   });
 });
+
+describe("Exclusive study modes — single Cloudflare search and shared gallery", () => {
+  for (const [mode, selected] of [
+    ["amboss", ["amboss"]],
+    ["usmle", ["usmle"]],
+    ["mrcp", ["passmedicine", "pastest", "one-examination-isolated"]],
+    ["anking", ["santo-anking-step-v12"]],
+  ] as const) {
+    it(
+      "keeps " + mode + " sources exclusive and includes gallery in exactly one query",
+      async () => {
+        const requests: unknown[] = [];
+        const ns: AiSearchNamespaceLike = {
+          list: async () => ({ result: catalogItems }),
+          search: async (input: unknown) => {
+            requests.push(input);
+            return {
+              chunks: [
+                ...expectedIds.map((id) => chunk(id, 11)),
+                {
+                  id: "anking-note",
+                  text: "Aortic stenosis high yield clinical fact from approved AnKing v12 note.",
+                  score: 0.91,
+                  instance_id: "santo-anking-step-v12",
+                  item: {
+                    key: "anking/v12/note_123456789012.json",
+                    metadata: { title: "Aortic stenosis AnKing" },
+                  },
+                },
+                {
+                  id: "gallery",
+                  text: "Medical illustration of aortic stenosis",
+                  score: 0.91,
+                  instance_id: "santo-medical-images",
+                  item: { key: "gallery/img_000001.json" },
+                },
+              ],
+            };
+          },
+        };
+        const service = new CloudflareAiSearchRetrieval(
+          ns,
+          undefined,
+          true,
+          true,
+          undefined,
+          true,
+          true,
+          true,
+          true,
+          true,
+          true,
+        );
+        const answer = await service.retrieveWithGallery({
+          query: "Aortic stenosis",
+          libraryId: mode,
+          preparedQuery: "aortic stenosis echocardiography diagnosis management",
+          preparedQueries: [
+            "aortic stenosis overview",
+            "aortic stenosis management",
+            "aortic stenosis complications",
+            "aortic stenosis diagnosis",
+          ],
+        });
+        expect(requests).toHaveLength(1);
+        const request = requests[0] as {
+          query: string;
+          ai_search_options: {
+            instance_ids: string[];
+            retrieval: { max_num_results: number };
+            reranking: { enabled: boolean };
+          };
+        };
+        expect(request.ai_search_options.instance_ids).toEqual([
+          ...selected,
+          "santo-medical-images",
+        ]);
+        expect(request.ai_search_options.retrieval.max_num_results).toBe(50);
+        expect(request.ai_search_options.reranking.enabled).toBe(false);
+        expect(request.query).toBe("aortic stenosis echocardiography diagnosis management");
+        expect(answer.galleryHits).toEqual([{ imageId: "img_000001", score: 0.91 }]);
+        const evidenceInstances = new Set(answer.evidence.map((e) => e.instanceId));
+        expect(evidenceInstances.size).toBe(selected.length);
+        expect([...evidenceInstances].every((id) => selected.includes(id as never))).toBe(true);
+        expect(answer.evidence.some((e) => e.instanceId === "santo-medical-images")).toBe(false);
+      },
+    );
+  }
+
+  it("rejects a missing selected MRCP index instead of silently borrowing a different library", async () => {
+    const ns = new FakeAiSearchNamespace({
+      result: catalogItems.filter((item) => item.id !== "pastest"),
+    });
+    const service = new CloudflareAiSearchRetrieval(
+      ns,
+      undefined,
+      true,
+      true,
+      undefined,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+    );
+    await expect(
+      service.retrieveWithGallery({
+        query: "aortic stenosis",
+        libraryId: "mrcp",
+        preparedQuery: "aortic stenosis",
+      }),
+    ).rejects.toMatchObject({ code: "SEARCH_CONFIGURATION_ERROR" });
+    expect(ns.searchInputs).toHaveLength(0);
+  });
+
+  it("never enables the full AnKing note mode if rights or v12 gate is disabled", async () => {
+    const ns = new FakeAiSearchNamespace();
+    const service = new CloudflareAiSearchRetrieval(
+      ns,
+      undefined,
+      true,
+      true,
+      undefined,
+      true,
+      true,
+      false,
+      true,
+      true,
+      true,
+    );
+    await expect(
+      service.retrieveWithGallery({
+        query: "aortic stenosis",
+        libraryId: "anking",
+        preparedQuery: "aortic stenosis",
+      }),
+    ).rejects.toMatchObject({ code: "SEARCH_CONFIGURATION_ERROR" });
+    expect(ns.searchInputs).toHaveLength(0);
+  });
+});

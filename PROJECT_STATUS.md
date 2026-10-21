@@ -1,5 +1,16 @@
 # Santo Project Status — Living Handoff
 
+### CURRENT — Five exclusive study modes + shared gallery, Staging verified (21 Oct 2026, API PR #211, Royal PR #147)
+
+- **Deployed Santo Staging**: immutable Worker SHA `e56e47d8252f0dcd52adaa0a5d9746b7722d850f`. All code checks, real Cloudflare per-mode provider, Wrangler deploy, /health and rejected unauthorized call **SUCCESS**. The GitHub Actions run's terminal `failure` was solely caused by its last attempt to post a comment with an underprivileged GitHub App token; [PR #211 verified receipt](https://github.com/geminiamo0-ship-it/santoreno/pull/211#issuecomment-6304831610).
+- **Exclusive one-search scopes**: AMBOSS=`amboss` only; USMLE=`usmle` only; MRCP=`passmedicine`+`pastest`+`one-examination-isolated` only; AnKing=`santo-anking-step-v12` only. In each, a **single** namespace AI Search (up to 50 global provider hits) also includes `santo-medical-images` for auxiliary figures. The original provider relevance is retained; Santo does exact normalized text/source-ID Dedup only. No cross-mode index evidence or additional application ranking; Qwen's main medical query is used, not all planned parallel queries.
+- **Real provider smoke** on aortic stenosis: AMBOSS 44 clinical/6 gallery in 3542ms; USMLE 38/12 in 2036ms; MRCP 44/6 in 2600ms; AnKing 37/13 in 1635ms. These are example results, not guaranteed future counts or full E2E generation timings.
+- **AMBOSS** sequential private R2 expansion **unchanged** at 1 original + up to 10 following same-article sections. Existing note/citation image rights and safety checks preserved; original cited-article image metadata limit raised to **80** per article (bounded, no prose leaks).
+- **PubMed Research unchanged**: PMC full-text retrieval and citation-linked licensed PMC figures only; no shared gallery or extra Search call. Luna GPT-6, Qwen short reply context, General Medical Fallback, source authorization, saved messages and quota unchanged.
+- **Royal Bank** five-mode selector, standalone authenticated global AnKing Find Card topic/copy/pagination and after-answer per-citation R2 image batches are implemented on [Royal PR #147](https://github.com/geminiamo0-ship-it/ROYAL-BANK/pull/147). Royal verify CI passed SHA `26229f2be23bf3c19c098f7df8e7cf1d0439fc86`, and [Vercel Preview](https://royal-bank-mi349gh06-drmostafa5868-7427.vercel.app) is READY on that SHA, using the Preview Santo Staging URL. No Production deployments or aliases changed.
+- **Pending user acceptance**: sign in on Royal Preview, ask each mode, inspect Luna source cards/source viewer, after-answer article figures and Find Card CID search; collect actual complete-response latency/tokens. Preview may require Vercel authentication. Both PRs stay Draft until acceptance.
+
+
 ### Current Staging — Libraries evidence passthrough, exact Dedup only (21 Oct 2026, PR #210)
 
 - **Deployed successfully to Santo Staging**, exact immutable Worker source SHA `53e282c13f521823ede97ffcc7cf655ffe54c728`: [GitHub verified report](https://github.com/geminiamo0-ship-it/santoreno/issues/209#issuecomment-6304004290). Full lint, typecheck, unit tests, build and smoke, real Qwen/seven-index provider test, Wrangler Staging deploy and health/auth **all succeeded**. **Production untouched.** GitHub housekeeping commits after deployment are not new Worker deployments.
@@ -7,7 +18,6 @@
 - Input schema/prompt supports up to **220 original verified evidence IDs**, distinct from output limit **60 actually used citations**. Preserves all unique reference identities but may shorten individual original text excerpts to keep large Luna evidence JSON within an approximate **52,000-character** limit; never synthesizes medical claims. This is an approximate character budget **not an exact 10k-token total guarantee**. Large-source token cost and answer depth must be measured and tuned after authenticated acceptance.
 - AMBOSS private-R2 original adjacent evidence, gallery images, AnKing, short Qwen-only conversational replies, Luna GPT-6, General Medical Fallback for genuinely empty medical library hits, PubMed/PMC Research, identity/quota and Source Viewer remain unchanged.
 - **Acceptance still pending:** signed-in Royal Bank Preview medical question and follow-up, source/image/citation rendering, real first-token latency and full input/output token consumption. PR #210 remains Draft; no Production change.
-
 
 ### Qwen Medical Search Planner — Live Santo Staging (21 Oct 2026, Issue #209, PR #208)
 

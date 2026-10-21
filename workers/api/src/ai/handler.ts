@@ -88,6 +88,7 @@ export function createGroundedAiHandler(dependencies: GroundedAiHandlerDependenc
           env.SANTO_AI_SEARCH_SINGLE_REQUEST_V1 === "true",
         env.SANTO_ENV === "staging" && env.SANTO_ANKING_V12_FULL_SEARCH_V1 === "true",
         env.SANTO_ENV === "staging" && env.SANTO_SEARCH_FAST_PATH_V1 === "true",
+        env.SANTO_ENV === "staging" && env.SANTO_EXCLUSIVE_SOURCE_MODES_V1 === "true",
       );
       return env.SANTO_ENV === "staging" &&
         env.SANTO_AMBOSS_ADJACENT_R2_V1 === "true" &&

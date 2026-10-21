@@ -1,4 +1,4 @@
-name: Validate and Deploy AMBOSS Grounding + More Images to Staging
+name: AMBOSS Grounding and Gallery Staging Validation
 on:
   push:
     branches:
@@ -38,7 +38,7 @@ jobs:
         id: format
         run: |
           set -euo pipefail
-          pnpm exec prettier --write workers/api/src/ai/service.ts workers/api/src/ai/prompt.ts workers/api/src/ai/prompt.test.ts workers/api/src/ai/image-gallery.ts workers/api/src/ai/image-gallery.test.ts workers/api/src/ai/medical-images.ts packages/contracts/src/ai.ts packages/contracts/src/ai.test.ts
+          pnpm exec prettier --write PROJECT_STATUS.md .github/workflows/amboss-source-first-gallery-staging-once.yml workers/api/src/ai/service.ts workers/api/src/ai/prompt.ts workers/api/src/ai/prompt.test.ts workers/api/src/ai/image-gallery.ts workers/api/src/ai/image-gallery.test.ts workers/api/src/ai/medical-images.ts packages/contracts/src/ai.ts packages/contracts/src/ai.test.ts
           git add workers/api/src/ai/service.ts workers/api/src/ai/prompt.ts workers/api/src/ai/prompt.test.ts workers/api/src/ai/image-gallery.ts workers/api/src/ai/image-gallery.test.ts workers/api/src/ai/medical-images.ts packages/contracts/src/ai.ts packages/contracts/src/ai.test.ts
           if ! git diff --cached --quiet; then
             git config user.name 'github-actions[bot]'

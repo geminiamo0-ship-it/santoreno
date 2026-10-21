@@ -106,7 +106,7 @@ export const GroundedAiQueryResponseSchema = z
     groundingMode: z.enum(["santo", "general"]).optional(),
     citations: z.array(GroundedAiCitationSchema).max(MAX_GROUNDED_CITATIONS),
     /** Optional persisted candidates not selected for inline Luna figures. */
-    relatedPics: z.array(GroundedAiRelatedPicSchema).max(7).optional(),
+    relatedPics: z.array(GroundedAiRelatedPicSchema).max(50).optional(),
     /** Exact backend-owned AnKing CIDs; not model-generated clinical citations. */
     suggestedFlashcards: z.array(GroundedAiSuggestedFlashcardSchema).max(5).optional(),
     /** Real browsable library articles, but not model-cited inline medical claims. */

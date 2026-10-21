@@ -3,6 +3,8 @@ import type { WorkersAiLike } from "../runtime/bindings";
 import { routeMedicalRequest } from "./medical-query-rewrite";
 import { focusedSearchQuery, focusedUserMessageQuery } from "./source-relevance";
 import { selectPmcTeachingPassages } from "./research-fulltext";
+import { guidelineSearchQuery, mergePubMedCandidateIds, rankResearchPapers } from "./research-ranking";
+import type { ResearchPaper as Paper } from "./research-ranking";
 import type { RetrievalPort, RetrievalRequest, RetrievedEvidence } from "./types";
 
 export interface ResearchProviderConfig {
@@ -11,20 +13,6 @@ export interface ResearchProviderConfig {
   fetcher?: typeof fetch;
   qwenAi?: WorkersAiLike;
   enableQwenRouting?: boolean;
-}
-
-/** PubMed discovery is independent of Santo's indexed knowledge-library search. */
-interface Paper {
-  pmid: string;
-  pmcid: string | null;
-  doi: string | null;
-  title: string;
-  abstract: string;
-  year: number | null;
-  types: string[];
-  citations: number | null;
-  position: number;
-  score: number;
 }
 
 const PUBMED = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/";
@@ -367,12 +355,17 @@ export class PubMedResearchRetrieval implements RetrievalPort {
     const cleanQuestion = request.query.includes("Follow-up question:")
       ? request.query.split("Follow-up question:").at(-1)!.trim()
       : request.query;
-    // One already-computed Qwen plan; at most two complementary NCBI ESearch
-    // requests, deduplicated by canonical PMID before the single EFetch.
+    // Research Staging: one Qwen topic query + one targeted PubMed guideline
+    // publication-type query. The former multiquery policy is intentionally
+    // replaced: random narrow subtopic queries crowded out clinical guidance.
     const searchQuery = (request.preparedQuery ?? cleanQuestion).trim().slice(0, 1800);
+    const guidelineFirst = this.config.enableQwenRouting === true;
     const searchQueries = [
       ...new Set(
-        [searchQuery, ...(request.preparedQueries ?? [])]
+        [
+          searchQuery,
+          ...(guidelineFirst ? [guidelineSearchQuery(searchQuery)] : []),
+        ]
           .map((q) => q.trim())
           .filter((q) => q.length >= 3 && q.length <= 1800 && !/[\r\n{}<>]/.test(q)),
       ),
@@ -406,11 +399,16 @@ export class PubMedResearchRetrieval implements RetrievalPort {
       );
       if (!successful.length)
         throw new GroundedAiError(502, "SEARCH_FAILED", "PubMed search discovery unavailable");
-      const ids = [...new Set(successful.flatMap((entry) => entry.value))].slice(0, MAX_CANDIDATES);
+      const mainIds = discovered[0]?.status === "fulfilled" ? discovered[0].value : [];
+      const guidelineIds = discovered[1]?.status === "fulfilled" ? discovered[1].value : [];
+      const ids = guidelineFirst
+        ? mergePubMedCandidateIds(mainIds, guidelineIds, MAX_CANDIDATES)
+        : [...new Set(successful.flatMap((entry) => entry.value))].slice(0, MAX_CANDIDATES);
       console.info("santo_research_discovery", {
         attempted: searchQueries.length,
         successful: successful.length,
         uniquePmids: ids.length,
+        guidelineCandidates: guidelineIds.length,
       });
       if (!ids.length) return [];
       const xml = await this.get(
@@ -440,7 +438,18 @@ export class PubMedResearchRetrieval implements RetrievalPort {
     // Full-text is the primary evidence for a treatment question. Avoid
     // spending the short retrieval deadline on optional citation-count ranking
     // before contacting PMC. The first relevant articles get priority.
-    const ranked = rankPapers(papers, searchQuery);
+    const ranked = guidelineFirst
+      ? rankResearchPapers(papers, searchQuery)
+      : rankPapers(papers, searchQuery);
+    if (guidelineFirst) {
+      console.info("santo_research_guideline_ranking", {
+        candidates: papers.length,
+        clinicallyMatched: ranked.length,
+        guidelineEvidence: ranked.filter((paper) =>
+          paper.types.some((type) => /^(?:practice guideline|guideline)$/i.test(type)),
+        ).length,
+      });
+    }
     const eligible = ranked.filter((paper) => paper.pmcid).slice(0, 4);
     const fullText = new Map<string, string>();
     let providerStatus: "not_applicable" | "ok" | "failed" = "not_applicable";

@@ -70,6 +70,21 @@ describe("staging single-pass plain-Luna citation contract", () => {
     expect(previewPlainLuna("Supported [[N]](SANTO_", ids)).not.toContain("[[N]]");
   });
 
+  it("recovers only verified single-bracket, spaced and three-digit citations", () => {
+    const ids = Array.from({ length: 220 }, (_, index) => "amboss:verified-" + index);
+    const draft = parsePlainLunaAnswer(
+      "Pathophysiology [120]. Severity [[ 200 ]]. Management [[N]](SANTO_REF_220). " +
+        "Untrusted [[221]] and [999].\n[1] This is a list, not a source.",
+      ids,
+    );
+    expect(draft.citationIds).toEqual([ids[119], ids[199], ids[219]]);
+    expect(draft.answer).toContain("Pathophysiology [1].");
+    expect(draft.answer).toContain("Severity [2].");
+    expect(draft.answer).toContain("Management [3].");
+    expect(draft.answer).not.toContain("SANTO_REF_");
+    expect(previewPlainLuna("Teaching [120] and [[200]]", ids)).not.toMatch(/\[120\]|\[\[200\]\]/);
+  });
+
   it("preserves completed uncited medical teaching with related source status", () => {
     expect(parsePlainLunaAnswer("Management consists of valve replacement.", [sourceA])).toEqual({
       answer: "Management consists of valve replacement.",

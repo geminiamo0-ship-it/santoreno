@@ -3,7 +3,11 @@ import type { WorkersAiLike } from "../runtime/bindings";
 import { routeMedicalRequest } from "./medical-query-rewrite";
 import { focusedSearchQuery, focusedUserMessageQuery } from "./source-relevance";
 import { selectPmcTeachingPassages } from "./research-fulltext";
-import { guidelineSearchQuery, mergePubMedCandidateIds, rankResearchPapers } from "./research-ranking";
+import {
+  guidelineSearchQuery,
+  mergePubMedCandidateIds,
+  rankResearchPapers,
+} from "./research-ranking";
 import type { ResearchPaper as Paper } from "./research-ranking";
 import type { RetrievalPort, RetrievalRequest, RetrievedEvidence } from "./types";
 
@@ -362,10 +366,7 @@ export class PubMedResearchRetrieval implements RetrievalPort {
     const guidelineFirst = this.config.enableQwenRouting === true;
     const searchQueries = [
       ...new Set(
-        [
-          searchQuery,
-          ...(guidelineFirst ? [guidelineSearchQuery(searchQuery)] : []),
-        ]
+        [searchQuery, ...(guidelineFirst ? [guidelineSearchQuery(searchQuery)] : [])]
           .map((q) => q.trim())
           .filter((q) => q.length >= 3 && q.length <= 1800 && !/[\r\n{}<>]/.test(q)),
       ),

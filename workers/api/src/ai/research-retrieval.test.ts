@@ -181,20 +181,22 @@ describe("PubMed Research Mode adapter", () => {
         return Response.json({ esearchresult: { idlist: isGuidelines ? ["200"] : ["100"] } });
       }
       if (url.includes("efetch.fcgi") && url.includes("db=pubmed")) {
-        return new Response("<PubmedArticleSet>" +
-          "<PubmedArticle><MedlineCitation><PMID>100</PMID><Article>" +
-          "<ArticleTitle>Polygenic risk score in aortic stenosis</ArticleTitle>" +
-          "<Abstract><AbstractText>Genetic prediction of aortic stenosis.</AbstractText></Abstract>" +
-          "<Journal><JournalIssue><PubDate><Year>2026</Year></PubDate></JournalIssue></Journal>" +
-          "<PublicationTypeList><PublicationType>Journal Article</PublicationType></PublicationTypeList>" +
-          "</Article></MedlineCitation></PubmedArticle>" +
-          "<PubmedArticle><MedlineCitation><PMID>200</PMID><Article>" +
-          "<ArticleTitle>Clinical practice guidelines for aortic stenosis diagnosis and management</ArticleTitle>" +
-          "<Abstract><AbstractText>Aortic stenosis severity, diagnosis and treatment recommendations.</AbstractText></Abstract>" +
-          "<Journal><JournalIssue><PubDate><Year>2021</Year></PubDate></JournalIssue></Journal>" +
-          "<PublicationTypeList><PublicationType>Practice Guideline</PublicationType></PublicationTypeList>" +
-          "</Article></MedlineCitation></PubmedArticle>" +
-          "</PubmedArticleSet>");
+        return new Response(
+          "<PubmedArticleSet>" +
+            "<PubmedArticle><MedlineCitation><PMID>100</PMID><Article>" +
+            "<ArticleTitle>Polygenic risk score in aortic stenosis</ArticleTitle>" +
+            "<Abstract><AbstractText>Genetic prediction of aortic stenosis.</AbstractText></Abstract>" +
+            "<Journal><JournalIssue><PubDate><Year>2026</Year></PubDate></JournalIssue></Journal>" +
+            "<PublicationTypeList><PublicationType>Journal Article</PublicationType></PublicationTypeList>" +
+            "</Article></MedlineCitation></PubmedArticle>" +
+            "<PubmedArticle><MedlineCitation><PMID>200</PMID><Article>" +
+            "<ArticleTitle>Clinical practice guidelines for aortic stenosis diagnosis and management</ArticleTitle>" +
+            "<Abstract><AbstractText>Aortic stenosis severity, diagnosis and treatment recommendations.</AbstractText></Abstract>" +
+            "<Journal><JournalIssue><PubDate><Year>2021</Year></PubDate></JournalIssue></Journal>" +
+            "<PublicationTypeList><PublicationType>Practice Guideline</PublicationType></PublicationTypeList>" +
+            "</Article></MedlineCitation></PubmedArticle>" +
+            "</PubmedArticleSet>",
+        );
       }
       return new Response("optional provider unavailable", { status: 503 });
     });

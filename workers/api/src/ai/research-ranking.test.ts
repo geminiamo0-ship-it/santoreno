@@ -189,6 +189,24 @@ describe("PubMed clinical-guideline-first research ranking", () => {
     expect(ranked[0]?.types).toEqual(["Practice Guideline"]);
   });
 
+  it("finds disease-matched official valve guidelines via PubMed keywords without an abstract", () => {
+    const guideline = paper(
+      "40878295",
+      "2025 ESC/EACTS Guidelines for the management of valvular heart disease",
+      "",
+      ["Practice Guideline"],
+      2025,
+      14,
+    );
+    guideline.subjectTerms = ["Aortic stenosis", "TAVI", "valvular heart disease"];
+    const ranked = rankResearchPapers([
+      paper("10", "Aortic stenosis polygenic risk score", "Genetic risk in aortic stenosis.",
+        ["Journal Article"], 2026),
+      guideline,
+    ], "aortic stenosis");
+    expect(ranked[0]?.pmid).toBe("40878295");
+  });
+
   it("fails closed on unrelated topics or retracted records", () => {
     expect(
       rankResearchPapers(

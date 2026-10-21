@@ -70,12 +70,12 @@ describe("Santo grounded-versus-general response contract", () => {
       sourceName: "Medical image gallery",
     }));
     expect(
-      GroundedAiQueryResponseSchema.safeParse({ ...base, citations: [], relatedPics }),
+      GroundedAiQueryResponseSchema.safeParse({ ...base, citations: [{ sourceId: "amboss:original-1", title: "AMBOSS", page: null }], relatedPics }),
     ).toMatchObject({ success: true });
     expect(
       GroundedAiQueryResponseSchema.safeParse({
         ...base,
-        citations: [],
+        citations: [{ sourceId: "amboss:original-1", title: "AMBOSS", page: null }],
         relatedPics: [...relatedPics, ...relatedPics],
       }).success,
     ).toBe(false);

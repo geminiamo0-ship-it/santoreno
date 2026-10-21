@@ -163,9 +163,55 @@ describe("PubMed Research Mode adapter", () => {
     expect(found.map((paper) => paper.sourceId)).toEqual(["pubmed:100", "pubmed:200"]);
     expect(vi.mocked(ai.run)).toHaveBeenCalledTimes(1);
     expect(calls.filter((url) => url.includes("esearch.fcgi"))).toHaveLength(2);
+    const searches = calls.filter((url) => url.includes("esearch.fcgi"));
+    expect(decodeURIComponent(searches[1]!)).toContain("Practice Guideline[pt]");
+    expect(decodeURIComponent(searches[1]!)).toContain("aortic stenosis");
     const fetched = calls.filter((url) => url.includes("efetch.fcgi") && url.includes("db=pubmed"));
     expect(fetched).toHaveLength(1);
     expect(fetched[0]).toContain("id=100%2C200");
+  });
+
+  it("rescues older disease-specific Practice Guidelines that are absent from broad PubMed hits", async () => {
+    const calls: string[] = [];
+    const fake = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      calls.push(url);
+      if (url.includes("esearch.fcgi")) {
+        const isGuidelines = decodeURIComponent(url).includes("Practice Guideline[pt]");
+        return Response.json({ esearchresult: { idlist: isGuidelines ? ["200"] : ["100"] } });
+      }
+      if (url.includes("efetch.fcgi") && url.includes("db=pubmed")) {
+        return new Response("<PubmedArticleSet>" +
+          "<PubmedArticle><MedlineCitation><PMID>100</PMID><Article>" +
+          "<ArticleTitle>Polygenic risk score in aortic stenosis</ArticleTitle>" +
+          "<Abstract><AbstractText>Genetic prediction of aortic stenosis.</AbstractText></Abstract>" +
+          "<Journal><JournalIssue><PubDate><Year>2026</Year></PubDate></JournalIssue></Journal>" +
+          "<PublicationTypeList><PublicationType>Journal Article</PublicationType></PublicationTypeList>" +
+          "</Article></MedlineCitation></PubmedArticle>" +
+          "<PubmedArticle><MedlineCitation><PMID>200</PMID><Article>" +
+          "<ArticleTitle>Clinical practice guidelines for aortic stenosis diagnosis and management</ArticleTitle>" +
+          "<Abstract><AbstractText>Aortic stenosis severity, diagnosis and treatment recommendations.</AbstractText></Abstract>" +
+          "<Journal><JournalIssue><PubDate><Year>2021</Year></PubDate></JournalIssue></Journal>" +
+          "<PublicationTypeList><PublicationType>Practice Guideline</PublicationType></PublicationTypeList>" +
+          "</Article></MedlineCitation></PubmedArticle>" +
+          "</PubmedArticleSet>");
+      }
+      return new Response("optional provider unavailable", { status: 503 });
+    });
+    const adapter = new PubMedResearchRetrieval({
+      fetcher: fake as typeof fetch,
+      enableQwenRouting: true,
+    });
+    const results = await adapter.retrieve({
+      query: "aortic stenosis",
+      libraryId: null,
+      sourceMode: "research",
+      preparedQuery: "aortic stenosis management",
+    });
+    expect(results[0]?.sourceId).toBe("pubmed:200");
+    expect(results[0]?.text).toContain("Study type: Practice Guideline");
+    expect(results).toHaveLength(2);
+    expect(calls.filter((url) => url.includes("esearch.fcgi"))).toHaveLength(2);
   });
 
   it("allocates PubMed abstracts across many distinct original PMIDs", async () => {

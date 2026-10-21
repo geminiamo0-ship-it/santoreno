@@ -174,20 +174,6 @@ export function buildAmbossLimitedGeneralPrompt(
   );
 }
 
-/** Restrict an accidentally unreferenced AMBOSS draft rather than displaying
- * an uncited full medical chapter as if it were AMBOSS-backed.
- * Used ONLY if Luna produced no validated source IDs at all. */
-export function limitUncitedAmbossTeaching(answer: string): string {
-  const cleaned = answer.trim().replace(/\[\[\d+\]\]/g, "");
-  const clipped = cleaned.slice(0, 600).trimEnd();
-  const safeText = clipped.replace(/\s+\S*$/, "").trim() || clipped;
-  return (
-    "No verifiable AMBOSS citation was included in this answer.\n\n" +
-    "### General Medical Teaching (not verified against AMBOSS)\n\n" +
-    safeText
-  );
-}
-
 /** General medical answers never pretend to cite the Santo library. */
 export function buildGeneralMedicalPrompt(
   query: string,

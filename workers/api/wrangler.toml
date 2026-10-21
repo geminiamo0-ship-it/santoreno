@@ -61,6 +61,8 @@ SANTO_AI_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
 SANTO_LUNA_PREVIEW = "true"
 # Candidate-only; never deploy over working Luna until full integration passes.
 SANTO_RESEARCH_ENABLED = "true"
+# Research-only Qwen query planner, one inference and up to two PubMed discovery queries.
+SANTO_RESEARCH_QWEN_V1 = "true"
 # One provider response per user generation attempt; no silent paid fallback.
 SANTO_SINGLE_PASS_GENERATION_V1 = "true"
 SANTO_COMPACT_CITATION_ALIASES_V1 = "true"

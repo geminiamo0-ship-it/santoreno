@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildGeneralMedicalPrompt, buildGroundedPrompt } from "./prompt";
+import { buildAmbossLimitedGeneralPrompt, buildGeneralMedicalPrompt, buildGroundedPrompt, limitUncitedAmbossTeaching } from "./prompt";
 import type { RetrievedEvidence } from "./types";
 
 const evidence: RetrievedEvidence = {
@@ -258,5 +258,23 @@ describe("deterministic grounded prompt builder", () => {
     expect(() =>
       buildGroundedPrompt("test", [{ ...evidence, sourceId: "X".repeat(513) }]),
     ).toThrowError("Retrieved evidence exceeds prompt limits");
+  });
+});
+
+describe("AMBOSS source-first and bounded general teaching", () => {
+  it("instructs Luna to report unavailable AMBOSS excerpts and limit general teaching", () => {
+    const prompt = buildAmbossLimitedGeneralPrompt("Aortic stenosis", "markdown");
+    expect(prompt).toContain("AMBOSS index returned no usable article evidence");
+    expect(prompt).toContain("General Medical Teaching");
+    expect(prompt).toContain("three precise short sentences");
+    expect(prompt).toContain("No AMBOSS citations");
+  });
+  it("sanitizes unsupported markers and clips long uncited AMBOSS output", () => {
+    const response = limitUncitedAmbossTeaching(
+      "General overview with unsupported [[123]] citation. ".repeat(30),
+    );
+    expect(response).toContain("not verified against AMBOSS");
+    expect(response).not.toContain("[[123]]");
+    expect(response.length).toBeLessThan(800);
   });
 });

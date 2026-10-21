@@ -296,9 +296,9 @@ export class GroundedAiService {
           });
         }
         // Preserve strong article figures and reserve room for visual search.
-        // Original article IDs IMG_001..IMG_080 never collide with IMG_081+.
+        // Original article IDs IMG_001..IMG_160 never collide with gallery IMG_301+.
         const availableImages = [
-          ...selectMedicalImagesForPrompt(originalImages, input.query, 22),
+          ...selectMedicalImagesForPrompt(originalImages, input.query, 36),
           ...galleryImages,
         ];
         console.info("santo_luna_image_pipeline", {
@@ -393,7 +393,7 @@ export class GroundedAiService {
         // No new AI Search, R2 call, model call, citation, or quota operation.
         relatedPics = galleryImages
           .filter((figure) => !answer.includes(figure.src))
-          .slice(0, 7)
+          .slice(0, 50)
           .map((figure) => ({
             src: figure.src,
             alt: (figure.alt || figure.caption || "Medical illustration").slice(0, 160),

@@ -529,7 +529,7 @@ describe("grounded AI handler", () => {
       galleryHits: [{ imageId: "img_000001", score: 0.89 }],
     }));
     model.generate = vi.fn(async () => ({
-      answer: "## Diagnosis\nDoppler [[1]].\n\n[[IMG_001]]\n\n[[IMG_081]]",
+      answer: "## Diagnosis\nDoppler [[1]].\n\n[[IMG_001]]\n\n[[IMG_301]]",
       citationIds: [sourceId],
     }));
 

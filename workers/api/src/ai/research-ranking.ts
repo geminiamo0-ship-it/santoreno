@@ -173,7 +173,13 @@ export function rankResearchPapers(
     .flatMap((paper) => {
       if (paper.types.some((type) => /retract(ed|ion)/i.test(type))) return [];
       const title = paper.title.toLowerCase();
-      const body = (paper.title + " " + paper.abstract + " " + (paper.subjectTerms ?? []).join(" ")).toLowerCase();
+      const body = (
+        paper.title +
+        " " +
+        paper.abstract +
+        " " +
+        (paper.subjectTerms ?? []).join(" ")
+      ).toLowerCase();
       const titleWords = new Set(lowerWords(title));
       const bodyWords = new Set(lowerWords(body));
       const titleMatches = anchors.filter((word) => titleWords.has(word)).length;

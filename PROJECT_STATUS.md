@@ -1,5 +1,13 @@
 # Santo Project Status — Living Handoff
 
+### CURRENT — AMBOSS citation safety + PubMed Qwen Research candidate (21 Oct 2026, PR #212)
+
+- **Implementation pushed to PR #212 branch; STAGING DEPLOYMENT NOT YET VERIFIED for this follow-up**. Only the staging rollout workflow is permitted to deploy after lint, types, tests, build, smoke, provider probe and exact-head gates; Production must remain untouched.
+- **AMBOSS:** When source evidence exists but Luna supplies no verifiable citation, return `CITATION_INVALID`, release the quota reservation, and retain the unverified draft in the preview for same-key retry. Removed obsolete ~600-character General replacement. Expanded exact citation normalization for spaced/single-bracket and up to 220 bounded source IDs; unknown IDs remain uncited. Genuine empty evidence still gets the tightly bounded AMBOSS General Teaching policy.
+- **PubMed:** Staging-only `SANTO_RESEARCH_QWEN_V1` enables one contextual Qwen routing inference using trusted recent USER turns. Use main plus one complementary PubMed ESearch query, combine up to 60 unique PMIDs then EFetch once; no new clinical source type. Reduce first PMC evidence cap from 15 KB to 7 KB and follow-up cap to 2.2 KB within unchanged 22 KB overall evidence budget, so several original PubMed abstracts can accompany selected PMC passages. Research is still strict original PubMed/PMC citations; no Shared Gallery, no unrelated AI Search indexes.
+- **Pending evidence:** exact-head CI run, authenticated Santo/Royal conversation showing source cards and research answer quality. Do not interpret passing unit tests alone as live signed-in acceptance.
+
+
 ### CURRENT — Five exclusive study modes + shared gallery, Staging verified (21 Oct 2026, API PR #211, Royal PR #147)
 
 - **Deployed Santo Staging**: immutable Worker SHA `e56e47d8252f0dcd52adaa0a5d9746b7722d850f`. All code checks, real Cloudflare per-mode provider, Wrangler deploy, /health and rejected unauthorized call **SUCCESS**. The GitHub Actions run's terminal `failure` was solely caused by its last attempt to post a comment with an underprivileged GitHub App token; [PR #211 verified receipt](https://github.com/geminiamo0-ship-it/santoreno/pull/211#issuecomment-6304831610).

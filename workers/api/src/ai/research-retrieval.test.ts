@@ -226,16 +226,18 @@ describe("PubMed Research Mode adapter", () => {
         return Response.json({ esearchresult: { idlist: guidance ? ["40878295"] : ["100"] } });
       }
       if (url.includes("efetch.fcgi") && url.includes("db=pubmed")) {
-        return new Response("<PubmedArticleSet>" +
-          "<PubmedArticle><MedlineCitation><PMID>100</PMID><Article>" +
-          "<ArticleTitle>Polygenic Risk Score for Aortic Stenosis</ArticleTitle>" +
-          "<Abstract><AbstractText>Genetic risk profiling of aortic stenosis.</AbstractText></Abstract>" +
-          "</Article></MedlineCitation></PubmedArticle>" +
-          "<PubmedArticle><MedlineCitation><PMID>40878295</PMID><Article>" +
-          "<ArticleTitle>2025 ESC/EACTS Guidelines for valvular heart disease</ArticleTitle>" +
-          "<PublicationTypeList><PublicationType>Practice Guideline</PublicationType></PublicationTypeList>" +
-          "</Article><KeywordList><Keyword>Aortic stenosis</Keyword></KeywordList>" +
-          "</MedlineCitation></PubmedArticle></PubmedArticleSet>");
+        return new Response(
+          "<PubmedArticleSet>" +
+            "<PubmedArticle><MedlineCitation><PMID>100</PMID><Article>" +
+            "<ArticleTitle>Polygenic Risk Score for Aortic Stenosis</ArticleTitle>" +
+            "<Abstract><AbstractText>Genetic risk profiling of aortic stenosis.</AbstractText></Abstract>" +
+            "</Article></MedlineCitation></PubmedArticle>" +
+            "<PubmedArticle><MedlineCitation><PMID>40878295</PMID><Article>" +
+            "<ArticleTitle>2025 ESC/EACTS Guidelines for valvular heart disease</ArticleTitle>" +
+            "<PublicationTypeList><PublicationType>Practice Guideline</PublicationType></PublicationTypeList>" +
+            "</Article><KeywordList><Keyword>Aortic stenosis</Keyword></KeywordList>" +
+            "</MedlineCitation></PubmedArticle></PubmedArticleSet>",
+        );
       }
       return new Response("unavailable", { status: 503 });
     });

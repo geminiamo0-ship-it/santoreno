@@ -199,11 +199,19 @@ describe("PubMed clinical-guideline-first research ranking", () => {
       14,
     );
     guideline.subjectTerms = ["Aortic stenosis", "TAVI", "valvular heart disease"];
-    const ranked = rankResearchPapers([
-      paper("10", "Aortic stenosis polygenic risk score", "Genetic risk in aortic stenosis.",
-        ["Journal Article"], 2026),
-      guideline,
-    ], "aortic stenosis");
+    const ranked = rankResearchPapers(
+      [
+        paper(
+          "10",
+          "Aortic stenosis polygenic risk score",
+          "Genetic risk in aortic stenosis.",
+          ["Journal Article"],
+          2026,
+        ),
+        guideline,
+      ],
+      "aortic stenosis",
+    );
     expect(ranked[0]?.pmid).toBe("40878295");
   });
 

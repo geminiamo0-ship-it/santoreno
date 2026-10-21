@@ -8,7 +8,6 @@
 - **Evidence cost/security:** original verified PMID/PMC source and citation contracts maintained, 22 KB overall evidence budget and 3,000 Luna maximum output tokens unchanged; no production change. New deterministic ranking and adapter tests passed in full CI.
 - **Pending real-user acceptance:** authenticated Royal Preview Research conversation and source/card links, relevant actual PubMed guideline hit confirmation, citations, and Luna medical-answer quality. CI provider smoke exercised Cloudflare study indexes, not real PubMed Research end-to-end.
 
-
 ### CURRENT — AMBOSS citation safety + PubMed Qwen Research candidate (21 Oct 2026, PR #212)
 
 - **DEPLOYED to Santo Staging** from tested immutable source commit `225cc05a5c04d47e69ee78cdc60f314a95c5954d` by [GitHub Actions #39670626765](https://github.com/geminiamo0-ship-it/santoreno/actions/runs/39670626765): lint, TypeScript, unit tests, build, smoke, configuration policy, real selected-index Cloudflare provider probe, exact-head gate, Wrangler deploy, health and unauthorized 401 all SUCCESS. Production unchanged. Authenticated Royal clinical acceptance remains pending.

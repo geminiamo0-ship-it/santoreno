@@ -70,6 +70,7 @@ export interface SantoBindings {
   SANTO_AI_MODEL?: string;
   SANTO_LUNA_PREVIEW?: string;
   SANTO_RESEARCH_ENABLED?: string;
+  SANTO_RESEARCH_QWEN_V1?: string;
   NCBI_API_KEY?: string;
   OPENALEX_API_KEY?: string;
   SANTO_SINGLE_PASS_GENERATION_V1?: string;

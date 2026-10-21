@@ -549,7 +549,7 @@ describe("grounded AI handler", () => {
     expect(body.answer).toContain(media + "valve.webp");
     expect(body.answer).toContain(media + "ecg.webp");
     expect(body.answer).not.toContain("[[IMG_001]]");
-    expect(body.answer).not.toContain("[[IMG_081]]");
+    expect(body.answer).not.toContain("[[IMG_301]]");
     expect(body.relatedPics ?? []).toHaveLength(0); // Already inline: no duplication.
     expect(body.citations).toMatchObject([{ sourceId }]);
     expect(retrieval.retrieveWithGallery).toHaveBeenCalledTimes(1);
@@ -557,7 +557,7 @@ describe("grounded AI handler", () => {
     expect(model.generate).toHaveBeenCalledTimes(1);
     const prompt = vi.mocked(model.generate).mock.calls[0]![0] as string;
     expect(prompt).toContain("IMG_001");
-    expect(prompt).toContain("IMG_081");
+    expect(prompt).toContain("IMG_301");
     expect(quota.finalizeCalls).toBe(1);
 
     // Next question uses the SAME search + same original Luna image prompt,

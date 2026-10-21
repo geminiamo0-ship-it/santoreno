@@ -164,8 +164,8 @@ describe("PubMed Research Mode adapter", () => {
     expect(vi.mocked(ai.run)).toHaveBeenCalledTimes(1);
     expect(calls.filter((url) => url.includes("esearch.fcgi"))).toHaveLength(2);
     const searches = calls.filter((url) => url.includes("esearch.fcgi"));
-    expect(decodeURIComponent(searches[1]!)).toContain("Practice Guideline[pt]");
-    expect(decodeURIComponent(searches[1]!)).toContain("aortic stenosis");
+    expect(new URL(searches[1]!).searchParams.get("term")).toContain("Practice Guideline[pt]");
+    expect(new URL(searches[1]!).searchParams.get("term")).toContain("aortic stenosis");
     const fetched = calls.filter((url) => url.includes("efetch.fcgi") && url.includes("db=pubmed"));
     expect(fetched).toHaveLength(1);
     expect(fetched[0]).toContain("id=100%2C200");
@@ -177,7 +177,7 @@ describe("PubMed Research Mode adapter", () => {
       const url = String(input);
       calls.push(url);
       if (url.includes("esearch.fcgi")) {
-        const isGuidelines = decodeURIComponent(url).includes("Practice Guideline[pt]");
+        const isGuidelines = new URL(url).searchParams.get("term")?.includes("Practice Guideline[pt]");
         return Response.json({ esearchresult: { idlist: isGuidelines ? ["200"] : ["100"] } });
       }
       if (url.includes("efetch.fcgi") && url.includes("db=pubmed")) {

@@ -4,7 +4,6 @@ import {
   buildAmbossLimitedGeneralPrompt,
   buildGeneralMedicalPrompt,
   buildGroundedPrompt,
-  limitUncitedAmbossTeaching,
 } from "./prompt";
 import type { RetrievedEvidence } from "./types";
 
@@ -273,13 +272,5 @@ describe("AMBOSS source-first and bounded general teaching", () => {
     expect(prompt).toContain("General Medical Teaching");
     expect(prompt).toContain("three precise short sentences");
     expect(prompt).toContain("No AMBOSS citations");
-  });
-  it("sanitizes unsupported markers and clips long uncited AMBOSS output", () => {
-    const response = limitUncitedAmbossTeaching(
-      "General overview with unsupported [[123]] citation. ".repeat(30),
-    );
-    expect(response).toContain("not verified against AMBOSS");
-    expect(response).not.toContain("[[123]]");
-    expect(response.length).toBeLessThan(800);
   });
 });

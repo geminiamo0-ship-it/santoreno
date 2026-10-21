@@ -5,6 +5,10 @@ on:
       - fix/amboss-grounding-more-gallery-images-20261021
     paths:
       - .github/workflows/amboss-source-first-gallery-staging-once.yml
+      - workers/api/src/ai/**
+      - workers/api/src/runtime/bindings.ts
+      - workers/api/wrangler.toml
+      - PROJECT_STATUS.md
 permissions:
   contents: write
 concurrency:
@@ -38,8 +42,8 @@ jobs:
         id: format
         run: |
           set -euo pipefail
-          pnpm exec prettier --write PROJECT_STATUS.md .github/workflows/amboss-source-first-gallery-staging-once.yml workers/api/src/ai/service.ts workers/api/src/ai/prompt.ts workers/api/src/ai/prompt.test.ts workers/api/src/ai/image-gallery.ts workers/api/src/ai/image-gallery.test.ts workers/api/src/ai/medical-images.ts packages/contracts/src/ai.ts packages/contracts/src/ai.test.ts
-          git add workers/api/src/ai/service.ts workers/api/src/ai/prompt.ts workers/api/src/ai/prompt.test.ts workers/api/src/ai/image-gallery.ts workers/api/src/ai/image-gallery.test.ts workers/api/src/ai/medical-images.ts packages/contracts/src/ai.ts packages/contracts/src/ai.test.ts
+          pnpm exec prettier --write PROJECT_STATUS.md .github/workflows/amboss-source-first-gallery-staging-once.yml workers/api/src/ai/service.ts workers/api/src/ai/prompt.ts workers/api/src/ai/prompt.test.ts workers/api/src/ai/plain-luna.ts workers/api/src/ai/plain-luna.test.ts workers/api/src/ai/handler.ts workers/api/src/ai/handler.test.ts workers/api/src/ai/research-retrieval.ts workers/api/src/ai/research-retrieval.test.ts workers/api/src/runtime/bindings.ts workers/api/src/ai/image-gallery.ts workers/api/src/ai/image-gallery.test.ts workers/api/src/ai/medical-images.ts packages/contracts/src/ai.ts packages/contracts/src/ai.test.ts
+          git add PROJECT_STATUS.md workers/api/src/ai/service.ts workers/api/src/ai/prompt.ts workers/api/src/ai/prompt.test.ts workers/api/src/ai/plain-luna.ts workers/api/src/ai/plain-luna.test.ts workers/api/src/ai/handler.ts workers/api/src/ai/handler.test.ts workers/api/src/ai/research-retrieval.ts workers/api/src/ai/research-retrieval.test.ts workers/api/src/runtime/bindings.ts workers/api/src/ai/image-gallery.ts workers/api/src/ai/image-gallery.test.ts workers/api/src/ai/medical-images.ts packages/contracts/src/ai.ts packages/contracts/src/ai.test.ts
           if ! git diff --cached --quiet; then
             git config user.name 'github-actions[bot]'
             git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
@@ -67,6 +71,9 @@ jobs:
           grep -Fq 'SANTO_GALLERY_IMAGES_V1 = "true"' workers/api/wrangler.toml
           grep -Fq 'SANTO_GENERAL_MEDICAL_FALLBACK = "true"' workers/api/wrangler.toml
           grep -Fq 'SANTO_RESEARCH_ENABLED = "true"' workers/api/wrangler.toml
+          grep -Fq 'SANTO_RESEARCH_QWEN_V1 = "true"' workers/api/wrangler.toml
+          grep -Fq 'const FIRST_PAPER_BYTES = 7_000' workers/api/src/ai/research-retrieval.ts
+          grep -Fq 'santo_citation_verification' workers/api/src/ai/service.ts
           grep -Fq 'SANTO_QWEN_ROUTING_V1 = "true"' workers/api/wrangler.toml
           grep -Fq 'const ADJACENT_FILES = 10;' workers/api/src/ai/amboss-adjacent.ts
           grep -Fq 'buildAmbossLimitedGeneralPrompt' workers/api/src/ai/service.ts

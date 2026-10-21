@@ -90,6 +90,7 @@ SANTO_ANKING_V12_FULL_SEARCH_V1 = "true"
 # no native reranking. Staging rollback: set false and redeploy.
 SANTO_SEARCH_FAST_PATH_V1 = "true"
 SANTO_ANKING_RIGHTS_CLEARED_V1 = "true"
+SANTO_EXCLUSIVE_SOURCE_MODES_V1 = "true"
 SANTO_AI_SEARCH_INSTANCE_IDS = "amboss,usmle,passmedicine,pastest,one-examination-isolated"
 SANTO_LIBRARY_READER_V1 = "true"
 

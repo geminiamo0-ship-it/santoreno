@@ -91,8 +91,13 @@ function extractPapers(xml: string, ids: readonly string[]): Paper[] {
       .filter(Boolean);
     const types = xmlChunks(block, "PublicationType").map(decodeXml);
     const subjectTerms = [
-      ...block.matchAll(/<(?:Keyword|DescriptorName)(?:\s[^>]*)?>([\s\S]*?)<\/(?:Keyword|DescriptorName)>/gi),
-    ].map((match) => decodeXml(match[1] ?? "")).filter(Boolean).slice(0, 24);
+      ...block.matchAll(
+        /<(?:Keyword|DescriptorName)(?:\s[^>]*)?>([\s\S]*?)<\/(?:Keyword|DescriptorName)>/gi,
+      ),
+    ]
+      .map((match) => decodeXml(match[1] ?? ""))
+      .filter(Boolean)
+      .slice(0, 24);
     const year = numeric(tag(block, "Year"));
     const doi = fieldId(block, "doi");
     const pmc = fieldId(block, "pmc");

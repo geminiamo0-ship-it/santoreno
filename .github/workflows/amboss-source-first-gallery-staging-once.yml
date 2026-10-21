@@ -1,0 +1,130 @@
+name: Validate and Deploy AMBOSS Grounding + More Images to Staging
+on:
+  push:
+    branches:
+      - fix/amboss-grounding-more-gallery-images-20261021
+    paths:
+      - .github/workflows/amboss-source-first-gallery-staging-once.yml
+permissions:
+  contents: write
+concurrency:
+  group: santo-amboss-gallery-staging-20261021
+  cancel-in-progress: true
+jobs:
+  guarded-staging:
+    if: github.repository == 'geminiamo0-ship-it/santoreno'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      WORKER_URL: https://santo-api-staging.geminiamo0.workers.dev
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install lockfile exact workspace
+        run: |
+          set -euo pipefail
+          corepack enable
+          pnpm install --frozen-lockfile
+      - name: Format touched TypeScript and commit formatting only if necessary
+        id: format
+        run: |
+          set -euo pipefail
+          pnpm exec prettier --write workers/api/src/ai/service.ts workers/api/src/ai/prompt.ts workers/api/src/ai/prompt.test.ts workers/api/src/ai/image-gallery.ts workers/api/src/ai/image-gallery.test.ts workers/api/src/ai/medical-images.ts packages/contracts/src/ai.ts packages/contracts/src/ai.test.ts
+          git add workers/api/src/ai/service.ts workers/api/src/ai/prompt.ts workers/api/src/ai/prompt.test.ts workers/api/src/ai/image-gallery.ts workers/api/src/ai/image-gallery.test.ts workers/api/src/ai/medical-images.ts packages/contracts/src/ai.ts packages/contracts/src/ai.test.ts
+          if ! git diff --cached --quiet; then
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git commit -m 'style(amboss): format source-first recovery and gallery image expansion'
+            git push origin HEAD:fix/amboss-grounding-more-gallery-images-20261021
+          fi
+      - name: Full lint, typecheck, tests, build and smoke
+        id: checks
+        run: |
+          set -euo pipefail
+          for stage in lint typecheck test build smoke; do
+            echo "VERIFY_STAGE=$stage"
+            if ! pnpm "$stage" > /tmp/amboss_image_verify.log 2>&1; then
+              echo "$stage" > /tmp/failed_stage
+              tail -n 100 /tmp/amboss_image_verify.log
+              exit 1
+            fi
+          done
+      - name: Fail closed on missing source, rights or quota guards
+        id: guard
+        run: |
+          set -euo pipefail
+          grep -Fq 'SANTO_ENV = "staging"' workers/api/wrangler.toml
+          grep -Fq 'SANTO_EXCLUSIVE_SOURCE_MODES_V1 = "true"' workers/api/wrangler.toml
+          grep -Fq 'SANTO_GALLERY_IMAGES_V1 = "true"' workers/api/wrangler.toml
+          grep -Fq 'SANTO_GENERAL_MEDICAL_FALLBACK = "true"' workers/api/wrangler.toml
+          grep -Fq 'SANTO_RESEARCH_ENABLED = "true"' workers/api/wrangler.toml
+          grep -Fq 'SANTO_QWEN_ROUTING_V1 = "true"' workers/api/wrangler.toml
+          grep -Fq 'const ADJACENT_FILES = 10;' workers/api/src/ai/amboss-adjacent.ts
+          grep -Fq 'buildAmbossLimitedGeneralPrompt' workers/api/src/ai/service.ts
+          grep -Fq 'santo_amboss_source_recovery' workers/api/src/ai/service.ts
+          grep -Fq 'const MAX_GALLERY_IMAGES = 50' workers/api/src/ai/image-gallery.ts
+          grep -Fq 'const MAX_ARTICLES = 12' workers/api/src/ai/medical-images.ts
+          grep -Fq 'id: "IMG_" + String(301 + selected.length)' workers/api/src/ai/image-gallery.ts
+          test -n "${CLOUDFLARE_ACCOUNT_ID:-}"
+          test -n "${CLOUDFLARE_API_TOKEN:-}"
+      - name: Real selected-index + shared gallery Cloudflare probe
+        id: provider
+        run: |
+          set -euo pipefail
+          python -u scripts/smoke_santo_exclusive_modes_live.py > /tmp/amboss_image_provider.log 2>&1 || {
+            tail -n 65 /tmp/amboss_image_provider.log
+            exit 1
+          }
+          tail -n 12 /tmp/amboss_image_provider.log
+      - name: Exact immutable commit gate for shared Staging worker
+        run: |
+          set -euo pipefail
+          test "$(git ls-remote origin refs/heads/fix/amboss-grounding-more-gallery-images-20261021 | cut -f1)" = "$(git rev-parse HEAD)"
+      - name: Deploy ONLY Santo Staging Worker, preserve secrets
+        id: deploy
+        run: |
+          set -euo pipefail
+          cd workers/api
+          pnpm exec wrangler deploy --env staging --keep-vars > /tmp/amboss_image_deploy.log 2>&1 || {
+            tail -n 80 /tmp/amboss_image_deploy.log
+            exit 1
+          }
+          tail -n 30 /tmp/amboss_image_deploy.log
+      - name: Health and unauthorized model access smoke
+        id: health
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3 4 5 6 7 8; do
+            health="$(curl -sS --max-time 15 "$WORKER_URL/health" || true)"
+            if jq -e '.service=="santo-api" and .status=="ok"' <<<"$health" >/dev/null 2>&1; then break; fi
+            sleep 3
+          done
+          jq -e '.service=="santo-api" and .status=="ok"' <<<"$health" >/dev/null
+          status="$(curl -sS -o /dev/null -w '%{http_code}' -X POST "$WORKER_URL/v1/ai/query" -H 'Content-Type: application/json' --data '{"query":"aortic stenosis","library_id":"amboss","idempotency_key":"strict-amboss-unauth-smoke"}')"
+          test "$status" = 401
+      - name: Report checks regardless of deployment result
+        if: always()
+        env:
+          CHECKS: ${{ steps.checks.outcome }}
+          GUARD: ${{ steps.guard.outcome }}
+          PROVIDER: ${{ steps.provider.outcome }}
+          DEPLOY: ${{ steps.deploy.outcome }}
+          HEALTH: ${{ steps.health.outcome }}
+        run: |
+          {
+            echo "Santo AMBOSS+Images exact SHA $(git rev-parse HEAD): tests=$CHECKS, policy_guard=$GUARD, real_provider=$PROVIDER, staging_deploy=$DEPLOY, health_auth=$HEALTH"
+            if test -f /tmp/failed_stage; then
+              echo "Failed stage: $(cat /tmp/failed_stage)"
+              tail -n 60 /tmp/amboss_image_verify.log
+            fi
+            echo "Staging only; Production untouched. Signed-in clinical answer pending."
+          } | tee -a "$GITHUB_STEP_SUMMARY"

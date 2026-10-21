@@ -156,9 +156,9 @@ export class LibraryReaderService {
           let count = 0;
           const sections: BatchSourceImagesResponse["items"][number]["sections"] = [];
           for (const section of ordered) {
-            if (count >= 24 || sections.length >= 24) break;
+            if (count >= 80 || sections.length >= 80) break;
             if (!section.images.length) continue;
-            const images = section.images.slice(0, 24 - count);
+            const images = section.images.slice(0, 80 - count);
             sections.push({
               heading: section.heading,
               citedSection: section.id === cited.id,

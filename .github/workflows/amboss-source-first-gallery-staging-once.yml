@@ -1,4 +1,4 @@
-name: AMBOSS Grounding and Gallery Staging Validation v3
+name: AMBOSS Grounding and Gallery Staging Validation v4
 on:
   push:
     branches:

@@ -482,7 +482,14 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
     const seenIds = new Set<string>();
     const seenText = new Set<string>();
     const seenImages = new Set<string>();
-    for (const candidate of evidenceFromSearch(response, selectedLibraries, 50)) {
+    const allowedEvidenceIds = new Set(selectedLibraries.map(entry => entry.instanceId));
+    // Never use the single-library fallback for a namespace hit missing its
+    // instance identity: this mode must not cite foreign/unattributed sources.
+    const attributable = root.chunks.filter(raw => {
+      const entry = asRecord(raw);
+      return allowedEvidenceIds.has(stringField(entry, "instance_id") ?? "");
+    });
+    for (const candidate of evidenceFromSearch({ chunks: attributable }, selectedLibraries, 50)) {
       if (candidate.libraryId === "anking" &&
         !/(?:^|\\/)note_\\d{10,16}\\.json$/.test(candidate.itemKey)) continue;
       const normalized = candidate.text.replace(/\\s+/g, " ").trim();

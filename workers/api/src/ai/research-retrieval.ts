@@ -5,6 +5,7 @@ import { focusedSearchQuery, focusedUserMessageQuery } from "./source-relevance"
 import { selectPmcTeachingPassages } from "./research-fulltext";
 import {
   guidelineSearchQuery,
+  isPublishedGuideline,
   mergePubMedCandidateIds,
   rankResearchPapers,
 } from "./research-ranking";
@@ -89,6 +90,9 @@ function extractPapers(xml: string, ids: readonly string[]): Paper[] {
       .map((match) => decodeXml(match[1] ?? ""))
       .filter(Boolean);
     const types = xmlChunks(block, "PublicationType").map(decodeXml);
+    const subjectTerms = [
+      ...block.matchAll(/<(?:Keyword|DescriptorName)(?:\s[^>]*)?>([\s\S]*?)<\/(?:Keyword|DescriptorName)>/gi),
+    ].map((match) => decodeXml(match[1] ?? "")).filter(Boolean).slice(0, 24);
     const year = numeric(tag(block, "Year"));
     const doi = fieldId(block, "doi");
     const pmc = fieldId(block, "pmc");
@@ -98,6 +102,7 @@ function extractPapers(xml: string, ids: readonly string[]): Paper[] {
       doi: doi ? normalizedDoi(doi) : null,
       title: title.slice(0, 480),
       abstract: sections.join(" ").slice(0, 8500),
+      subjectTerms,
       year,
       types,
       citations: null,
@@ -517,17 +522,28 @@ export class PubMedResearchRetrieval implements RetrievalPort {
       const fullTextSelection = pmc
         ? selectPmcTeachingPassages(pmc, searchQuery, Math.max(0, perPaper - 1_200))
         : { text: "", sectionCount: 0 };
+      const bibliographyOnly = !paper.abstract.trim() && !fullTextSelection.text;
+      // Official indexed guidelines often have no abstract. Preserve the
+      // original PMID for discovery, never imply unseen recommendations.
+      if (bibliographyOnly && !isPublishedGuideline(paper)) continue;
       const status = fullTextSelection.text
         ? "PMC full-text passages available and included (selected relevant sections, not the entire article)."
-        : paper.pmcid
-          ? "PMC full-text unavailable or no relevant passage extracted: ABSTRACT ONLY. Do not claim this abstract verifies specific management doses or thresholds."
-          : "No indexed PMC full text: ABSTRACT ONLY.";
+        : bibliographyOnly
+          ? "BIBLIOGRAPHIC GUIDELINE ONLY: PubMed provides no abstract or PMC clinical excerpt. Cite only its existence/title, NEVER claim this source verifies specific diagnosis, treatment, recommendations, doses, or thresholds."
+          : paper.pmcid
+            ? "PMC full-text unavailable or no relevant passage extracted: ABSTRACT ONLY. Do not claim this abstract verifies specific management doses or thresholds."
+            : "No indexed PMC full text: ABSTRACT ONLY.";
       const header = [
         "Publication year: " + (paper.year ?? "unknown"),
         "Study type: " + (paper.types.join(", ") || "not classified"),
+        "PubMed indexed subject terms (metadata only): " +
+          (paper.subjectTerms?.slice(0, 12).join(", ") || "unavailable"),
         "Citations indexed by OpenAlex: " + (paper.citations ?? "unavailable"),
         "Evidence coverage: " + status,
-        "PubMed abstract: " + paper.abstract.slice(0, fullTextSelection.text ? 650 : 1_900),
+        "PubMed abstract: " +
+          (paper.abstract.trim()
+            ? paper.abstract.slice(0, fullTextSelection.text ? 650 : 1_900)
+            : "NOT AVAILABLE; no clinical recommendations extracted"),
       ].join("\n");
       const text =
         header +
@@ -536,7 +552,7 @@ export class PubMedResearchRetrieval implements RetrievalPort {
           : "");
       const selected = new TextEncoder().encode(text).length <= perPaper ? text : header; // Never silently cut medical numbers or dosing mid-sentence.
       const consumed = new TextEncoder().encode(selected).length;
-      if (consumed > budget || (!paper.abstract.trim() && !fullTextSelection.text)) continue;
+      if (consumed > budget) continue;
       budget -= consumed;
       output.push({
         sourceId: "pubmed:" + paper.pmid,

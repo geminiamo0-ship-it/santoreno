@@ -16,7 +16,11 @@ import { focusedSearchQuery, focusedUserMessageQuery } from "./source-relevance"
 import { rankMedicalCandidates, type RankedCandidate } from "./medical-ranking";
 import type { WorkersAiLike } from "../runtime/bindings";
 import { rewriteMedicalSearchQuery, routeMedicalRequest } from "./medical-query-rewrite";
-import { exclusiveModeLibraries, isExclusiveMode, GALLERY_INSTANCE } from "./exclusive-source-modes";
+import {
+  exclusiveModeLibraries,
+  isExclusiveMode,
+  GALLERY_INSTANCE,
+} from "./exclusive-source-modes";
 
 const LIBRARIES = ["amboss", "usmle", "passmedicine", "pastest", "one-examination"] as const;
 const MAX_RESULTS = 5;
@@ -472,8 +476,7 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
       },
     });
     const root = asRecord(response);
-    if (!Array.isArray(root?.chunks) ||
-      (Array.isArray(root?.errors) && root.errors.length > 0)) {
+    if (!Array.isArray(root?.chunks) || (Array.isArray(root?.errors) && root.errors.length > 0)) {
       throw new GroundedAiError(502, "SEARCH_FAILED", "Selected study-mode search failed");
     }
 
@@ -482,23 +485,28 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
     const seenIds = new Set<string>();
     const seenText = new Set<string>();
     const seenImages = new Set<string>();
-    const allowedEvidenceIds = new Set(selectedLibraries.map(entry => entry.instanceId));
+    const allowedEvidenceIds = new Set(selectedLibraries.map((entry) => entry.instanceId));
     // Never use the single-library fallback for a namespace hit missing its
     // instance identity: this mode must not cite foreign/unattributed sources.
-    const attributable = root.chunks.filter(raw => {
+    const attributable = root.chunks.filter((raw) => {
       const entry = asRecord(raw);
       return allowedEvidenceIds.has(stringField(entry, "instance_id") ?? "");
     });
     for (const candidate of evidenceFromSearch({ chunks: attributable }, selectedLibraries, 50)) {
-      if (candidate.libraryId === "anking" &&
-        !/(?:^|\/)note_\d{10,16}\.json$/.test(candidate.itemKey)) continue;
+      if (
+        candidate.libraryId === "anking" &&
+        !/(?:^|\/)note_\d{10,16}\.json$/.test(candidate.itemKey)
+      )
+        continue;
       const normalized = candidate.text.replace(/\s+/g, " ").trim();
       if (seenIds.has(candidate.sourceId) || seenText.has(normalized)) continue;
       seenIds.add(candidate.sourceId);
       seenText.add(normalized);
-      evidence.push(candidate.libraryId === "anking"
-        ? { ...candidate, title: "AnKing v12 — " + candidate.title }
-        : candidate);
+      evidence.push(
+        candidate.libraryId === "anking"
+          ? { ...candidate, title: "AnKing v12 — " + candidate.title }
+          : candidate,
+      );
     }
     if (includeGallery) {
       for (const raw of root.chunks) {

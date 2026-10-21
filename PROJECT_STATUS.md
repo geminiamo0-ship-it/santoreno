@@ -8,7 +8,6 @@
 - AMBOSS private-R2 original adjacent evidence, gallery images, AnKing, short Qwen-only conversational replies, Luna GPT-6, General Medical Fallback for genuinely empty medical library hits, PubMed/PMC Research, identity/quota and Source Viewer remain unchanged.
 - **Acceptance still pending:** signed-in Royal Bank Preview medical question and follow-up, source/image/citation rendering, real first-token latency and full input/output token consumption. PR #210 remains Draft; no Production change.
 
-
 ### Qwen Medical Search Planner — Live Santo Staging (21 Oct 2026, Issue #209, PR #208)
 
 - **DEPLOYED Santo Staging only**, exact immutable source SHA `fa0872f83f582d474bc3037d9c6c1ed5a19ba7d6`; [GitHub verified rollout](https://github.com/geminiamo0-ship-it/santoreno/issues/209#issuecomment-6303478445) reports full lint/typecheck/tests/build/smoke **success**, config/security guard **success**, real Qwen/7-index Cloudflare probe **success**, Worker Staging deploy **success**, /health and unauthorized POST check **success**. **Production unchanged.**

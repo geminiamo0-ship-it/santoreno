@@ -22,13 +22,13 @@ export function exclusiveModeLibraries(
     // Full licensed AnKing note index is separate from the 5 clinical sources.
     return [{ id: "anking", title: "AnKing v12", instanceId: ANKING_V12_INSTANCE }];
   }
-  const ids = mode === "mrcp"
-    ? ["passmedicine", "pastest", "one-examination"]
-    : [mode];
+  const ids = mode === "mrcp" ? ["passmedicine", "pastest", "one-examination"] : [mode];
   const entries = ids.map((id) => catalog.find((library) => library.id === id));
   if (entries.some((entry) => !entry)) {
     throw new GroundedAiError(
-      503, "SEARCH_CONFIGURATION_ERROR", "Selected medical index unavailable",
+      503,
+      "SEARCH_CONFIGURATION_ERROR",
+      "Selected medical index unavailable",
     );
   }
   return entries as LibraryCatalogEntry[];

@@ -529,7 +529,7 @@ describe("grounded AI handler", () => {
       galleryHits: [{ imageId: "img_000001", score: 0.89 }],
     }));
     model.generate = vi.fn(async () => ({
-      answer: "## Diagnosis\nDoppler [[1]].\n\n[[IMG_001]]\n\n[[IMG_081]]",
+      answer: "## Diagnosis\nDoppler [[1]].\n\n[[IMG_001]]\n\n[[IMG_301]]",
       citationIds: [sourceId],
     }));
 
@@ -549,7 +549,7 @@ describe("grounded AI handler", () => {
     expect(body.answer).toContain(media + "valve.webp");
     expect(body.answer).toContain(media + "ecg.webp");
     expect(body.answer).not.toContain("[[IMG_001]]");
-    expect(body.answer).not.toContain("[[IMG_081]]");
+    expect(body.answer).not.toContain("[[IMG_301]]");
     expect(body.relatedPics ?? []).toHaveLength(0); // Already inline: no duplication.
     expect(body.citations).toMatchObject([{ sourceId }]);
     expect(retrieval.retrieveWithGallery).toHaveBeenCalledTimes(1);
@@ -557,7 +557,7 @@ describe("grounded AI handler", () => {
     expect(model.generate).toHaveBeenCalledTimes(1);
     const prompt = vi.mocked(model.generate).mock.calls[0]![0] as string;
     expect(prompt).toContain("IMG_001");
-    expect(prompt).toContain("IMG_081");
+    expect(prompt).toContain("IMG_301");
     expect(quota.finalizeCalls).toBe(1);
 
     // Next question uses the SAME search + same original Luna image prompt,
@@ -663,6 +663,29 @@ describe("grounded AI handler", () => {
     expect(save).not.toHaveBeenCalled();
     expect(model.generate).toHaveBeenCalledTimes(1);
     expect(quota.finalizeCalls).toBe(1);
+  });
+
+  it("never replaces sourced AMBOSS prose with a clipped uncited General answer", async () => {
+    env.SANTO_ENV = "staging";
+    env.SANTO_LUNA_PREVIEW = "true";
+    env.SANTO_SINGLE_PASS_GENERATION_V1 = "true";
+    env.SANTO_PLAIN_TEXT_LUNA_V1 = "true";
+    env.SANTO_GENERAL_MEDICAL_FALLBACK = "true";
+    model.generate = vi.fn(async () => ({
+      answer: "Detailed AMBOSS diagnosis and treatment explanation. ".repeat(30),
+      citationIds: [],
+      sourcePresentation: "related" as const,
+    }));
+    const response = await handler()(
+      request(token, "amboss-uncited", "aortic stenosis", "amboss"),
+      env,
+    );
+    expect(response.status).toBe(502);
+    expect(await response.json()).toEqual({ error: "CITATION_INVALID" });
+    expect(model.generate).toHaveBeenCalledTimes(1);
+    expect(quota.finalizeCalls).toBe(0);
+    expect(quota.releaseCalls).toBe(1);
+    expect(quota.used).toBe(0);
   });
 
   it("completes a real fifteen-citation AMBOSS answer with persisted verified sources", async () => {

@@ -16,7 +16,11 @@ import {
 import type { R2BucketLike } from "../runtime/bindings";
 import { AI_STAGE_TIMEOUTS, withAiDeadline } from "./deadline";
 import { GroundedAiError } from "./errors";
-import { buildGeneralMedicalPrompt, buildGroundedPrompt } from "./prompt";
+import {
+  buildAmbossLimitedGeneralPrompt,
+  buildGeneralMedicalPrompt,
+  buildGroundedPrompt,
+} from "./prompt";
 import type { AiTelemetryEvent, AiTelemetryPort, ModelPort, RetrievalPort } from "./types";
 import type { GalleryImageRetriever } from "./image-gallery";
 import type { AnkingSupplementRetriever } from "./anking-flashcards";
@@ -155,7 +159,7 @@ export class GroundedAiService {
     try {
       const routeStartedAt = performance.now();
       const route =
-        this.intentRoutingEnabled && sourceMode !== "research" && this.retrieval.route
+        this.intentRoutingEnabled && this.retrieval.route
           ? await withAiDeadline(
               () =>
                 this.retrieval.route!({
@@ -208,7 +212,7 @@ export class GroundedAiService {
             ? { preparedQueries: route.searchQueries }
             : {}),
         };
-        const combinedSearch =
+        let combinedSearch =
           this.imageGallery &&
           sourceMode !== "research" &&
           this.richImagesEnabled &&
@@ -228,6 +232,57 @@ export class GroundedAiService {
                 ),
                 galleryHits: [],
               };
+        // AMBOSS is source-first: a truly empty result gets ONE on-topic
+        // reformulation from the already-computed Qwen plan. No second Qwen
+        // call, no other clinical library, no fallback on provider failures.
+        if (
+          libraryId === "amboss" &&
+          sourceMode !== "research" &&
+          combinedSearch.evidence.length === 0 &&
+          route?.intent === "medical"
+        ) {
+          const alternates = route.searchQueries ?? [];
+          const attempted = retrievalRequest.preparedQuery ?? input.query;
+          const reformulated = alternates.find(
+            (q) =>
+              q.toLowerCase() !== attempted.trim().toLowerCase() &&
+              q.length >= 3 &&
+              q.length <= 220,
+          );
+          if (reformulated) {
+            console.info("santo_amboss_source_recovery", {
+              requestId,
+              outcome: "retrying_scoped_search",
+            });
+            const revisedRequest = {
+              ...retrievalRequest,
+              preparedQuery: reformulated,
+              preparedQueries: [reformulated],
+            };
+            combinedSearch =
+              this.imageGallery && this.richImagesEnabled && this.retrieval.retrieveWithGallery
+                ? await withAiDeadline(
+                    () => this.retrieval.retrieveWithGallery!(revisedRequest),
+                    signal,
+                    this.timeouts.retrievalMs,
+                    "SEARCH_TIMEOUT",
+                  )
+                : {
+                    evidence: await withAiDeadline(
+                      () => this.retrieval.retrieve(revisedRequest),
+                      signal,
+                      this.timeouts.retrievalMs,
+                      "SEARCH_TIMEOUT",
+                    ),
+                    galleryHits: [],
+                  };
+            console.info("santo_amboss_source_recovery", {
+              requestId,
+              outcome: combinedSearch.evidence.length ? "recovered" : "no_sources",
+              verifiedExcerpts: combinedSearch.evidence.length,
+            });
+          }
+        }
         const evidence = combinedSearch.evidence;
         console.info("santo_runtime_stage_ms", {
           stage: "retrieval",
@@ -296,9 +351,9 @@ export class GroundedAiService {
           });
         }
         // Preserve strong article figures and reserve room for visual search.
-        // Original article IDs IMG_001..IMG_080 never collide with IMG_081+.
+        // Original article IDs IMG_001..IMG_160 never collide with gallery IMG_301+.
         const availableImages = [
-          ...selectMedicalImagesForPrompt(originalImages, input.query, 22),
+          ...selectMedicalImagesForPrompt(originalImages, input.query, 36),
           ...galleryImages,
         ];
         console.info("santo_luna_image_pipeline", {
@@ -309,6 +364,9 @@ export class GroundedAiService {
         const answerFormat = this.markdownOutput ? "markdown" : "json";
         const sourcedPrompt =
           buildGroundedPrompt(input.query, evidence, answerFormat, this.unifiedLunaPrompt) +
+          (libraryId === "amboss" && sourceMode !== "research"
+            ? "\nAMBOSS SOURCE-FIRST RULE: The main explanation MUST be grounded in the supplied AMBOSS excerpts, with genuine AMBOSS citations for source-supported clinical claims. Do not replace an available AMBOSS explanation with an uncited general textbook chapter. If a small conceptual bridge is necessary, put it in a clearly separated 'General Medical Teaching' section limited to at most THREE concise sentences, never presenting it as an AMBOSS citation. If the user's clinical referent is genuinely ambiguous, ask a short clarification rather than inventing specifics.\\n"
+            : "") +
           medicalImagePrompt(availableImages, input.query, this.unifiedLunaPrompt);
         console.info("santo_runtime_stage_ms", {
           stage: "pre_model",
@@ -332,7 +390,9 @@ export class GroundedAiService {
           () =>
             this.model.generate(
               groundingMode === "general"
-                ? buildGeneralMedicalPrompt(input.query, answerFormat, this.unifiedLunaPrompt)
+                ? libraryId === "amboss" && sourceMode !== "research"
+                  ? buildAmbossLimitedGeneralPrompt(input.query, answerFormat)
+                  : buildGeneralMedicalPrompt(input.query, answerFormat, this.unifiedLunaPrompt)
                 : sourcedPrompt,
               progress,
               groundingMode === "general" ? [] : evidence.map((item) => item.sourceId),
@@ -393,7 +453,7 @@ export class GroundedAiService {
         // No new AI Search, R2 call, model call, citation, or quota operation.
         relatedPics = galleryImages
           .filter((figure) => !answer.includes(figure.src))
-          .slice(0, 7)
+          .slice(0, 50)
           .map((figure) => ({
             src: figure.src,
             alt: (figure.alt || figure.caption || "Medical illustration").slice(0, 160),
@@ -419,6 +479,27 @@ export class GroundedAiService {
         outputChars = answer.length;
         responseMode = groundingMode;
         const usedSources = [...new Set([...draft.citationIds, ...images.sourceIds])];
+        // Evidence was retrieved: a missing citation is a verification failure,
+        // NOT a reason to silently replace complete AMBOSS teaching with General.
+        console.info("santo_citation_verification", {
+          requestId,
+          mode: libraryId === "amboss" ? "amboss" : sourceMode,
+          retrieved: evidence.length,
+          cited: draft.citationIds.length,
+          figureSources: images.sourceIds.length,
+        });
+        if (
+          libraryId === "amboss" &&
+          sourceMode !== "research" &&
+          evidence.length > 0 &&
+          draft.citationIds.length === 0
+        ) {
+          throw new GroundedAiError(
+            502,
+            "CITATION_INVALID",
+            "AMBOSS answer omitted verifiable citations despite retrieved evidence",
+          );
+        }
         // No more automatic "Related Library Sources" from unused retrieval.
         // Source cards are granted solely for explicit Luna citations or
         // original-article images Luna chose in the response.

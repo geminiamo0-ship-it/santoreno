@@ -18,8 +18,8 @@ export interface MedicalImageCandidate {
 
 const SEARCH_KEY = /^medical-search\/v1\/([a-z0-9-]+)\/([a-z0-9-]+)\/([a-z0-9-]+)\.md$/;
 const MEDIA_HOST = "pub-2a81f2cb19cc4473a3d076e657af6121.r2.dev";
-const MAX_IMAGES = 80;
-const MAX_ARTICLES = 5;
+const MAX_IMAGES = 160;
+const MAX_ARTICLES = 12;
 
 /** Privacy-safe staging diagnostics: counters only, no article text, image URLs,
  * student prompts or private article identifiers are ever logged. */
@@ -330,7 +330,7 @@ export async function loadMedicalImages(
 export function selectMedicalImagesForPrompt(
   images: readonly MedicalImageCandidate[],
   query: string,
-  limit = 30,
+  limit = 48,
 ): MedicalImageCandidate[] {
   if (images.length <= limit) return [...images];
   const words = new Set(

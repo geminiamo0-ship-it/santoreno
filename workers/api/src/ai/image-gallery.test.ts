@@ -40,7 +40,7 @@ describe("gallery hydration from a shared six-index search", () => {
     const images = await retriever.hydrate(hits);
     expect(images).toHaveLength(1);
     expect(images[0]).toMatchObject({
-      id: "IMG_081",
+      id: "IMG_301",
       sourceId: "",
       caption: "Tall peaked T waves",
       src: DOMAIN + "ecg.webp",

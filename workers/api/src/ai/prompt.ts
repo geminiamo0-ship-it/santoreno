@@ -156,6 +156,24 @@ export function buildGroundedPrompt(
   ].join("\n");
 }
 
+/** AMBOSS is source-first. When both the original and one reformulated
+ * targeted search yield no excerpts, do not turn its mode into a generic
+ * textbook chapter. Keep the allowed general teaching small and explicit.
+ * Never invent an AMBOSS citation or claim it was found in the article. */
+export function buildAmbossLimitedGeneralPrompt(
+  question: string,
+  format: SantoAnswerFormat = "json",
+): string {
+  return (
+    buildGeneralMedicalPrompt(question, format) +
+    "\nAMBOSS SOURCE-AVAILABILITY OVERRIDE (highest priority): The selected AMBOSS index returned no usable article evidence even after one reformulated search. Do NOT pretend you read AMBOSS. " +
+    "Write exactly one short section headed 'General Medical Teaching (not verified against AMBOSS)', preceded by one short sentence explicitly stating AMBOSS evidence was not available for this question. " +
+    "Keep general medical teaching to at most three precise short sentences (about 100 words total maximum). Avoid specific dosing, guideline dates, clinical thresholds or procedures without verification. " +
+    "If the medical referent remains genuinely ambiguous, ask ONE concise clarifying question instead of inventing facts. " +
+    "No AMBOSS citations, clinical source identifiers, false source claims, or images. Never produce an extended generic explanation."
+  );
+}
+
 /** General medical answers never pretend to cite the Santo library. */
 export function buildGeneralMedicalPrompt(
   query: string,

@@ -42,7 +42,7 @@ function scrubMachineIds(text: string, ids: readonly string[]): string {
     safe = safe.split(id).join("");
   }
   // Do not expose a model's own private alias if it disobeyed the instruction.
-  return safe.replace(/\b(?:cite)?SANTO_REF_[1-9]\d?\b/g, "");
+  return safe.replace(/\b(?:cite)?SANTO_REF_[1-9]\d{0,2}\b/g, "");
 }
 
 /** Drafts are explicitly unverified. Suppress partial citations while streaming. */
@@ -53,8 +53,12 @@ export function previewPlainLuna(text: string, sourceIds: readonly string[]): st
   // like [[N]](SANTO_REF_4) despite the [[4]] citation contract. Never leak
   // this unfinished internal reference during token-by-token SSE previews.
   const withoutAliasLinks = withoutModelUrls.replace(/\[\[N\]\](?:\([^\)\r\n]{0,50}\)?)?/g, "");
-  const withoutFullCitations = withoutAliasLinks.replace(/\[\[(?:\d{1,2}|IMG_\d{0,3})\]\]/g, "");
-  const withoutPartial = withoutFullCitations.replace(/\[\[(?:\d{0,2})?$/g, "");
+  const withoutFullCitations = withoutAliasLinks.replace(/\[\[(?:\d{1,3}|IMG_\d{0,3})\]\]/g, "");
+  const withoutSingleCitations = withoutFullCitations.replace(
+    /([^\n\[])\[([1-9]\d{0,2})\](?!\()/g,
+    "$1",
+  );
+  const withoutPartial = withoutSingleCitations.replace(/\[\[(?:\d{0,3})?$/g, "");
   return scrubMachineIds(withoutPartial, sourceIds).replace(
     /\[?SANTO_(?:R(?:E(?:F(?:_\d*)?)?)?)?$/g,
     "",
@@ -107,12 +111,17 @@ export function parsePlainLunaAnswer(
   // Convert ONLY a bounded, exact alias that maps to an actually retrieved
   // source. Then the same server-owned citation verification runs as usual.
   // Unknown or out-of-range aliases are dropped, never linked by the model.
-  const canonical = text.replace(/\[\[N\]\]\(SANTO_REF_([1-9]\d?)\)/g, (_whole, number: string) =>
-    Number(number) <= allowed.length ? "[[" + number + "]]" : "",
-  );
+  const canonical = text
+    .replace(/\[\[N\]\]\(SANTO_REF_([1-9]\d{0,2})\)/g, (_whole, number: string) =>
+      Number(number) <= allowed.length ? "[[" + number + "]]" : "",
+    )
+    // Support common model variants, without trusting an unreturned source.
+    // Single brackets only count as citations after prose, not list headings.
+    .replace(/\[\[\s*([1-9]\d{0,2})\s*\]\]/g, "[[$1]]")
+    .replace(/([^\n\[])\[([1-9]\d{0,2})\](?!\()/g, "$1[[$2]]");
   let answer = canonical.replace(/\[\[([^\]\n]{0,24})\]\]/g, (_whole, token: string) => {
     if (/^IMG_\d{3}$/.test(token)) return _whole;
-    if (!/^[1-9]\d?$/.test(token)) return "";
+    if (!/^[1-9]\d{0,2}$/.test(token)) return "";
     const source = allowed[Number(token) - 1];
     if (!source) return "";
     if (!found.has(source)) {

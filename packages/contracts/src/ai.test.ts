@@ -62,6 +62,29 @@ describe("Santo grounded-versus-general response contract", () => {
     ).toBe(false);
   });
 
+  it("accepts 30 real unused-gallery images and still rejects more than the 50-result ceiling", () => {
+    const relatedPics = Array.from({ length: 30 }, (_, n) => ({
+      src: "https://pub-2a81f2cb19cc4473a3d076e657af6121.r2.dev/offline_media/image" + n + ".webp",
+      alt: "Medical educational image " + n,
+      caption: "Image from original gallery",
+      sourceName: "Medical image gallery",
+    }));
+    expect(
+      GroundedAiQueryResponseSchema.safeParse({
+        ...base,
+        citations: [{ sourceId: "amboss:original-1", title: "AMBOSS", page: null }],
+        relatedPics,
+      }),
+    ).toMatchObject({ success: true });
+    expect(
+      GroundedAiQueryResponseSchema.safeParse({
+        ...base,
+        citations: [{ sourceId: "amboss:original-1", title: "AMBOSS", page: null }],
+        relatedPics: [...relatedPics, ...relatedPics],
+      }).success,
+    ).toBe(false);
+  });
+
   it("accepts a clearly labeled general answer with no citations", () => {
     expect(
       GroundedAiQueryResponseSchema.safeParse({

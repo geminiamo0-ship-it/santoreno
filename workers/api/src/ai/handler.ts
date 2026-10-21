@@ -142,6 +142,9 @@ export function createGroundedAiHandler(dependencies: GroundedAiHandlerDependenc
           ? new PubMedResearchRetrieval({
               ncbiApiKey: env.NCBI_API_KEY,
               openAlexApiKey: env.OPENALEX_API_KEY,
+              qwenAi: env.AI,
+              enableQwenRouting:
+                env.SANTO_ENV === "staging" && env.SANTO_RESEARCH_QWEN_V1 === "true",
             })
           : retrievalFactory(env);
       const response = await new GroundedAiService(

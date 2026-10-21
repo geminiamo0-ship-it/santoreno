@@ -20,7 +20,6 @@ import {
   buildAmbossLimitedGeneralPrompt,
   buildGeneralMedicalPrompt,
   buildGroundedPrompt,
-  limitUncitedAmbossTeaching,
 } from "./prompt";
 import type { AiTelemetryEvent, AiTelemetryPort, ModelPort, RetrievalPort } from "./types";
 import type { GalleryImageRetriever } from "./image-gallery";
@@ -480,6 +479,27 @@ export class GroundedAiService {
         outputChars = answer.length;
         responseMode = groundingMode;
         const usedSources = [...new Set([...draft.citationIds, ...images.sourceIds])];
+        // Evidence was retrieved: a missing citation is a verification failure,
+        // NOT a reason to silently replace complete AMBOSS teaching with General.
+        console.info("santo_citation_verification", {
+          requestId,
+          mode: libraryId === "amboss" ? "amboss" : sourceMode,
+          retrieved: evidence.length,
+          cited: draft.citationIds.length,
+          figureSources: images.sourceIds.length,
+        });
+        if (
+          libraryId === "amboss" &&
+          sourceMode !== "research" &&
+          evidence.length > 0 &&
+          draft.citationIds.length === 0
+        ) {
+          throw new GroundedAiError(
+            502,
+            "CITATION_INVALID",
+            "AMBOSS answer omitted verifiable citations despite retrieved evidence",
+          );
+        }
         // No more automatic "Related Library Sources" from unused retrieval.
         // Source cards are granted solely for explicit Luna citations or
         // original-article images Luna chose in the response.
@@ -491,15 +511,6 @@ export class GroundedAiService {
         )
           responseMode = "general";
         if (responseMode === "general") {
-          // When evidence was available but Luna offered NO actual citations,
-          // never display the entire output as an AMBOSS-grounded chapter.
-          if (
-            libraryId === "amboss" &&
-            sourceMode !== "research" &&
-            evidence.length > 0 &&
-            draft.citationIds.length === 0
-          )
-            answer = limitUncitedAmbossTeaching(answer);
           if (draft.citationIds.length !== 0) {
             throw new GroundedAiError(
               502,

@@ -10,7 +10,9 @@ export interface GalleryImageRetriever {
 const MANIFEST_KEY = "gallery/v1/santo_image_manifest.json";
 const IMAGE_HOST = "pub-2a81f2cb19cc4473a3d076e657af6121.r2.dev";
 const CACHE_TTL_MS = 5 * 60 * 1000;
-const MAX_GALLERY_IMAGES = 7;
+// No local seven-image cutoff: use all original provider-matched gallery hits
+// (the single AI Search request already caps its total at 50).
+const MAX_GALLERY_IMAGES = 50;
 
 interface GalleryRecord {
   image_url: string;
@@ -112,8 +114,8 @@ export class CloudflareGalleryImageRetrieval implements GalleryImageRetriever {
       const item = manifest[hit.imageId];
       if (!item) continue;
       selected.push({
-        // Article image IDs are IMG_001 through IMG_080.
-        id: "IMG_" + String(81 + selected.length).padStart(3, "0"),
+        // Article image IDs reserve IMG_001 through IMG_300.
+        id: "IMG_" + String(301 + selected.length).padStart(3, "0"),
         sourceId: "", // Gallery pictures cannot be medical citations.
         src: item.image_url,
         articleTitle: item.source_name,

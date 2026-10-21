@@ -218,6 +218,44 @@ describe("PubMed Research Mode adapter", () => {
     expect(calls.filter((url) => url.includes("esearch.fcgi"))).toHaveLength(2);
   });
 
+  it("retains official PubMed guidelines with indexed keywords but no abstract as metadata only", async () => {
+    const fake = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("esearch.fcgi")) {
+        const guidance = new URL(url).searchParams.get("term")?.includes("Practice Guideline[pt]");
+        return Response.json({ esearchresult: { idlist: guidance ? ["40878295"] : ["100"] } });
+      }
+      if (url.includes("efetch.fcgi") && url.includes("db=pubmed")) {
+        return new Response("<PubmedArticleSet>" +
+          "<PubmedArticle><MedlineCitation><PMID>100</PMID><Article>" +
+          "<ArticleTitle>Polygenic Risk Score for Aortic Stenosis</ArticleTitle>" +
+          "<Abstract><AbstractText>Genetic risk profiling of aortic stenosis.</AbstractText></Abstract>" +
+          "</Article></MedlineCitation></PubmedArticle>" +
+          "<PubmedArticle><MedlineCitation><PMID>40878295</PMID><Article>" +
+          "<ArticleTitle>2025 ESC/EACTS Guidelines for valvular heart disease</ArticleTitle>" +
+          "<PublicationTypeList><PublicationType>Practice Guideline</PublicationType></PublicationTypeList>" +
+          "</Article><KeywordList><Keyword>Aortic stenosis</Keyword></KeywordList>" +
+          "</MedlineCitation></PubmedArticle></PubmedArticleSet>");
+      }
+      return new Response("unavailable", { status: 503 });
+    });
+    const adapter = new PubMedResearchRetrieval({
+      fetcher: fake as typeof fetch,
+      enableQwenRouting: true,
+    });
+    const sources = await adapter.retrieve({
+      query: "aortic stenosis",
+      preparedQuery: "aortic stenosis",
+      libraryId: null,
+      sourceMode: "research",
+    });
+    expect(sources[0]?.sourceId).toBe("pubmed:40878295");
+    expect(sources[0]?.text).toContain("BIBLIOGRAPHIC GUIDELINE ONLY");
+    expect(sources[0]?.text).toContain("NEVER claim this source verifies");
+    expect(sources[0]?.text).toContain("Aortic stenosis");
+    expect(sources[0]?.text).toContain("NOT AVAILABLE");
+  });
+
   it("allocates PubMed abstracts across many distinct original PMIDs", async () => {
     const ids = Array.from({ length: 12 }, (_, i) => String(i + 1000));
     const xml =

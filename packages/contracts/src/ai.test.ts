@@ -69,10 +69,16 @@ describe("Santo grounded-versus-general response contract", () => {
       caption: "Image from original gallery",
       sourceName: "Medical image gallery",
     }));
-    expect(GroundedAiQueryResponseSchema.safeParse({ ...base, citations: [], relatedPics })).toMatchObject({success:true});
-    expect(GroundedAiQueryResponseSchema.safeParse({
-      ...base, citations: [], relatedPics: [...relatedPics, ...relatedPics],
-    }).success).toBe(false);
+    expect(
+      GroundedAiQueryResponseSchema.safeParse({ ...base, citations: [], relatedPics }),
+    ).toMatchObject({ success: true });
+    expect(
+      GroundedAiQueryResponseSchema.safeParse({
+        ...base,
+        citations: [],
+        relatedPics: [...relatedPics, ...relatedPics],
+      }).success,
+    ).toBe(false);
   });
 
   it("accepts a clearly labeled general answer with no citations", () => {

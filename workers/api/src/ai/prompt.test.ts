@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { buildAmbossLimitedGeneralPrompt, buildGeneralMedicalPrompt, buildGroundedPrompt, limitUncitedAmbossTeaching } from "./prompt";
+import {
+  buildAmbossLimitedGeneralPrompt,
+  buildGeneralMedicalPrompt,
+  buildGroundedPrompt,
+  limitUncitedAmbossTeaching,
+} from "./prompt";
 import type { RetrievedEvidence } from "./types";
 
 const evidence: RetrievedEvidence = {

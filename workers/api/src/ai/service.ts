@@ -16,7 +16,12 @@ import {
 import type { R2BucketLike } from "../runtime/bindings";
 import { AI_STAGE_TIMEOUTS, withAiDeadline } from "./deadline";
 import { GroundedAiError } from "./errors";
-import { buildAmbossLimitedGeneralPrompt, buildGeneralMedicalPrompt, buildGroundedPrompt, limitUncitedAmbossTeaching } from "./prompt";
+import {
+  buildAmbossLimitedGeneralPrompt,
+  buildGeneralMedicalPrompt,
+  buildGroundedPrompt,
+  limitUncitedAmbossTeaching,
+} from "./prompt";
 import type { AiTelemetryEvent, AiTelemetryPort, ModelPort, RetrievalPort } from "./types";
 import type { GalleryImageRetriever } from "./image-gallery";
 import type { AnkingSupplementRetriever } from "./anking-flashcards";
@@ -231,33 +236,47 @@ export class GroundedAiService {
         // AMBOSS is source-first: a truly empty result gets ONE on-topic
         // reformulation from the already-computed Qwen plan. No second Qwen
         // call, no other clinical library, no fallback on provider failures.
-        if (libraryId === "amboss" && sourceMode !== "research" &&
-            combinedSearch.evidence.length === 0 &&
-            route?.intent === "medical") {
+        if (
+          libraryId === "amboss" &&
+          sourceMode !== "research" &&
+          combinedSearch.evidence.length === 0 &&
+          route?.intent === "medical"
+        ) {
           const alternates = route.searchQueries ?? [];
           const attempted = retrievalRequest.preparedQuery ?? input.query;
-          const reformulated = alternates.find((q) =>
-            q.toLowerCase() !== attempted.trim().toLowerCase() &&
-            q.length >= 3 && q.length <= 220
+          const reformulated = alternates.find(
+            (q) =>
+              q.toLowerCase() !== attempted.trim().toLowerCase() &&
+              q.length >= 3 &&
+              q.length <= 220,
           );
           if (reformulated) {
             console.info("santo_amboss_source_recovery", {
-              requestId, outcome: "retrying_scoped_search",
+              requestId,
+              outcome: "retrying_scoped_search",
             });
-            const revisedRequest = { ...retrievalRequest,
+            const revisedRequest = {
+              ...retrievalRequest,
               preparedQuery: reformulated,
               preparedQueries: [reformulated],
             };
-            combinedSearch = this.imageGallery && this.richImagesEnabled &&
-              this.retrieval.retrieveWithGallery
+            combinedSearch =
+              this.imageGallery && this.richImagesEnabled && this.retrieval.retrieveWithGallery
                 ? await withAiDeadline(
                     () => this.retrieval.retrieveWithGallery!(revisedRequest),
-                    signal, this.timeouts.retrievalMs, "SEARCH_TIMEOUT",
+                    signal,
+                    this.timeouts.retrievalMs,
+                    "SEARCH_TIMEOUT",
                   )
-                : { evidence: await withAiDeadline(
-                    () => this.retrieval.retrieve(revisedRequest),
-                    signal, this.timeouts.retrievalMs, "SEARCH_TIMEOUT",
-                  ), galleryHits: [] };
+                : {
+                    evidence: await withAiDeadline(
+                      () => this.retrieval.retrieve(revisedRequest),
+                      signal,
+                      this.timeouts.retrievalMs,
+                      "SEARCH_TIMEOUT",
+                    ),
+                    galleryHits: [],
+                  };
             console.info("santo_amboss_source_recovery", {
               requestId,
               outcome: combinedSearch.evidence.length ? "recovered" : "no_sources",
@@ -372,9 +391,9 @@ export class GroundedAiService {
           () =>
             this.model.generate(
               groundingMode === "general"
-                ? (libraryId === "amboss" && sourceMode !== "research"
-                    ? buildAmbossLimitedGeneralPrompt(input.query, answerFormat)
-                    : buildGeneralMedicalPrompt(input.query, answerFormat, this.unifiedLunaPrompt))
+                ? libraryId === "amboss" && sourceMode !== "research"
+                  ? buildAmbossLimitedGeneralPrompt(input.query, answerFormat)
+                  : buildGeneralMedicalPrompt(input.query, answerFormat, this.unifiedLunaPrompt)
                 : sourcedPrompt,
               progress,
               groundingMode === "general" ? [] : evidence.map((item) => item.sourceId),
@@ -474,8 +493,12 @@ export class GroundedAiService {
         if (responseMode === "general") {
           // When evidence was available but Luna offered NO actual citations,
           // never display the entire output as an AMBOSS-grounded chapter.
-          if (libraryId === "amboss" && sourceMode !== "research" &&
-            evidence.length > 0 && draft.citationIds.length === 0)
+          if (
+            libraryId === "amboss" &&
+            sourceMode !== "research" &&
+            evidence.length > 0 &&
+            draft.citationIds.length === 0
+          )
             answer = limitUncitedAmbossTeaching(answer);
           if (draft.citationIds.length !== 0) {
             throw new GroundedAiError(

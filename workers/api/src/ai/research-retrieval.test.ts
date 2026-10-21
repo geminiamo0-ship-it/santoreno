@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { PubMedResearchRetrieval, SourceModeRetrieval } from "./research-retrieval";
 import type { RetrievalPort } from "./types";
+import type { WorkersAiLike } from "../runtime/bindings";
 
 const pubmedXml = `
 <PubmedArticleSet>
@@ -122,6 +123,77 @@ describe("PubMed Research Mode adapter", () => {
       true,
     );
     expect(calls.some((url) => url.includes("db=pmc"))).toBe(true);
+  });
+
+  it("uses one contextual Qwen route and two deduplicated PubMed discovery queries", async () => {
+    const ai: WorkersAiLike = {
+      run: vi.fn(async () => ({
+        response: JSON.stringify({
+          intent: "MEDICAL",
+          search_query: "aortic stenosis management treatment",
+          search_queries: [
+            "aortic stenosis management treatment",
+            "aortic stenosis transcatheter valve replacement outcomes",
+          ],
+        }),
+      })),
+    };
+    const { fake, calls } = mockedFetch();
+    const adapter = new PubMedResearchRetrieval({
+      fetcher: fake,
+      qwenAi: ai,
+      enableQwenRouting: true,
+    });
+    const route = await adapter.route!({
+      query: "management",
+      libraryId: null,
+      sourceMode: "research",
+      recentUserMessages: ["aortic stenosis", "management"],
+    });
+    expect(route.intent).toBe("medical");
+    if (route.intent !== "medical") throw new Error("Expected contextual medical route");
+    expect(route.searchQuery.toLowerCase()).toContain("aortic stenosis");
+    const found = await adapter.retrieve({
+      query: "management",
+      libraryId: null,
+      sourceMode: "research",
+      preparedQuery: route.searchQuery,
+      preparedQueries: route.searchQueries,
+    });
+    expect(found.map((paper) => paper.sourceId)).toEqual(["pubmed:100", "pubmed:200"]);
+    expect(vi.mocked(ai.run)).toHaveBeenCalledTimes(1);
+    expect(calls.filter((url) => url.includes("esearch.fcgi"))).toHaveLength(2);
+    const fetched = calls.filter((url) => url.includes("efetch.fcgi") && url.includes("db=pubmed"));
+    expect(fetched).toHaveLength(1);
+    expect(fetched[0]).toContain("id=100%2C200");
+  });
+
+  it("allocates PubMed abstracts across many distinct original PMIDs", async () => {
+    const ids = Array.from({ length: 12 }, (_, i) => String(i + 1000));
+    const xml = "<PubmedArticleSet>" + ids.map((id) =>
+      "<PubmedArticle><MedlineCitation><PMID>" + id +
+      "</PMID><Article><ArticleTitle>Aortic stenosis trial " + id +
+      "</ArticleTitle><Abstract><AbstractText>" +
+      "Severe aortic stenosis treatment was studied across multiple cohorts. ".repeat(3) +
+      "</AbstractText></Abstract><Journal><JournalIssue><PubDate><Year>2026</Year>" +
+      "</PubDate></JournalIssue></Journal></Article></MedlineCitation></PubmedArticle>"
+    ).join("") + "</PubmedArticleSet>";
+    const fake = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("esearch.fcgi"))
+        return Response.json({ esearchresult: { idlist: ids } });
+      if (url.includes("efetch.fcgi") && url.includes("db=pubmed"))
+        return new Response(xml);
+      return new Response("unavailable", { status: 503 });
+    });
+    const found = await new PubMedResearchRetrieval({ fetcher: fake as typeof fetch }).retrieve({
+      query: "aortic stenosis management",
+      libraryId: null,
+      sourceMode: "research",
+    });
+    expect(found.length).toBeGreaterThanOrEqual(8);
+    expect(new Set(found.map((paper) => paper.sourceId)).size).toBe(found.length);
+    expect(found.every((paper) => paper.text.includes("PubMed abstract:"))).toBe(true);
   });
 
   it("handles PubMed no-results without fabricated citations", async () => {

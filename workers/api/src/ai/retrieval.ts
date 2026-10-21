@@ -491,8 +491,8 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
     });
     for (const candidate of evidenceFromSearch({ chunks: attributable }, selectedLibraries, 50)) {
       if (candidate.libraryId === "anking" &&
-        !/(?:^|\\/)note_\\d{10,16}\\.json$/.test(candidate.itemKey)) continue;
-      const normalized = candidate.text.replace(/\\s+/g, " ").trim();
+        !/(?:^|\/)note_\d{10,16}\.json$/.test(candidate.itemKey)) continue;
+      const normalized = candidate.text.replace(/\s+/g, " ").trim();
       if (seenIds.has(candidate.sourceId) || seenText.has(normalized)) continue;
       seenIds.add(candidate.sourceId);
       seenText.add(normalized);
@@ -505,7 +505,7 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
         const hit = asRecord(raw);
         if (stringField(hit, "instance_id") !== GALLERY_INSTANCE) continue;
         const key = stringField(asRecord(hit?.item), "key");
-        const match = key ? /(?:^|\\/)(img_\\d{6})\\.json$/.exec(key) : null;
+        const match = key ? /(?:^|\/)(img_\d{6})\.json$/.exec(key) : null;
         const score = numberField(hit, "score");
         if (!match || score === null || score < MATCH_THRESHOLD || seenImages.has(match[1]!))
           continue;

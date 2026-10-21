@@ -129,8 +129,8 @@ describe("Luna original medical article images", () => {
     expect(chosen.map((item) => item.id)).toContain("IMG_045");
     const prompt = medicalImagePrompt(candidates, "aortic stenosis");
     expect(prompt).toContain("IMG_045");
-    expect(prompt).not.toContain("IMG_044");
-    expect(prompt.match(/"image_id":/g)).toHaveLength(30);
+    expect(prompt).toContain("IMG_044");
+    expect(prompt.match(/"image_id":/g)).toHaveLength(45);
     expect(prompt).not.toContain(MEDIA + "44.png"); // Original URLs stay server-side
     expect(prompt).toContain("Illustrations are a PRIORITY");
     const compact = medicalImagePrompt(candidates, "aortic stenosis", true);

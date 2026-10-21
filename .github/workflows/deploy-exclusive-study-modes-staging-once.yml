@@ -1,0 +1,133 @@
+name: Verify and Deploy Exclusive Santo Study Modes to Staging Only
+on:
+  push:
+    branches:
+      - feat/santo-source-modes-single-search-20261021
+    paths:
+      - .github/workflows/deploy-exclusive-study-modes-staging-once.yml
+permissions:
+  contents: write
+  issues: write
+concurrency:
+  group: santo-five-sources-staging-20261021
+  cancel-in-progress: true
+jobs:
+  gated-staging:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      WORKER_URL: https://santo-api-staging.geminiamo0.workers.dev
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install pinned pnpm workspace
+        run: |
+          set -euo pipefail
+          corepack enable
+          pnpm install --frozen-lockfile
+      - name: Format only source, never update this GitHub workflow
+        run: |
+          set -euo pipefail
+          pnpm exec prettier --write workers/api/src/ai/exclusive-source-modes.ts workers/api/src/ai/retrieval.ts workers/api/src/ai/retrieval.test.ts workers/api/src/ai/service.ts workers/api/src/ai/handler.ts workers/api/src/runtime/bindings.ts packages/contracts/src/library-reader.ts workers/api/src/library/reader.ts PROJECT_STATUS.md
+          git add workers/api/src/ai/exclusive-source-modes.ts workers/api/src/ai/retrieval.ts workers/api/src/ai/retrieval.test.ts workers/api/src/ai/service.ts workers/api/src/ai/handler.ts workers/api/src/runtime/bindings.ts packages/contracts/src/library-reader.ts workers/api/src/library/reader.ts PROJECT_STATUS.md
+          if ! git diff --cached --quiet; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit -m "style(santo): format five-mode indexed retrieval and cited-image reader"
+            git push origin HEAD:feat/santo-source-modes-single-search-20261021
+          fi
+      - name: Full lint/typecheck/unit/build/smoke regression
+        id: verify
+        run: |
+          set -euo pipefail
+          for command in lint typecheck test build smoke; do
+            echo "VERIFY_STAGE=$command"
+            if ! pnpm "$command" >/tmp/santo_mode_verify.log 2>&1; then
+              echo "$command" > /tmp/santo_mode_failed_stage
+              tail -n 95 /tmp/santo_mode_verify.log
+              exit 1
+            fi
+          done
+      - name: Validate unchanged Luna, PubMed, 11 AMBOSS chunks, only staging
+        id: guard
+        run: |
+          set -euo pipefail
+          grep -Fq 'SANTO_ENV = "staging"' workers/api/wrangler.toml
+          grep -Fq 'SANTO_EXCLUSIVE_SOURCE_MODES_V1 = "true"' workers/api/wrangler.toml
+          grep -Fq 'SANTO_RESEARCH_ENABLED = "true"' workers/api/wrangler.toml
+          grep -Fq 'SANTO_QWEN_ROUTING_V1 = "true"' workers/api/wrangler.toml
+          grep -Fq 'SANTO_GENERAL_MEDICAL_FALLBACK = "true"' workers/api/wrangler.toml
+          grep -Fq 'SANTO_LUNA_PREVIEW = "true"' workers/api/wrangler.toml
+          grep -Fq 'SANTO_GALLERY_IMAGES_V1 = "true"' workers/api/wrangler.toml
+          grep -Fq 'const ADJACENT_FILES = 10' workers/api/src/ai/amboss-adjacent.ts
+          grep -Fq 'new PubMedResearchRetrieval' workers/api/src/ai/handler.ts
+          grep -Fq 'exclusiveModeLibraries' workers/api/src/ai/retrieval.ts
+          grep -Fq 'max_num_results: 50' workers/api/src/ai/retrieval.ts
+          test -n "${CLOUDFLARE_ACCOUNT_ID:-}"
+          test -n "${CLOUDFLARE_API_TOKEN:-}"
+      - name: Real one-call per-mode Cloudflare index and gallery acceptance
+        id: provider
+        run: |
+          set -euo pipefail
+          python -u scripts/smoke_santo_exclusive_modes_live.py 2>&1 | tee /tmp/santo_live_modes.log
+      - name: Refuse deployment if checked out commit is no longer the branch tip
+        run: |
+          set -euo pipefail
+          test "$(git ls-remote origin refs/heads/feat/santo-source-modes-single-search-20261021 | cut -f1)" = "$(git rev-parse HEAD)"
+      - name: Deploy Cloudflare Worker to STAGING only and keep vars
+        id: deploy
+        run: |
+          set -euo pipefail
+          cd workers/api
+          pnpm exec wrangler deploy --env staging --keep-vars > /tmp/santo_mode_deploy.log 2>&1 || {
+            tail -n 80 /tmp/santo_mode_deploy.log
+            exit 1
+          }
+          tail -n 30 /tmp/santo_mode_deploy.log
+      - name: Check Staging worker Health and authorization
+        id: health
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3 4 5 6 7 8; do
+            output="$(curl --silent --show-error --max-time 15 "$WORKER_URL/health" || true)"
+            if jq -e '.service == "santo-api" and .status == "ok"' <<<"$output" >/dev/null 2>&1; then break; fi
+            sleep 3
+          done
+          jq -e '.service == "santo-api" and .status == "ok"' <<<"$output" >/dev/null
+          unauth="$(curl -sS -o /dev/null -w '%{http_code}' -X POST "$WORKER_URL/v1/ai/query" -H 'Content-Type: application/json' --data '{"query":"aortic stenosis","library_id":"mrcp","idempotency_key":"five-mode-unauth-smoke"}')"
+          test "$unauth" = 401
+          echo "Deployed immutable Santo Staging source SHA: $(git rev-parse HEAD)" >> "$GITHUB_STEP_SUMMARY"
+          echo "No Production deployment. Authenticated Royal answer acceptance is pending." >> "$GITHUB_STEP_SUMMARY"
+      - name: Append full gate outcome to PR 211
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RESULT: ${{ job.status }}
+          CHECKS: ${{ steps.verify.outcome }}
+          POLICY: ${{ steps.guard.outcome }}
+          PROVIDER: ${{ steps.provider.outcome }}
+          DEPLOY: ${{ steps.deploy.outcome }}
+          HEALTH: ${{ steps.health.outcome }}
+        run: |
+          {
+            echo "Santo Five Study Modes Staging release SHA $(git rev-parse HEAD): job=$RESULT, full_checks=$CHECKS, policy_guard=$POLICY, original_provider_scopes=$PROVIDER, staging_deploy=$DEPLOY, health_auth=$HEALTH."
+            if test "$RESULT" != success; then
+              echo "Failed stage: $(cat /tmp/santo_mode_failed_stage 2>/dev/null || echo unknown)"
+              echo '~~~'
+              for f in /tmp/santo_mode_verify.log /tmp/santo_live_modes.log /tmp/santo_mode_deploy.log; do
+                if test -f "$f"; then echo "LOG $f"; tail -n 45 "$f"; fi
+              done
+              echo '~~~'
+            fi
+            echo "Production unchanged; signed-in Royal Preview screenshots/citations still pending."
+          } >/tmp/study_modes_result.md
+          gh issue comment 211 --repo geminiamo0-ship-it/santoreno --body-file /tmp/study_modes_result.md

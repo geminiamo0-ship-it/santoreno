@@ -8,6 +8,8 @@ export interface ResearchPaper {
   doi: string | null;
   title: string;
   abstract: string;
+  /** Indexed original PubMed keywords/MeSH headings, never clinical excerpts. */
+  subjectTerms?: string[];
   year: number | null;
   types: string[];
   citations: number | null;
@@ -171,7 +173,7 @@ export function rankResearchPapers(
     .flatMap((paper) => {
       if (paper.types.some((type) => /retract(ed|ion)/i.test(type))) return [];
       const title = paper.title.toLowerCase();
-      const body = (paper.title + " " + paper.abstract).toLowerCase();
+      const body = (paper.title + " " + paper.abstract + " " + (paper.subjectTerms ?? []).join(" ")).toLowerCase();
       const titleWords = new Set(lowerWords(title));
       const bodyWords = new Set(lowerWords(body));
       const titleMatches = anchors.filter((word) => titleWords.has(word)).length;

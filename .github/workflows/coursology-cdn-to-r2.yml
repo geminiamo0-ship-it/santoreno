@@ -20,8 +20,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
-      CLOUDFLARE_API_TOKEN: ${ secrets.CLOUDFLARE_API_TOKEN }}
-      CLOUDFLARE_ACCOUNT_ID: ${ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -33,7 +33,7 @@ jobs:
         run: python scripts/import_coursology_offline_media.py --preflight
 
   upload:
-    name: Copy CDN media (shard ${ matrix.shard }} of 8)
+    name: Copy CDN media (shard ${{ matrix.shard }} of 8)
     needs: preflight
     runs-on: ubuntu-latest
     timeout-minutes: 340
@@ -43,8 +43,8 @@ jobs:
       matrix:
         shard: [0, 1, 2, 3, 4, 5, 6, 7]
     env:
-      CLOUDFLARE_API_TOKEN: ${ secrets.CLOUDFLARE_API_TOKEN }}
-      CLOUDFLARE_ACCOUNT_ID: ${ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -57,13 +57,13 @@ jobs:
         run: |
           set -euo pipefail
           python scripts/import_coursology_offline_media.py \
-            --shard "${ matrix.shard }}" --shards 8 --workers 5 \
-            --report "$RUNNER_TEMP/coursology-${ matrix.shard }}.jsonl"
+            --shard "${{ matrix.shard }}" --shards 8 --workers 5 \
+            --report "$RUNNER_TEMP/coursology-${{ matrix.shard }}.jsonl"
       - name: Save uploaded, skipped and failed file reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: coursology-shard-${ matrix.shard }}-results
-          path: ${ runner.temp }}/coursology-${ matrix.shard }}.jsonl
+          name: coursology-shard-${{ matrix.shard }}-results
+          path: ${{ runner.temp }}/coursology-${{ matrix.shard }}.jsonl
           if-no-files-found: warn
           retention-days: 14

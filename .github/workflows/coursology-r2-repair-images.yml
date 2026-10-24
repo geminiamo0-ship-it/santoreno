@@ -1,0 +1,47 @@
+name: Coursology R2 repair missing images only
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/coursology-r2-repair-images.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Do not run at the same time as the initial 8-shard media import.
+concurrency:
+  group: coursology-offline-media-r2-20261025
+  cancel-in-progress: false
+
+jobs:
+  repair-images:
+    name: Retry missing images after R2 429; never overwrite existing media
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install media uploader
+        run: python -m pip install --disable-pip-version-check "requests==2.32.3"
+      - name: Copy missing images only to verified R2 storage/offline_media
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/import_coursology_offline_media.py \
+            --only-images --workers 2 \
+            --report "$RUNNER_TEMP/coursology-image-repair.jsonl"
+      - name: Save complete image transfer report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coursology-image-repair-report
+          path: ${{ runner.temp }}/coursology-image-repair.jsonl
+          if-no-files-found: warn
+          retention-days: 14

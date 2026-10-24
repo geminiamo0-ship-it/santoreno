@@ -58,8 +58,9 @@ def cf_request(method, route, *, params=None, file=None, mime=None):
             time.sleep(min(2 ** attempt + random.random(), 20))
             continue
         if response.status_code in TRANSIENT and attempt != 4:
+            retry_status = response.status_code
             response.close()
-            time.sleep(min(2 ** attempt + random.random(), 20))
+            time.sleep(15 + 15 * attempt if retry_status == 429 else min(2 ** attempt + random.random(), 20))
             continue
         try:
             payload = response.json()
@@ -210,6 +211,9 @@ def transfer(entry, bucket):
                     return {"filename": name, "status": "uploaded", "bytes": size}
         except Exception as exc:
             last_error = str(exc)
+            # Authentication or absent remote video: do not hammer protected source URLs.
+            if isinstance(exc, requests.HTTPError) and exc.response is not None and exc.response.status_code in {401, 403, 404, 410}:
+                break
             if attempt != 3:
                 time.sleep(min(2 ** attempt + random.random(), 15))
     return {"filename": name, "status": "failed", "error": (last_error or "Unknown error")[:300]}
@@ -219,6 +223,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--manifest", default="data/coursology_media_urls.tsv")
     parser.add_argument("--preflight", action="store_true")
+    parser.add_argument("--only-images", action="store_true", help="Repair remaining images, without retrying access-restricted videos")
     parser.add_argument("--shard", type=int, default=0)
     parser.add_argument("--shards", type=int, default=1)
     parser.add_argument("--workers", type=int, default=5)
@@ -229,6 +234,8 @@ def main():
     if not os.environ.get("CLOUDFLARE_API_TOKEN") or not os.environ.get("CLOUDFLARE_ACCOUNT_ID"):
         parser.error("Missing preconfigured Cloudflare GitHub Actions secrets")
     entries = load_manifest(args.manifest)
+    if args.only_images:
+        entries = [(name, url) for name, url in entries if pathlib.Path(name).suffix.lower() in {".jpg", ".png", ".gif"}]
     bucket = discover_bucket()
     print("Verified target R2 bucket:", bucket, flush=True)
     if args.preflight:

@@ -1,0 +1,69 @@
+name: Coursology CDN to Cloudflare R2 offline_media
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/coursology-cdn-to-r2.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: coursology-offline-media-r2-20261025
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    name: Validate exact bucket, credentials and source CDN
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CLOUDFLARE_API_TOKEN: ${ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install transfer client
+        run: python -m pip install --disable-pip-version-check "requests==2.32.3"
+      - name: Validate all 4617 mappings and exact enabled public R2 bucket
+        run: python scripts/import_coursology_offline_media.py --preflight
+
+  upload:
+    name: Copy CDN media (shard ${ matrix.shard }} of 8)
+    needs: preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7]
+    env:
+      CLOUDFLARE_API_TOKEN: ${ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install transfer client
+        run: python -m pip install --disable-pip-version-check "requests==2.32.3"
+      - name: Transfer only missing mapped objects to offline_media/
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/import_coursology_offline_media.py \
+            --shard "${ matrix.shard }}" --shards 8 --workers 5 \
+            --report "$RUNNER_TEMP/coursology-${ matrix.shard }}.jsonl"
+      - name: Save uploaded, skipped and failed file reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coursology-shard-${ matrix.shard }}-results
+          path: ${ runner.temp }}/coursology-${ matrix.shard }}.jsonl
+          if-no-files-found: warn
+          retention-days: 14

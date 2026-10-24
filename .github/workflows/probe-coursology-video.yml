@@ -1,0 +1,48 @@
+name: Probe Coursology MP4 from GitHub Runner
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/probe-coursology-video.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe-public-url:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Probe public example video with ordinary HTTP variants
+        shell: bash
+        env:
+          VIDEO_URL: "https://cdn.coursology-qbank.com/media/i0c1voaohp54i3y7u90t8i36.mp4"
+          CONTROL_IMAGE: "https://cdn.coursology-qbank.com/media/lajyyqylg0pmihxpxqf17vhe.jpg"
+        run: |
+          set -euo pipefail
+          probe() {
+            local label="$1" url="$2"; shift 2
+            echo "====== ${label} ======"
+            status=$(curl --location --silent --show-error --max-time 25               --range 0-2047 -o /tmp/coursology-response               -D /tmp/coursology-headers -w '%{http_code}'               "$@" "$url" || true)
+            echo "HTTP status: ${status}"
+            grep -iE '^(content-type|content-length|content-range|accept-ranges|server|cf-cache-status|vary|www-authenticate|cf-mitigated):' /tmp/coursology-headers || true
+            echo "Response size: $(wc -c < /tmp/coursology-response)"
+            if [[ "$status" != 200 && "$status" != 206 ]]; then
+              python - <<'PY'
+          from pathlib import Path
+          content=Path("/tmp/coursology-response").read_bytes()[:200].decode("utf-8","replace")
+          # Only print first 200 chars of a public error response.
+          print("Error response starts:",repr(content))
+          PY
+            fi
+            printf '| %s | %s |\n' "$label" "$status" >> "$GITHUB_STEP_SUMMARY"
+          }
+          echo '## Public CDN URL reachability from GitHub runner' >> "$GITHUB_STEP_SUMMARY"
+          echo '| Request | HTTP status |' >> "$GITHUB_STEP_SUMMARY"
+          echo '| --- | --- |' >> "$GITHUB_STEP_SUMMARY"
+          probe "Video default" "$VIDEO_URL"
+          probe "Video browser UA" "$VIDEO_URL" -H 'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36' -H 'Accept: video/mp4,video/*;q=0.9,*/*;q=0.8'
+          probe "Video HEAD" "$VIDEO_URL" -I
+          probe "Image default" "$CONTROL_IMAGE"

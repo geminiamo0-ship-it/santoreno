@@ -1,3 +1,5 @@
+import { approvedPmcFigureImageUrl } from "@santo/contracts/ai";
+
 /** Source HTML only, never model-generated HTML. Staged behind Santo's authenticated reader. */
 const MEDIA_ORIGIN = "https://pub-2a81f2cb19cc4473a3d076e657af6121.r2.dev";
 const MEDIA_PATH = /^\/offline_media\/[A-Za-z0-9_%+.-]+\.(?:jpg|jpeg|png|webp|gif)$/i;

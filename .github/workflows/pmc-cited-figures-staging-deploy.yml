@@ -1,4 +1,5 @@
 name: Santo PMC Licensed Cited Figures — Verify & Deploy Staging
+# Verified formatted PMC media source and cited-gallery end-to-end tests
 on:
   push:
     branches: [feat/pmc-cited-figures-staging-20261025]

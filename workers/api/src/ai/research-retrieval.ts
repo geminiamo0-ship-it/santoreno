@@ -3,6 +3,7 @@ import type { WorkersAiLike } from "../runtime/bindings";
 import { routeMedicalRequest } from "./medical-query-rewrite";
 import { focusedSearchQuery, focusedUserMessageQuery } from "./source-relevance";
 import { selectPmcTeachingPassages } from "./research-fulltext";
+import { loadLicensedPmcFigures, type PmcFigure } from "./pmc-figures";
 import {
   guidelineSearchQuery,
   isPublishedGuideline,
@@ -18,6 +19,8 @@ export interface ResearchProviderConfig {
   fetcher?: typeof fetch;
   qwenAi?: WorkersAiLike;
   enableQwenRouting?: boolean;
+  /** Staging-only; one bounded metadata lookup for up to two PMC fulltexts. */
+  enablePmcFigures?: boolean;
 }
 
 const PUBMED = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/";
@@ -515,6 +518,31 @@ export class PubMedResearchRetrieval implements RetrievalPort {
       status: providerStatus,
     });
 
+    // Figures require the same authenticated retrieval's genuine full text.
+    // Limit to two articles, fetch only public PMC metadata with exact media URLs.
+    // This enrichment is optional; a provider outage never changes text/citations.
+    const figuresByPmc = new Map<string, readonly PmcFigure[]>();
+    if (this.config.enablePmcFigures && fullText.size) {
+      const withXml = ranked
+        .filter((paper) => !!paper.pmcid && fullText.has(paper.pmcid))
+        .slice(0, 2);
+      await Promise.all(
+        withXml.map(async (paper) => {
+          const figures = await loadLicensedPmcFigures(
+            paper.pmcid!,
+            fullText.get(paper.pmcid!)!,
+            this.fetcher,
+            signal,
+          );
+          if (figures.length) figuresByPmc.set(paper.pmcid!, figures);
+        }),
+      );
+      console.info("santo_pmc_figure_resolution", {
+        articlesConsidered: withXml.length,
+        articlesWithFigures: figuresByPmc.size,
+        imageCandidates: [...figuresByPmc.values()].reduce((sum, x) => sum + x.length, 0),
+      });
+    }
     const output: RetrievedEvidence[] = [];
     let budget = MAX_EVIDENCE_BYTES;
     for (const paper of ranked) {
@@ -561,6 +589,9 @@ export class PubMedResearchRetrieval implements RetrievalPort {
       budget -= consumed;
       output.push({
         sourceId: "pubmed:" + paper.pmid,
+        ...(paper.pmcid && figuresByPmc.has(paper.pmcid)
+          ? { pmcFigures: figuresByPmc.get(paper.pmcid) }
+          : {}),
         libraryId: "pubmed",
         instanceId: "pubmed",
         itemKey: "pmid:" + paper.pmid,

@@ -792,6 +792,87 @@ describe("grounded AI handler", () => {
     expect(telemetryEvents.at(-1)?.status).toBe("success");
   });
 
+  it("shows only verified cited PMC original figures in Research Related Pics without changing Luna evidence", async () => {
+    env.SANTO_ENV = "staging";
+    env.SANTO_RESEARCH_ENABLED = "true";
+    env.SANTO_PMC_CITED_FIGURES_V1 = "true";
+    env.SANTO_LUNA_RICH_IMAGES_V1 = "true";
+    env.SANTO_SINGLE_PASS_GENERATION_V1 = "true";
+    model.generate = vi.fn(async () => ({
+      answer: "The cited original trial discusses aortic stenosis hemodynamics.",
+      citationIds: ["pubmed:123"],
+    }));
+    const root = "https://pmc-oa-opendata.s3.amazonaws.com/";
+    const image = root + "PMC98765.1/gr1.jpg?md5=39209b49c555fa939d5108a4b6c4fe92";
+    const external = vi.fn(async (raw: RequestInfo | URL) => {
+      const url = String(raw);
+      if (url.includes("/esearch.fcgi")) {
+        return Response.json({ esearchresult: { idlist: ["123"] } });
+      }
+      if (url.includes("/efetch.fcgi") && url.includes("db=pubmed")) {
+        return new Response(
+          "<PubmedArticleSet><PubmedArticle><MedlineCitation><PMID>123</PMID><Article>" +
+            "<ArticleTitle>Aortic stenosis hemodynamics randomized clinical trial</ArticleTitle>" +
+            "<Abstract><AbstractText>Aortic stenosis hemodynamics were described in a randomized trial involving echocardiography and clinical outcomes.</AbstractText></Abstract>" +
+            '</Article></MedlineCitation><PubmedData><ArticleIdList><ArticleId IdType="pmc">PMC98765</ArticleId></ArticleIdList></PubmedData></PubmedArticle></PubmedArticleSet>',
+        );
+      }
+      if (url.includes("/efetch.fcgi") && url.includes("db=pmc")) {
+        return new Response(
+          '<pmc-articleset><article><front><article-meta><article-id pub-id-type="pmcid">PMC98765</article-id></article-meta></front>' +
+            "<body><sec><p>Aortic stenosis hemodynamics involve abnormal pressure gradients and echocardiographic measurement in this controlled medical study.</p></sec>" +
+            '<fig id="fig1"><caption><p>Echocardiographic measurement of aortic stenosis valve hemodynamics and transvalvular pressure gradients.</p></caption>' +
+            '<graphic xlink:href="gr1"/></fig></body></article></pmc-articleset>',
+        );
+      }
+      if (url.endsWith("/metadata/PMC98765.1.json")) {
+        return Response.json({
+          pmcid: "PMC98765",
+          version: 1,
+          is_pmc_openaccess: true,
+          license_code: "CC BY",
+          is_retracted: false,
+          media_urls: [
+            "s3://pmc-oa-opendata/PMC98765.1/gr1.jpg?md5=39209b49c555fa939d5108a4b6c4fe92",
+          ],
+        });
+      }
+      return new Response("optional provider not found", { status: 404 });
+    });
+    vi.stubGlobal("fetch", external);
+    try {
+      const original = request(token, "pmc-figure-trial", "aortic stenosis hemodynamics");
+      const payload = JSON.parse(await original.clone().text()) as Record<string, unknown>;
+      payload.source_mode = "research";
+      const response = await handler()(
+        new Request(original.url, {
+          method: "POST",
+          headers: original.headers,
+          body: JSON.stringify(payload),
+        }),
+        env,
+      );
+      expect(response.status).toBe(200);
+      const data = (await response.json()) as {
+        citations: Array<{ sourceId: string }>;
+        relatedPics: Array<{ src: string; sourceName: string; alt: string }>;
+      };
+      expect(data.citations.map((c) => c.sourceId)).toEqual(["pubmed:123"]);
+      expect(data.relatedPics).toEqual([
+        expect.objectContaining({
+          src: image,
+          alt: expect.stringContaining("aortic stenosis"),
+          sourceName: expect.stringContaining("PMC98765 · CC BY"),
+        }),
+      ]);
+      expect(model.generate).toHaveBeenCalledTimes(1);
+      const prompt = vi.mocked(model.generate).mock.calls[0]![0] as string;
+      expect(prompt).not.toContain(image);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("sends actual PubMed evidence into the SAME Luna model and shared quota without Qwen", async () => {
     env.SANTO_RESEARCH_ENABLED = "true";
     retrieval.route = vi.fn(async () => ({ intent: "chat" as const, answer: "Qwen-only answer" }));

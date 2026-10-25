@@ -1,4 +1,8 @@
+import type { PmcFigure } from "./pmc-figures";
+
 export interface RetrievedEvidence {
+  /** Optional verified figure metadata from this exact PubMed/PMC source; never prompt evidence. */
+  pmcFigures?: readonly PmcFigure[];
   sourceId: string;
   libraryId: string;
   instanceId: string;

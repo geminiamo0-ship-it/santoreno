@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { GroundedAiLibraryIdSchema } from "./ai";
+import { GroundedAiLibraryIdSchema, approvedPmcFigureImageUrl } from "./ai";
 import { TrustedSourceIdSchema, TrustedSourceMetadataSchema } from "./source";
 
 export const LibraryArticleIdSchema = z.string().regex(/^[a-z0-9][a-z0-9-]{0,90}$/);
@@ -11,11 +11,12 @@ const ImageUrlSchema = z
   .refine((url) => {
     const value = new URL(url);
     return (
-      value.protocol === "https:" &&
-      value.hostname === "pub-2a81f2cb19cc4473a3d076e657af6121.r2.dev" &&
-      /^\/offline_media\/[A-Za-z0-9_%+.-]+\.(?:png|jpg|jpeg|webp|gif)$/i.test(value.pathname) &&
-      !value.search &&
-      !value.hash
+      (value.protocol === "https:" &&
+        value.hostname === "pub-2a81f2cb19cc4473a3d076e657af6121.r2.dev" &&
+        /^\/offline_media\/[A-Za-z0-9_%+.-]+\.(?:png|jpg|jpeg|webp|gif)$/i.test(value.pathname) &&
+        !value.search &&
+        !value.hash) ||
+      approvedPmcFigureImageUrl(url)
     );
   }, "Media URL must use the approved public R2 image prefix");
 export const LibraryArticleSectionSchema = z

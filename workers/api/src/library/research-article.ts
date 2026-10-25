@@ -3,10 +3,12 @@ import {
   LibraryArticleSchema,
   SourceArticleRequestSchema,
   SourceArticleResponseSchema,
+  type LibraryArticle,
   type SourceArticleResponse,
 } from "@santo/contracts/library-reader";
 import { R2VerifiedSourceStore } from "../sources/store";
 import { LibraryReaderError } from "./reader";
+import { loadLicensedPmcFigures } from "../ai/pmc-figures";
 
 const EUROPE_PMC = "https://www.ebi.ac.uk/europepmc/webservices/rest/";
 const MAX_BYTES = 1_500_000;
@@ -55,6 +57,7 @@ export class PubMedArticleViewerService {
   constructor(
     private readonly snapshotStore: R2VerifiedSourceStore,
     private readonly fetcher: typeof fetch = (input, init) => fetch(input, init),
+    private readonly enablePmcFigures = false,
   ) {}
 
   private async download(url: URL): Promise<string> {
@@ -143,7 +146,7 @@ export class PubMedArticleViewerService {
       ...(doi ? ["DOI: " + doi] : []),
     ].join("\n");
 
-    const sections = [
+    const sections: LibraryArticle["sections"] = [
       {
         id: "s-0001",
         heading: "Abstract",
@@ -159,6 +162,29 @@ export class PubMedArticleViewerService {
       try {
         const full = new URL(EUROPE_PMC + encodeURIComponent(pmcid) + "/fullTextXML");
         const xml = await this.download(full);
+        if (this.enablePmcFigures) {
+          const figures = await loadLicensedPmcFigures(pmcid, xml, this.fetcher);
+          if (figures.length) {
+            sections.splice(1, 0, {
+              id: "s-0004",
+              heading: "Original PMC figures — open-access licensed",
+              text:
+                "Figures supplied by the original cited PMC article. Attribution and license: " +
+                pmcid +
+                ", " +
+                [...new Set(figures.map((figure) => figure.license))].join(", ") +
+                ". " +
+                "Image descriptions are original figure captions, not independent medical conclusions.",
+              images: figures.slice(0, 24).map((figure) => ({
+                src: figure.src,
+                alt: (figure.caption + " (" + figure.pmcid + "; " + figure.license + ")").slice(
+                  0,
+                  250,
+                ),
+              })),
+            });
+          }
+        }
         const body = /<body(?:\s[^>]*)?>([\s\S]*?)<\/body>/i.exec(xml)?.[1];
         if (body) {
           const paragraphs = [...body.matchAll(/<p(?:\s[^>]*)?>([\s\S]*?)<\/p>/gi)]

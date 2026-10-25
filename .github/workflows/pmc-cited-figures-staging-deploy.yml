@@ -1,0 +1,107 @@
+name: Santo PMC Licensed Cited Figures — Verify & Deploy Staging
+# Verified formatted PMC media source and cited-gallery end-to-end tests
+on:
+  push:
+    branches: [feat/pmc-cited-figures-staging-20261025]
+    paths: [.github/workflows/pmc-cited-figures-staging-deploy.yml]
+permissions:
+  contents: read
+concurrency:
+  group: santo-staging-pmc-cited-figures-20261025
+  cancel-in-progress: false
+jobs:
+  verified-deploy:
+    if: github.repository == 'geminiamo0-ship-it/santoreno'
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      WORKER_URL: https://santo-api-staging.geminiamo0.workers.dev
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install pinned workspace
+        run: |
+          set -euo pipefail
+          corepack enable
+          pnpm install --frozen-lockfile
+      - name: Verify exact Git HEAD, permissions, flag, and non-destructive scope
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+          test "$(git ls-remote origin refs/heads/feat/pmc-cited-figures-staging-20261025 | cut -f1)" = "$(git rev-parse HEAD)"
+          grep -Fq 'SANTO_ENV = "staging"' workers/api/wrangler.toml
+          grep -Fq 'SANTO_PMC_CITED_FIGURES_V1 = "true"' workers/api/wrangler.toml
+          grep -Fq 'SANTO_RESEARCH_ENABLED = "true"' workers/api/wrangler.toml
+          grep -Fq 'SANTO_USMLE_GALLERY_V1 = "true"' workers/api/wrangler.toml
+          grep -Fq 'SANTO_PLAIN_TEXT_LUNA_V1 = "true"' workers/api/wrangler.toml
+          grep -Fq 'SANTO_LUNA_UNIFIED_PROMPT_V1 = "true"' workers/api/wrangler.toml
+          echo "PMC_CITED_FIGURES_DEPLOY_SOURCE_SHA=$(git rev-parse HEAD)"
+      - name: Verify source lints and exact touched-file formatting
+        run: |
+          set -euo pipefail
+          pnpm exec oxlint .
+          pnpm exec prettier --check \
+            packages/contracts/src/ai.ts packages/contracts/src/ai.test.ts packages/contracts/src/library-reader.ts \
+            packages/widget/src/article-rich-html.ts packages/widget/src/article-rich-html.test.ts \
+            workers/api/src/ai/pmc-figures.ts workers/api/src/ai/pmc-figures.test.ts \
+            workers/api/src/ai/types.ts workers/api/src/ai/research-retrieval.ts \
+            workers/api/src/ai/service.ts workers/api/src/ai/handler.ts workers/api/src/ai/handler.test.ts \
+            workers/api/src/library/research-article.ts workers/api/src/library/research-article.test.ts \
+            workers/api/src/library/handler.ts workers/api/src/runtime/bindings.ts
+      - name: Verify full workspace tests typecheck build and smoke
+        run: |
+          set -euo pipefail
+          pnpm typecheck
+          pnpm test
+          pnpm build
+          pnpm smoke
+      - name: Verify public PMC metadata actual image and no fabricated references
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,urllib.request
+          u='https://pmc-oa-opendata.s3.amazonaws.com/metadata/PMC10009416.1.json'
+          with urllib.request.urlopen(u,timeout=12) as r:
+              data=json.loads(r.read(250000))
+          assert data.get('pmcid')=='PMC10009416' and data.get('license_code')=='CC BY'
+          assert data.get('is_pmc_openaccess') is True
+          assert any('NPR2-43-85-g001.jpg' in x for x in data.get('media_urls',[]))
+          print('OFFICIAL_PMC_FIGURE_MEDIA_METADATA_PASS')
+          PY
+      - name: Recheck exact HEAD before any Staging mutation
+        run: |
+          set -euo pipefail
+          test "$(git ls-remote origin refs/heads/feat/pmc-cited-figures-staging-20261025 | cut -f1)" = "$(git rev-parse HEAD)"
+      - name: Deploy existing Santo Worker to Staging only
+        run: |
+          set -euo pipefail
+          cd workers/api
+          pnpm exec wrangler deploy --env staging --keep-vars
+      - name: Verify live health and auth boundary
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3 4 5 6 7 8; do
+            if curl -fsS --max-time 20 "$WORKER_URL/health" >/tmp/pmc-staging-health.json; then break; fi
+            sleep 5
+          done
+          node -e 'const r=require("/tmp/pmc-staging-health.json"); if(r.status!=="ok"||r.service!=="santo-api") process.exit(1)'
+          result="$(curl -sS --max-time 20 -o /dev/null -w '%{http_code}' -X POST \
+            "$WORKER_URL/v1/ai/query" -H 'Content-Type: application/json' \
+            --data '{"query":"aortic stenosis figures","source_mode":"research","idempotency_key":"pmc-figures-unauth"}')"
+          test "$result" = 401
+          echo "PMC_CITED_FIGURES_STAGING_HEALTH_AND_AUTH_PASS"
+          {
+            echo "### Santo PMC Cited Figures Staging — Verified Deployment"
+            echo "SHA: $(git rev-parse HEAD)"
+            echo "Figure source: official versioned PMC OA AWS media metadata, commercial CC license, original JATS caption."
+            echo "Images shown from server-verified cited PMC papers only, no new citations or AI generation."
+            echo "No AI Search index deletions/changes, no R2 uploads, no Production deployment."
+            echo "Signed-in browser Related Pics and Source Viewer acceptance remain pending."
+          } >> "$GITHUB_STEP_SUMMARY"

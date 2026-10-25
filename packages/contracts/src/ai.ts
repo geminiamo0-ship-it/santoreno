@@ -47,13 +47,39 @@ export type GroundedAiCitation = z.infer<typeof GroundedAiCitationSchema>;
 /** Verified gallery figures are visual aids, NEVER sources for clinical claims.
  * The URL is an immutable R2 media asset from the backend image manifest.
  */
+/** PMC OA 2026 cloud objects: accept only version-pinned figure files with a
+ * metadata-declared MD5, never browser/model-provided off-domain URLs. */
+export function approvedPmcFigureImageUrl(value: string): boolean {
+  if (typeof value !== "string" || value.length > 900 || /\/(?:\.{2}|%2e%2e)\//i.test(value))
+    return false;
+  try {
+    const url = new URL(value);
+    return (
+      url.origin === "https://pmc-oa-opendata.s3.amazonaws.com" &&
+      !url.username &&
+      !url.password &&
+      !url.hash &&
+      /^\/PMC[1-9]\d{0,11}\.[1-9]\d{0,2}\/[A-Za-z0-9_.-]+\.(?:jpg|jpeg|png|webp|gif)$/i.test(
+        url.pathname,
+      ) &&
+      /^md5=[a-f0-9]{32}$/i.test(url.search.slice(1))
+    );
+  } catch {
+    return false;
+  }
+}
+
 export const GroundedAiRelatedPicSchema = z
   .object({
     src: z
       .string()
       .max(900)
-      .regex(
-        /^https:\/\/pub-2a81f2cb19cc4473a3d076e657af6121\.r2\.dev\/offline_media\/[A-Za-z0-9_%+.-]+\.(?:png|jpg|jpeg|webp|gif)$/i,
+      .refine(
+        (value) =>
+          /^https:\/\/pub-2a81f2cb19cc4473a3d076e657af6121\.r2\.dev\/offline_media\/[A-Za-z0-9_%+.-]+\.(?:png|jpg|jpeg|webp|gif)$/i.test(
+            value,
+          ) || approvedPmcFigureImageUrl(value),
+        "Only authorized R2 or licensed PMC version-pinned image URLs are accepted",
       ),
     alt: z.string().min(1).max(160),
     caption: z.string().max(240),

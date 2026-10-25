@@ -50,7 +50,8 @@ export type GroundedAiCitation = z.infer<typeof GroundedAiCitationSchema>;
 /** PMC OA 2026 cloud objects: accept only version-pinned figure files with a
  * metadata-declared MD5, never browser/model-provided off-domain URLs. */
 export function approvedPmcFigureImageUrl(value: string): boolean {
-  if (typeof value !== "string" || value.length > 900 || /\/(?:\.{2}|%2e%2e)\//i.test(value)) return false;
+  if (typeof value !== "string" || value.length > 900 || /\/(?:\.{2}|%2e%2e)\//i.test(value))
+    return false;
   try {
     const url = new URL(value);
     return (

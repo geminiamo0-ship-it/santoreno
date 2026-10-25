@@ -86,6 +86,8 @@ export function createLibraryReaderHandler(deps: LibraryReaderDependencies = {})
         }
         const viewer = new PubMedArticleViewerService(
           new R2VerifiedSourceStore(env.CONTENT_BUCKET),
+          undefined,
+          env.SANTO_ENV === "staging" && env.SANTO_PMC_CITED_FIGURES_V1 === "true",
         );
         return Response.json(
           await viewer.fromCitation(session, await request.json().catch(() => null)),

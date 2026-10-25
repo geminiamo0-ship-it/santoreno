@@ -1,4 +1,5 @@
 name: Luna Citation Number Repair — Staging Verification
+# Rerun after source formatting adjustments
 on:
   push:
     branches:

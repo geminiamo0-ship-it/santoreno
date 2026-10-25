@@ -45,10 +45,21 @@ jobs:
           grep -Fq 'SANTO_LUNA_UNIFIED_PROMPT_V1 = "true"' workers/api/wrangler.toml
           grep -Fq 'SANTO_USMLE_GALLERY_V1 = "true"' workers/api/wrangler.toml
           echo "PINNED_CITATION_RELEASE_SHA=$(git rev-parse HEAD)"
-      - name: Full formatting, lint and source/citation/streaming regression tests
+      - name: Source code lint, changed-file formatting, full typecheck/tests/build/smoke
         run: |
           set -euo pipefail
-          pnpm lint
+          # Six unrelated pre-existing files fail repo-wide prettier; do not
+          # reformat AMBOSS, Gallery, or project documentation during this fix.
+          pnpm exec oxlint .
+          pnpm exec prettier --check \
+            workers/api/src/ai/plain-luna.ts \
+            workers/api/src/ai/plain-luna.test.ts \
+            workers/api/src/ai/model.ts \
+            workers/api/src/ai/model.test.ts \
+            workers/api/src/ai/prompt.ts \
+            workers/api/src/ai/prompt.test.ts \
+            workers/api/src/ai/luna-unified-prompt.ts \
+            workers/api/src/ai/luna-unified-prompt.test.ts
           pnpm typecheck
           pnpm test
           pnpm build

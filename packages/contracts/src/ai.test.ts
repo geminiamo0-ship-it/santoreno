@@ -33,6 +33,21 @@ describe("GroundedAiQueryRequestSchema", () => {
   });
 });
 
+describe("PMC cited figure URL contract", () => {
+  const safe = "https://pmc-oa-opendata.s3.amazonaws.com/PMC10009416.1/gr1.jpg?md5=39209b49c555fa939d5108a4b6c4fe92";
+  it("requires exact NLM public media origin, accession version, image and checksum", () => {
+    expect(approvedPmcFigureImageUrl(safe)).toBe(true);
+    for (const unsafe of [
+      "https://evil.example/PMC10009416.1/gr1.jpg?md5=39209b49c555fa939d5108a4b6c4fe92",
+      safe.replace("gr1.jpg", "gr1.svg"),
+      safe.replace("?md5=", "?url="),
+      safe.replace("PMC10009416.1", "../PMC10009416.1"),
+      safe.replace("https://", "http://"),
+      safe + "&redirect=https://evil.example",
+    ]) expect(approvedPmcFigureImageUrl(unsafe)).toBe(false);
+  });
+});
+
 describe("Santo grounded-versus-general response contract", () => {
   const base = {
     requestId: "7fc8c6e6-b0c1-4a6d-9c9c-6f7a0e4f0d3a",

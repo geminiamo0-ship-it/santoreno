@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { GroundedAiQueryRequestSchema, GroundedAiQueryResponseSchema } from "./ai";
+import { GroundedAiQueryRequestSchema, GroundedAiQueryResponseSchema, approvedPmcFigureImageUrl } from "./ai";
 
 describe("GroundedAiQueryRequestSchema", () => {
   it("keeps All Libraries as the default when library_id is omitted", () => {

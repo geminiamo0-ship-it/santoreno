@@ -811,25 +811,30 @@ describe("grounded AI handler", () => {
       }
       if (url.includes("/efetch.fcgi") && url.includes("db=pubmed")) {
         return new Response(
-          '<PubmedArticleSet><PubmedArticle><MedlineCitation><PMID>123</PMID><Article>' +
-          '<ArticleTitle>Aortic stenosis hemodynamics randomized clinical trial</ArticleTitle>' +
-          '<Abstract><AbstractText>Aortic stenosis hemodynamics were described in a randomized trial involving echocardiography and clinical outcomes.</AbstractText></Abstract>' +
-          '</Article></MedlineCitation><PubmedData><ArticleIdList><ArticleId IdType="pmc">PMC98765</ArticleId></ArticleIdList></PubmedData></PubmedArticle></PubmedArticleSet>',
+          "<PubmedArticleSet><PubmedArticle><MedlineCitation><PMID>123</PMID><Article>" +
+            "<ArticleTitle>Aortic stenosis hemodynamics randomized clinical trial</ArticleTitle>" +
+            "<Abstract><AbstractText>Aortic stenosis hemodynamics were described in a randomized trial involving echocardiography and clinical outcomes.</AbstractText></Abstract>" +
+            '</Article></MedlineCitation><PubmedData><ArticleIdList><ArticleId IdType="pmc">PMC98765</ArticleId></ArticleIdList></PubmedData></PubmedArticle></PubmedArticleSet>',
         );
       }
       if (url.includes("/efetch.fcgi") && url.includes("db=pmc")) {
         return new Response(
           '<pmc-articleset><article><front><article-meta><article-id pub-id-type="pmcid">PMC98765</article-id></article-meta></front>' +
-          '<body><sec><p>Aortic stenosis hemodynamics involve abnormal pressure gradients and echocardiographic measurement in this controlled medical study.</p></sec>' +
-          '<fig id="fig1"><caption><p>Echocardiographic measurement of aortic stenosis valve hemodynamics and transvalvular pressure gradients.</p></caption>' +
-          '<graphic xlink:href="gr1"/></fig></body></article></pmc-articleset>',
+            "<body><sec><p>Aortic stenosis hemodynamics involve abnormal pressure gradients and echocardiographic measurement in this controlled medical study.</p></sec>" +
+            '<fig id="fig1"><caption><p>Echocardiographic measurement of aortic stenosis valve hemodynamics and transvalvular pressure gradients.</p></caption>' +
+            '<graphic xlink:href="gr1"/></fig></body></article></pmc-articleset>',
         );
       }
       if (url.endsWith("/metadata/PMC98765.1.json")) {
         return Response.json({
-          pmcid: "PMC98765", version: 1, is_pmc_openaccess: true,
-          license_code: "CC BY", is_retracted: false,
-          media_urls: ["s3://pmc-oa-opendata/PMC98765.1/gr1.jpg?md5=39209b49c555fa939d5108a4b6c4fe92"],
+          pmcid: "PMC98765",
+          version: 1,
+          is_pmc_openaccess: true,
+          license_code: "CC BY",
+          is_retracted: false,
+          media_urls: [
+            "s3://pmc-oa-opendata/PMC98765.1/gr1.jpg?md5=39209b49c555fa939d5108a4b6c4fe92",
+          ],
         });
       }
       return new Response("optional provider not found", { status: 404 });
@@ -840,7 +845,11 @@ describe("grounded AI handler", () => {
       const payload = JSON.parse(await original.clone().text()) as Record<string, unknown>;
       payload.source_mode = "research";
       const response = await handler()(
-        new Request(original.url, { method: "POST", headers: original.headers, body: JSON.stringify(payload) }),
+        new Request(original.url, {
+          method: "POST",
+          headers: original.headers,
+          body: JSON.stringify(payload),
+        }),
         env,
       );
       expect(response.status).toBe(200);

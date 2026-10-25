@@ -63,6 +63,8 @@ SANTO_LUNA_PREVIEW = "true"
 SANTO_RESEARCH_ENABLED = "true"
 # Research-only Qwen query planner, one inference and up to two PubMed discovery queries.
 SANTO_RESEARCH_QWEN_V1 = "true"
+# Research-mode figure resolver: only actual cited open-access PMC licensed figures, Staging-only.
+SANTO_PMC_CITED_FIGURES_V1 = "true"
 # One provider response per user generation attempt; no silent paid fallback.
 SANTO_SINGLE_PASS_GENERATION_V1 = "true"
 SANTO_COMPACT_CITATION_ALIASES_V1 = "true"

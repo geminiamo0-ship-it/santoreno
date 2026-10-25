@@ -1,0 +1,77 @@
+name: PMC Cited Figures — Verify Safe Staging Candidate
+on:
+  push:
+    branches: [feat/pmc-cited-figures-staging-20261025]
+    paths: [.github/workflows/pmc-cited-figures-verify.yml]
+permissions:
+  contents: write
+concurrency:
+  group: pmc-figures-verified-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  verify:
+    if: github.repository == 'geminiamo0-ship-it/santoreno'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install exact pinned workspace
+        run: |
+          set -euo pipefail
+          corepack enable
+          pnpm install --frozen-lockfile
+      - name: Format only PMC-related touched files and push if changed
+        run: |
+          set -euo pipefail
+          pnpm exec prettier --write \
+            packages/contracts/src/ai.ts packages/contracts/src/ai.test.ts \
+            packages/contracts/src/library-reader.ts \
+            packages/widget/src/article-rich-html.ts packages/widget/src/article-rich-html.test.ts \
+            workers/api/src/ai/pmc-figures.ts workers/api/src/ai/pmc-figures.test.ts \
+            workers/api/src/ai/types.ts workers/api/src/ai/research-retrieval.ts \
+            workers/api/src/ai/service.ts workers/api/src/ai/handler.ts \
+            workers/api/src/library/research-article.ts workers/api/src/library/research-article.test.ts \
+            workers/api/src/library/handler.ts workers/api/src/runtime/bindings.ts
+          if ! git diff --quiet; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add packages/contracts/src/ai.ts packages/contracts/src/ai.test.ts packages/contracts/src/library-reader.ts \
+              packages/widget/src/article-rich-html.ts packages/widget/src/article-rich-html.test.ts \
+              workers/api/src/ai/pmc-figures.ts workers/api/src/ai/pmc-figures.test.ts \
+              workers/api/src/ai/types.ts workers/api/src/ai/research-retrieval.ts \
+              workers/api/src/ai/service.ts workers/api/src/ai/handler.ts \
+              workers/api/src/library/research-article.ts workers/api/src/library/research-article.test.ts \
+              workers/api/src/library/handler.ts workers/api/src/runtime/bindings.ts
+            git commit -m "style(pmc): format limited PMC figure integration"
+            git push origin HEAD:feat/pmc-cited-figures-staging-20261025
+          fi
+          echo "VERIFIED_WORKING_SHA=$(git rev-parse HEAD)"
+      - name: Typecheck API, widget and contracts
+        run: |
+          set -euo pipefail
+          pnpm --filter @santo/contracts typecheck
+          pnpm --filter @santo/widget typecheck
+          pnpm --filter @santo/api typecheck
+      - name: Targeted figure, research, viewer and image security tests
+        run: |
+          set -euo pipefail
+          pnpm --filter @santo/contracts test
+          pnpm --filter @santo/widget exec vitest run src/article-rich-html.test.ts
+          pnpm --filter @santo/api exec vitest run \
+            src/ai/pmc-figures.test.ts \
+            src/ai/research-retrieval.test.ts \
+            src/ai/research-fulltext.test.ts \
+            src/library/research-article.test.ts \
+            src/ai/handler.test.ts
+      - name: Verify full build without deploying
+        run: |
+          set -euo pipefail
+          pnpm exec oxlint .
+          pnpm build
+          pnpm smoke
+          echo "PMC_FIGURES_SAFE_TESTS_PASS; No Cloudflare mutation or Production deploy"

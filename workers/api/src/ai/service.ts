@@ -523,6 +523,40 @@ export class GroundedAiService {
           citations = validateGroundedCitations({ ...draft, citationIds: usedSources }, evidence);
         }
         validCitationCount = citations.length;
+        // Research images are sourced only from the exact PMC papers that Luna
+        // ACTUALLY cited and Santo verified, never all search results. Figures
+        // are not medical evidence and never add a clinical citation.
+        if (sourceMode === "research" && responseMode === "santo" && this.richImagesEnabled) {
+          const cited = new Set(citations.map((citation) => citation.sourceId));
+          const seen = new Set<string>();
+          const keywords = (input.query.toLowerCase().match(/[a-z]{4,}/g) ?? []).filter(
+            (word) => !["what", "with", "from", "about", "please", "treatment"].includes(word),
+          );
+          relatedPics = evidence
+            .filter((item) => cited.has(item.sourceId) && item.libraryId === "pubmed")
+            .flatMap((item) => (item.pmcFigures ?? []).map((figure) => ({ figure, item })))
+            .sort((a, b) => {
+              const score = (caption: string) =>
+                keywords.filter((word) => caption.toLowerCase().includes(word)).length;
+              return score(b.figure.caption) - score(a.figure.caption);
+            })
+            .filter(({ figure }) => {
+              if (seen.has(figure.src)) return false;
+              seen.add(figure.src);
+              return true;
+            })
+            .slice(0, 50)
+            .map(({ figure, item }) => ({
+              src: figure.src,
+              alt: figure.caption.slice(0, 160),
+              caption: figure.caption.slice(0, 240),
+              sourceName: (figure.pmcid + " · " + figure.license + " · " + item.title).slice(0, 160),
+            }));
+          console.info("santo_pmc_cited_gallery", {
+            citedPapers: cited.size,
+            acceptedFigures: relatedPics.length,
+          });
+        }
         if (this.sourceStore && responseMode === "santo") {
           const sources = citations.map((citation) => {
             const matching = evidence.filter((item) => item.sourceId === citation.sourceId);

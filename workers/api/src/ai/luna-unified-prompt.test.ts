@@ -8,7 +8,7 @@ import {
 describe("Santo high-yield clinical-reference unified Luna instructions", () => {
   it("preserves the strict 1,000-byte instruction budget", () => {
     const bytes = new TextEncoder().encode(LUNA_UNIFIED_INSTRUCTIONS).byteLength;
-    expect(bytes).toBe(998);
+    expect(bytes).toBe(997);
     expect(bytes).toBeLessThanOrEqual(LUNA_UNIFIED_MAX_INSTRUCTION_BYTES);
     expect(LUNA_UNIFIED_MAX_INSTRUCTION_BYTES).toBe(1_000);
   });

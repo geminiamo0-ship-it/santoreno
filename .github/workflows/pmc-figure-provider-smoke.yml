@@ -42,7 +42,7 @@ jobs:
           with urllib.request.urlopen(urllib.request.Request(resolved_xml,headers={'User-Agent':'Santo-PMC-Pilot/1.0'}),timeout=15) as response:
               xml=response.read(1500001).decode('utf-8')
           assert len(xml)<1500000
-          refs=re.findall(r'<graphic\\b[^>]*xlink:href="([^"]+)"',xml,re.I)
+          refs=re.findall(r'<graphic\b[^>]*xlink:href="([^"]+)"',xml,re.I)
           candidates={urllib.parse.urlsplit(media).path.rsplit('/',1)[-1].lower() for media in jpgs}
           matching=[name for name in refs if name.lower() in candidates or any(x.rsplit('.',1)[0]==name.lower() for x in candidates)]
           print('PMC_FIGURE_LINK_DIAGNOSTIC',{'image_files':sorted(candidates)[:5],'xml_figure_refs':refs[:8]})

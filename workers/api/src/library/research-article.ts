@@ -161,6 +161,22 @@ export class PubMedArticleViewerService {
       try {
         const full = new URL(EUROPE_PMC + encodeURIComponent(pmcid) + "/fullTextXML");
         const xml = await this.download(full);
+        if (this.enablePmcFigures) {
+          const figures = await loadLicensedPmcFigures(pmcid, xml, this.fetcher);
+          if (figures.length) {
+            sections.splice(1, 0, {
+              id: "s-0004",
+              heading: "Original PMC figures — open-access licensed",
+              text: "Figures supplied by the original cited PMC article. Attribution and license: " +
+                pmcid + ", " + [...new Set(figures.map((figure) => figure.license))].join(", ") + ". " +
+                "Image descriptions are original figure captions, not independent medical conclusions.",
+              images: figures.slice(0, 24).map((figure) => ({
+                src: figure.src,
+                alt: (figure.caption + " (" + figure.pmcid + "; " + figure.license + ")").slice(0, 250),
+              })),
+            });
+          }
+        }
         const body = /<body(?:\s[^>]*)?>([\s\S]*?)<\/body>/i.exec(xml)?.[1];
         if (body) {
           const paragraphs = [...body.matchAll(/<p(?:\s[^>]*)?>([\s\S]*?)<\/p>/gi)]

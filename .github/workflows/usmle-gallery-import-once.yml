@@ -1,4 +1,4 @@
-name: Santo USMLE Gallery — Targeted Recovery and Staging Publish
+name: Santo USMLE Gallery — Publish Settled Index With One Known Exclusion
 on:
   push:
     branches:
@@ -90,15 +90,16 @@ jobs:
       - name: Run Python and Workers gallery tests, check build
         run: |
           set -euo pipefail
-          python -m unittest discover -s scripts -p "test_prepare_usmle_gallery.py" -v
+          python -m unittest discover -s scripts -p "test_*usmle_gallery.py" -v
           pnpm --filter @santo/api typecheck
           pnpm --filter @santo/api exec vitest run src/ai/image-gallery.test.ts src/ai/retrieval.test.ts
           pnpm --filter @santo/api build
-      - name: Retry only transient USMLE image indexing failures; verify 7534 completed and search smoke
+      - name: Verify settled Gallery 7533+1 known timeout or all 7534; exclude failed image and smoke search
         id: upload
         run: |
           set -euo pipefail
-          python -u scripts/recover_usmle_gallery_index.py --execute
+          python -u scripts/finalize_usmle_gallery.py \
+            --manifest "$RUNNER_TEMP/usmle-prepared/usmle_image_manifest.json"
       - name: Publish USMLE-only manifest into private Staging R2
         id: manifest
         run: |
@@ -111,7 +112,7 @@ jobs:
           sha256sum "$f" "$RUNNER_TEMP/usmle-manifest-readback.json"
           cmp -s "$f" "$RUNNER_TEMP/usmle-manifest-readback.json"
           echo "USMLE_MANIFEST_R2_BYTE_FOR_BYTE_VERIFIED"
-      - name: Deploy Santo Staging only — 4,239 USMLE gallery docs now eligible
+      - name: Deploy Santo Staging only — verified USMLE Gallery manifest
         id: deploy
         run: |
           set -euo pipefail
@@ -148,8 +149,8 @@ jobs:
           {
             echo "### Santo USMLE Gallery"
             echo "Owner-licensed input pinned by Google Drive ZIP SHA-256."
-            echo "Quality gate: 4,239 proposed, 286 held; existing 3,295 Gallery docs unchanged."
-            echo "Index fully ingested: $INGEST_OUTCOME"
+            echo "Quality gate: 4,239 proposed, 286 held; one known timeout excluded if still errored; original 3,295 Gallery docs preserved."
+            echo "Index settled, one known timeout excluded if necessary, and search smoke: $INGEST_OUTCOME"
             echo "R2 manifest with byte-for-byte readback: $MANIFEST_OUTCOME"
             echo "Staging-only deployment: $DEPLOY_OUTCOME"
             echo "Health and 401 auth smoke: $SMOKE_OUTCOME"

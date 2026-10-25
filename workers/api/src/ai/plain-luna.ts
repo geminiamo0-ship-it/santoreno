@@ -119,8 +119,10 @@ export function parsePlainLunaAnswer(
   const canonical = text
     // Never treat a mismatched alias link as a source. Accept only identical
     // numeric labels that are part of the server-supplied allowed list.
-    .replace(/\[\[\s*N\s*([1-9]\d{0,2})\s*\]\]\(SANTO_REF_([1-9]\d{0,2})\)/gi, (_whole, number: string, linked: string) =>
-      number === linked && Number(number) <= allowed.length ? "[[" + number + "]]" : "",
+    .replace(
+      /\[\[\s*N\s*([1-9]\d{0,2})\s*\]\]\(SANTO_REF_([1-9]\d{0,2})\)/gi,
+      (_whole, number: string, linked: string) =>
+        number === linked && Number(number) <= allowed.length ? "[[" + number + "]]" : "",
     )
     .replace(/\[\[N\]\]\(SANTO_REF_([1-9]\d{0,2})\)/g, (_whole, number: string) =>
       Number(number) <= allowed.length ? "[[" + number + "]]" : "",

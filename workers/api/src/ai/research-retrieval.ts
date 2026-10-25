@@ -3,6 +3,7 @@ import type { WorkersAiLike } from "../runtime/bindings";
 import { routeMedicalRequest } from "./medical-query-rewrite";
 import { focusedSearchQuery, focusedUserMessageQuery } from "./source-relevance";
 import { selectPmcTeachingPassages } from "./research-fulltext";
+import { loadLicensedPmcFigures, type PmcFigure } from "./pmc-figures";
 import {
   guidelineSearchQuery,
   isPublishedGuideline,

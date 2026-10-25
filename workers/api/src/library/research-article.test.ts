@@ -35,7 +35,7 @@ class Bucket implements R2BucketLike {
   }
 }
 
-async function fixture() {
+async function fixture(enableFigures = false) {
   const bucket = new Bucket();
   const snapshots = new R2VerifiedSourceStore(bucket);
   await snapshots.save(
@@ -66,12 +66,21 @@ async function fixture() {
     }
     if (url.endsWith("/PMC98765/fullTextXML")) {
       return new Response(
-        "<article><body><sec><p>Full-text results included survival, symptoms and clinically important outcomes.</p></sec></body></article>",
+        '<article><body><sec><p>Full-text results included survival, symptoms and clinically important outcomes.</p></sec>' +
+        '<fig id="f1"><caption><p>Aortic stenosis valve echocardiographic measurements in the randomized population.</p></caption>' +
+        '<graphic xlink:href="gr1"/></fig></body></article>',
       );
+    }
+    if (url.endsWith("/metadata/PMC98765.1.json")) {
+      return Response.json({
+        pmcid: "PMC98765", version: 1, license_code: "CC BY",
+        is_pmc_openaccess: true, is_retracted: false,
+        media_urls: ["s3://pmc-oa-opendata/PMC98765.1/gr1.jpg?md5=39209b49c555fa939d5108a4b6c4fe92"],
+      });
     }
     return new Response("Not found", { status: 404 });
   });
-  return { service: new PubMedArticleViewerService(snapshots, external as typeof fetch), external };
+  return { service: new PubMedArticleViewerService(snapshots, external as typeof fetch, enableFigures), external };
 }
 
 describe("verified internal PubMed article viewer", () => {
@@ -85,6 +94,20 @@ describe("verified internal PubMed article viewer", () => {
     expect(result.article.sections.some((s) => s.text.includes("10.1000/test"))).toBe(true);
     expect(result.highlightSectionId).toBe("s-0001");
     expect(external).toHaveBeenCalledTimes(2);
+  });
+
+  it("adds exact metadata-backed licensed PMC figures only inside the authenticated cited article", async () => {
+    const { service } = await fixture(true);
+    const result = await service.fromCitation(session, { messageId, sourceId: "pubmed:12345678" });
+    const images = result.article.sections.flatMap((section) => section.images);
+    expect(images).toEqual([{
+      src: "https://pmc-oa-opendata.s3.amazonaws.com/PMC98765.1/gr1.jpg?md5=39209b49c555fa939d5108a4b6c4fe92",
+      alt: expect.stringContaining("Aortic stenosis valve echocardiographic"),
+    }]);
+    expect(result.article.sections.some((section) =>
+      section.heading.includes("Original PMC figures"))).toBe(true);
+    expect(result.article.sections.some((section) =>
+      section.text.includes("CC BY"))).toBe(true);
   });
 
   it("rejects forged citations and other account's saved snapshots before any provider fetch", async () => {

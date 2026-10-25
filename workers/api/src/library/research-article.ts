@@ -3,6 +3,7 @@ import {
   LibraryArticleSchema,
   SourceArticleRequestSchema,
   SourceArticleResponseSchema,
+  type LibraryArticle,
   type SourceArticleResponse,
 } from "@santo/contracts/library-reader";
 import { R2VerifiedSourceStore } from "../sources/store";
@@ -145,7 +146,7 @@ export class PubMedArticleViewerService {
       ...(doi ? ["DOI: " + doi] : []),
     ].join("\n");
 
-    const sections = [
+    const sections: LibraryArticle["sections"] = [
       {
         id: "s-0001",
         heading: "Abstract",

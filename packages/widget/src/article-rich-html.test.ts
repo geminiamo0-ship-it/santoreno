@@ -73,6 +73,18 @@ describe("Santo original article and chat medical image security", () => {
     }
   });
 
+  it("accepts exact versioned PMC S3 figure URLs and refuses arbitrary hosts, paths or checksums", () => {
+    const original = "https://pmc-oa-opendata.s3.amazonaws.com/PMC10009416.1/gr1.jpg?md5=39209b49c555fa939d5108a4b6c4fe92";
+    expect(approvedMedicalImageUrl(original)).toBe(original);
+    for (const invalid of [
+      original.replace("pmc-oa-opendata.s3.amazonaws.com", "s3.amazonaws.com.evil.example"),
+      original.replace("PMC10009416.1/gr1.jpg", "PMC10009416.1/gr1.svg"),
+      original.replace("md5=39209b49c555fa939d5108a4b6c4fe92", "md5=garbage"),
+      original.replace("https://", "http://"),
+      original + "#redirect",
+    ]) expect(approvedMedicalImageUrl(invalid)).toBeNull();
+  });
+
   it("only displays media from exact source-verified cited section", () => {
     const source = sourceResponse();
     expect(citedMedicalImages(source, message, citation)).toEqual([

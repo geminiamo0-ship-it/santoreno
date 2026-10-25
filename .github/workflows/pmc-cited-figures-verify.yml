@@ -1,4 +1,5 @@
 name: PMC Cited Figures — Verify Safe Staging Candidate
+# Re-run after exact-license URL path regression and authenticated research Gallery test
 # Rerun after verified figure section typing fix
 on:
   push:

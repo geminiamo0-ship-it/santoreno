@@ -878,6 +878,49 @@ export const widgetStyles = css`
     font-size: 11px;
     line-height: 1.5;
   }
+  .answer-related-pics {
+    margin: 12px 0;
+    padding: 12px;
+    border: 1px solid #e6ded1;
+    border-radius: 12px;
+  }
+  .answer-related-pics h4 {
+    margin: 0 0 12px;
+    font-size: 13px;
+    color: #634c2f;
+  }
+  .related-pics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 175px), 1fr));
+    gap: 10px;
+  }
+  .related-pics-grid .answer-medical-figure {
+    min-width: 0;
+  }
+  .related-pics-grid .figure-image img {
+    width: 100%;
+    max-height: 190px;
+    object-fit: contain;
+  }
+  .related-pics-grid figcaption {
+    overflow-wrap: anywhere;
+  }
+  .related-pics-grid small {
+    color: #657483;
+  }
+  .related-pics-more {
+    display: block;
+    margin: 12px auto 0;
+    padding: 7px 15px;
+    border: 1px solid #a88a57;
+    background: #fff;
+    color: #775b31;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  .related-pics-more:hover {
+    background: #faf4ea;
+  }
   .figure-source {
     color: #75521c;
     background: none;

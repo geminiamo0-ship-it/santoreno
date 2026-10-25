@@ -1,4 +1,5 @@
 name: USMLE Gallery — Readonly Live Import Counters
+# Post targeted 12-item repair live diagnosis
 on:
   push:
     branches: [feat/medical-gallery-usmle-review-20261025]

@@ -74,6 +74,7 @@ export class SantoAiElement extends LitElement {
     readerPopover: { state: true },
     readerLightbox: { state: true },
     inlineImages: { state: true },
+    galleryVisible: { state: true },
   };
 
   private ui: WidgetUiState = INITIAL_WIDGET_UI_STATE;
@@ -99,6 +100,7 @@ export class SantoAiElement extends LitElement {
   private readerPopover: { title: string; html: string } | null = null;
   private readerLightbox: { src: string; alt: string } | null = null;
   private inlineImages: Record<string, VerifiedChatImage[]> = {};
+  private galleryVisible: Record<string, number> = {};
   private triedImageMessages = new Set<string>();
   private latestAnswer: GroundedAiQueryResponse | null = null;
   private latestQuestion = "";
@@ -132,6 +134,7 @@ export class SantoAiElement extends LitElement {
     this.readerPopover = null;
     this.readerLightbox = null;
     this.inlineImages = {};
+    this.galleryVisible = {};
     this.triedImageMessages.clear();
     this.statusText = "Session connected. You can ask a question.";
     void this.reconnect();
@@ -433,6 +436,47 @@ export class SantoAiElement extends LitElement {
     }
   }
 
+  /** Display only backend-verified completed response images; Load More never calls Luna. */
+  private renderRelatedPictures(response: ConversationAnswer) {
+    if (!("relatedPics" in response) || !response.relatedPics?.length) return nothing;
+    const approved = response.relatedPics.filter((image) => approvedMedicalImageUrl(image.src));
+    if (!approved.length) return nothing;
+    const count = this.galleryVisible[response.messageId] ?? 6;
+    return html`
+      <section class="answer-related-pics" aria-label="Pictures from cited medical articles">
+        <h4>Related Pics · ${approved.length}</h4>
+        <div class="related-pics-grid">
+          ${approved.slice(0, count).map((picture) => html`
+            <figure class="answer-medical-figure">
+              <button class="figure-image" type="button"
+                aria-label="Enlarge original medical figure"
+                @click=${() => {
+                  this.readerLightbox = { src: picture.src, alt: picture.alt };
+                  this.readerOpen = true;
+                }}>
+                <img src=${picture.src} alt=${picture.alt}
+                  loading="lazy" referrerpolicy="no-referrer" />
+              </button>
+              <figcaption>
+                <span>${picture.caption || picture.alt}</span>
+                <small>${picture.sourceName}</small>
+              </figcaption>
+            </figure>
+          `)}
+        </div>
+        ${count < approved.length ? html`
+          <button type="button" class="related-pics-more"
+            @click=${() => {
+              this.galleryVisible = {
+                ...this.galleryVisible,
+                [response.messageId]: Math.min(count + 12, approved.length),
+              };
+            }}>Load More · ${approved.length - count} remaining</button>
+        ` : nothing}
+      </section>
+    `;
+  }
+
   private renderAnswer(response: ConversationAnswer) {
     const general = "groundingMode" in response && response.groundingMode === "general";
     const quickReply = "kind" in response && response.kind === "quick_reply";
@@ -484,6 +528,7 @@ export class SantoAiElement extends LitElement {
         }
         ${sourceImages.length ? blocks.slice(splitIndex) : nothing}
       </div>
+      ${this.renderRelatedPictures(response)}
       ${
         !quickReply
           ? html`<div class="answer-footer">

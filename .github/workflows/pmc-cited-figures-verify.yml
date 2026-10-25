@@ -1,4 +1,5 @@
 name: PMC Cited Figures — Verify Safe Staging Candidate
+# Rerun after verified figure section typing fix
 on:
   push:
     branches: [feat/pmc-cited-figures-staging-20261025]

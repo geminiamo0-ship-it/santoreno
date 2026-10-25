@@ -34,6 +34,7 @@ export function approvedMedicalImageUrl(value: string): string | null {
   if (typeof value !== "string" || !value || value.length > 900) return null;
   try {
     const url = new URL(value);
+    if (approvedPmcFigureImageUrl(value)) return url.href;
     if (
       url.origin !== MEDIA_ORIGIN ||
       url.username ||

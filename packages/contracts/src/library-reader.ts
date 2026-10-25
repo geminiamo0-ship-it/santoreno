@@ -16,7 +16,7 @@ const ImageUrlSchema = z
       /^\/offline_media\/[A-Za-z0-9_%+.-]+\.(?:png|jpg|jpeg|webp|gif)$/i.test(value.pathname) &&
       !value.search &&
       !value.hash
-    );
+    ) || approvedPmcFigureImageUrl(url);
   }, "Media URL must use the approved public R2 image prefix");
 export const LibraryArticleSectionSchema = z
   .object({

@@ -446,33 +446,51 @@ export class SantoAiElement extends LitElement {
       <section class="answer-related-pics" aria-label="Pictures from cited medical articles">
         <h4>Related Pics · ${approved.length}</h4>
         <div class="related-pics-grid">
-          ${approved.slice(0, count).map((picture) => html`
-            <figure class="answer-medical-figure">
-              <button class="figure-image" type="button"
-                aria-label="Enlarge original medical figure"
-                @click=${() => {
-                  this.readerLightbox = { src: picture.src, alt: picture.alt };
-                  this.readerOpen = true;
-                }}>
-                <img src=${picture.src} alt=${picture.alt}
-                  loading="lazy" referrerpolicy="no-referrer" />
-              </button>
-              <figcaption>
-                <span>${picture.caption || picture.alt}</span>
-                <small>${picture.sourceName}</small>
-              </figcaption>
-            </figure>
-          `)}
+          ${approved.slice(0, count).map(
+            (picture) => html`
+              <figure class="answer-medical-figure">
+                <button
+                  class="figure-image"
+                  type="button"
+                  aria-label="Enlarge original medical figure"
+                  @click=${() => {
+                    this.readerLightbox = { src: picture.src, alt: picture.alt };
+                    this.readerOpen = true;
+                  }}
+                >
+                  <img
+                    src=${picture.src}
+                    alt=${picture.alt}
+                    loading="lazy"
+                    referrerpolicy="no-referrer"
+                  />
+                </button>
+                <figcaption>
+                  <span>${picture.caption || picture.alt}</span>
+                  <small>${picture.sourceName}</small>
+                </figcaption>
+              </figure>
+            `,
+          )}
         </div>
-        ${count < approved.length ? html`
-          <button type="button" class="related-pics-more"
-            @click=${() => {
-              this.galleryVisible = {
-                ...this.galleryVisible,
-                [response.messageId]: Math.min(count + 12, approved.length),
-              };
-            }}>Load More · ${approved.length - count} remaining</button>
-        ` : nothing}
+        ${
+          count < approved.length
+            ? html`
+                <button
+                  type="button"
+                  class="related-pics-more"
+                  @click=${() => {
+                    this.galleryVisible = {
+                      ...this.galleryVisible,
+                      [response.messageId]: Math.min(count + 12, approved.length),
+                    };
+                  }}
+                >
+                  Load More · ${approved.length - count} remaining
+                </button>
+              `
+            : nothing
+        }
       </section>
     `;
   }

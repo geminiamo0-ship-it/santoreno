@@ -19,6 +19,8 @@ export interface ResearchProviderConfig {
   fetcher?: typeof fetch;
   qwenAi?: WorkersAiLike;
   enableQwenRouting?: boolean;
+  /** Staging-only; one bounded metadata lookup for up to two PMC fulltexts. */
+  enablePmcFigures?: boolean;
 }
 
 const PUBMED = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/";

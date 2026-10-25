@@ -7,6 +7,7 @@ import {
 } from "@santo/contracts/library-reader";
 import { R2VerifiedSourceStore } from "../sources/store";
 import { LibraryReaderError } from "./reader";
+import { loadLicensedPmcFigures } from "../ai/pmc-figures";
 
 const EUROPE_PMC = "https://www.ebi.ac.uk/europepmc/webservices/rest/";
 const MAX_BYTES = 1_500_000;

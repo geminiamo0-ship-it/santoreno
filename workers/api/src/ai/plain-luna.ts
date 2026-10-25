@@ -53,7 +53,12 @@ export function previewPlainLuna(text: string, sourceIds: readonly string[]): st
   // like [[N]](SANTO_REF_4) despite the [[4]] citation contract. Never leak
   // this unfinished internal reference during token-by-token SSE previews.
   const withoutAliasLinks = withoutModelUrls.replace(/\[\[N\]\](?:\([^\)\r\n]{0,50}\)?)?/g, "");
-  const withoutFullCitations = withoutAliasLinks.replace(/\[\[(?:\d{1,3}|IMG_\d{0,3})\]\]/g, "");
+  // Provider sometimes outputs [[N10]] or [N10] instead of [[10]].
+  // Provisional SSE never displays these unverified source markers.
+  const withoutNPrefixed = withoutAliasLinks
+    .replace(/\[\[\s*N\s*[1-9]\d{0,2}\s*\]\]/gi, "")
+    .replace(/\[N\s*[1-9]\d{0,2}\]/gi, "");
+  const withoutFullCitations = withoutNPrefixed.replace(/\[\[(?:\d{1,3}|IMG_\d{0,3})\]\]/g, "");
   const withoutSingleCitations = withoutFullCitations.replace(
     /([^\n\[])\[([1-9]\d{0,2})\](?!\()/g,
     "$1",
@@ -112,9 +117,18 @@ export function parsePlainLunaAnswer(
   // source. Then the same server-owned citation verification runs as usual.
   // Unknown or out-of-range aliases are dropped, never linked by the model.
   const canonical = text
+    // Never treat a mismatched alias link as a source. Accept only identical
+    // numeric labels that are part of the server-supplied allowed list.
+    .replace(/\[\[\s*N\s*([1-9]\d{0,2})\s*\]\]\(SANTO_REF_([1-9]\d{0,2})\)/gi, (_whole, number: string, linked: string) =>
+      number === linked && Number(number) <= allowed.length ? "[[" + number + "]]" : "",
+    )
     .replace(/\[\[N\]\]\(SANTO_REF_([1-9]\d{0,2})\)/g, (_whole, number: string) =>
       Number(number) <= allowed.length ? "[[" + number + "]]" : "",
     )
+    // Exact number-prefixed forms observed in the Royal preview:
+    // [[N10]] / [N10] => [[10]]; mapping still happens via allowed[n-1].
+    .replace(/\[\[\s*N\s*([1-9]\d{0,2})\s*\]\]/gi, "[[$1]]")
+    .replace(/(^|[^\[])\[N\s*([1-9]\d{0,2})\](?!\]|\()/gim, "$1[[$2]]")
     // Support common model variants, without trusting an unreturned source.
     // Single brackets only count as citations after prose, not list headings.
     .replace(/\[\[\s*([1-9]\d{0,2})\s*\]\]/g, "[[$1]]")

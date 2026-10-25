@@ -75,6 +75,22 @@ class IndexPreparationTests(unittest.TestCase):
             doc = json.loads((output / "approved_items/usmle_L10619.json").read_text())
             self.assertEqual(doc["title"], "Erythema marginatum")
 
+    def test_owner_rights_attestation_for_this_dataset_only(self):
+        row = source()
+        normalized, issues = normalize(row, owner_rights_attested=True)
+        self.assertEqual(issues, [])
+        self.assertTrue(normalized["eligible_for_publish"])
+        self.assertEqual(normalized["rights_status"], "approved")
+        self.assertEqual(normalized["rights_attestation"], "owner_asserted_2026-10-25")
+        self.assertFalse(normalized["visually_verified"])
+
+    def test_low_confidence_never_published_even_with_rights(self):
+        row = source()
+        row["association_confidence"] = "low"
+        normalized, issues = normalize(row, owner_rights_attested=True)
+        self.assertFalse(normalized["eligible_for_publish"])
+        self.assertIn("weak_image_specific_association", issues)
+
     def test_duplicate_rejected(self):
         with tempfile.TemporaryDirectory() as td:
             inp = Path(td) / "input.jsonl"

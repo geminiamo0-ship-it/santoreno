@@ -1,0 +1,160 @@
+name: Santo USMLE Gallery — Licensed Metadata Staging Import Once
+on:
+  push:
+    branches:
+      - feat/medical-gallery-usmle-review-20261025
+    paths:
+      - .github/workflows/usmle-gallery-import-once.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: santo-existing-gallery-usmle-import-20261025
+  cancel-in-progress: false
+
+jobs:
+  safe-ingest-and-enable-staging:
+    if: github.repository == 'geminiamo0-ship-it/santoreno'
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    env:
+      GOOGLE_DRIVE_FILE_ID: "1DpaFud1vK0yHLUCq-eYoRQuQvPsjPV78"
+      ZIP_EXPECTED_SHA256: "043329e7f61200604684e734105780fc4e4ce03184d08222cf5c9d739981c4c1"
+      SANTO_USMLE_OWNER_APPROVED_20261025: "true"
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      NODE_OPTIONS: "--max-old-space-size=4096"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Check fixed owner consent and index name, never store secrets in source
+        run: |
+          set -euo pipefail
+          test "${SANTO_USMLE_OWNER_APPROVED_20261025}" = "true"
+          test -n "${CLOUDFLARE_API_TOKEN}"
+          test -n "${CLOUDFLARE_ACCOUNT_ID}"
+          grep -Fq 'SANTO_ENV = "staging"' workers/api/wrangler.toml
+          grep -Fq 'SANTO_USMLE_GALLERY_V1 = "true"' workers/api/wrangler.toml
+          grep -Fq 'INSTANCE = "santo-medical-images"' scripts/ingest_santo_medical_gallery.py
+          grep -Fq 'MANIFEST_KEY = "gallery/v1/santo_image_manifest.json"' scripts/ingest_santo_medical_gallery.py
+      - name: Install pinned Python packages and workspace
+        run: |
+          set -euo pipefail
+          python -m pip install "gdown==5.2.0" "requests==2.32.3"
+          corepack enable
+          pnpm install --frozen-lockfile
+      - name: Exact SHA-256 pinned Google Drive source — never uploaded to GitHub
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import gdown,hashlib,os,pathlib,zipfile
+          temp=pathlib.Path(os.environ["RUNNER_TEMP"])
+          dest=temp/"usmle-owner-authorized.zip"
+          result=gdown.download(id=os.environ["GOOGLE_DRIVE_FILE_ID"],output=str(dest),quiet=True)
+          if result is None or not dest.exists() or dest.stat().st_size!=2515941:
+              raise SystemExit("Drive source download incomplete")
+          if hashlib.sha256(dest.read_bytes()).hexdigest()!=os.environ["ZIP_EXPECTED_SHA256"]:
+              raise SystemExit("SOURCE_SHA256_MISMATCH")
+          with zipfile.ZipFile(dest) as z:
+              if z.testzip(): raise SystemExit("Corrupt ZIP")
+              meta=z.getinfo("usmle_images_full_library.jsonl")
+              if meta.file_size!=12901283: raise SystemExit("Wrong input size")
+              (temp/"usmle_images_full_library.jsonl").write_bytes(z.read(meta))
+          print("PINNED_OWNER_DRIVE_DATASET_SHA256_VALIDATED")
+          PY
+      - name: Enrich authorized records; quality-gate original associations
+        run: |
+          set -euo pipefail
+          python scripts/prepare_usmle_gallery.py --owner-rights-attested \
+            --input "$RUNNER_TEMP/usmle_images_full_library.jsonl" \
+            --output "$RUNNER_TEMP/usmle-prepared" --expected-count 4525 \
+            > "$RUNNER_TEMP/qa-output.json"
+          python - <<'PY'
+          import json,os,pathlib
+          folder=pathlib.Path(os.environ["RUNNER_TEMP"])/"usmle-prepared"
+          data=json.loads((folder/"qa_summary.json").read_text())
+          if (data["total_records"],data["source_references"],data["approved_for_index"],data["blocked_for_index"])!=(4525,7482,4239,286):
+              raise SystemExit("Unexpected approved source count; fail closed")
+          if data["rights_attestation"]!="owner_asserted_2026-10-25":
+              raise SystemExit("Missing owner scope of attestation")
+          print("IMAGE_METADATA_QA_PASS",data["approved_for_index"],"approved /",data["blocked_for_index"],"held for review")
+          PY
+      - name: Run Python and Workers gallery tests, check build
+        run: |
+          set -euo pipefail
+          python -m unittest discover -s scripts -p "test_prepare_usmle_gallery.py" -v
+          pnpm --filter @santo/api typecheck
+          pnpm --filter @santo/api exec vitest run src/ai/image-gallery.test.ts src/ai/retrieval.test.ts
+          pnpm --filter @santo/api build
+      - name: Upload only 4,239 licensed qualified text records to EXISTING Gallery index
+        id: upload
+        run: |
+          set -euo pipefail
+          python -u scripts/ingest_usmle_gallery.py --execute \
+            --items-dir "$RUNNER_TEMP/usmle-prepared/approved_items" \
+            --manifest "$RUNNER_TEMP/usmle-prepared/usmle_image_manifest.json" \
+            --max-workers 3 --wait-minutes 55
+      - name: Publish USMLE-only manifest into private Staging R2
+        id: manifest
+        run: |
+          set -euo pipefail
+          key="santo-content-staging/gallery/v1/usmle_image_manifest.json"
+          f="$RUNNER_TEMP/usmle-prepared/usmle_image_manifest.json"
+          cd workers/api
+          pnpm exec wrangler r2 object put "$key" --file="$f" --remote
+          pnpm exec wrangler r2 object get "$key" --file="$RUNNER_TEMP/usmle-manifest-readback.json" --remote
+          sha256sum "$f" "$RUNNER_TEMP/usmle-manifest-readback.json"
+          cmp -s "$f" "$RUNNER_TEMP/usmle-manifest-readback.json"
+          echo "USMLE_MANIFEST_R2_BYTE_FOR_BYTE_VERIFIED"
+      - name: Deploy Santo Staging only — 4,239 USMLE gallery docs now eligible
+        id: deploy
+        run: |
+          set -euo pipefail
+          cd workers/api
+          pnpm exec wrangler deploy --env staging --keep-vars
+      - name: Health/auth and source-index isolation smoke
+        id: smoke
+        run: |
+          set -euo pipefail
+          base="https://santo-api-staging.geminiamo0.workers.dev"
+          for i in 1 2 3 4 5 6; do
+            curl -fsS --max-time 20 "$base/health" > "$RUNNER_TEMP/staging-health.json" && break
+            sleep 5
+          done
+          python - <<'PY'
+          import json,os,pathlib
+          r=json.loads((pathlib.Path(os.environ["RUNNER_TEMP"])/"staging-health.json").read_text())
+          if r.get("status")!="ok" or r.get("service")!="santo-api":
+              raise SystemExit("Staging health failed")
+          PY
+          code="$(curl --max-time 20 -sS -o /dev/null -w '%{http_code}' -X POST \
+            "$base/v1/ai/query" -H 'Content-Type: application/json' \
+            --data '{"query":"impetigo","library_id":"usmle","idempotency_key":"usmle-gallery-auth-smoke"}')"
+          test "$code" = 401
+          echo "STAGING_HEALTH_AND_UNAUTHORIZED_401_PASS"
+      - name: Report evidence without leaking private source content
+        if: always()
+        env:
+          INGEST_OUTCOME: ${{ steps.upload.outcome }}
+          MANIFEST_OUTCOME: ${{ steps.manifest.outcome }}
+          DEPLOY_OUTCOME: ${{ steps.deploy.outcome }}
+          SMOKE_OUTCOME: ${{ steps.smoke.outcome }}
+        run: |
+          {
+            echo "### Santo USMLE Gallery"
+            echo "Owner-licensed input pinned by Google Drive ZIP SHA-256."
+            echo "Quality gate: 4,239 proposed, 286 held; existing 3,295 Gallery docs unchanged."
+            echo "Index fully ingested: $INGEST_OUTCOME"
+            echo "R2 manifest with byte-for-byte readback: $MANIFEST_OUTCOME"
+            echo "Staging-only deployment: $DEPLOY_OUTCOME"
+            echo "Health and 401 auth smoke: $SMOKE_OUTCOME"
+            echo "Production untouched. Signed-in Gallery browser QA remains separate."
+          } >> "$GITHUB_STEP_SUMMARY"

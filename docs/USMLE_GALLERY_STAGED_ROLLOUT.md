@@ -62,3 +62,15 @@ is not a content hash.
 50 results. The existing Load More UI can reveal the retrieved pool, but
 it does NOT guarantee exhaustive paging of every relevant image beyond 50.
 A separate paged image catalog query is needed for a truly unlimited Gallery.
+
+## Release update — 25 October 2026 (owner-authorized Staging)
+
+- Owner explicitly confirmed image-display rights for this dataset; the original rights flags remain preserved in source and per-image QA.
+- Owner authorized proceeding despite ONE known Cloudflare timeout, `usmle_L116818.json`. No failed image is included in the published manifest.
+- **Actual index counters:** completed=7533, queued=0, running=0, error=1, skipped=0, degraded=0. This equals 3,295 original images + **4,238 published USMLE images**; 286 low-quality images remain excluded from the original 4,525.
+- Staged-image manifest contains exactly 4,238 entries and passed R2 byte-for-byte readback.
+- Five basic image-topic searches returned USMLE images (first USMLE hit at rank 1 for each); this does NOT prove exact image correctness on every query.
+- Staging Worker deployed and health plus unauthenticated-401 checks passed. Production untouched.
+- [Successful release GitHub Actions #40208253739](https://github.com/geminiamo0-ship-it/santoreno/actions/runs/40208253739), staging Worker version `cf3c5a59-8173-421a-a62f-f3aa75e75258`.
+- Signed-in browser QA, detailed per-diagnosis image relevance, and genuine unbounded Load More pagination remain outstanding. PR #213 stays draft until final review.
+

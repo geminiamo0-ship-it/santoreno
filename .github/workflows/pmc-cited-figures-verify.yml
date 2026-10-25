@@ -36,7 +36,7 @@ jobs:
             packages/widget/src/article-rich-html.ts packages/widget/src/article-rich-html.test.ts \
             workers/api/src/ai/pmc-figures.ts workers/api/src/ai/pmc-figures.test.ts \
             workers/api/src/ai/types.ts workers/api/src/ai/research-retrieval.ts \
-            workers/api/src/ai/service.ts workers/api/src/ai/handler.ts \
+            workers/api/src/ai/service.ts workers/api/src/ai/handler.ts workers/api/src/ai/handler.test.ts \
             workers/api/src/library/research-article.ts workers/api/src/library/research-article.test.ts \
             workers/api/src/library/handler.ts workers/api/src/runtime/bindings.ts
           if ! git diff --quiet; then
@@ -46,7 +46,7 @@ jobs:
               packages/widget/src/article-rich-html.ts packages/widget/src/article-rich-html.test.ts \
               workers/api/src/ai/pmc-figures.ts workers/api/src/ai/pmc-figures.test.ts \
               workers/api/src/ai/types.ts workers/api/src/ai/research-retrieval.ts \
-              workers/api/src/ai/service.ts workers/api/src/ai/handler.ts \
+              workers/api/src/ai/service.ts workers/api/src/ai/handler.ts workers/api/src/ai/handler.test.ts \
               workers/api/src/library/research-article.ts workers/api/src/library/research-article.test.ts \
               workers/api/src/library/handler.ts workers/api/src/runtime/bindings.ts
             git commit -m "style(pmc): format limited PMC figure integration"

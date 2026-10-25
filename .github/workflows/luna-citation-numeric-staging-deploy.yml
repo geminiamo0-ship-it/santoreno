@@ -1,4 +1,5 @@
 name: Deploy Verified Luna Numeric Citations — Santo Staging
+# Re-run with full-suite sourced-handler prompt test updated
 on:
   push:
     branches:

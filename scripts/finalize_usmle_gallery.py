@@ -90,7 +90,7 @@ def verify_and_prepare(manifest_path: Path) -> None:
     if instance.get("embedding_model") != EMBED or instance.get("source") or instance.get("type") == "r2":
         raise RuntimeError("Gallery instance model/source mismatch")
 
-    stats = counters(cf)
+    stats = {key: int(value or 0) for key, value in counters(cf).items()}
     errors = []
     if stats.get("error"):
         errors = cf.call("GET", f"/instances/{INSTANCE}/items?status=error&per_page=50&source=builtin")

@@ -145,6 +145,8 @@ export function createGroundedAiHandler(dependencies: GroundedAiHandlerDependenc
               qwenAi: env.AI,
               enableQwenRouting:
                 env.SANTO_ENV === "staging" && env.SANTO_RESEARCH_QWEN_V1 === "true",
+              enablePmcFigures:
+                env.SANTO_ENV === "staging" && env.SANTO_PMC_CITED_FIGURES_V1 === "true",
             })
           : retrievalFactory(env);
       const response = await new GroundedAiService(

@@ -1,4 +1,4 @@
-name: Santo USMLE Gallery — Licensed Metadata Staging Import Once
+name: Santo USMLE Gallery — Targeted Recovery and Staging Publish
 on:
   push:
     branches:
@@ -94,14 +94,11 @@ jobs:
           pnpm --filter @santo/api typecheck
           pnpm --filter @santo/api exec vitest run src/ai/image-gallery.test.ts src/ai/retrieval.test.ts
           pnpm --filter @santo/api build
-      - name: Upload only 4,239 licensed qualified text records to EXISTING Gallery index
+      - name: Retry only transient USMLE image indexing failures; verify 7534 completed and search smoke
         id: upload
         run: |
           set -euo pipefail
-          python -u scripts/ingest_usmle_gallery.py --execute \
-            --items-dir "$RUNNER_TEMP/usmle-prepared/approved_items" \
-            --manifest "$RUNNER_TEMP/usmle-prepared/usmle_image_manifest.json" \
-            --max-workers 3 --wait-minutes 55
+          python -u scripts/recover_usmle_gallery_index.py --execute
       - name: Publish USMLE-only manifest into private Staging R2
         id: manifest
         run: |

@@ -131,7 +131,7 @@ export function createLunaCitationAliases(
       sanitizedPrompt +
       (includeReminder
         ? format === "markdown"
-          ? "\nOnly use temporary SANTO_REF_N labels to identify real evidence. Cite a supported statement as [[N]], using the N from its source label. Never print source labels, raw IDs or JSON fields."
+          ? "\nUse temporary SANTO_REF_N labels to identify real evidence. Cite SANTO_REF_10 as [[10]] (actual digits, NEVER [[N10]] or [N10]). Never print source labels, raw IDs or JSON fields."
           : "\nOnly refer to evidence using its temporary SANTO_REF_N labels. Put labels inside citation_ids only, never in the answer prose."
         : ""),
     modelCitationIds: aliases,

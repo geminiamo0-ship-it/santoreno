@@ -88,6 +88,7 @@ export interface SantoBindings {
   SANTO_QWEN_ROUTING_V1?: string;
   SANTO_LUNA_RICH_IMAGES_V1?: string;
   SANTO_GALLERY_IMAGES_V1?: string;
+  SANTO_USMLE_GALLERY_V1?: string;
   SANTO_ANKING_CARDS_V1?: string;
   SANTO_ANKING_V12_FULL_SEARCH_V1?: string;
   SANTO_SEARCH_FAST_PATH_V1?: string;

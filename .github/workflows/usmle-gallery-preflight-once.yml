@@ -1,0 +1,89 @@
+name: USMLE Gallery — Source and Index Preflight (Read Only)
+on:
+  push:
+    branches: [feat/medical-gallery-usmle-review-20261025]
+    paths: [.github/workflows/usmle-gallery-preflight-once.yml]
+permissions:
+  contents: read
+concurrency:
+  group: santo-usmle-gallery-readonly-source-preflight
+  cancel-in-progress: false
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SOURCE_FILE_ID: "1DpaFud1vK0yHLUCq-eYoRQuQvPsjPV78"
+      SOURCE_SHA256: "043329e7f61200604684e734105780fc4e4ce03184d08222cf5c9d739981c4c1"
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install pinned source downloader and HTTP client
+        run: python -m pip install "gdown==5.2.0" "requests==2.32.3"
+      - name: Download user supplied Google Drive ZIP; pin exact bytes and SHA-256
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import gdown, hashlib, os, pathlib, zipfile
+          dest = pathlib.Path(os.environ["RUNNER_TEMP"]) / "usmle_owner_attested.zip"
+          result = gdown.download(id=os.environ["SOURCE_FILE_ID"], output=str(dest), quiet=True)
+          if result is None or not dest.exists():
+              raise SystemExit("Drive link not anonymously downloadable; no index changes")
+          if dest.stat().st_size != 2515941:
+              raise SystemExit("Source byte size mismatch")
+          checksum = hashlib.sha256(dest.read_bytes()).hexdigest()
+          if checksum != os.environ["SOURCE_SHA256"]:
+              raise SystemExit("SHA-256 mismatch; refusing import")
+          with zipfile.ZipFile(dest) as z:
+              if z.testzip() is not None:
+                  raise SystemExit("Corrupt archive")
+              info = z.getinfo("usmle_images_full_library.jsonl")
+              if info.file_size != 12901283:
+                  raise SystemExit("JSONL uncompressed byte length mismatch")
+              output = pathlib.Path(os.environ["RUNNER_TEMP"]) / "usmle_images_full_library.jsonl"
+              output.write_bytes(z.read(info))
+          print("OWNER_SOURCE_SHA256_OK; 4,525-record source pinned; raw content never logged")
+          PY
+      - name: Prepare approved records and local QA; no Cloudflare changes
+        run: |
+          set -euo pipefail
+          python scripts/prepare_usmle_gallery.py             --input "$RUNNER_TEMP/usmle_images_full_library.jsonl"             --output "$RUNNER_TEMP/usmle-prepared"             --expected-count 4525 --owner-rights-attested > "$RUNNER_TEMP/usmle-summary-output.json"
+          python - <<'PY'
+          import json,os,pathlib
+          s=json.loads((pathlib.Path(os.environ["RUNNER_TEMP"])/"usmle-summary-output.json").read_text())
+          assert s["total_records"]==4525 and s["source_references"]==7482
+          assert s["rights_attestation"]=="owner_asserted_2026-10-25"
+          assert s["approved_for_index"]>=4000, "Insufficient safe records for import"
+          print("USMLE_SOURCE_QA_OK", {k:s[k] for k in ("total_records","approved_for_index","blocked_for_index")})
+          print("QA_FLAGS", s["qa_flags"])
+          PY
+      - name: Existing image instance identity and baseline stats (read-only)
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import os,requests
+          assert os.environ.get("CLOUDFLARE_ACCOUNT_ID") and os.environ.get("CLOUDFLARE_API_TOKEN")
+          root="https://api.cloudflare.com/client/v4/accounts/"+os.environ["CLOUDFLARE_ACCOUNT_ID"]+"/ai-search/namespaces/default"
+          headers={"Authorization":"Bearer "+os.environ["CLOUDFLARE_API_TOKEN"]}
+          for kind in ("", "/stats"):
+              r=requests.get(root+"/instances/santo-medical-images"+kind,headers=headers,timeout=40)
+              r.raise_for_status()
+              doc=r.json()
+              if doc.get("success") is not True: raise RuntimeError("Cloudflare index status is unavailable")
+              data=doc.get("result")
+              if kind=="":
+                  if data.get("id")!="santo-medical-images" or data.get("type")=="r2" or data.get("source"):
+                      raise RuntimeError("Unexpected Gallery index identity/source")
+                  if data.get("embedding_model")!="@cf/qwen/qwen3-embedding-0.6b":
+                      raise RuntimeError("Unexpected Gallery index model")
+                  print("EXISTING_GALLERY_INSTANCE_OK",data["id"])
+              else:
+                  print("BEFORE_INDEXING_STATS", {k:data.get(k,0) for k in ("completed","queued","running","error","skipped","degraded")})
+          PY
+      - name: Summary — dry-run only
+        run: |
+          echo "Pinned owner-licensed USMLE ZIP checked, source records quality-gated and existing Cloudflare gallery inspected. NO WRITES performed." >> "$GITHUB_STEP_SUMMARY"

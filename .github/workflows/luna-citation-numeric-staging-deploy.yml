@@ -1,0 +1,109 @@
+name: Deploy Verified Luna Numeric Citations — Santo Staging
+# Re-run with full-suite sourced-handler prompt test updated
+on:
+  push:
+    branches:
+      - feat/medical-gallery-usmle-review-20261025
+    paths:
+      - .github/workflows/luna-citation-numeric-staging-deploy.yml
+
+permissions:
+  contents: read
+concurrency:
+  group: santo-staging-luna-citation-numeric-20261025
+  cancel-in-progress: false
+
+jobs:
+  verified-citation-deploy:
+    if: github.repository == 'geminiamo0-ship-it/santoreno'
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      WORKER_URL: https://santo-api-staging.geminiamo0.workers.dev
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install locked workspace
+        run: |
+          set -euo pipefail
+          corepack enable
+          pnpm install --frozen-lockfile
+      - name: Verify current branch head and Staging-only feature scope
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+          test "$(git ls-remote origin refs/heads/feat/medical-gallery-usmle-review-20261025 | cut -f1)" = "$(git rev-parse HEAD)"
+          grep -Fq 'SANTO_ENV = "staging"' workers/api/wrangler.toml
+          grep -Fq 'SANTO_PLAIN_TEXT_LUNA_V1 = "true"' workers/api/wrangler.toml
+          grep -Fq 'SANTO_COMPACT_CITATION_ALIASES_V1 = "true"' workers/api/wrangler.toml
+          grep -Fq 'SANTO_LUNA_UNIFIED_PROMPT_V1 = "true"' workers/api/wrangler.toml
+          grep -Fq 'SANTO_USMLE_GALLERY_V1 = "true"' workers/api/wrangler.toml
+          echo "PINNED_CITATION_RELEASE_SHA=$(git rev-parse HEAD)"
+      - name: Source code lint, changed-file formatting, full typecheck/tests/build/smoke
+        run: |
+          set -euo pipefail
+          # Six unrelated pre-existing files fail repo-wide prettier; do not
+          # reformat AMBOSS, Gallery, or project documentation during this fix.
+          pnpm exec oxlint .
+          pnpm exec prettier --check \
+            workers/api/src/ai/plain-luna.ts \
+            workers/api/src/ai/plain-luna.test.ts \
+            workers/api/src/ai/model.ts \
+            workers/api/src/ai/model.test.ts \
+            workers/api/src/ai/prompt.ts \
+            workers/api/src/ai/prompt.test.ts \
+            workers/api/src/ai/luna-unified-prompt.ts \
+            workers/api/src/ai/luna-unified-prompt.test.ts
+          pnpm typecheck
+          pnpm test
+          pnpm build
+          pnpm smoke
+      - name: Validate exact confirmed numeric citation contract and source mapping
+        run: |
+          set -euo pipefail
+          pnpm --filter @santo/api exec vitest run \
+            src/ai/plain-luna.test.ts \
+            src/ai/luna-unified-prompt.test.ts \
+            src/ai/prompt.test.ts \
+            src/ai/luna-event-stream.test.ts \
+            src/ai/model.test.ts
+          grep -Fq 'SANTO_REF_10 -> [[10]]' workers/api/src/ai/luna-unified-prompt.ts
+          grep -Fq 'repairs the exact surgical AVR preview' workers/api/src/ai/plain-luna.test.ts
+          echo "VERIFIED_LUNA_NUMERIC_CITATIONS_AND_PROVISIONAL_SSE"
+      - name: Re-check exact HEAD before deployment
+        run: |
+          set -euo pipefail
+          test "$(git ls-remote origin refs/heads/feat/medical-gallery-usmle-review-20261025 | cut -f1)" = "$(git rev-parse HEAD)"
+      - name: Deploy Santo Staging only, keep prior runtime secrets
+        run: |
+          set -euo pipefail
+          cd workers/api
+          pnpm exec wrangler deploy --env staging --keep-vars
+      - name: Staging health and authentication protection smoke
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3 4 5 6; do
+            if curl -fsS --max-time 20 "$WORKER_URL/health" > /tmp/santo-citation-health.json; then break; fi
+            sleep 5
+          done
+          node -e 'const r=require("/tmp/santo-citation-health.json"); if(r.status!=="ok" || r.service!=="santo-api") process.exit(1)'
+          code="$(curl -sS --max-time 20 -o /dev/null -w '%{http_code}' \
+            -X POST "$WORKER_URL/v1/ai/query" -H 'Content-Type: application/json' \
+            --data '{"query":"surgical AVR","library_id":"amboss","idempotency_key":"citation-numeric-unauth-staging"}')"
+          test "$code" = 401
+          echo "STAGING_HEALTH_AND_UNAUTHENTICATED_401_PASS"
+          {
+            echo "### Luna numeric citation repair — Staging"
+            echo "Verified source: $(git rev-parse HEAD)"
+            echo "Literal [N10]/[[N10]] markers map ONLY to original retrieved source IDs."
+            echo "Unknown/mismatched aliases remain rejected; provider SSE still needs response.completed."
+            echo "All unit/type/lint/build and API health/security gates passed."
+            echo "USMLE R2/image Gallery, medical search indexes and Production unchanged."
+          } >> "$GITHUB_STEP_SUMMARY"

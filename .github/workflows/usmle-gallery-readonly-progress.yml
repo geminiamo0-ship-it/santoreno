@@ -1,0 +1,43 @@
+name: USMLE Gallery — Readonly Live Import Counters
+# Post targeted 12-item repair live diagnosis
+# Second snapshot to check stalled Workers AI items
+on:
+  push:
+    branches: [feat/medical-gallery-usmle-review-20261025]
+    paths: [.github/workflows/usmle-gallery-readonly-progress.yml]
+permissions:
+  contents: read
+jobs:
+  readonly-progress:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Read live indexing counters (no writes)
+        run: |
+          python3 - <<'PY'
+          import json,os,urllib.request
+          root=("https://api.cloudflare.com/client/v4/accounts/"+os.environ["CLOUDFLARE_ACCOUNT_ID"]+
+             "/ai-search/namespaces/default/instances/santo-medical-images/stats")
+          req=urllib.request.Request(root,headers={"Authorization":"Bearer "+os.environ["CLOUDFLARE_API_TOKEN"]})
+          with urllib.request.urlopen(req,timeout=40) as f: result=json.load(f)
+          if result.get("success") is not True: raise SystemExit("Cloudflare stats unavailable")
+          d=result.get("result") or {}
+          print("READ_ONLY_LIVE_GALLERY_STATS", {k:d.get(k) for k in ("completed","queued","running","error","skipped","degraded")})
+
+          # Query ONLY failed items, never print medical passages or media URLs.
+          import urllib.parse
+          base=root.rsplit("/stats",1)[0]
+          url=base+"/items?"+urllib.parse.urlencode({"status":"error","per_page":50})
+          request=urllib.request.Request(url,headers={"Authorization":"Bearer "+os.environ["CLOUDFLARE_API_TOKEN"]})
+          with urllib.request.urlopen(request,timeout=40) as f: failures=json.load(f)
+          if failures.get("success") is not True: raise SystemExit("Cannot inspect failed items")
+          errors=failures.get("result") or []
+          print("ERROR_ITEM_COUNT", (failures.get("result_info") or {}).get("total_count"), "items_returned",len(errors))
+          for item in errors[:8]:
+              # Item IDs are opaque; keys are only non-patient image record names.
+              print("ERROR_ITEM", {"item_id":item.get("id"),"key":item.get("key"),
+                  "status":item.get("status"),"error_code":str(item.get("error") or "")[:120]})
+          PY

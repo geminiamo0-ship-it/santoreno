@@ -98,7 +98,7 @@ describe("deterministic grounded prompt builder", () => {
     expect(trusted.sources).toHaveLength(1);
     expect(trusted.sources[0]).toMatchObject({ source_id: evidence.sourceId });
     expect(prompt).toContain("OUTPUT CONTRACT: Write the teaching response directly in Markdown");
-    expect(prompt).toContain("using [[N]]");
+    expect(prompt).toContain("SANTO_REF_10 means [[10]]");
     expect(prompt).not.toContain("Return JSON only");
     expect(prompt).not.toContain("citation_ids");
     expect(prompt).not.toContain("include source identifiers ONLY");

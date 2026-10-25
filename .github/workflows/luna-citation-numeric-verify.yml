@@ -1,0 +1,50 @@
+name: Luna Citation Number Repair — Staging Verification
+# Regression gate for all 75 citation, model, source and streaming tests
+on:
+  push:
+    branches:
+      - feat/medical-gallery-usmle-review-20261025
+    paths:
+      - .github/workflows/luna-citation-numeric-verify.yml
+permissions:
+  contents: read
+jobs:
+  citation-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install pinned workspace
+        run: |
+          set -euo pipefail
+          corepack enable
+          pnpm install --frozen-lockfile
+      - name: Verify formatting and lint of changed citation implementation
+        run: |
+          set -euo pipefail
+          pnpm exec prettier --check \
+            workers/api/src/ai/plain-luna.ts workers/api/src/ai/plain-luna.test.ts \
+            workers/api/src/ai/model.ts workers/api/src/ai/prompt.ts \
+            workers/api/src/ai/luna-unified-prompt.ts \
+            workers/api/src/ai/luna-unified-prompt.test.ts \
+            workers/api/src/ai/prompt.test.ts
+      - name: Verify typed output and N-prefixed citation recovery regressions
+        run: |
+          set -euo pipefail
+          pnpm --filter @santo/api typecheck
+          pnpm --filter @santo/api exec vitest run \
+            src/ai/plain-luna.test.ts \
+            src/ai/luna-unified-prompt.test.ts \
+            src/ai/prompt.test.ts \
+            src/ai/luna-event-stream.test.ts \
+            src/ai/model.test.ts
+      - name: Verify API build and no staging mutation
+        run: |
+          set -euo pipefail
+          pnpm --filter @santo/api build
+          echo "Citation parser regression tested. Cloudflare unchanged, no R2 or production mutations."

@@ -135,8 +135,8 @@ export function buildGroundedPrompt(
     ...(format === "markdown"
       ? [
           "OUTPUT CONTRACT: Write the teaching response directly in Markdown. Do not use structured response wrappers, code fences, or raw machine source identifiers.",
-          "EVIDENCE_JSON contains original, server-verified medical excerpts from original multi-query Libraries hits (after exact Dedup, no application ranking or top-N selection) or PMC Research. Each source_id will be replaced by a temporary SANTO_REF_N label in this same model request. Cite a supported clinical statement using [[N]], where N is the integer in that excerpt's SANTO_REF_N label. Use the marker only when the associated excerpt really supports the statement.",
-          "Review each relevant EVIDENCE_JSON excerpt and cite sources across libraries when supported. Include at least one [[N]] marker if evidence supports the answer; never add an unrelated or invented source, favor a brand, or attribute general medical background to a library.",
+          "EVIDENCE_JSON contains original, server-verified medical excerpts from original multi-query Libraries hits (after exact Dedup, no application ranking or top-N selection) or PMC Research. Each source_id will be replaced by a temporary SANTO_REF_N label in this same model request. Use a numeric citation marker for directly supported claims: SANTO_REF_1 means [[1]], SANTO_REF_10 means [[10]]. Never copy the letter N into the citation (never [[N10]] or [N10]). Cite only when that excerpt directly supports the statement.",
+          "Review each relevant EVIDENCE_JSON excerpt and cite sources across libraries when supported. Include at least one real numeric [[1]]-style marker if evidence supports the answer; never add an unrelated or invented source, favor a brand, or attribute general medical background to a library.",
           "Source links and source cards belong to Santo, not the model. Never print SANTO_REF_N, original source_id strings, or internal IDs in prose. Finish complete paragraphs and sentences.",
         ]
       : [

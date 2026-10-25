@@ -1,0 +1,41 @@
+name: USMLE Gallery Staged Integration — Safe Verification
+on:
+  push:
+    branches:
+      - feat/medical-gallery-usmle-review-20261025
+  pull_request:
+    branches:
+      - fix/amboss-grounding-more-gallery-images-20261021
+permissions:
+  contents: read
+concurrency:
+  group: usmle-gallery-verify-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  test-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Python image preparer tests — no image dataset or secrets
+        run: python -m unittest discover -s scripts -p "test_prepare_usmle_gallery.py" -v
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install pinned workspace
+        run: |
+          corepack enable
+          pnpm install --frozen-lockfile
+      - name: Type-check Workers API
+        run: pnpm --filter @santo/api typecheck
+      - name: Verify gallery hydration and source matching
+        run: pnpm --filter @santo/api exec vitest run src/ai/image-gallery.test.ts src/ai/retrieval.test.ts
+      - name: Staging-only contract — no deployment
+        run: |
+          grep -Fq "SANTO_USMLE_GALLERY_V1?: string" workers/api/src/runtime/bindings.ts
+          grep -Fq "USMLE_MANIFEST_KEY" workers/api/src/ai/image-gallery.ts
+          test ! -f usmle_images_full_library.jsonl
+          echo "No Cloudflare API calls, R2 writes, secret reads, or deploy steps."

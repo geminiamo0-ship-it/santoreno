@@ -1,5 +1,25 @@
 # Santo Project Status — Living Handoff
 
+### Luna N-prefixed citation repair — 25 Oct 2026 (Staging, PR #213)
+
+- **DEPLOYED to Santo Staging** via [GitHub Actions #40210543570](https://github.com/geminiamo0-ship-it/santoreno/actions/runs/40210543570); pinned code SHA `835431a86c1b446bba28552bf94acbbcd3fdd9b8`, **Staging Worker version `a534dc6a-001a-495d-b33a-18271588bd49`** confirmed by deploy logs. Production untouched.
+- Reproduced actual surgical AVR preview's `[N10]`, `[N11]`, `[N1]`, `[N3]` markers in unit tests. Plain Luna parser now safely normalizes both `[N10]` and `[[N10]]` to retrieved-source indices, preserving repeated references and rejecting unknown/out-of-range or mismatched alias links. It remaps only to server-owned source IDs, which still must pass snapshot and citation validation. Provisional SSE strips N-prefixed markers, never treats draft as verified.
+- Fixed misleading `[[N]]` example in unified instructions (997 UTF-8 bytes), data prompt and alias reminder. One inference, existing 3k-token budget, source retrieval, quotas, gallery and citation save lifecycle unchanged.
+- Exact deployment Action: repository-wide oxlint 0 errors, full workspace typecheck, all tests, build and smoke passed; API 345/345 passing (1 skipped), focused source/model/streaming 75/75 passed; Staging health and unauthorized-401 passed.
+- **Limitation:** A missing `response.completed` event from Cloudflare is a separate provider stream interruption. We do NOT accept any draft as final or claim this patch fixes provider incomplete SSE. Real signed-in `surgical AVR` request/click-through still needs browser acceptance.
+- PR remains Draft; do not merge or deploy to production without acceptance. No Cloudflare AI Search/R2 changes.
+
+
+### USMLE image gallery licensed ingestion — 25 Oct 2026 (Staging, PR #213)
+
+- Owner explicitly confirmed permission to use UWorld/USMLE images within Santo; stored only as a scoped 2026-10-25 attestation on **derived** data. Original Google Drive ZIP sha256 `043329e7f61200604684e734105780fc4e4ce03184d08222cf5c9d739981c4c1` verified without committing source data.
+- 4,525 distinct image metadata records, 7,482 article relationships; 4,239 eligible after context-quality validation, 286 held. Article-derived captions are **not** visually verified.
+- Existing 3,295 image Gallery was independently confirmed healthy: 3,295 completed, no queued/running/errors/skips. [Read-only preflight](https://github.com/geminiamo0-ship-it/santoreno/actions/runs/40184061002) PASSED.
+- [PR #213](https://github.com/geminiamo0-ship-it/santoreno/pull/213) adds USMLE ID parsing, private USMLE-only manifest and owner-rights safety gate to existing gallery; full Python/TypeScript targeted checks PASSED.
+- [Guarded live import](https://github.com/geminiamo0-ship-it/santoreno/actions/runs/40184391053) **IN PROGRESS**, not a completed rollout. [Read-only Cloudflare stats](https://github.com/geminiamo0-ship-it/santoreno/actions/runs/40184654419) at 10:27 UTC: 3,552 completed, 675 queued, 10 running, 0 errors/skips. R2 manifest publish + Staging deployment are gated on 7,534 completed, no errors/skips/queue, and USMLE image search smoke. Production and five clinical libraries untouched.
+- User acceptance, correct cited article links and fully paginated Load More beyond provider's 50-result ceiling remain unverified/pending. Do not mark full release complete until all gates pass.
+
+
 ### CURRENT — PubMed clinical-guideline-first Research (21 Oct 2026, PR #212)
 
 - **DEPLOYED Santo Staging** at immutable implementation SHA `d5bb845e82ed42c2a494727d9027b74614b006b3`. [GitHub Actions #39674486441](https://github.com/geminiamo0-ship-it/santoreno/actions/runs/39674486441) passed full lint, TypeScript, unit tests, build, smoke, rights/configuration guards, real Cloudflare exclusive-library probe, exact-head safety gate, Wrangler Staging-only Worker deployment, /health and unauthorized 401. **Production unchanged**, AMBOSS behavior unchanged.

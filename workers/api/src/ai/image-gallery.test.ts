@@ -81,4 +81,81 @@ describe("gallery hydration from a shared six-index search", () => {
       "Gallery image manifest missing",
     );
   });
+
+  it("requires the USMLE staging flag and per-image rights clearance", async () => {
+    const requests: string[] = [];
+    const bucket: R2BucketLike = {
+      async get(key) {
+        requests.push(key);
+        if (key !== "gallery/v1/usmle_image_manifest.json") return null;
+        return {
+          async text() {
+            return JSON.stringify({
+              usmle_L10619: {
+                image_url: DOMAIN + "L10619.png",
+                title: "Erythema marginatum",
+                visual_caption: "Skin findings associated with rheumatic fever.",
+                primary_system: "Cardiology",
+                source_name: "USMLE Step 1 Medical Library",
+                rights_status: "approved",
+                display_ready: true,
+              },
+              usmle_L93791: {
+                image_url: DOMAIN + "L93791.jpg",
+                title: "Nonbullous impetigo",
+                visual_caption: "Honey-colored crusting.",
+                rights_status: "unverified_rights_locked",
+                display_ready: false,
+              },
+            });
+          },
+        };
+      },
+      async put() { return null; },
+      async delete() {},
+    };
+    const hits = [
+      { imageId: "usmle_L10619", score: 0.91 },
+      { imageId: "usmle_L93791", score: 0.89 },
+    ];
+    expect(await new CloudflareGalleryImageRetrieval(bucket).hydrate(hits)).toEqual([]);
+    expect(requests).toEqual([]);
+    const gallery = await new CloudflareGalleryImageRetrieval(bucket, true).hydrate(hits);
+    expect(gallery).toHaveLength(1);
+    expect(gallery[0]).toMatchObject({
+      id: "IMG_301",
+      src: DOMAIN + "L10619.png",
+      alt: "Erythema marginatum",
+      sourceId: "",
+    });
+    expect(requests).toEqual(["gallery/v1/usmle_image_manifest.json"]);
+  });
+
+  it("never trusts arbitrary USMLE URLs even when marked approved", async () => {
+    const bucket: R2BucketLike = {
+      async get() {
+        return {
+          async text() {
+            return JSON.stringify({
+              usmle_L10619: {
+                image_url: DOMAIN + "L93791.png",
+                title: "Wrong file",
+                visual_caption: "Caption",
+                rights_status: "approved",
+                display_ready: true,
+              },
+            });
+          },
+        };
+      },
+      async put() { return null; },
+      async delete() {},
+    };
+    expect(
+      await new CloudflareGalleryImageRetrieval(bucket, true).hydrate([
+        { imageId: "usmle_L10619", score: 0.99 },
+      ]),
+    ).toEqual([]);
+  });
+
 });

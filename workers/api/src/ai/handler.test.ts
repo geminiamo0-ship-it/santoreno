@@ -367,7 +367,7 @@ describe("grounded AI handler", () => {
     expect(model.generate).toHaveBeenCalledTimes(1);
     const prompt = vi.mocked(model.generate).mock.calls[0]?.[0] as string;
     expect(prompt).toContain("OUTPUT CONTRACT: Write the teaching response directly in Markdown");
-    expect(prompt).toContain("using [[N]]");
+    expect(prompt).toContain("SANTO_REF_10 means [[10]]");
     expect(prompt).not.toContain("Return JSON only");
     expect(prompt).not.toContain("citation_ids");
     expect(quota.finalizeCalls).toBe(1);

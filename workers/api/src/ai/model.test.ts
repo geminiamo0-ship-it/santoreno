@@ -169,7 +169,7 @@ describe("GPT-6 Luna isolated Santo staging preview", () => {
     expect(payload.instructions).toContain("not lay patients");
     expect(payload.instructions).toContain("bold-led bullets");
     expect(payload.instructions).toContain("numbered treatment steps");
-    expect(payload.instructions).toContain("directly supports the claim");
+    expect(payload.instructions).toContain("supported EVIDENCE_JSON claims");
     expect(payload.instructions).toContain("General medical teaching:");
     expect(payload.instructions).toContain("named drugs and doses");
     expect(payload.input).toContain("SANTO_REF_1");

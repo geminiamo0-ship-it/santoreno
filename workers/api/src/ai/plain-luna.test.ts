@@ -45,6 +45,48 @@ describe("staging single-pass plain-Luna citation contract", () => {
     });
   });
 
+  it("repairs the exact surgical AVR preview [N10], [N11], [N1] and [N3] formats", () => {
+    const ids = Array.from({ length: 15 }, (_, i) => "amboss:real-savr-" + i);
+    const raw =
+      "Surgical aortic valve replacement (SAVR). Surgical treatment [N10] [N11]. " +
+      "Patient selection [N1]. Valve therapy [N3]. " +
+      "Long-term anticoagulation [N3] and complications [N2].";
+    const result = parsePlainLunaAnswer(raw, ids);
+    expect(result.citationIds).toEqual([ids[9], ids[10], ids[0], ids[2], ids[1]]);
+    expect(result.answer).toContain("Surgical treatment [1] [2].");
+    expect(result.answer).toContain("Patient selection [3].");
+    expect(result.answer).toContain("Valve therapy [4].");
+    expect(result.answer).not.toMatch(/\[N\d+\]/);
+    expect(previewPlainLuna(raw, ids)).not.toMatch(/\[N\d+\]/);
+  });
+
+  it("handles double brackets [[N10]], spaced markers and repeats but never invents a source", () => {
+    const ids = Array.from({ length: 12 }, (_, i) => "amboss:safe-" + i);
+    const raw =
+      "Supported [[N10]], [[N 2]] and [N1]. Repeat [[N10]]. " +
+      "Unknown [[N13]] [N99]. Real figure [[IMG_001]].";
+    const result = parsePlainLunaAnswer(raw, ids);
+    expect(result.citationIds).toEqual([ids[9], ids[1], ids[0]]);
+    expect(result.answer).toContain("Supported [1], [2] and [3]. Repeat [1].");
+    expect(result.answer).toContain("[[IMG_001]]");
+    expect(result.answer).not.toContain("N13");
+    expect(result.answer).not.toContain("N99");
+    expect(previewPlainLuna(raw, ids)).not.toMatch(/\[\[N\s*\d+|\[N\s*\d+/);
+  });
+
+  it("never converts mismatched numeric marker/alias links into false citations", () => {
+    const ids = Array.from({ length: 12 }, (_, i) => "amboss:allow-" + i);
+    const result = parsePlainLunaAnswer(
+      "Mismatch [[N10]](SANTO_REF_11). Matched [[N10]](SANTO_REF_10). Invalid [[N13]].",
+      ids,
+    );
+    expect(result.citationIds).toEqual([ids[9]]);
+    expect(result.answer).toContain("Matched [1].");
+    expect(result.answer).not.toContain("SANTO_REF_11");
+    expect(result.answer).not.toContain("N13");
+    expect(result.answer).not.toContain("Mismatch [");
+  });
+
   it("maps provider [[N]](SANTO_REF_4) syntax to an actual server-verified reference", () => {
     const ids = Array.from({ length: 15 }, (_, index) => "medical:verified-source-" + index);
     const raw =
@@ -196,7 +238,7 @@ describe("staging single-pass plain-Luna citation contract", () => {
       "Prefer a few distinct, clinically relevant original figures",
     );
     expect(payload.input).toContain("SANTO_REF_1");
-    expect(payload.input).toContain("Cite a supported statement as [[N]]");
+    expect(payload.input).toContain("Cite SANTO_REF_10 as [[10]]");
     expect(payload.input).not.toContain("citation_ids");
     expect(payload.input).not.toContain("Put labels inside");
     expect(payload.input).not.toContain(sourceA);

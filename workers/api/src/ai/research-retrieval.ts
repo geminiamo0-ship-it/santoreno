@@ -526,15 +526,17 @@ export class PubMedResearchRetrieval implements RetrievalPort {
       const withXml = ranked
         .filter((paper) => !!paper.pmcid && fullText.has(paper.pmcid))
         .slice(0, 2);
-      await Promise.all(withXml.map(async (paper) => {
-        const figures = await loadLicensedPmcFigures(
-          paper.pmcid!,
-          fullText.get(paper.pmcid!)!,
-          this.fetcher,
-          signal,
-        );
-        if (figures.length) figuresByPmc.set(paper.pmcid!, figures);
-      }));
+      await Promise.all(
+        withXml.map(async (paper) => {
+          const figures = await loadLicensedPmcFigures(
+            paper.pmcid!,
+            fullText.get(paper.pmcid!)!,
+            this.fetcher,
+            signal,
+          );
+          if (figures.length) figuresByPmc.set(paper.pmcid!, figures);
+        }),
+      );
       console.info("santo_pmc_figure_resolution", {
         articlesConsidered: withXml.length,
         articlesWithFigures: figuresByPmc.size,

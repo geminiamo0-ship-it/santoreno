@@ -1,10 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import {
-  extractPmcFigureCaptions,
-  approvedPmcMedia,
-  loadLicensedPmcFigures,
-} from "./pmc-figures";
+import { extractPmcFigureCaptions, approvedPmcMedia, loadLicensedPmcFigures } from "./pmc-figures";
 
 const PMCID = "PMC10009416";
 const PATH = "s3://pmc-oa-opendata/PMC10009416.1/";
@@ -19,7 +15,7 @@ const good = {
 };
 const fullText = [
   '<article><fig id="f1"><label>Figure 1</label><caption><p>Severe aortic stenosis Doppler',
-  'imaging demonstrates valve gradients in the clinical population.</p></caption>',
+  "imaging demonstrates valve gradients in the clinical population.</p></caption>",
   '<graphic xlink:href="gr1"/></fig>',
   '<fig id="f2"><caption><p>Nonmatching X-ray of the chest with cardiomegaly.</p></caption>',
   '<graphic xlink:href="gr2"/></fig>',
@@ -75,23 +71,29 @@ describe("only real licensed figures from original PMC OA cloud metadata", () =>
       },
     ]);
     expect(calls).toHaveLength(3);
-    expect(calls.every((url) => url.startsWith("https://pmc-oa-opendata.s3.amazonaws.com/metadata/"))).toBe(true);
+    expect(
+      calls.every((url) => url.startsWith("https://pmc-oa-opendata.s3.amazonaws.com/metadata/")),
+    ).toBe(true);
   });
 
   it("fails closed, without changing the research answer, if metadata is unavailable", async () => {
     const failed = vi.fn(async () => new Response("offline", { status: 503 }));
     expect(await loadLicensedPmcFigures(PMCID, fullText, failed as typeof fetch)).toEqual([]);
-    expect(await loadLicensedPmcFigures("PMC../evil", fullText, failed as typeof fetch)).toEqual([]);
+    expect(await loadLicensedPmcFigures("PMC../evil", fullText, failed as typeof fetch)).toEqual(
+      [],
+    );
     expect(failed).toHaveBeenCalledTimes(3);
   });
 
   it("never accepts HTML, SVG, external links or script-bearing media", () => {
-    expect(extractPmcFigureCaptions(
-      '<fig><caption><p>Malicious media path in figure caption</p></caption>' +
-        '<graphic xlink:href="../private/gr1.jpg"/></fig>',
-    )).toEqual([]);
-    expect(approvedPmcMedia(
-      { ...good, media_urls: [PATH + "gr1.svg" + MD5] }, PMCID, { name: "gr1" },
-    )).toBeNull();
+    expect(
+      extractPmcFigureCaptions(
+        "<fig><caption><p>Malicious media path in figure caption</p></caption>" +
+          '<graphic xlink:href="../private/gr1.jpg"/></fig>',
+      ),
+    ).toEqual([]);
+    expect(
+      approvedPmcMedia({ ...good, media_urls: [PATH + "gr1.svg" + MD5] }, PMCID, { name: "gr1" }),
+    ).toBeNull();
   });
 });

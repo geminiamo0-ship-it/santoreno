@@ -550,7 +550,10 @@ export class GroundedAiService {
               src: figure.src,
               alt: figure.caption.slice(0, 160),
               caption: figure.caption.slice(0, 240),
-              sourceName: (figure.pmcid + " · " + figure.license + " · " + item.title).slice(0, 160),
+              sourceName: (figure.pmcid + " · " + figure.license + " · " + item.title).slice(
+                0,
+                160,
+              ),
             }));
           console.info("santo_pmc_cited_gallery", {
             citedPapers: cited.size,

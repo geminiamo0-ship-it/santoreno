@@ -174,9 +174,9 @@ export function createGroundedAiHandler(dependencies: GroundedAiHandlerDependenc
           env.SANTO_AI_SEARCH_SINGLE_REQUEST_V1 === "true" &&
           env.CONTENT_BUCKET
           ? new CloudflareGalleryImageRetrieval(
-                env.CONTENT_BUCKET,
-                env.SANTO_ENV === "staging" && env.SANTO_USMLE_GALLERY_V1 === "true",
-              )
+              env.CONTENT_BUCKET,
+              env.SANTO_ENV === "staging" && env.SANTO_USMLE_GALLERY_V1 === "true",
+            )
           : undefined,
         undefined, // Find the Card is isolated, never requested by Luna.
         env.SANTO_ENV === "staging" &&

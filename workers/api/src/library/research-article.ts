@@ -167,12 +167,19 @@ export class PubMedArticleViewerService {
             sections.splice(1, 0, {
               id: "s-0004",
               heading: "Original PMC figures — open-access licensed",
-              text: "Figures supplied by the original cited PMC article. Attribution and license: " +
-                pmcid + ", " + [...new Set(figures.map((figure) => figure.license))].join(", ") + ". " +
+              text:
+                "Figures supplied by the original cited PMC article. Attribution and license: " +
+                pmcid +
+                ", " +
+                [...new Set(figures.map((figure) => figure.license))].join(", ") +
+                ". " +
                 "Image descriptions are original figure captions, not independent medical conclusions.",
               images: figures.slice(0, 24).map((figure) => ({
                 src: figure.src,
-                alt: (figure.caption + " (" + figure.pmcid + "; " + figure.license + ")").slice(0, 250),
+                alt: (figure.caption + " (" + figure.pmcid + "; " + figure.license + ")").slice(
+                  0,
+                  250,
+                ),
               })),
             });
           }

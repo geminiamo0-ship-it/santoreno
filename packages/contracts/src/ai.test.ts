@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { GroundedAiQueryRequestSchema, GroundedAiQueryResponseSchema, approvedPmcFigureImageUrl } from "./ai";
+import {
+  GroundedAiQueryRequestSchema,
+  GroundedAiQueryResponseSchema,
+  approvedPmcFigureImageUrl,
+} from "./ai";
 
 describe("GroundedAiQueryRequestSchema", () => {
   it("keeps All Libraries as the default when library_id is omitted", () => {
@@ -34,7 +38,8 @@ describe("GroundedAiQueryRequestSchema", () => {
 });
 
 describe("PMC cited figure URL contract", () => {
-  const safe = "https://pmc-oa-opendata.s3.amazonaws.com/PMC10009416.1/gr1.jpg?md5=39209b49c555fa939d5108a4b6c4fe92";
+  const safe =
+    "https://pmc-oa-opendata.s3.amazonaws.com/PMC10009416.1/gr1.jpg?md5=39209b49c555fa939d5108a4b6c4fe92";
   it("requires exact NLM public media origin, accession version, image and checksum", () => {
     expect(approvedPmcFigureImageUrl(safe)).toBe(true);
     for (const unsafe of [
@@ -44,7 +49,8 @@ describe("PMC cited figure URL contract", () => {
       safe.replace("PMC10009416.1", "../PMC10009416.1"),
       safe.replace("https://", "http://"),
       safe + "&redirect=https://evil.example",
-    ]) expect(approvedPmcFigureImageUrl(unsafe)).toBe(false);
+    ])
+      expect(approvedPmcFigureImageUrl(unsafe)).toBe(false);
   });
 });
 

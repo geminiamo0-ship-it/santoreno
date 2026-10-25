@@ -46,7 +46,7 @@ def safe_image_url(url: object, image_id: str) -> bool:
     except ValueError:
         return False
 
-def normalize(row: dict) -> tuple[dict, list[str]]:
+def normalize(row: dict, *, owner_rights_attested: bool = False) -> tuple[dict, list[str]]:
     errors = []
     image_id = row.get("image_id")
     if not isinstance(image_id, str) or not IMAGE_ID.fullmatch(image_id):
@@ -72,8 +72,15 @@ def normalize(row: dict) -> tuple[dict, list[str]]:
         parts.append("TYPE: " + modality)
     # Deliberately exclude parent article/section from indexed text. A
     # differential-diagnosis figure must not rank as the parent's disease.
-    rights_ok = row.get("rights_status") in ("approved", "licensed", "rights_cleared")
-    display_ok = row.get("display_ready") is True
+    # Explicit 2026-10-25 rights attestation by the owner applies to this
+    # submitted USMLE dataset; original Gemini rights flags remain in raw source.
+    # Manual-only approval is opt-in, never inferred from a caption or URL.
+    rights_ok = owner_rights_attested or row.get("rights_status") in (
+        "approved", "licensed", "rights_cleared"
+    )
+    display_ok = owner_rights_attested or row.get("display_ready") is True
+    if row.get("association_confidence") == "low" or row.get("caption_provenance") == "section_heading_fallback":
+        errors.append("weak_image_specific_association")
     qa_flags = errors + ([] if rights_ok else ["rights_not_confirmed"]) + (
         [] if display_ok else ["source_display_locked"]
     )
@@ -92,13 +99,14 @@ def normalize(row: dict) -> tuple[dict, list[str]]:
         "visually_verified": False,
         # A URL fingerprint is never misrepresented as a content-byte hash.
         "url_fingerprint_sha256": hashlib.sha256(str(row.get("image_url", "")).encode()).hexdigest(),
-        "rights_status": row.get("rights_status", "unknown"),
+        "rights_status": "approved" if rights_ok else row.get("rights_status", "unknown"),
+        "rights_attestation": "owner_asserted_2026-10-25" if owner_rights_attested else None,
         "display_ready": display_ok,
         "eligible_for_publish": rights_ok and display_ok and not errors,
         "qa_flags": qa_flags,
     }, errors
 
-def prepare(input_file: Path, output_dir: Path, *, expected_count: int | None = None) -> dict:
+def prepare(input_file: Path, output_dir: Path, *, expected_count: int | None = None, owner_rights_attested: bool = False) -> dict:
     output_dir.mkdir(parents=True, exist_ok=True)
     items_dir = output_dir / "approved_items"
     items_dir.mkdir(exist_ok=True)
@@ -117,7 +125,7 @@ def prepare(input_file: Path, output_dir: Path, *, expected_count: int | None = 
             if not line.strip():
                 continue
             raw = json.loads(line)
-            record, errors = normalize(raw)
+            record, errors = normalize(raw, owner_rights_attested=owner_rights_attested)
             image_id = record.get("image_id")
             if not image_id or image_id in seen_ids or record["image_url"] in seen_urls:
                 raise ValueError(f"Duplicate or invalid image on line {line_number}")
@@ -156,6 +164,7 @@ def prepare(input_file: Path, output_dir: Path, *, expected_count: int | None = 
         "blocked_for_index": count - indexed,
         "qa_flags": dict(flags), "modalities": dict(modalities),
         "cloudflare_mutations": 0,
+        "rights_attestation": "owner_asserted_2026-10-25" if owner_rights_attested else None,
     }
     (output_dir / "qa_summary.json").write_text(
         json.dumps(summary, indent=2, ensure_ascii=False), encoding="utf-8"
@@ -167,5 +176,8 @@ if __name__ == "__main__":
     p.add_argument("--input", type=Path, required=True)
     p.add_argument("--output", type=Path, required=True)
     p.add_argument("--expected-count", type=int, default=4525)
+    p.add_argument("--owner-rights-attested", action="store_true",
+                   help="Explicit user attestation for the exact USMLE ZIP only")
     a = p.parse_args()
-    print(json.dumps(prepare(a.input, a.output, expected_count=a.expected_count), indent=2))
+    print(json.dumps(prepare(a.input, a.output, expected_count=a.expected_count,
+                             owner_rights_attested=a.owner_rights_attested), indent=2))

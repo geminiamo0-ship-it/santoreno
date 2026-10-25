@@ -1,5 +1,5 @@
 name: Luna Citation Number Repair — Staging Verification
-# Rerun after source formatting adjustments
+# Regression gate for all 75 citation, model, source and streaming tests
 on:
   push:
     branches:

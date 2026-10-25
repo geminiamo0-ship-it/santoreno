@@ -56,6 +56,7 @@ export class PubMedArticleViewerService {
   constructor(
     private readonly snapshotStore: R2VerifiedSourceStore,
     private readonly fetcher: typeof fetch = (input, init) => fetch(input, init),
+    private readonly enablePmcFigures = false,
   ) {}
 
   private async download(url: URL): Promise<string> {

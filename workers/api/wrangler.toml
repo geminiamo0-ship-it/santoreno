@@ -84,6 +84,8 @@ SANTO_QWEN_ROUTING_V1 = "true"
 SANTO_LUNA_RICH_IMAGES_V1 = "true"
 # Set true on staging only; the gallery deploy job verifies the sixth index first.
 SANTO_GALLERY_IMAGES_V1 = "true"
+# Owner-cleared USMLE gallery; only deployed after indexed-count + search and R2 manifest gates.
+SANTO_USMLE_GALLERY_V1 = "true"
 # Owner-confirmed commercial text rights. CIDs can be suggested; unreviewed medical facts are excluded from Luna.
 SANTO_ANKING_CARDS_V1 = "true"
 # Full 30,477-note AnKing v12 index replaces cardio inside the same one-call search.

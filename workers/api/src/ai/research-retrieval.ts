@@ -587,6 +587,9 @@ export class PubMedResearchRetrieval implements RetrievalPort {
       budget -= consumed;
       output.push({
         sourceId: "pubmed:" + paper.pmid,
+        ...(paper.pmcid && figuresByPmc.has(paper.pmcid)
+          ? { pmcFigures: figuresByPmc.get(paper.pmcid) }
+          : {}),
         libraryId: "pubmed",
         instanceId: "pubmed",
         itemKey: "pmid:" + paper.pmid,

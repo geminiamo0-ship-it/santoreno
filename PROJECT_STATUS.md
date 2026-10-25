@@ -1,5 +1,14 @@
 # Santo Project Status — Living Handoff
 
+### PMC licensed cited figure delivery — 25 Oct 2026 (Staging, Draft PR #214)
+
+- [PMC PR #214](https://github.com/geminiamo0-ship-it/santoreno/pull/214) is stacked on USMLE PR #213. Added a bounded JATS figure/media resolver, license and article-version match, exact-source-only Related Pics, authenticated research article original-image section, shared backend/browser media URL allowlist and Lit Related Pics Load More (+12).
+- [Official real PMC metadata + original figure download run #40212918070](https://github.com/geminiamo0-ship-it/santoreno/actions/runs/40212918070) PASSED: PMCID PMC10009416, original graphic NPR2-43-85-g001.jpg, official metadata exact file match, CC BY, 512 original image bytes HTTP 206.
+- [Santo Staging Worker deploy #40213414346](https://github.com/geminiamo0-ship-it/santoreno/actions/runs/40213414346) SUCCESS at source 37f1cfabbdc518aa6aa9bff8cfb8815d8c2bb932; Worker b7d9162f-3f38-4feb-bb0f-16045dd4fc1a. 352 API tests (one skipped), 21 widget tests, 26 contract tests, typecheck/build/smoke, health/auth PASS.
+- [Widget Gallery Load More follow-up verification #40213730838](https://github.com/geminiamo0-ship-it/santoreno/actions/runs/40213730838) SUCCESS after adding actual Related Pics rendering to Lit widget. This later widget bundle **has not been deployed to Royal Bank's frontend**; separate delivery/browser acceptance remains required.
+- Only actual PMC figures from up to two full-text retrieved articles, only from Luna-cited source IDs and published CC0/CC BY/CC BY-SA media. If article has no verified media no image is displayed; no image authoring, remote storage uploads, Search index mutations, changed clinical citations, or Production changes.
+- PENDING: signed-in Research question with cited PMC figures, Gallery image/link/Load More and Source Viewer browser verification; customer frontend app bundle/URL allowlist integration. Do not claim end-to-end website rollout before that succeeds.
+
 ### Luna N-prefixed citation repair — 25 Oct 2026 (Staging, PR #213)
 
 - **DEPLOYED to Santo Staging** via [GitHub Actions #40210543570](https://github.com/geminiamo0-ship-it/santoreno/actions/runs/40210543570); pinned code SHA `835431a86c1b446bba28552bf94acbbcd3fdd9b8`, **Staging Worker version `a534dc6a-001a-495d-b33a-18271588bd49`** confirmed by deploy logs. Production untouched.

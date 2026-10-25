@@ -407,7 +407,7 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
         const item = asRecord(row?.item);
         const key = stringField(item, "key");
         const score = numberField(row, "score");
-        const image = key ? /(?:^|\/)(img_\d{6})\.json$/.exec(key) : null;
+        const image = key ? /(?:^|\/)((?:img_\d{6}|usmle_[LUB]\d{1,9}))\.json$/.exec(key) : null;
         if (!image || score === null || score < MATCH_THRESHOLD) continue;
         const imageId = image[1]!;
         if (seen.has(imageId)) continue;
@@ -513,7 +513,7 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
         const hit = asRecord(raw);
         if (stringField(hit, "instance_id") !== GALLERY_INSTANCE) continue;
         const key = stringField(asRecord(hit?.item), "key");
-        const match = key ? /(?:^|\/)(img_\d{6})\.json$/.exec(key) : null;
+        const match = key ? /(?:^|\/)((?:img_\d{6}|usmle_[LUB]\d{1,9}))\.json$/.exec(key) : null;
         const score = numberField(hit, "score");
         if (!match || score === null || score < MATCH_THRESHOLD || seenImages.has(match[1]!))
           continue;
@@ -630,7 +630,7 @@ export class CloudflareAiSearchRetrieval implements RetrievalPort {
           const chunk = asRecord(raw);
           if (stringField(chunk, "instance_id") !== IMAGE_SEARCH_INSTANCE) continue;
           const key = stringField(asRecord(chunk?.item), "key");
-          const match = key ? /(?:^|\/)(img_\d{6})\.json$/.exec(key) : null;
+          const match = key ? /(?:^|\/)((?:img_\d{6}|usmle_[LUB]\d{1,9}))\.json$/.exec(key) : null;
           const score = numberField(chunk, "score");
           if (match && score !== null && score >= MATCH_THRESHOLD && !gallery.has(match[1]!))
             gallery.set(match[1]!, { imageId: match[1]!, score });

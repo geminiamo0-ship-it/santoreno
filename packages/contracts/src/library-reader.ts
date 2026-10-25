@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { GroundedAiLibraryIdSchema } from "./ai";
+import { GroundedAiLibraryIdSchema, approvedPmcFigureImageUrl } from "./ai";
 import { TrustedSourceIdSchema, TrustedSourceMetadataSchema } from "./source";
 
 export const LibraryArticleIdSchema = z.string().regex(/^[a-z0-9][a-z0-9-]{0,90}$/);

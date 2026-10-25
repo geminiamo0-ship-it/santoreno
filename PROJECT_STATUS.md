@@ -1,5 +1,15 @@
 # Santo Project Status — Living Handoff
 
+### Luna N-prefixed citation repair — 25 Oct 2026 (Staging, PR #213)
+
+- **DEPLOYED to Santo Staging** via [GitHub Actions #40210543570](https://github.com/geminiamo0-ship-it/santoreno/actions/runs/40210543570); pinned code SHA `835431a86c1b446bba28552bf94acbbcd3fdd9b8`, Wrangler Worker version `a534dc6a-001a-495d-b33a-18271588bd49` was an earlier USMLE release; refer to action logs for the newer Luna Worker version. Production untouched.
+- Reproduced actual surgical AVR preview's `[N10]`, `[N11]`, `[N1]`, `[N3]` markers in unit tests. Plain Luna parser now safely normalizes both `[N10]` and `[[N10]]` to retrieved-source indices, preserving repeated references and rejecting unknown/out-of-range or mismatched alias links. It remaps only to server-owned source IDs, which still must pass snapshot and citation validation. Provisional SSE strips N-prefixed markers, never treats draft as verified.
+- Fixed misleading `[[N]]` example in unified instructions (997 UTF-8 bytes), data prompt and alias reminder. One inference, existing 3k-token budget, source retrieval, quotas, gallery and citation save lifecycle unchanged.
+- Exact deployment Action: repository-wide oxlint 0 errors, full workspace typecheck, all tests, build and smoke passed; API 345/345 passing (1 skipped), focused source/model/streaming 75/75 passed; Staging health and unauthorized-401 passed.
+- **Limitation:** A missing `response.completed` event from Cloudflare is a separate provider stream interruption. We do NOT accept any draft as final or claim this patch fixes provider incomplete SSE. Real signed-in `surgical AVR` request/click-through still needs browser acceptance.
+- PR remains Draft; do not merge or deploy to production without acceptance. No Cloudflare AI Search/R2 changes.
+
+
 ### USMLE image gallery licensed ingestion — 25 Oct 2026 (Staging, PR #213)
 
 - Owner explicitly confirmed permission to use UWorld/USMLE images within Santo; stored only as a scoped 2026-10-25 attestation on **derived** data. Original Google Drive ZIP sha256 `043329e7f61200604684e734105780fc4e4ce03184d08222cf5c9d739981c4c1` verified without committing source data.

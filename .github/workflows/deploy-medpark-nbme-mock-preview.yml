@@ -21,7 +21,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: geminiamo0-ship-it/med-new-
-          ref: 26597b3fbd65a2f702ee35b874103e28bd3973be
+          ref: 583fdd83d280ecb257a69fb84290c002f20ac45b
           persist-credentials: false
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
@@ -42,7 +42,7 @@ jobs:
           node --input-type=module <<'NODE'
           import fs from 'node:fs';
           const config = JSON.parse(fs.readFileSync('wrangler.jsonc', 'utf8'));
-          if (config.name !== 'med-new' || config.assets?.directory !== './apps/app/dist' || !config.previews || config.main || config.routes) {
+          if (config.name !== 'med-new' || config.assets?.directory !== './apps/app/dist' || !config.previews || config.main !== './workers/demo-spa.js' || config.assets?.binding !== 'ASSETS' || config.assets?.run_worker_first !== true || config.routes) {
             throw new Error('Unexpected Wrangler target or configuration');
           }
           NODE
@@ -52,7 +52,8 @@ jobs:
           if grep -R -F 'medhvgg-production.up.railway.app' apps/app/dist/assets; then
             echo '::error::Bundle contains a live Railway origin'; exit 1
           fi
-          tar -czf /tmp/medpark-demo-preview.tgz wrangler.jsonc apps/app/dist
+          test -s workers/demo-spa.js
+          tar -czf /tmp/medpark-demo-preview.tgz wrangler.jsonc workers/demo-spa.js apps/app/dist
       - uses: actions/upload-artifact@v4
         with:
           name: medpark-nbme-demo-preview-bundle
@@ -76,6 +77,7 @@ jobs:
           set -euo pipefail
           tar -xzf medpark-demo-preview.tgz
           test -s apps/app/dist/index.html
+          test -s workers/demo-spa.js
           test -n "${CLOUDFLARE_API_TOKEN:-}" || { echo '::error::Cloudflare token not configured'; exit 1; }
           test -n "${CLOUDFLARE_ACCOUNT_ID:-}" || { echo '::error::Cloudflare account ID not configured'; exit 1; }
       - name: Install pinned Wrangler for Cloudflare Worker Previews
@@ -90,7 +92,7 @@ jobs:
         run: |
           set -euo pipefail
           url='https://demo-mock-only-med-new.geminiamo0.workers.dev'
-          curl -fsSL --retry 3 --retry-all-errors --retry-delay 2 --max-time 30 -H 'Sec-Fetch-Mode: navigate' -H 'Sec-Fetch-Dest: document' -H 'Accept: text/html' "$url/tests/7020" -o /tmp/demo-live.html
+          curl -fsSL --retry 3 --retry-all-errors --retry-delay 2 --max-time 30 "$url/tests/7020" -o /tmp/demo-live.html
           expected="$(grep -oE '/assets/[^\"]+\.js' apps/app/dist/index.html | head -1)"
           test -n "$expected"
           grep -F "$expected" /tmp/demo-live.html > /dev/null || { echo '::error::Preview did not serve the newly built JS asset'; exit 1; }

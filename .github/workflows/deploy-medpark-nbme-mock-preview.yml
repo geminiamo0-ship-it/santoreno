@@ -91,7 +91,7 @@ jobs:
           set -euo pipefail
           url='https://demo-mock-only-med-new.geminiamo0.workers.dev'
           curl -fsSL --retry 3 --retry-all-errors --retry-delay 2 --max-time 30 -H 'Sec-Fetch-Mode: navigate' -H 'Sec-Fetch-Dest: document' -H 'Accept: text/html' "$url/tests/7020" -o /tmp/demo-live.html
-          expected="$(grep -oE '/assets/[^"'"' ]+\.js' apps/app/dist/index.html | head -1)"
+          expected="$(grep -oE '/assets/[^\"]+\.js' apps/app/dist/index.html | head -1)"
           test -n "$expected"
           grep -F "$expected" /tmp/demo-live.html > /dev/null || { echo '::error::Preview did not serve the newly built JS asset'; exit 1; }
           curl -fsSL --retry 3 --retry-all-errors --max-time 30 "$url/mockServiceWorker.js" -o /tmp/mockServiceWorker.js

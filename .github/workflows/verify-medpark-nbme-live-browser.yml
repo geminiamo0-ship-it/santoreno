@@ -37,6 +37,7 @@ jobs:
               const destination = await page.goto(`${base}/tests/${id}`, { waitUntil: 'domcontentloaded', timeout: 30000 });
               await page.waitForTimeout(3000);
               console.log('Requested exam', id, 'HTTP', destination?.status(), 'Current URL', page.url());
+              if (destination?.status() !== 200) throw Error(`Exam navigation returned ${destination?.status()}`);
               console.log('Session stored:', await page.evaluate(() => Boolean(sessionStorage.getItem('medpark.app.session'))));
               console.log('Visible UI:', (await page.locator('body').innerText()).slice(0, 500));
               console.log('Existing shells:', await page.locator('[data-shell]').evaluateAll(nodes => nodes.map(n => n.getAttribute('data-shell'))));

@@ -1,0 +1,59 @@
+name: Verify live MedPark NBME Cloudflare Preview in Chromium
+on:
+  push:
+    branches: [ops/medpark-nbme-cloudflare-preview-20261027]
+    paths: [.github/workflows/verify-medpark-nbme-live-browser.yml]
+
+permissions:
+  contents: read
+
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install isolated Chromium test tools (no Cloudflare credentials)
+        run: |
+          npm init -y >/dev/null
+          npm install --no-save playwright@1.64.1
+          npx playwright install --with-deps chromium
+      - name: Verify real hosted NBME Tutor and Timed shells
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import { chromium } from 'playwright';
+          const base = 'https://demo-mock-only-med-new.geminiamo0.workers.dev';
+          const browser = await chromium.launch({ headless: true });
+          const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+          page.on('pageerror', error => console.log('Browser page error:', error.message.slice(0, 250)));
+          try {
+            await page.goto(`${base}/login?mock=premium`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+            await page.waitForURL(/\/home(?:\?|$)/, { timeout: 45000 });
+            for (const [id,mode] of [[7020, 'Tutor'], [7021, 'Timed']]) {
+              await page.goto(`${base}/tests/${id}`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+              await page.locator('[data-shell="nbme"]').waitFor({ state: 'visible', timeout: 30000 });
+              await page.getByRole('radiogroup', { name: 'Answer choices' }).waitFor({ state: 'visible', timeout: 20000 });
+              const count = await page.getByRole('radio').count();
+              if (count < 2) throw Error(`${mode}: no answer choices`);
+              if (id === 7021) {
+                const submit = await page.getByRole('button', { name: 'Submit', exact: true }).count();
+                if (submit) throw Error('Timed NBME improperly shows Tutor Submit');
+              }
+              console.log(`${mode} NBME visible, ${count} options, ${page.url()}`);
+            }
+            console.log('HOSTED_NBME_BROWSER_SMOKE_OK');
+          } finally {
+            await page.screenshot({ path: 'medpark-nbme-live.png' }).catch(()=>{});
+            await browser.close();
+          }
+          NODE
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: medpark-nbme-live-browser
+          path: medpark-nbme-live.png
+          retention-days: 3

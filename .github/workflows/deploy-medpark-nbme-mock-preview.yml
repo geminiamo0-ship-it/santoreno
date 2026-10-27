@@ -1,0 +1,100 @@
+name: Deploy MedPark NBME mock-only Cloudflare Preview
+
+on:
+  push:
+    branches: [ops/medpark-nbme-cloudflare-preview-20261027]
+    paths: [.github/workflows/deploy-medpark-nbme-mock-preview.yml]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: medpark-nbme-mock-preview
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout fixed MedPark demo commit (no deploy secrets)
+        uses: actions/checkout@v4
+        with:
+          repository: geminiamo0-ship-it/med-new-
+          ref: 26597b3fbd65a2f702ee35b874103e28bd3973be
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Verify NBME routing including newly created tests
+        run: pnpm --filter @medpark/app exec vitest run src/features/exam/screen.dom.test.tsx
+      - name: Typecheck MedPark app
+        run: pnpm --filter @medpark/app typecheck
+      - name: Build mock-only MedPark assets
+        run: pnpm --filter @medpark/app build
+      - name: Validate preview-only static bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const config = JSON.parse(fs.readFileSync('wrangler.jsonc', 'utf8'));
+          if (config.name !== 'med-new' || config.assets?.directory !== './apps/app/dist' || !config.previews || config.main || config.routes) {
+            throw new Error('Unexpected Wrangler target or configuration');
+          }
+          NODE
+          test -s apps/app/dist/index.html
+          test -s apps/app/dist/mockServiceWorker.js
+          test ! -e apps/app/dist/sw.js
+          if grep -R -F 'medhvgg-production.up.railway.app' apps/app/dist/assets; then
+            echo '::error::Bundle contains a live Railway origin'; exit 1
+          fi
+          tar -czf /tmp/medpark-demo-preview.tgz wrangler.jsonc apps/app/dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: medpark-nbme-demo-preview-bundle
+          path: /tmp/medpark-demo-preview.tgz
+          retention-days: 3
+
+  deploy-preview:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: medpark-nbme-demo-preview-bundle
+      - name: Unpack prevalidated static assets only
+        shell: bash
+        run: |
+          set -euo pipefail
+          tar -xzf medpark-demo-preview.tgz
+          test -s apps/app/dist/index.html
+          test -n "${CLOUDFLARE_API_TOKEN:-}" || { echo '::error::Cloudflare token not configured'; exit 1; }
+          test -n "${CLOUDFLARE_ACCOUNT_ID:-}" || { echo '::error::Cloudflare account ID not configured'; exit 1; }
+      - name: Install pinned Wrangler for Cloudflare Worker Previews
+        run: npm install --global wrangler@4.135.0
+      - name: Deploy demo-mock-only Preview (NEVER production)
+        shell: bash
+        run: |
+          set -euo pipefail
+          wrangler preview --config wrangler.jsonc --name demo-mock-only --message 'MedPark NBME routing: 26597b3fbd65a2f702ee35b874103e28bd3973be'
+      - name: Verify Cloudflare serves the new hashed assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          url='https://demo-mock-only-med-new.geminiamo0.workers.dev'
+          curl -fsSL --retry 5 --retry-all-errors --retry-delay 3 --max-time 30 "$url/tests/7020" -o /tmp/demo-live.html
+          expected="$(grep -oE '/assets/[^"'"' ]+\.js' apps/app/dist/index.html | head -1)"
+          test -n "$expected"
+          grep -F "$expected" /tmp/demo-live.html > /dev/null || { echo '::error::Preview did not serve the newly built JS asset'; exit 1; }
+          curl -fsSL --retry 3 --retry-all-errors --max-time 30 "$url/mockServiceWorker.js" -o /tmp/mockServiceWorker.js
+          test -s /tmp/mockServiceWorker.js
+          echo 'Cloudflare NBME demo updated, hash matches the deployed app bundle.'
+          echo "Preview: $url/tests/7020"

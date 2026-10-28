@@ -1,6 +1,6 @@
 const PREFIX = "quran/hafs/v1.1.1/";
 const ALLOWED =
-  /^(?:pages\/(?:00[1-9]|0[1-9]\d|[1-5]\d\d|60[0-4])\.(?:svg|json)|text\/chapters\/(?:00[1-9]|0[1-9]\d|1(?:0\d|1[0-4]))\.json|manifest\.json|source-manifest\.json|NOTICE\.txt)$/;
+  /^(?:pages\/(?:00[1-9]|0[1-9]\d|[1-5]\d\d|60[0-4])\.(?:svg|json)|text\/chapters\/(?:00[1-9]|0[1-9]\d|1(?:0\d|1[0-4]))\.json|manifest\.json|indexes\/(?:surah|markers)\.json|NOTICE\.txt)$/;
 
 export default {
   async fetch(request, env) {

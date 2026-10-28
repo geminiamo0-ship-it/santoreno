@@ -1,0 +1,79 @@
+name: Noor Quran — isolated R2 assets and read-only Worker
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/noor-quran-r2.yml
+      - scripts/noor_quran_assets_sync.py
+      - scripts/noor-quran-assets-worker.mjs
+      - wrangler.noor-quran.jsonc
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: noor-quran-hafs-assets
+  cancel-in-progress: false
+
+jobs:
+  provision-and-upload:
+    runs-on: ubuntu-latest
+    timeout-minutes: 110
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      NOOR_BUCKET: noor-quran-hafs-v1
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Validate dedicated Cloudflare scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_ACCOUNT_ID" && test -n "$CLOUDFLARE_API_TOKEN" || {
+            echo "Missing GitHub Cloudflare account secrets"; exit 1; }
+          test "$NOOR_BUCKET" = "noor-quran-hafs-v1"
+          test "$GITHUB_REPOSITORY" = "geminiamo0-ship-it/santoreno"
+      - name: Install Wrangler
+        run: npm install --no-save wrangler@4.46.0
+      - name: Fetch and verify Quran source files
+        run: python3 scripts/noor_quran_assets_sync.py prepare --output "$RUNNER_TEMP/noor-quran"
+      - name: Provision Noor-only R2 bucket
+        shell: bash
+        run: |
+          set -euo pipefail
+          if npx wrangler r2 bucket list | grep -Fq "$NOOR_BUCKET"; then
+            echo "Noor Quran bucket exists"
+          else
+            npx wrangler r2 bucket create "$NOOR_BUCKET"
+          fi
+      - name: Upload all assets; publish manifest last
+        run: python3 scripts/noor_quran_assets_sync.py upload --output "$RUNNER_TEMP/noor-quran" --bucket "$NOOR_BUCKET"
+      - name: Deploy isolated read-only Quran Worker
+        run: npx wrangler deploy --config wrangler.noor-quran.jsonc
+      - name: Verify live page 1, page 604 and manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          SUBDOMAIN="$(curl --fail --silent --show-error -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/subdomain" | python3 -c 'import json,sys; print(json.load(sys.stdin)["result"]["subdomain"])')"
+          BASE="https://noor-quran-assets.${SUBDOMAIN}.workers.dev"
+          for n in 001 604; do
+            curl --retry 3 --retry-all-errors --fail --silent --show-error "$BASE/quran/hafs/v1.1.1/pages/$n.svg" -o "$RUNNER_TEMP/page-$n.svg"
+            grep -qi '<svg' "$RUNNER_TEMP/page-$n.svg"
+          done
+          curl --fail --silent --show-error "$BASE/quran/hafs/v1.1.1/manifest.json" -o "$RUNNER_TEMP/noor-manifest.json"
+          python3 - "$RUNNER_TEMP/noor-manifest.json" <<'PY'
+          import json,sys
+          m=json.load(open(sys.argv[1]))
+          assert m['edition']=='hafs-kfqc' and m['page_count']==604 and len(m['assets'])==1323
+          PY
+          BAD="$(curl -sS -o /dev/null -w '%{http_code}' "$BASE/santo-private")"
+          test "$BAD" = "404"
+          echo "Quran assets origin: $BASE" >> "$GITHUB_STEP_SUMMARY"
+          echo "604-page Quran edition verified; no Santo content accessible." >> "$GITHUB_STEP_SUMMARY"

@@ -5,9 +5,10 @@ from pathlib import Path
 
 VERSION="v1.1.1"
 PREFIX=f"quran/hafs/{VERSION}"
-PAGE_BASE=f"https://cdn.quran.ws/svg/pages/{VERSION}/hafs-kfqc"
+GIT_PIN="9fc0c87"
+PAGE_BASE=f"https://raw.githubusercontent.com/quran-ws/quran-svg/{GIT_PIN}/mushafs/hafs/kfqc"
 TEXT_BASE="https://quran-json.risanb.com/text/uthmani/chapters"
-ROOT_MANIFEST=f"https://cdn.quran.ws/svg/pages/{VERSION}/manifest.json"
+
 
 def fetch(url):
     for attempt in range(5):
@@ -19,11 +20,12 @@ def fetch(url):
             time.sleep(2**attempt)
 
 def plans():
-    yield ("source-manifest.json",ROOT_MANIFEST,"json")
+    yield ("indexes/surah.json",f"{PAGE_BASE}/json/surah.json","json")
+    yield ("indexes/markers.json",f"{PAGE_BASE}/json/markers.json","json")
     for n in range(1,605):
         p=f"{n:03d}"
-        yield (f"pages/{p}.svg",f"{PAGE_BASE}/{p}.svg","svg")
-        yield (f"pages/{p}.json",f"{PAGE_BASE}/{p}.json","json")
+        yield (f"pages/{p}.svg",f"{PAGE_BASE}/svg/{p}.svg","svg")
+        yield (f"pages/{p}.json",f"{PAGE_BASE}/json/{p}.json","json")
     for n in range(1,115):
         yield (f"text/chapters/{n:03d}.json",f"{TEXT_BASE}/{n}.json","text")
 
@@ -49,8 +51,11 @@ def prepare(root):
     specs=list(plans())
     with concurrent.futures.ThreadPoolExecutor(max_workers=12) as pool:
         assets=list(pool.map(lambda x:pull(x,root),specs))
-    if len(assets)!=1323:raise RuntimeError("Incomplete Quran source set")
-    manifest={"schema_version":"1","edition":"hafs-kfqc","version":VERSION,
+    if len(assets)!=1324:raise RuntimeError("Incomplete Quran source set")
+    surahs=json.loads((root/PREFIX/"indexes/surah.json").read_text(encoding="utf-8"))
+    if len(surahs)!=114 or sum(x["ayahCount"] for x in surahs)!=6236:
+        raise ValueError("Expected 114 surahs and 6236 Hafs ayat; refusing upload")
+    manifest={"schema_version":"1","source_git_revision":GIT_PIN,"edition":"hafs-kfqc","version":VERSION,
       "page_count":604,"chapter_count":114,
       "source_page_artwork":"KFGQPC via Quran.ws SVG v1.1.1",
       "source_text":"risan/quran-json Uthmani Hafs",
@@ -80,7 +85,7 @@ def upload(root,bucket):
     if bucket!="noor-quran-hafs-v1":raise ValueError("Refusing a non-Noor bucket")
     paths=[p for p in (root/PREFIX).rglob("*") if p.is_file()
            and p.name not in ("manifest.json","NOTICE.txt")]
-    if len(paths)!=1323:raise ValueError("Upload set incomplete; manifest NOT published")
+    if len(paths)!=1324:raise ValueError("Upload set incomplete; manifest NOT published")
     with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
         for n,_ in enumerate(pool.map(lambda p:send(root,bucket,p),paths),1):
             if n%100==0:print(f"Uploaded {n}/{len(paths)}",flush=True)

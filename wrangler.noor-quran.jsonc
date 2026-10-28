@@ -7,7 +7,7 @@
   "r2_buckets": [
     {
       "binding": "QURAN",
-      "bucket_name": "noor-quran-hafs-v1"
-    }
-  ]
+      "bucket_name": "noor-quran-hafs-v1",
+    },
+  ],
 }

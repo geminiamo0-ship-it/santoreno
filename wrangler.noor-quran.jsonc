@@ -4,5 +4,10 @@
   "main": "scripts/noor-quran-assets-worker.mjs",
   "compatibility_date": "2026-10-28",
   "workers_dev": true,
-  "r2_buckets": [{ "binding": "QURAN", "bucket_name": "noor-quran-hafs-v1" }]
+  "r2_buckets": [
+    {
+      "binding": "QURAN",
+      "bucket_name": "noor-quran-hafs-v1"
+    }
+  ]
 }

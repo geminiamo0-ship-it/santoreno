@@ -12,6 +12,7 @@ on:
 
 permissions:
   contents: read
+  issues: write
 
 concurrency:
   group: noor-quran-hafs-assets
@@ -77,3 +78,12 @@ jobs:
           test "$BAD" = "404"
           echo "Quran assets origin: $BASE" >> "$GITHUB_STEP_SUMMARY"
           echo "604-page Quran edition verified; no Santo content accessible." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Record provisioning result without publishing secrets
+        if: always()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_STATE: ${{ job.status }}
+        run: |
+          gh issue comment 215 --repo "$GITHUB_REPOSITORY" --body "Noor Quran R2 provision/upload run: **$RUN_STATE**. CI: https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID . Only a successful run with the page/manifest read checks proves remote availability."

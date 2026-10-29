@@ -434,8 +434,13 @@ def quran_browser_qa(config, database_id, temporary, subdomain):
                              env=qa_env, capture_output=True, text=True,
                              timeout=300, check=False)
     if browser.returncode != 0:
-        # No secret-bearing log is propagated. Screenshots remain synthetic
-        # and the QA Worker remains password-gated, not publicly enabled.
+        # One bounded, sanitized tail is necessary to distinguish a real UI
+        # regression from CDP/Chrome/auth propagation; never expose secrets.
+        detail = (browser.stderr or "")[-5500:]
+        detail = detail.replace(qa_access, "[REDACTED_QA_PASSWORD]")
+        detail = re.sub(r"Basic\s+[A-Za-z0-9+/=]+", "[REDACTED_BASIC]", detail)
+        detail = re.sub(r"better-auth\.session_token=[^\s;]+", "[REDACTED_COOKIE]", detail)
+        print("Synthetic Quran browser QA failure (sanitized): " + detail, flush=True)
         raise RuntimeError("Chrome Quran QA browser acceptance failed (exit "+str(browser.returncode)+")")
     if "PASS: password-gated Noor QA" not in browser.stdout:
         raise RuntimeError("Chrome QA completion marker missing")

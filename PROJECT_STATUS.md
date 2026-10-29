@@ -1,3 +1,9 @@
+## Noor authenticated Sheikh connected Dev QA — #248 (BRANCH, not deployed)
+
+- Sources Noor #169 / #167 / #162 and master #155. Scoped Santoreno branch `test/248-noor-connected-teacher-dev` opts in the existing `noor-site-staging` build to connected mode. Real qualified teacher uses current primary roster, academic plan and schedule; signed-out visitor keeps original marked demo, authenticated non-teacher gets role-denied with **no fixture fallback**.
+- Remote synthetic QA runs under the existing temporary role grant and assignment BEFORE their finally cleanup; Chrome consumes ephemeral secure Better Auth cookies via runner child env (never logged) and captures five-size teacher screenshots; API revocation/owner reads unchanged. No other Cloudflare Worker/D1, SMS, Production or Santo deploy target.
+- **No branch CI or remote deploy accepted yet**. Do not merge until Noor #169 exact main Verify, Santoreno exact-head Verify, main pipeline and screenshot review pass. On any failure, disable teacher and revoke grant in finally.
+
 ## Noor responsive account remote browser UX gate — #246 (branch only)
 
 - Noor [#160](https://github.com/geminiamo0-ship-it/nour-elquran/issues/160) and PR #166 address the connected mobile header learner name that was clipped in actual Dev Chrome evidence. The Santoreno branch `test/246-noor-mobile-account-staging` extends the **existing** synthetic Chrome test with a long Arabic name, five responsive widths, selector visibility, menu placement, logout access and no horizontal overflow.

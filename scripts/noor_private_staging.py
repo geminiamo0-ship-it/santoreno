@@ -94,7 +94,10 @@ def write_config(target, database_id, origin, access_password, auth_secret):
 
 
 def http(origin, path, secret=None, method="GET", body=None, opener=None):
-    headers = {"Accept": "application/json"}
+    # A browser-like User-Agent avoids Cloudflare edge filtering Python's
+    # default urllib user agent; this is synthetic QA, never real user data.
+    headers = {"Accept": "application/json",
+               "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) Chrome/156.0.0.0 Safari/537.36"}
     if secret is not None:
         token = base64.b64encode(("noor-preview:" + secret).encode()).decode()
         headers["Authorization"] = "Basic " + token
@@ -123,7 +126,13 @@ def json_body(content):
 
 def smoke(origin, access_password):
     for path in ("/", "/student/", "/api/auth/session", "/_next/static/fake.js"):
-        status, _, _ = http(origin, path)
+        status, body, response_headers = http(origin, path)
+        if status != 401:
+            snippet = body[:180].decode(errors="replace").replace("\\n", " ")
+            # No credentials are ever sent in this unauthenticated probe.
+            print(f"Unauthenticated stage probe {path}: HTTP {status}; "
+                  f"content-type={response_headers.get('Content-Type')}; "
+                  f"server={response_headers.get('Server')}; public-body={snippet}")
         require_status(status, 401, "Unauthenticated staged asset/API access: " + path)
 
     for attempt in range(25):

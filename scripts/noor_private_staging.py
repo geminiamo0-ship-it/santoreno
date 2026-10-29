@@ -83,7 +83,7 @@ def write_config(target, database_id, origin, access_password, auth_secret):
         "migrations_dir": str(NOOR / "workers/api/migrations"),
     }]
     cfg["vars"] = {
-        "NOOR_ENVIRONMENT": "staging", "NOOR_PUBLIC_PREVIEW": "true",
+        "NOOR_ENVIRONMENT": "staging", "NOOR_DEV_OPEN": "true",
         "AUTH_ENABLED": "true", "AUTH_ORIGIN": origin,
     }
     config = target / "wrangler-staging.json"
@@ -126,7 +126,8 @@ def json_body(content):
 
 
 def smoke(origin, access_password):
-    # Public UI is a read-only mock preview, not unverified phone signup.
+    access_password = None  # This development deployment has no staging-wide Basic prompt.
+    # Development site: regular application login and learner ownership still apply.
     for path in ("/", "/student/", "/student/mushaf/"):
         status, body, _ = http(origin, path)
         require_status(status, 200, "Public demo page: " + path)
@@ -141,9 +142,15 @@ def smoke(origin, access_password):
     status, _, _ = http(origin, public_asset)
     require_status(status, 200, "Public demo static JS asset")
 
-    for path in ("/api/auth/session", "/api/auth/register", "/v1/me/learners", "/ready", "/health"):
+    # An anonymous visitor does not receive another site-wide password prompt.
+    # Application-level session and learner ownership checks still apply.
+    status, _, _ = http(origin, "/api/auth/session")
+    require_status(status, 401, "Anonymous application session")
+    status, _, _ = http(origin, "/v1/me/learners")
+    require_status(status, 401, "Anonymous learner API")
+    for path in ("/health", "/ready"):
         status, _, _ = http(origin, path)
-        require_status(status, 401, "Private API must deny unauthenticated public request: " + path)
+        require_status(status, 200, "Public development endpoint: " + path)
 
     for attempt in range(25):
         status, data, _ = http(origin, "/health", access_password)
@@ -198,7 +205,7 @@ def smoke(origin, access_password):
     require_status(status, 200, "Logout revocation")
     status, _, _ = http(origin, "/api/auth/session", access_password, opener=owner_a)
     require_status(status, 401, "Logout replay rejection")
-    print("PASS: public demo pages/JS 200, protected API 401, D1 readiness, synthetic signup, session cookies, profiles, isolation and logout; OTP deferred")
+    print("PASS: open dev pages/assets 200, anonymous app sessions 401, D1 readiness, signup, cookie sessions, profiles, isolation and logout; OTP deferred")
 
 
 def main():
@@ -231,12 +238,12 @@ def main():
     summary = os.environ.get("GITHUB_STEP_SUMMARY")
     if summary:
         with open(summary, "a") as report:
-            report.write(f"## Noor private staging\n- Noor SHA: `{NOOR_SHA}`\n"
-                         f"- Public demo site (no password): `{origin}`\n"
+            report.write(f"## Noor development staging\n- Noor SHA: `{NOOR_SHA}`\n"
+                         f"- Development site (no staging password): `{origin}`\n"
                          "- D1: `noor-core-staging` (independent of production)\n"
-                         "- Public pages and static JS: HTTP 200; account APIs: HTTP 401 unauthenticated\n"
+                         "- Pages and assets: HTTP 200; app session/learner APIs: HTTP 401 without login\n"
                          "- Remote private synthetic acceptance: PASS\n- OTP and messages: OFF\n")
-    print("PASS: PUBLIC Noor demo and PRIVATE staging account API remotely verified; no production resources used")
+    print("PASS: open Noor development site and authenticated application APIs remotely verified; no production resources used")
 
 
 if __name__ == "__main__":

@@ -83,7 +83,10 @@ try {
     select.dispatchEvent(new Event('change',{bubbles:true}));
   })()`);
   await waitFor(
-    () => browser.evaluate(`document.querySelector('#learner-switch')?.title===${JSON.stringify(longLearner)}`),
+    () =>
+      browser.evaluate(
+        `document.querySelector('#learner-switch')?.title===${JSON.stringify(longLearner)}`,
+      ),
     "Long Arabic learner selected",
   );
   for (const [width, height] of [

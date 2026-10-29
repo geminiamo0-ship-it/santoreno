@@ -83,4 +83,3 @@ jobs:
           set -euo pipefail
           test -n "$CLOUDFLARE_ACCOUNT_ID" && test -n "$CLOUDFLARE_API_TOKEN" || { echo "Cloudflare GitHub secrets missing"; exit 1; }
           python3 scripts/noor_private_staging.py
-

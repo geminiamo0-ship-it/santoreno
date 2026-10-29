@@ -143,7 +143,13 @@ def smoke(origin, access_password):
         require_status(status, 200, "Public demo page: " + path)
         if b"<html" not in body.lower():
             raise RuntimeError("Public demo did not return HTML: " + path)
-    print("PASS: all Sheikh portal and classroom preview routes are HTTP 200")
+    # Owner UX acceptance: the refreshed lesson preview must actually include
+    # the fullscreen focus control, not an older deployed static build.
+    status, classroom, _ = http(origin, "/classroom/")
+    require_status(status, 200, "Immersive classroom preview")
+    if "وضع الحصة".encode("utf-8") not in classroom:
+        raise RuntimeError("Deployed classroom is missing the immersive lesson mode")
+    print("PASS: all Sheikh portal and classroom preview routes are HTTP 200; immersive control present")
 
     built = NOOR / "apps/web/out/_next/static"
     assets = list(built.rglob("*.js"))

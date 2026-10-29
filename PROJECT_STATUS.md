@@ -1,3 +1,9 @@
+## Noor Phase 05A remote published assignments — #250 (branch only)
+- Noor source [PR #176](https://github.com/geminiamo0-ship-it/nour-elquran/pull/176) merged at `bff8c6be7015a0a3fd48254158f5e93b58e23527`; postmerge [Verify #40970402157](https://github.com/geminiamo0-ship-it/nour-elquran/actions/runs/40970402157) passed all fast gates. No real user/Production deployment.
+- Santoreno branch `test/250-noor-assignments-api-dev` extends the existing pinned Noor-only D1 staging synthetic primary teacher journey to publish canonical Hafs 1:1-7 task, validate replay 200, changed-op 409, invalid verse 400, owner reload and foreign owner 404 and revoked teacher cannot republish. Retains finally privilege cleanup.
+- Per owner preference, existing 5-viewport Chrome suites are now **OFF by default for ordinary staging deployments** and selectable only via manual `workflow_dispatch.browser_qa=true`; remote API/Worker/D1 synthetic acceptance remains mandatory.
+- **No remote run on this branch yet.** Must pass exact-head Santoreno Verify and Noor-source main gate, then main staging deployment + API acceptance. Screenshots only if opt-in; API success alone does not establish new assignments UI visual fidelity.
+
 ## Noor authenticated Sheikh connected Dev QA — #248 (BRANCH, not deployed)
 
 - Sources Noor #169 / #167 / #162 and master #155. Scoped Santoreno branch `test/248-noor-connected-teacher-dev` opts in the existing `noor-site-staging` build to connected mode. Real qualified teacher uses current primary roster, academic plan and schedule; signed-out visitor keeps original marked demo, authenticated non-teacher gets role-denied with **no fixture fallback**.

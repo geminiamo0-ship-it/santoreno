@@ -7,6 +7,11 @@ on:
       - .github/workflows/noor-private-staging.yml
       - scripts/noor_private_staging.py
   workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - .github/workflows/noor-private-staging.yml
+      - scripts/noor_private_staging.py
 
 permissions:
   contents: read
@@ -17,7 +22,16 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile isolated Noor staging script without network or credentials
+        run: python3 -m py_compile scripts/noor_private_staging.py
+
   deploy:
+    needs: validate
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:

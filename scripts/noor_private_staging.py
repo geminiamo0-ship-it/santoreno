@@ -484,7 +484,9 @@ def main():
         # authorize real child data, production traffic or OTP delivery.
         credentials = json.loads(secure.read_text())
         smoke(origin, credentials["STAGING_ACCESS_PASSWORD"])
-        quran_browser_qa(config, database_id, temp, subdomain)
+        # One ordinary development site only. Do not create a second QA worker.
+        # The development build exposes account-backed personal Quran saves.
+        # Account-level Better Auth and per-learner D1 authorization still apply.
     summary = os.environ.get("GITHUB_STEP_SUMMARY")
     if summary:
         with open(summary, "a") as report:

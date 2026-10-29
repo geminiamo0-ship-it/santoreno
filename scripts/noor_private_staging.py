@@ -125,7 +125,7 @@ def json_body(content):
     return json.loads(content.decode())
 
 
-def smoke(origin, access_password):
+def smoke(origin, access_password, database_id):
     access_password = None  # This development deployment has no staging-wide Basic prompt.
     # Development site: regular application login and learner ownership still apply.
     # The owner requested a browser preview of the *current* Noor main Sheikh
@@ -306,6 +306,63 @@ def smoke(origin, access_password):
     code, _, _ = http(origin, endpoint+"?page=1", access_password, opener=owner_b)
     require_status(code, 404, "Other account Quran isolation")
     print("PASS: open Dev account-backed Quran pen/marker/note/bookmark, save/reload/restore, foreign-owner 404")
+
+    # Noor #157: all mutations are authenticated *through deployed staging*,
+    # never direct SQL. Only read-only D1 counts are used for archive audit proof.
+    if not re.fullmatch(r"[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}", learner_id):
+        raise RuntimeError("Unexpected learner identifier from deployed Noor")
+    profile_path = "/v1/me/learners/" + learner_id + "/profile-actions"
+    code, payload, _ = http(origin, "/v1/me/learners", access_password, opener=owner_a)
+    require_status(code, 200, "Profile revisions initial GET")
+    profiles = json_body(payload).get("learners", [])
+    if len(profiles) != 2 or any(p.get("revision") != 1 for p in profiles):
+        raise RuntimeError("Profiles lack 0008 revision migration or expected initial state")
+    command = {"action": "rename", "name": "Synthetic Learner 2 Updated",
+               "expectedRevision": 1, "operationId": str(uuid4())}
+    code, _, _ = http(origin, profile_path, access_password, "POST", command, owner_b)
+    require_status(code, 404, "Foreign owner profile mutation denied")
+    code, payload, _ = http(origin, profile_path, access_password, "POST", command, owner_a)
+    require_status(code, 200, "Profile rename with D1 CAS")
+    if json_body(payload).get("revision") != 2:
+        raise RuntimeError("D1 rename ACK revision mismatch")
+    code, payload, _ = http(origin, profile_path, access_password, "POST", command, owner_a)
+    require_status(code, 200, "Profile rename replay")
+    if json_body(payload).get("code") != "OPERATION_ALREADY_APPLIED":
+        raise RuntimeError("Duplicate rename generated a new mutation")
+    stale = {**command, "operationId": str(uuid4()), "name": "Stale edit"}
+    code, _, _ = http(origin, profile_path, access_password, "POST", stale, owner_a)
+    require_status(code, 409, "Profile edit with stale expectedRevision")
+    code, payload, _ = http(origin, "/v1/me/learners", access_password, opener=owner_a)
+    require_status(code, 200, "Renamed learner refresh")
+    profile = next((p for p in json_body(payload).get("learners", [])
+                    if p.get("id") == learner_id), None)
+    if not profile or profile.get("name") != command["name"] or profile.get("revision") != 2:
+        raise RuntimeError("Confirmed profile rename missing after remote GET")
+
+    archive = {"action": "archive", "expectedRevision": 2, "operationId": str(uuid4())}
+    code, payload, _ = http(origin, profile_path, access_password, "POST", archive, owner_a)
+    require_status(code, 200, "Profile archive")
+    if json_body(payload).get("revision") != 3:
+        raise RuntimeError("Archive ACK revision mismatch")
+    code, payload, _ = http(origin, "/v1/me/learners", access_password, opener=owner_a)
+    require_status(code, 200, "Active sibling list after archive")
+    active = json_body(payload).get("learners", [])
+    if len(active) != 1 or any(p.get("id") == learner_id for p in active):
+        raise RuntimeError("Archived learner leaked into active siblings")
+    code, _, _ = http(origin, "/v1/learners/" + learner_id, access_password, opener=owner_a)
+    require_status(code, 404, "Archived learner detail denied")
+    code, _, _ = http(origin, endpoint + "?page=1", access_password, opener=owner_a)
+    require_status(code, 404, "Archived learner private Quran access denied")
+    # Verify prior private Quran and its immutable profile audit remain in D1
+    # without returning child content, audio or private annotations to logs.
+    preserved = d1_read_only(database_id,
+        "SELECT (SELECT COUNT(*) FROM private_mushaf_items WHERE learner_id='" + learner_id +
+        "') AS quran_count, (SELECT COUNT(*) FROM learner_profile_audit WHERE learner_id='" +
+        learner_id + "') AS audit_count")
+    if len(preserved) != 1 or preserved[0].get("quran_count", 0) < 4 or preserved[0].get("audit_count") != 2:
+        raise RuntimeError("Archive did not preserve private Quran records and audit history")
+    print("PASS: Noor profile rename, CAS 409, idempotent replay, cross-owner 404, archive, hidden-after-refresh and private history preserved")
+
     
     status, _, _ = http(origin, "/api/auth/logout", access_password, "POST", {}, owner_a)
     require_status(status, 200, "Logout revocation")
@@ -442,7 +499,7 @@ def main():
         # Never print generated credentials; even a successful smoke does not
         # authorize real child data, production traffic or OTP delivery.
         credentials = json.loads(secure.read_text())
-        smoke(origin, credentials["STAGING_ACCESS_PASSWORD"])
+        smoke(origin, credentials["STAGING_ACCESS_PASSWORD"], database_id)
         # One ordinary development site only. Do not create a second QA worker.
         # The development build exposes account-backed personal Quran saves.
         # Account-level Better Auth and per-learner D1 authorization still apply.

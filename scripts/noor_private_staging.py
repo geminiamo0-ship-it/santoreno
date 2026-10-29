@@ -286,7 +286,7 @@ def smoke(origin, access_password):
     persist("marker", "synthetic-marker-"+str(uuid4()),
             {"color": "#86c5a8", "width": 16,
              "points": [{"x": 180, "y": 320}, {"x": 230, "y": 340}]})
-    note = "synthetic-note-" + str(uuid4())
+    note = "note-synthetic-" + str(uuid4())
     note_data = {"target": {"surah": 1, "ayah": 1, "wordIndex": None},
                  "color": "#f6cd46", "text": "Synthetic development check"}
     persist("note", note, note_data)

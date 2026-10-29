@@ -4,7 +4,7 @@ Runs inside santoreno Actions to reuse its encrypted Cloudflare credentials.
 Never touches Santo or Noor production resources, never logs secrets.
 """
 import base64
-import http.cookiejar
+from http.cookiejar import CookieJar
 import json
 import os
 from pathlib import Path
@@ -150,7 +150,7 @@ def smoke(origin, access_password):
         raise RuntimeError("Remote D1 and auth not ready")
 
     def account(phone, name):
-        jar = http.cookiejar.CookieJar()
+        jar = CookieJar()
         opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
         password = secrets.token_urlsafe(22) + "Az1!"
         status, result, headers = http(

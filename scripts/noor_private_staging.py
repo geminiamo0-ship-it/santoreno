@@ -230,8 +230,8 @@ def smoke(origin, access_password):
             raise RuntimeError("Missing HttpOnly/SameSite session cookie")
         return opener
 
-    first = secrets.randbelow(98)
-    owner_a = account(f"+120255501{first:02d}", "Synthetic Noor QA A")
+    first = secrets.randbelow(9999998)
+    owner_a = account(f"+1202{first:07d}", "Synthetic Noor QA A")
     # Secrets uploaded immediately after Wrangler deploy may take time to
     # converge across Cloudflare isolates. Keep real authorization checks;
     # retry 401 only for this short synthetic post-deploy QA window.
@@ -263,7 +263,7 @@ def smoke(origin, access_password):
     if len(json_body(result).get("learners", [])) != 2:
         raise RuntimeError("Learner profile persistence failed")
 
-    owner_b = account(f"+120255501{first+1:02d}", "Synthetic Noor QA B")
+    owner_b = account(f"+1202{first+1:07d}", "Synthetic Noor QA B")
     status, _, _ = http(origin, "/v1/learners/" + learner_id, access_password, opener=owner_b)
     require_status(status, 404, "Cross-account isolation")
     # Actual private Quran persistence acceptance on the SAME open Dev origin.

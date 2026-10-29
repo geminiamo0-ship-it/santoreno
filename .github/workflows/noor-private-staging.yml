@@ -76,19 +76,10 @@ jobs:
           corepack prepare pnpm@10.22.0 --activate
           cd noor
           pnpm install --frozen-lockfile
-          NEXT_PUBLIC_ACCOUNT_UI=true pnpm --filter @noor/web build
+          NEXT_PUBLIC_ACCOUNT_UI=true NEXT_PUBLIC_QURAN_PERSISTENCE_ENABLED=true pnpm --filter @noor/web build
       - name: Deploy open developer staging and verify application account security
         shell: bash
         run: |
           set -euo pipefail
           test -n "$CLOUDFLARE_ACCOUNT_ID" && test -n "$CLOUDFLARE_API_TOKEN" || { echo "Cloudflare GitHub secrets missing"; exit 1; }
           python3 scripts/noor_private_staging.py
-
-      - name: Preserve synthetic Quran QA browser screenshots for review
-        if: always() && github.event_name != 'pull_request'
-        uses: actions/upload-artifact@v4
-        with:
-          name: noor-private-quran-qa-browser-screenshots
-          path: noor/artifacts/quran-qa/*.png
-          if-no-files-found: warn
-          retention-days: 7

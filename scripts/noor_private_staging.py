@@ -230,8 +230,8 @@ def smoke(origin, access_password):
             raise RuntimeError("Missing HttpOnly/SameSite session cookie")
         return opener
 
-    first = secrets.randbelow(98)
-    owner_a = account(f"+120255501{first:02d}", "Synthetic Noor QA A")
+    first = secrets.randbelow(9999998)
+    owner_a = account(f"+1202{first:07d}", "Synthetic Noor QA A")
     # Secrets uploaded immediately after Wrangler deploy may take time to
     # converge across Cloudflare isolates. Keep real authorization checks;
     # retry 401 only for this short synthetic post-deploy QA window.
@@ -263,9 +263,50 @@ def smoke(origin, access_password):
     if len(json_body(result).get("learners", [])) != 2:
         raise RuntimeError("Learner profile persistence failed")
 
-    owner_b = account(f"+120255501{first+1:02d}", "Synthetic Noor QA B")
+    owner_b = account(f"+1202{first+1:07d}", "Synthetic Noor QA B")
     status, _, _ = http(origin, "/v1/learners/" + learner_id, access_password, opener=owner_b)
     require_status(status, 404, "Cross-account isolation")
+    # Actual private Quran persistence acceptance on the SAME open Dev origin.
+    # Use disposable owner accounts and the independently verified 6236 anchors.
+    from uuid import uuid4
+    endpoint = "/v1/me/learners/" + learner_id + "/mushaf"
+    def persist(kind, item_id, payload, expected=0, action="put"):
+        command = {"operationId": str(uuid4()), "itemId": item_id,
+                   "kind": kind, "action": action, "page": 1,
+                   "expectedVersion": expected, "payload": payload}
+        code, body, _ = http(origin, endpoint, access_password, "POST", command, owner_a)
+        require_status(code, 201, "Quran "+kind+" "+action)
+        value = json_body(body).get("item", {})
+        if value.get("itemId") != item_id or value.get("version") != expected+1:
+            raise RuntimeError("D1 private Quran save ACK did not match expected revision")
+        return value
+    stroke = "synthetic-ink-" + str(uuid4())
+    persist("pen", stroke, {"color": "#f6cd46", "width": 3,
+                            "points": [{"x": 120, "y": 220}, {"x": 180, "y": 280}]})
+    persist("marker", "synthetic-marker-"+str(uuid4()),
+            {"color": "#86c5a8", "width": 16,
+             "points": [{"x": 180, "y": 320}, {"x": 230, "y": 340}]})
+    note = "note-synthetic-" + str(uuid4())
+    note_data = {"target": {"surah": 1, "ayah": 1, "wordIndex": None},
+                 "color": "#f6cd46", "text": "Synthetic development check"}
+    persist("note", note, note_data)
+    persist("bookmark", "bookmark-1", {})
+    code, page_data, _ = http(origin, endpoint+"?page=1", access_password, opener=owner_a)
+    require_status(code, 200, "Quran stored page read")
+    if not any(item.get("itemId") == stroke for item in json_body(page_data).get("items", [])):
+        raise RuntimeError("Saved Quran pen not present after D1 reload")
+    persist("note", note, {}, 1, "hide")
+    code, index_data, _ = http(origin, endpoint+"?index=1", access_password, opener=owner_a)
+    require_status(code, 200, "Quran stored index read")
+    if not any(item.get("itemId") == note and item.get("version") == 2
+               and item.get("visible") is False
+               for item in json_body(index_data).get("items", [])):
+        raise RuntimeError("Private Quran tombstone not preserved after reload")
+    persist("note", note, note_data, 2)
+    code, _, _ = http(origin, endpoint+"?page=1", access_password, opener=owner_b)
+    require_status(code, 404, "Other account Quran isolation")
+    print("PASS: open Dev account-backed Quran pen/marker/note/bookmark, save/reload/restore, foreign-owner 404")
+    
     status, _, _ = http(origin, "/api/auth/logout", access_password, "POST", {}, owner_a)
     require_status(status, 200, "Logout revocation")
     status, _, _ = http(origin, "/api/auth/session", access_password, opener=owner_a)
@@ -374,88 +415,6 @@ def canonical_quran_staging(config, database_id, temporary):
 
 
 
-def quran_browser_qa(config, database_id, temporary, subdomain):
-    """Dedicated password-gated Quran QA worker; never turn on flags in public staging."""
-    if DATABASE_NAME != "noor-core-staging" or WORKER_NAME != "noor-site-staging":
-        raise RuntimeError("Refusing browser QA on non-Noor staging resources")
-    if not re.fullmatch(r"[0-9a-fA-F-]{32,36}", database_id):
-        raise RuntimeError("Missing dedicated staging D1 UUID")
-    qa_name = "noor-site-quran-qa"
-    qa_origin = f"https://{qa_name}.{subdomain}.workers.dev"
-    script = NOOR / "scripts/noor-quran-qa-browser.mjs"
-    if not script.is_file():
-        raise RuntimeError("Exact verified Noor main has no protected Quran browser QA script")
-    build_env = {**os.environ,
-                 "NEXT_PUBLIC_ACCOUNT_UI": "true",
-                 "NEXT_PUBLIC_QURAN_PERSISTENCE_ENABLED": "true"}
-    result = subprocess.run(["pnpm", "--filter", "@noor/web", "build"],
-                            cwd=NOOR, env=build_env, capture_output=True,
-                            text=True, timeout=360, check=False)
-    if result.returncode != 0:
-        raise RuntimeError("Isolated Quran QA frontend build failed; no worker deployment")
-    qa_config = json.loads(config.read_text())
-    qa_config["name"] = qa_name
-    qa_config["vars"] = {
-        "NOOR_ENVIRONMENT": "staging",
-        "NOOR_DEV_OPEN": "false",
-        "AUTH_ENABLED": "true",
-        "AUTH_ORIGIN": qa_origin,
-    }
-    qa_path = temporary / "wrangler-quran-qa.json"
-    qa_path.write_text(json.dumps(qa_config))
-    qa_access = secrets.token_hex(32)
-    qa_secure = temporary / "secrets-quran-qa.json"
-    qa_secure.write_text(json.dumps({
-        "AUTH_SECRET": secrets.token_hex(32),
-        "STAGING_ACCESS_PASSWORD": qa_access,
-    }))
-    qa_secure.chmod(0o600)
-    # Asset HTML is deployed on the dedicated QA worker alone. Existing public
-    # developer Worker retains NEXT_PUBLIC_QURAN_PERSISTENCE_ENABLED=false.
-    wrangler("deploy", "--config", str(qa_path))
-    wrangler("secret", "bulk", str(qa_secure), "--config", str(qa_path))
-    # Random Basic password remains server-side; this browser script does NOT
-    # store, log, or upload cookies, credentials or a URL with embedded secrets.
-    for attempt in range(15):
-        status, _, _ = http(qa_origin, "/api/auth/session", qa_access)
-        if status == 401:
-            break
-        if status not in (403, 503):
-            raise RuntimeError(f"Unexpected protected QA status {status}")
-        time.sleep(2)
-    else:
-        raise RuntimeError("Noor QA Worker Basic guard did not become ready")
-    reject, _, _ = http(qa_origin, "/")
-    if reject != 401:
-        raise RuntimeError(f"Anonymous Quran QA must be Basic-gated (got {reject})")
-    qa_env = {**os.environ, "NOOR_QA_ORIGIN": qa_origin,
-              "NOOR_QA_ACCESS_PASSWORD": qa_access}
-    browser = subprocess.run(["node", str(script)], cwd=NOOR,
-                             env=qa_env, capture_output=True, text=True,
-                             timeout=300, check=False)
-    if browser.returncode != 0:
-        # One bounded, sanitized tail is necessary to distinguish a real UI
-        # regression from CDP/Chrome/auth propagation; never expose secrets.
-        detail = (browser.stderr or "")[-5500:]
-        detail = detail.replace(qa_access, "[REDACTED_QA_PASSWORD]")
-        detail = re.sub(r"Basic\s+[A-Za-z0-9+/=]+", "[REDACTED_BASIC]", detail)
-        detail = re.sub(r"better-auth\.session_token=[^\s;]+", "[REDACTED_COOKIE]", detail)
-        print("Synthetic Quran browser QA failure (sanitized): " + detail, flush=True)
-        raise RuntimeError("Chrome Quran QA browser acceptance failed (exit "+str(browser.returncode)+")")
-    if "PASS: password-gated Noor QA" not in browser.stdout:
-        raise RuntimeError("Chrome QA completion marker missing")
-    print("PASS: password-gated Noor Quran QA Worker: real Chrome pen, D1 hydration, note/bookmark restore, 360/390 screenshots and other-account denial")
-    summary = os.environ.get("GITHUB_STEP_SUMMARY")
-    if summary:
-        with open(summary, "a") as report:
-            report.write("### Quran persistence QA (private, synthetic only)\n"
-                         "- Dedicated Basic-protected QA Worker, isolated Noor staging D1\n"
-                         "- Real Chrome pointer, D1 ACK/reload, notes/highlight/bookmark and owner denial: PASS\n"
-                         "- Mobile 360x667 / 390x844 screenshots in Actions artifacts\n"
-                         "- Public developer and production persistence flag: OFF\n"
-                         "- Actual mobile S Pen and offline crash durability: NOT tested\n")
-
-
 def main():
     if not re.fullmatch(r"[0-9a-f]{40}", NOOR_SHA):
         raise RuntimeError("Exact validated Noor commit required")
@@ -484,7 +443,9 @@ def main():
         # authorize real child data, production traffic or OTP delivery.
         credentials = json.loads(secure.read_text())
         smoke(origin, credentials["STAGING_ACCESS_PASSWORD"])
-        quran_browser_qa(config, database_id, temp, subdomain)
+        # One ordinary development site only. Do not create a second QA worker.
+        # The development build exposes account-backed personal Quran saves.
+        # Account-level Better Auth and per-learner D1 authorization still apply.
     summary = os.environ.get("GITHUB_STEP_SUMMARY")
     if summary:
         with open(summary, "a") as report:

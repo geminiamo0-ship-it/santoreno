@@ -218,8 +218,70 @@ def plan_stage_synthetic_smoke(origin, database_id, config, owner_a, owner_b, le
         require_status(code,404,"Other household plan boundary")
         code,_,_=http(origin,"/v1/teacher/learners/"+other_learner+"/plan",opener=owner_b)
         require_status(code,404,"Unassigned sibling plan denied")
-        # The only time the connected Chrome test may use teacher privileges is
-        # while the synthetic qualified primary assignment is still current.
+
+        # Phase 05A, no Chrome needed: native remote D1 publishes Quran homework
+        # from the current primary Sheikh and verifies owner readback/isolation.
+        assignment_edition="hafs-kfqc:v1.1.1"
+        code,body,_=http(origin,"/v1/teacher/assignment-catalog",opener=owner_b)
+        require_status(code,200,"Canonical Quran assignment catalog")
+        catalog=json_body(body).get("surahs",[])
+        if not any(row.get("editionId")==assignment_edition and
+                   row.get("surah")==1 and row.get("ayahCount")==7 for row in catalog):
+            raise RuntimeError("Remote assignment catalog lacks verified Hafs al-Fatiha anchors")
+        teacher_tasks="/v1/teacher/learners/"+learner_id+"/assignments"
+        owner_tasks="/v1/me/learners/"+learner_id+"/assignments"
+        code,body,_=http(origin,owner_tasks,opener=owner_a)
+        require_status(code,200,"Owner empty assignment list")
+        if json_body(body).get("assignments"):
+            raise RuntimeError("New synthetic owner student already has published assignments")
+        task={"operationId":str(uuid4()),"kind":"memorization","editionId":assignment_edition,
+              "surah":1,"fromAyah":1,"toAyah":7,"dueAtMs":int(time.time()*1000)+86400000,
+              "instructions":"Synthetic D1 Quran memorization task"}
+        assert_status=post(teacher_tasks,task,owner_b,201)
+        task_id=assert_status.get("assignmentId")
+        if not isinstance(task_id,str) or not re.fullmatch(r"[0-9a-fA-F-]{36}",task_id):
+            raise RuntimeError("Remote assignment publish lacked server ID")
+        replay=post(teacher_tasks,task,owner_b,200)
+        if replay.get("code")!="ASSIGNMENT_ALREADY_PUBLISHED" or replay.get("assignmentId")!=task_id:
+            raise RuntimeError("Assignment publish replay is not idempotent")
+        post(teacher_tasks,{**task,"instructions":"Forged replay"},owner_b,409)
+        post(teacher_tasks,{**task,"operationId":str(uuid4()),"toAyah":300},owner_b,400)
+        code,body,_=http(origin,owner_tasks,opener=owner_a)
+        require_status(code,200,"Owner published assignment reload")
+        tasks=json_body(body).get("assignments",[])
+        if len(tasks)!=1 or tasks[0].get("id")!=task_id or tasks[0].get("toAyah")!=7:
+            raise RuntimeError("Owner could not reload server-published Quran assignment")
+        code,_,_=http(origin,owner_tasks,opener=owner_b)
+        require_status(code,404,"Foreign owner assignment denied")
+        code,_,_=http(origin,"/v1/teacher/learners/"+other_learner+"/assignments",opener=owner_b)
+        require_status(code,404,"Unassigned learner assignment denied")
+        print("PASS: Remote Noor Phase 05A canonical teacher publish, replay 200, conflict 409, owner readback, isolation 404")
+
+
+        if os.environ.get("NOOR_STAGING_BROWSER_QA")=="true":
+            # The only time the connected Chrome test may use teacher privileges is
+            # while the synthetic qualified primary assignment is still current.
+            # Cookie values remain in the runner's child process env; no screenshots
+            # of cookies, no printed tokens and never user-controlled identities.
+            def synthetic_cookies(opener):
+                processors=[h for h in opener.handlers
+                            if isinstance(h,urllib.request.HTTPCookieProcessor)]
+                if len(processors)!=1:
+                    raise RuntimeError("Synthetic session cookie jar unavailable")
+                cookies=[{"name":c.name,"value":c.value}
+                         for c in processors[0].cookiejar if c.secure]
+                if not cookies:
+                    raise RuntimeError("No secure synthetic Better Auth session")
+                return json.dumps(cookies)
+            browser_env=dict(os.environ,NOOR_STAGING_ORIGIN=origin+"/",
+                             NOOR_SYNTHETIC_TEACHER_COOKIES=synthetic_cookies(owner_b),
+                             NOOR_SYNTHETIC_STAFF_COOKIES=synthetic_cookies(owner_a))
+            browser=subprocess.run(["node","scripts/noor_staging_teacher_browser.mjs"],
+                                   cwd=ROOT,env=browser_env,capture_output=True,text=True)
+            if browser.returncode!=0:
+                raise RuntimeError("Noor connected teacher Chrome staging failed; inspect synthetic screenshot artifact")
+            print(browser.stdout.strip())
+
         # Cookie values remain in the runner's child process env; no screenshots
         # of cookies, no printed tokens and never user-controlled identities.
         def synthetic_cookies(opener):
@@ -248,6 +310,8 @@ def plan_stage_synthetic_smoke(origin, database_id, config, owner_a, owner_b, le
         require_status(code,404,"Former primary teacher plan access revoked")
         code,_,_=http(origin,write_path,method="POST",body=command,opener=owner_b)
         require_status(code,404,"Former primary teacher replay rejected")
+        code,_,_=http(origin,teacher_tasks,method="POST",body=task,opener=owner_b)
+        require_status(code,404,"Revoked teacher cannot replay published assignment")
         role("suspend")
         print("PASS: Remote Noor 0009 plan, synthetic staff-managed teacher, owner read, stale 409, replay and revoke 404")
     finally:
@@ -648,14 +712,15 @@ def main():
         # authorize real child data, production traffic or OTP delivery.
         credentials = json.loads(secure.read_text())
         smoke(origin, credentials["STAGING_ACCESS_PASSWORD"], database_id, config)
-        # Native Chrome verifies the freshly deployed account UI (5 viewports),
-        # plus real D1 rename/archive/refresh and owner isolation.
-        browser_env = dict(os.environ, NOOR_STAGING_ORIGIN=origin + "/")
-        browser = subprocess.run(["node", "scripts/noor_staging_profile_browser.mjs"],
-                                 cwd=ROOT, env=browser_env, capture_output=True, text=True)
-        if browser.returncode != 0:
-            raise RuntimeError("Noor staging Chrome connected-profile acceptance failed; check screenshot artifact")
-        print(browser.stdout.strip())
+        if os.environ.get("NOOR_STAGING_BROWSER_QA")=="true":
+            # Native Chrome verifies the freshly deployed account UI (5 viewports),
+            # plus real D1 rename/archive/refresh and owner isolation.
+            browser_env = dict(os.environ, NOOR_STAGING_ORIGIN=origin + "/")
+            browser = subprocess.run(["node", "scripts/noor_staging_profile_browser.mjs"],
+                                     cwd=ROOT, env=browser_env, capture_output=True, text=True)
+            if browser.returncode != 0:
+                raise RuntimeError("Noor staging Chrome connected-profile acceptance failed; check screenshot artifact")
+            print(browser.stdout.strip())
 
         # One ordinary development site only. Do not create a second QA worker.
         # The development build exposes account-backed personal Quran saves.

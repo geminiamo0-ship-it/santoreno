@@ -81,8 +81,10 @@ try {
     if(!target)throw Error('Long synthetic learner missing from owner list');
     picker.value=target.value;picker.dispatchEvent(new Event('change',{bubbles:true}));
   })()`);
-  await waitFor(()=>browser.evaluate(`document.querySelector('#learner-switch')?.title===${JSON.stringify(longLearner)}`),
-    'long synthetic learner selected');
+  await waitFor(
+    () => browser.evaluate(`document.querySelector('#learner-switch')?.title===${JSON.stringify(longLearner)}`),
+    "long synthetic learner selected",
+  );
   for (const [width, height] of [
     [360, 667],
     [390, 844],
@@ -117,21 +119,32 @@ try {
         headerBottom:Math.round(bar?.getBoundingClientRect().bottom??0),
       };
     })()`);
-    assert.equal(header.selectTitle,longLearner,'Header must expose complete selected learner title');
-    assert(header.logoutAccessible,'Logout control inaccessible at '+width);
-    if(width<=390){
-      assert(header.width>=200,'Clipped narrow learner selector '+width+' '+header.width);
-      assert(header.longNameVisible,'Long Arabic name not visible at '+width);
-      await browser.evaluate("document.querySelector('[aria-controls=student-navigation-mobile]').click()");
-      await present('#student-navigation-mobile');
+    assert.equal(
+      header.selectTitle,
+      longLearner,
+      "Header must expose complete selected learner title",
+    );
+    assert(header.logoutAccessible, "Logout control inaccessible at " + width);
+    if (width <= 390) {
+      assert(header.width >= 200, "Clipped narrow learner selector " + width + " " + header.width);
+      assert(header.longNameVisible, "Long Arabic name not visible at " + width);
+      await browser.evaluate(
+        "document.querySelector('[aria-controls=student-navigation-mobile]').click()",
+      );
+      await present("#student-navigation-mobile");
       const menu=await browser.evaluate(`(()=>{
         const bar=document.querySelector('header').getBoundingClientRect();
         const nav=document.querySelector('#student-navigation-mobile').getBoundingClientRect();
         return {top:nav.top,headerBottom:bar.bottom,left:nav.left,right:nav.right,width:innerWidth};
       })()`);
-      assert(menu.top>=menu.headerBottom-2,'Mobile menu covers header at '+width);
-      assert(menu.left>=-1&&menu.right<=menu.width+1,'Mobile menu horizontal overflow '+width);
-      await browser.evaluate("document.querySelector('[aria-controls=student-navigation-mobile]').click()");
+      assert(menu.top >= menu.headerBottom - 2, "Mobile menu covers header at " + width);
+      assert(
+        menu.left >= -1 && menu.right <= menu.width + 1,
+        "Mobile menu horizontal overflow " + width,
+      );
+      await browser.evaluate(
+        "document.querySelector('[aria-controls=student-navigation-mobile]').click()",
+      );
     }
     await browser.screenshot("artifacts/noor-staging-profile/account-" + width + ".png");
   }

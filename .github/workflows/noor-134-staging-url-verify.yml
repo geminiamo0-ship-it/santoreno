@@ -37,7 +37,10 @@ jobs:
               raise RuntimeError("No verified Cloudflare account subdomain")
           origin="https://noor-site-staging."+subdomain+".workers.dev"
           for path in ["/classroom/","/classroom/?view=teacher","/classroom/?view=student"]:
-              with urllib.request.urlopen(origin+path,timeout=25) as response:
+              page_req=urllib.request.Request(origin+path,headers={
+                  "Accept":"text/html",
+                  "User-Agent":"Mozilla/5.0 (X11; Linux x86_64) Chrome/156.0.0.0 Safari/537.36"})
+              with urllib.request.urlopen(page_req,timeout=25) as response:
                   body=response.read().decode("utf-8")
                   if response.status!=200 or 'data-quran-layout="viewport-fit"' not in body:
                       raise RuntimeError("Staging classroom route/renderer did not pass live HTTP check")

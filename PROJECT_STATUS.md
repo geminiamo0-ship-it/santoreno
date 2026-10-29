@@ -1,3 +1,9 @@
+## Noor D1 learner lifecycle remote acceptance — #242 (implementation branch, not deployed)
+- Noor parent #155 / #157, Draft PR #158. Santoreno branch `feat/242-noor-profile-staging-smoke` extends the **existing** `noor-site-staging` deployment script with synthetic HTTP rename/CAS/idempotency/404/archive and read-only D1 history-count proof. The Worker and database remain the dedicated Noor development resources.
+- Source-of-truth gating remains: only checkout verified Noor **main** after exact postmerge Verify. No feature deploy or remote acceptance claimed at branch stage.
+- Before closing: Santoreno Verify for exact PR head, Noor merged/push Verify, Santoreno main workflow's remote deploy+smoke run and audit of changed resource names. No real guardian phone verification or Production changes.
+- Rollback: revert staging Worker build without dropping D1 audit or Quran records; keep #242 OPEN until all remote gates verified.
+
 # Santo Project Status — Living Handoff
 
 ## Public Noor demo preview #227 — rollout candidate, not yet cloud-verified

@@ -232,12 +232,30 @@ def smoke(origin, access_password):
 
     first = secrets.randbelow(98)
     owner_a = account(f"+120255501{first:02d}", "Synthetic Noor QA A")
-    status, _, _ = http(origin, "/api/auth/session", access_password, opener=owner_a)
+    # Secrets uploaded immediately after Wrangler deploy may take time to
+    # converge across Cloudflare isolates. Keep real authorization checks;
+    # retry 401 only for this short synthetic post-deploy QA window.
+    for attempt in range(15):
+        status, result, _ = http(origin, "/api/auth/session", access_password, opener=owner_a)
+        if status == 200:
+            break
+        if status != 401:
+            raise RuntimeError(f"Unexpected signed-session status HTTP {status}")
+        time.sleep(2)
     require_status(status, 200, "Cookie session restore")
+    if not json_body(result).get("user", {}).get("id"):
+        raise RuntimeError("Cookie session returned no verified user")
+
     learner_id = ""
     for index in (1, 2):
-        status, result, _ = http(origin, "/v1/me/learners", access_password, "POST",
-                                 {"name": f"Synthetic Learner {index}", "learnerType": "child"}, owner_a)
+        for attempt in range(15):
+            status, result, _ = http(origin, "/v1/me/learners", access_password, "POST",
+                                     {"name": f"Synthetic Learner {index}", "learnerType": "child"}, owner_a)
+            if status == 201:
+                break
+            if status != 401:
+                raise RuntimeError(f"Unexpected learner create status HTTP {status}")
+            time.sleep(2)
         require_status(status, 201, "Synthetic learner creation")
         learner_id = json_body(result)["learner"]["id"]
     status, result, _ = http(origin, "/v1/me/learners", access_password, opener=owner_a)

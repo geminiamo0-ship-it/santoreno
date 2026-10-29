@@ -1,5 +1,11 @@
 # Santo Project Status — Living Handoff
 
+## Public Noor demo preview #227 — rollout candidate, not yet cloud-verified
+
+- Owner requested no site-wide password on the existing Noor staging URL. Noor [#118](https://github.com/geminiamo0-ship-it/nour-elquran/issues/118) adds a **read-only** public page/static asset path only, preserving stage Basic access for all APIs and write methods.
+- This branch edits only scoped Noor workflow/script: Next build `NEXT_PUBLIC_ACCOUNT_UI=false` displays labeled mock learners; stage Worker uses `NOOR_PUBLIC_PREVIEW=true`, preserves private credentials + D1, and checks public landing/student/real JS HTTP 200, unauthenticated API HTTP 401 and private synthetic account/session/isolation end-to-end.
+- No public phone registrations; no OTP, actual learner data, Santo resources or Noor production changes. Remote verification is pending exact Noor main merge and green CI.
+
 ## Noor isolated Cloudflare staging #219 — remotely VERIFIED (2026-10-29)
 
 - Using encrypted Santoreno GitHub Actions Cloudflare credentials, dedicated `noor-core-staging` D1 and `noor-site-staging` Worker were provisioned **without modifying Santo Workers/D1/DO/R2 or Noor production**. Noor main source `dff83b382b3774a7476ae8dee64b7454fd09859c` passed its own four CI jobs.

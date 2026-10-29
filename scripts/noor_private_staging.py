@@ -83,7 +83,8 @@ def write_config(target, database_id, origin, access_password, auth_secret):
         "migrations_dir": str(NOOR / "workers/api/migrations"),
     }]
     cfg["vars"] = {
-        "NOOR_ENVIRONMENT": "staging", "AUTH_ENABLED": "true", "AUTH_ORIGIN": origin,
+        "NOOR_ENVIRONMENT": "staging", "NOOR_PUBLIC_PREVIEW": "true",
+        "AUTH_ENABLED": "true", "AUTH_ORIGIN": origin,
     }
     config = target / "wrangler-staging.json"
     config.write_text(json.dumps(cfg, ensure_ascii=False))
@@ -125,15 +126,24 @@ def json_body(content):
 
 
 def smoke(origin, access_password):
-    for path in ("/", "/student/", "/api/auth/session", "/_next/static/fake.js"):
-        status, body, response_headers = http(origin, path)
-        if status != 401:
-            snippet = body[:180].decode(errors="replace").replace("\\n", " ")
-            # No credentials are ever sent in this unauthenticated probe.
-            print(f"Unauthenticated stage probe {path}: HTTP {status}; "
-                  f"content-type={response_headers.get('Content-Type')}; "
-                  f"server={response_headers.get('Server')}; public-body={snippet}")
-        require_status(status, 401, "Unauthenticated staged asset/API access: " + path)
+    # Public UI is a read-only mock preview, not unverified phone signup.
+    for path in ("/", "/student/", "/student/mushaf/"):
+        status, body, _ = http(origin, path)
+        require_status(status, 200, "Public demo page: " + path)
+        if b"<html" not in body.lower():
+            raise RuntimeError("Public demo did not return HTML: " + path)
+
+    built = NOOR / "apps/web/out/_next/static"
+    assets = list(built.rglob("*.js"))
+    if not assets:
+        raise RuntimeError("Missing published JavaScript static asset")
+    public_asset = "/" + assets[0].relative_to(NOOR / "apps/web/out").as_posix()
+    status, _, _ = http(origin, public_asset)
+    require_status(status, 200, "Public demo static JS asset")
+
+    for path in ("/api/auth/session", "/api/auth/register", "/v1/me/learners", "/ready", "/health"):
+        status, _, _ = http(origin, path)
+        require_status(status, 401, "Private API must deny unauthenticated public request: " + path)
 
     for attempt in range(25):
         status, data, _ = http(origin, "/health", access_password)
@@ -188,7 +198,7 @@ def smoke(origin, access_password):
     require_status(status, 200, "Logout revocation")
     status, _, _ = http(origin, "/api/auth/session", access_password, opener=owner_a)
     require_status(status, 401, "Logout replay rejection")
-    print("PASS: private static/API gate, remote D1 readiness, synthetic signup, cookies, profiles, isolation, logout; OTP deferred")
+    print("PASS: public demo pages/JS 200, protected API 401, D1 readiness, synthetic signup, session cookies, profiles, isolation and logout; OTP deferred")
 
 
 def main():
@@ -207,13 +217,12 @@ def main():
         # the fail-closed Worker (no access secret means every path returns 503),
         # then upload BOTH secrets atomically using the pinned 'secret bulk' command.
         wrangler("deploy", "--config", str(config))
-        # On first deployment, the unconfigured guard returns 503. Cloudflare
-        # can briefly return edge 403 while propagating. On an *idempotent*
-        # redeploy Wrangler retains existing secrets, so the guard correctly
-        # returns 401 even before this run rotates credentials. All deny access.
+        # With the public flag, pages may already return 200 while API routes
+        # remain credential-gated. Older deployments may briefly serve a 401
+        # or 403 during propagation; subsequent smoke checks enforce 200/401.
         initial_status, _, _ = http(origin, "/")
-        if initial_status not in (401, 403, 503):
-            raise RuntimeError(f"Staging must deny access before secrets (got HTTP {initial_status})")
+        if initial_status not in (200, 401, 403, 503):
+            raise RuntimeError(f"Unexpected staging transition status HTTP {initial_status}")
         wrangler("secret", "bulk", str(secure), "--config", str(config))
         # Never print generated credentials; even a successful smoke does not
         # authorize real child data, production traffic or OTP delivery.
@@ -223,10 +232,11 @@ def main():
     if summary:
         with open(summary, "a") as report:
             report.write(f"## Noor private staging\n- Noor SHA: `{NOOR_SHA}`\n"
-                         f"- Worker (password protected): `{origin}`\n"
+                         f"- Public demo site (no password): `{origin}`\n"
                          "- D1: `noor-core-staging` (independent of production)\n"
-                         "- Remote synthetic acceptance: PASS\n- OTP and messages: OFF\n")
-    print("PASS: isolated Noor staging Worker/D1 deployed and remotely verified; no production resources used")
+                         "- Public pages and static JS: HTTP 200; account APIs: HTTP 401 unauthenticated\n"
+                         "- Remote private synthetic acceptance: PASS\n- OTP and messages: OFF\n")
+    print("PASS: PUBLIC Noor demo and PRIVATE staging account API remotely verified; no production resources used")
 
 
 if __name__ == "__main__":

@@ -373,6 +373,84 @@ def canonical_quran_staging(config, database_id, temporary):
     print("PASS: dedicated Noor staging D1 now has 6236 verified Hafs anchors; Quran UI feature OFF")
 
 
+
+def quran_browser_qa(config, database_id, temporary, subdomain):
+    """Dedicated password-gated Quran QA worker; never turn on flags in public staging."""
+    if DATABASE_NAME != "noor-core-staging" or WORKER_NAME != "noor-site-staging":
+        raise RuntimeError("Refusing browser QA on non-Noor staging resources")
+    if not re.fullmatch(r"[0-9a-fA-F-]{32,36}", database_id):
+        raise RuntimeError("Missing dedicated staging D1 UUID")
+    qa_name = "noor-site-quran-qa"
+    qa_origin = f"https://{qa_name}.{subdomain}.workers.dev"
+    script = NOOR / "scripts/noor-quran-qa-browser.mjs"
+    if not script.is_file():
+        raise RuntimeError("Exact verified Noor main has no protected Quran browser QA script")
+    build_env = {**os.environ,
+                 "NEXT_PUBLIC_ACCOUNT_UI": "true",
+                 "NEXT_PUBLIC_QURAN_PERSISTENCE_ENABLED": "true"}
+    result = subprocess.run(["pnpm", "--filter", "@noor/web", "build"],
+                            cwd=NOOR, env=build_env, capture_output=True,
+                            text=True, timeout=360, check=False)
+    if result.returncode != 0:
+        raise RuntimeError("Isolated Quran QA frontend build failed; no worker deployment")
+    qa_config = json.loads(config.read_text())
+    qa_config["name"] = qa_name
+    qa_config["vars"] = {
+        "NOOR_ENVIRONMENT": "staging",
+        "NOOR_DEV_OPEN": "false",
+        "AUTH_ENABLED": "true",
+        "AUTH_ORIGIN": qa_origin,
+    }
+    qa_path = temporary / "wrangler-quran-qa.json"
+    qa_path.write_text(json.dumps(qa_config))
+    qa_access = secrets.token_hex(32)
+    qa_secure = temporary / "secrets-quran-qa.json"
+    qa_secure.write_text(json.dumps({
+        "AUTH_SECRET": secrets.token_hex(32),
+        "STAGING_ACCESS_PASSWORD": qa_access,
+    }))
+    qa_secure.chmod(0o600)
+    # Asset HTML is deployed on the dedicated QA worker alone. Existing public
+    # developer Worker retains NEXT_PUBLIC_QURAN_PERSISTENCE_ENABLED=false.
+    wrangler("deploy", "--config", str(qa_path))
+    wrangler("secret", "bulk", str(qa_secure), "--config", str(qa_path))
+    # Random Basic password remains server-side; this browser script does NOT
+    # store, log, or upload cookies, credentials or a URL with embedded secrets.
+    for attempt in range(15):
+        status, _, _ = http(qa_origin, "/api/auth/session", qa_access)
+        if status == 401:
+            break
+        if status not in (403, 503):
+            raise RuntimeError(f"Unexpected protected QA status {status}")
+        time.sleep(2)
+    else:
+        raise RuntimeError("Noor QA Worker Basic guard did not become ready")
+    reject, _, _ = http(qa_origin, "/")
+    if reject != 401:
+        raise RuntimeError(f"Anonymous Quran QA must be Basic-gated (got {reject})")
+    qa_env = {**os.environ, "NOOR_QA_ORIGIN": qa_origin,
+              "NOOR_QA_ACCESS_PASSWORD": qa_access}
+    browser = subprocess.run(["node", str(script)], cwd=NOOR,
+                             env=qa_env, capture_output=True, text=True,
+                             timeout=300, check=False)
+    if browser.returncode != 0:
+        # No secret-bearing log is propagated. Screenshots remain synthetic
+        # and the QA Worker remains password-gated, not publicly enabled.
+        raise RuntimeError("Chrome Quran QA browser acceptance failed (exit "+str(browser.returncode)+")")
+    if "PASS: password-gated Noor QA" not in browser.stdout:
+        raise RuntimeError("Chrome QA completion marker missing")
+    print("PASS: password-gated Noor Quran QA Worker: real Chrome pen, D1 hydration, note/bookmark restore, 360/390 screenshots and other-account denial")
+    summary = os.environ.get("GITHUB_STEP_SUMMARY")
+    if summary:
+        with open(summary, "a") as report:
+            report.write("### Quran persistence QA (private, synthetic only)\n"
+                         "- Dedicated Basic-protected QA Worker, isolated Noor staging D1\n"
+                         "- Real Chrome pointer, D1 ACK/reload, notes/highlight/bookmark and owner denial: PASS\n"
+                         "- Mobile 360x667 / 390x844 screenshots in Actions artifacts\n"
+                         "- Public developer and production persistence flag: OFF\n"
+                         "- Actual mobile S Pen and offline crash durability: NOT tested\n")
+
+
 def main():
     if not re.fullmatch(r"[0-9a-f]{40}", NOOR_SHA):
         raise RuntimeError("Exact validated Noor commit required")
@@ -401,6 +479,7 @@ def main():
         # authorize real child data, production traffic or OTP delivery.
         credentials = json.loads(secure.read_text())
         smoke(origin, credentials["STAGING_ACCESS_PASSWORD"])
+        quran_browser_qa(config, database_id, temp, subdomain)
     summary = os.environ.get("GITHUB_STEP_SUMMARY")
     if summary:
         with open(summary, "a") as report:

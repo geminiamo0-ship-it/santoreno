@@ -149,7 +149,13 @@ def smoke(origin, access_password):
     require_status(status, 200, "Immersive classroom preview")
     if "وضع الحصة".encode("utf-8") not in classroom:
         raise RuntimeError("Deployed classroom is missing the immersive lesson mode")
-    print("PASS: all Sheikh portal and classroom preview routes are HTTP 200; immersive control present")
+    # Additional owner-approved dense layout markers. Check the actual served
+    # HTML to reject a stale previous staging build, not just local Next build.
+    for marker in ("ضبط الوقت التجريبي", "الصفحة السابقة", "الصفحة التالية"):
+        if marker.encode("utf-8") not in classroom:
+            raise RuntimeError("Stale classroom staging: missing compact UI marker " + marker)
+    print("PASS: Sheikh/classroom preview HTTP 200, focus toggle, compact clock and Quran navigation")
+
 
     built = NOOR / "apps/web/out/_next/static"
     assets = list(built.rglob("*.js"))

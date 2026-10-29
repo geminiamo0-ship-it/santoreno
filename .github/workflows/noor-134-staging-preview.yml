@@ -1,0 +1,70 @@
+name: Noor #134 — verified PR-only classroom staging preview
+
+on:
+  push:
+    branches: [feat/noor-134-staging-review-a5f4424]
+    paths:
+      - .github/workflows/noor-134-staging-preview.yml
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: noor-private-staging-provision
+  cancel-in-progress: false
+
+jobs:
+  deploy-verified-noor-pr-to-isolated-staging:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      GH_TOKEN: ${{ github.token }}
+      WRANGLER_SEND_METRICS: "false"
+    steps:
+      - name: Checkout existing isolated deployment implementation
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Compile scoped staging script without secrets
+        run: python3 -m py_compile scripts/noor_private_staging.py
+      - name: Checkout exact reviewed Noor classroom PR commit (never main)
+        uses: actions/checkout@v4
+        with:
+          repository: geminiamo0-ship-it/nour-elquran
+          ref: a5f4424d9cb9de04902524170a6a622109c1f154
+          path: noor
+          persist-credentials: false
+      - name: Verify exact successful Noor CI and safety guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          NOOR_SHA="$(git -C noor rev-parse HEAD)"
+          test "$NOOR_SHA" = "a5f4424d9cb9de04902524170a6a622109c1f154"
+          test -f noor/workers/site/src/staging-access.ts
+          test -f noor/tests/staging-access.test.mjs
+          test -f noor/docs/NOOR_STAGING_RUNBOOK.md
+          grep -Fq 'stagingAccessGuard(request, env)' noor/workers/site/src/index.ts
+          COUNT="$(gh api "repos/geminiamo0-ship-it/nour-elquran/actions/runs?head_sha=$NOOR_SHA&per_page=20" --jq '[.workflow_runs[] | select(.name == "Verify" and .event == "pull_request" and .conclusion == "success")] | length')"
+          test "$COUNT" -ge 1 || { echo "Exact Noor PR head has no successful Verify"; exit 1; }
+          echo "NOOR_SHA=$NOOR_SHA" >> "$GITHUB_ENV"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Build exact Noor PR head with isolated developer site configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          corepack enable
+          corepack prepare pnpm@10.22.0 --activate
+          cd noor
+          pnpm install --frozen-lockfile
+          NEXT_PUBLIC_ACCOUNT_UI=true pnpm --filter @noor/web build
+      - name: Deploy and smoke test ONLY noor-site-staging plus noor-core-staging
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_ACCOUNT_ID" && test -n "$CLOUDFLARE_API_TOKEN" || { echo "Isolated Cloudflare staging credentials missing"; exit 1; }
+          python3 scripts/noor_private_staging.py

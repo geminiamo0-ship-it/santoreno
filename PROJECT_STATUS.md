@@ -1,6 +1,7 @@
 # Santo Project Status — Living Handoff
 
 ## Operational-only Noor staging #219 — branch; no Santo application impact
+
 - Scoped workflow and Python installer in `.github/workflows/noor-private-staging.yml` and `scripts/noor_private_staging.py` reuse existing encrypted Cloudflare Action secrets without copying keys. Connected owner request: [Noor issue #114](https://github.com/geminiamo0-ship-it/nour-elquran/issues/114) and merged Noor private gate [PR #115](https://github.com/geminiamo0-ship-it/nour-elquran/pull/115).
 - The only allowed target resources are `noor-core-staging` D1 and `noor-site-staging` Worker. The job requires a green exact Noor `main` Verify, builds same-origin authenticated UI, enforces private asset-gate, and tests synthetic register/session/profile isolation against remote Cloudflare.
 - On PR, this workflow runs **syntax-only validation**; Cloudflare deployment runs only after merge to Santoreno main or an authorized manual workflow dispatch. Until an actual remote success report is observed, no resource/deployment should be claimed.

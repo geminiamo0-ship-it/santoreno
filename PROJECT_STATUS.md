@@ -1,3 +1,9 @@
+## Noor Phase 05B remote synthetic submit/review gate — #252 (branch, not deployed)
+
+- Noor source [PR #179](https://github.com/geminiamo0-ship-it/nour-elquran/pull/179) merged `b0b03c2278325cc63de2b38770cc4eb05781ca46`; exact PR [Verify #40974785462](https://github.com/geminiamo0-ship-it/nour-elquran/actions/runs/40974785462) 4/4 SUCCESS; **postmerge main Verify + Santoreno stage pending**.
+- Santoreno branch `test/252-noor-submission-review-dev`: add strictly scoped HTTP smoke to existing Noor-only synthetic teacher/owner D1 session. Tests explicit student note submit, replay 200, altered op 409, no duplicate attempt before review; Sheikh review retry and accept, owner sees both immutable attempts, foreign owner 404 and revoked Sheikh 404. No actual child/guardian/audio data.
+- Cloudflare D1 migration 0011 is additive; use existing dedicated `noor-core-staging` and `noor-site-staging` only. Chrome on demand, not on every push. This API test is **not** a visual approval of the new training/review UI.
+
 ## Noor Phase 05A remote published assignments — #250 (branch only)
 
 - Noor source [PR #176](https://github.com/geminiamo0-ship-it/nour-elquran/pull/176) merged at `bff8c6be7015a0a3fd48254158f5e93b58e23527`; postmerge [Verify #40970402157](https://github.com/geminiamo0-ship-it/nour-elquran/actions/runs/40970402157) passed all fast gates. No real user/Production deployment.

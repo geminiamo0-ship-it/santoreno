@@ -75,6 +75,14 @@ try {
     "fetch('/v1/me/learners',{cache:'no-store'}).then(r=>r.json()).then(d=>d.learners.find(l=>l.name==='Synthetic Dev Learner B')?.id)",
   );
   assert.match(id, /^[0-9a-f-]{36}$/i);
+  await browser.evaluate(`(()=>{
+    const picker=document.querySelector('#learner-switch');
+    const target=[...picker.options].find(o=>o.textContent===${JSON.stringify(longLearner)});
+    if(!target)throw Error('Long synthetic learner missing from owner list');
+    picker.value=target.value;picker.dispatchEvent(new Event('change',{bubbles:true}));
+  })()`);
+  await waitFor(()=>browser.evaluate(`document.querySelector('#learner-switch')?.title===${JSON.stringify(longLearner)}`),
+    'long synthetic learner selected');
   for (const [width, height] of [
     [360, 667],
     [390, 844],

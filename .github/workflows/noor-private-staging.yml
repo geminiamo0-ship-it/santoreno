@@ -84,11 +84,3 @@ jobs:
           test -n "$CLOUDFLARE_ACCOUNT_ID" && test -n "$CLOUDFLARE_API_TOKEN" || { echo "Cloudflare GitHub secrets missing"; exit 1; }
           python3 scripts/noor_private_staging.py
 
-      - name: Preserve synthetic Quran QA browser screenshots for review
-        if: always() && github.event_name != 'pull_request'
-        uses: actions/upload-artifact@v4
-        with:
-          name: noor-private-quran-qa-browser-screenshots
-          path: noor/artifacts/quran-qa/*.png
-          if-no-files-found: warn
-          retention-days: 7

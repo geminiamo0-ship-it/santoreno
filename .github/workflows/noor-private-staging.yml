@@ -1,4 +1,4 @@
-name: Noor Public Demo + Private API Staging — isolated D1 and Worker
+name: Noor Development Staging — isolated D1 and Worker
 
 on:
   push:
@@ -66,7 +66,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - name: Install and build public Noor demo UI without signup
+      - name: Install and build Noor account-enabled developer UI
         shell: bash
         run: |
           set -euo pipefail
@@ -74,8 +74,8 @@ jobs:
           corepack prepare pnpm@10.22.0 --activate
           cd noor
           pnpm install --frozen-lockfile
-          NEXT_PUBLIC_ACCOUNT_UI=false pnpm --filter @noor/web build
-      - name: Deploy public demo and remotely test private Noor APIs
+          NEXT_PUBLIC_ACCOUNT_UI=true pnpm --filter @noor/web build
+      - name: Deploy open developer staging and verify application account security
         shell: bash
         run: |
           set -euo pipefail

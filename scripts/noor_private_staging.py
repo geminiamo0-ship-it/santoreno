@@ -273,6 +273,106 @@ def smoke(origin, access_password):
     print("PASS: open dev pages/assets 200, anonymous app sessions 401, D1 readiness, signup, cookie sessions, profiles, isolation and logout; OTP deferred")
 
 
+
+# Noor-only, reviewable canonical corpus metadata. Both values come from
+# the independent source-verification run in Noor PR #148 / issue #147.
+NOOR_MANIFEST_SHA = "864c5474872876b3db8a328d8c74781be83c004a7cdb168ffb4b7eb57477edd2"
+NOOR_HAFS_TEXT_SHA = "9b9eb07ff5cff144bf964400924e593d97115e4b937db3c61783f782a5168075"
+NOOR_EDITION = "hafs-kfqc:v1.1.1"
+NOOR_AYAH_INSERT = re.compile(
+    r"^INSERT INTO quran_ayah_anchors\(edition_id,surah,ayah,page,word_count\) "
+    r"VALUES\('hafs-kfqc:v1\.1\.1',([0-9]+),([0-9]+),([0-9]+),([0-9]+)\);$"
+)
+
+
+def d1_read_only(database_id, statement):
+    """Query only our explicitly identified staging UUID, never a supplied DB name."""
+    if not re.fullmatch(r"[0-9a-fA-F-]{32,36}", database_id):
+        raise RuntimeError("Invalid staging D1 UUID")
+    url = f"https://api.cloudflare.com/client/v4/accounts/{ACCOUNT}/d1/database/{database_id}/query"
+    body = json.dumps({"sql": statement}).encode()
+    request = urllib.request.Request(url, data=body, headers={
+        "Authorization": "Bearer " + TOKEN, "Content-Type": "application/json",
+        "Accept": "application/json", "User-Agent": "NoorStagingCanonicalChecker/1.0",
+    }, method="POST")
+    try:
+        with urllib.request.urlopen(request, timeout=90) as reply:
+            result = json.load(reply)
+    except (urllib.error.HTTPError, urllib.error.URLError) as exc:
+        # Do not log HTTP response payloads or authorization headers.
+        raise RuntimeError("Cloudflare staging D1 read-only query failed") from None
+    if not result.get("success") or len(result.get("result", [])) != 1:
+        raise RuntimeError("Cloudflare staging D1 query not acknowledged")
+    block = result["result"][0]
+    if block.get("success") is not True or not isinstance(block.get("results"), list):
+        raise RuntimeError("Cloudflare staging D1 result was invalid")
+    return block["results"]
+
+
+def canonical_quran_staging(config, database_id, temporary):
+    """Import only to dedicated noor-core-staging, only when empty and fully verified."""
+    source = NOOR / "scripts/noor_quran_anchor_import.py"
+    if not source.is_file() or DATABASE_NAME != "noor-core-staging":
+        raise RuntimeError("No verified Noor-only Quran import source or staging DB")
+    destination = temporary / "canonical-hafs"
+    result = subprocess.run([
+        "python3", str(source), "--output-dir", str(destination),
+        "--expected-manifest-sha256", NOOR_MANIFEST_SHA,
+    ], cwd=NOOR, capture_output=True, text=True, check=False, timeout=240)
+    if result.returncode:
+        raise RuntimeError("Pinned Quran metadata verification refused; staging untouched")
+    details = json.loads((destination / "verified-quran-anchors-evidence.json").read_text())
+    if (details.get("edition") != NOOR_EDITION or
+        details.get("manifest_sha256") != NOOR_MANIFEST_SHA or
+        details.get("word_source_sha256") != NOOR_HAFS_TEXT_SHA or
+        details.get("ayah_count") != 6236 or details.get("word_total") != 77432 or
+        details.get("page_count") != 604):
+        raise RuntimeError("Quran source hashes/counts differ; refusing staging write")
+    sql_file = destination / "verified-quran-anchors.sql"
+    lines = sql_file.read_text().splitlines()
+    expected = []
+    for line in lines:
+        match = NOOR_AYAH_INSERT.fullmatch(line)
+        if match:
+            expected.append(tuple(int(value) for value in match.groups()))
+        elif line.startswith("INSERT INTO quran_ayah_anchors"):
+            raise RuntimeError("Unexpected generated Quran SQL")
+    if len(expected) != 6236 or len(set(row[:2] for row in expected)) != 6236:
+        raise RuntimeError("Generated Quran SQL incomplete")
+    expected.sort()
+    edition_rows = d1_read_only(database_id,
+        "SELECT id,manifest_sha256,page_count FROM quran_editions WHERE id='hafs-kfqc:v1.1.1'")
+    existing_rows = d1_read_only(database_id,
+        "SELECT surah,ayah,page,word_count FROM quran_ayah_anchors "
+        "WHERE edition_id='hafs-kfqc:v1.1.1' ORDER BY surah,ayah")
+    def as_tuples(rows):
+        return sorted((row["surah"], row["ayah"], row["page"], row["word_count"])
+                      for row in rows)
+    if edition_rows or existing_rows:
+        # Fully idempotent only when EVERY row agrees, not just total counts.
+        if (len(edition_rows) != 1 or
+            edition_rows[0].get("manifest_sha256") != NOOR_MANIFEST_SHA or
+            edition_rows[0].get("page_count") != 604 or
+            as_tuples(existing_rows) != expected):
+            raise RuntimeError("Refusing existing partial or mismatched Quran staging data")
+        print("PASS: all existing 6236 staging Hafs anchors match audited source; no write")
+        return
+    # Only here may a remote D1 mutation take place, and only for one named
+    # isolated Noor staging DB; never Santo / Noor production.
+    wrangler("d1", "execute", DATABASE_NAME, "--config", str(config), "--remote",
+             "--file", str(sql_file))
+    edition_after = d1_read_only(database_id,
+        "SELECT id,manifest_sha256,page_count FROM quran_editions WHERE id='hafs-kfqc:v1.1.1'")
+    actual = d1_read_only(database_id,
+        "SELECT surah,ayah,page,word_count FROM quran_ayah_anchors "
+        "WHERE edition_id='hafs-kfqc:v1.1.1' ORDER BY surah,ayah")
+    if (len(edition_after) != 1 or
+        edition_after[0].get("manifest_sha256") != NOOR_MANIFEST_SHA or
+        as_tuples(actual) != expected):
+        raise RuntimeError("D1 import did not verify completely; do not enable Quran UI")
+    print("PASS: dedicated Noor staging D1 now has 6236 verified Hafs anchors; Quran UI feature OFF")
+
+
 def main():
     if not re.fullmatch(r"[0-9a-f]{40}", NOOR_SHA):
         raise RuntimeError("Exact validated Noor commit required")
@@ -285,6 +385,7 @@ def main():
         temp = Path(dirname)
         config, secure = write_config(temp, database_id, origin, secrets.token_hex(32), secrets.token_hex(32))
         wrangler("d1", "migrations", "apply", DATABASE_NAME, "--config", str(config), "--remote")
+        canonical_quran_staging(config, database_id, temp)
         # Wrangler 4.45 does not support 'deploy --secrets-file'. First deploy
         # the fail-closed Worker (no access secret means every path returns 503),
         # then upload BOTH secrets atomically using the pinned 'secret bulk' command.

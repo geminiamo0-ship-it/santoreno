@@ -125,7 +125,126 @@ def json_body(content):
     return json.loads(content.decode())
 
 
-def smoke(origin, access_password, database_id):
+def plan_stage_synthetic_smoke(origin, database_id, config, owner_a, owner_b, learner_id, other_learner):
+    """#244: authorized synthetic teacher plan end-to-end on dedicated Noor Staging only."""
+    from uuid import uuid4
+    def subject(opener):
+        status, body, _ = http(origin, "/api/auth/session", opener=opener)
+        require_status(status, 200, "Synthetic subject validation")
+        value = json_body(body).get("user", {}).get("id")
+        if not isinstance(value, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", value):
+            raise RuntimeError("Unexpected synthetic Better Auth ID")
+        return value
+
+    staff_subject, teacher_subject = subject(owner_a), subject(owner_b)
+    if staff_subject == teacher_subject or DATABASE_NAME != "noor-core-staging":
+        raise RuntimeError("Refusing non-isolated synthetic teacher grant")
+    if not all(re.fullmatch(r"[A-Za-z0-9_-]{1,128}", str(learner))
+               for learner in (learner_id, other_learner)):
+        raise RuntimeError("Unexpected synthetic learner identifier")
+    if not re.fullmatch(r"[0-9a-fA-F-]{32,36}", database_id):
+        raise RuntimeError("Missing dedicated staging D1 UUID")
+    metadata = d1_read_only(database_id,
+        "SELECT version FROM noor_schema_meta WHERE component='academic_plan'")
+    if len(metadata) != 1 or metadata[0].get("version") != 1:
+        raise RuntimeError("Noor academic plan migration 0009 missing")
+
+    def qa_write(statement):
+        # The principal IDs above are obtained from two NEW synthetic session
+        # subjects, never from command-line args or user-supplied data.
+        wrangler("d1", "execute", DATABASE_NAME, "--config", str(config),
+                 "--remote", "--command", statement)
+    def post(path, data, opener, expected):
+        code, body, _ = http(origin, path, method="POST", body=data, opener=opener)
+        require_status(code, expected, "Noor synthetic teacher plan operation")
+        return json_body(body)
+    role_id = None
+    assignment_id = None
+    staff_seeded = False
+    try:
+        # This is a synthetic TEST-ONLY bootstrap for the existing Dev D1;
+        # no HTTP endpoint allows the user or teacher to grant themselves a role.
+        qa_write("UPDATE auth_users SET phone_number_verified=1 WHERE id IN ('"+
+                 staff_subject+"','"+teacher_subject+"')")
+        staff_seeded = True  # cleanup even when D1 write response is lost
+        qa_write("INSERT INTO staff_grants(auth_subject,permission,revoked_at_ms) "
+                 "VALUES('"+staff_subject+"','roles.manage',NULL)")
+        def role(action):
+            return post("/v1/staff/teacher-actions",
+                {"action":action,"targetUserId":teacher_subject,
+                 "reason":"Synthetic staging verification only",
+                 "operationId":str(uuid4())}, owner_a,
+                201 if action=="provision" else 200)
+        role_id = role("provision").get("teacherId")
+        if not isinstance(role_id,str) or not re.fullmatch(r"[0-9a-f-]{36}",role_id):
+            raise RuntimeError("Synthetic teacher role provisioning failed")
+        role("qualify")
+        role("activate")
+        now = int(time.time()*1000)
+        assigned = post("/v1/staff/schedule-actions",
+            {"action":"assign","operationId":str(uuid4()),
+             "reason":"Synthetic assignment for academic plan staging",
+             "learnerId":learner_id,"teacherId":role_id,
+             "startsAtMs":now+9000,"endsAtMs":now+3600000},
+            owner_a,201)
+        assignment_id = assigned.get("resourceId")
+        if not isinstance(assignment_id,str) or not re.fullmatch(r"[0-9a-f-]{36}",assignment_id):
+            raise RuntimeError("Synthetic teacher assignment failed")
+        time.sleep(max(0,(now+10000-int(time.time()*1000))/1000))
+        teacher_path="/v1/teacher/learners/"+learner_id+"/plan"
+        write_path=teacher_path+"-actions"
+        owner_path="/v1/me/learners/"+learner_id+"/plan"
+        code, body, _ = http(origin,teacher_path,opener=owner_b)
+        require_status(code,200,"Synthetic assigned teacher plan GET")
+        if json_body(body).get("plan") is not None:
+            raise RuntimeError("New synthetic learner already has a plan")
+        command={"operationId":str(uuid4()),"expectedRevision":0,"level":"beginner",
+                 "nextWird":"Synthetic next memorization","revisionWird":"Synthetic review",
+                 "focus":"Synthetic reading practice"}
+        saved=post(write_path,command,owner_b,200)
+        if saved.get("revision")!=1:
+            raise RuntimeError("Teacher plan revision ACK incorrect")
+        if post(write_path,command,owner_b,200).get("code")!="PLAN_ALREADY_SAVED":
+            raise RuntimeError("Teacher plan replay not idempotent")
+        post(write_path,{**command,"operationId":str(uuid4()),
+                         "nextWird":"Stale overwrite"},owner_b,409)
+        code, body, _ = http(origin,owner_path,opener=owner_a)
+        require_status(code,200,"Owner visible published plan")
+        saved_plan=json_body(body).get("plan")
+        if (not isinstance(saved_plan,dict) or saved_plan.get("revision")!=1 or
+                saved_plan.get("nextWird")!=command["nextWird"]):
+            raise RuntimeError("Owner plan failed to reflect server-confirmed teacher write")
+        code,_,_=http(origin,owner_path,opener=owner_b)
+        require_status(code,404,"Other household plan boundary")
+        code,_,_=http(origin,"/v1/teacher/learners/"+other_learner+"/plan",opener=owner_b)
+        require_status(code,404,"Unassigned sibling plan denied")
+        post("/v1/staff/schedule-actions",
+            {"action":"revoke","operationId":str(uuid4()),
+             "reason":"Cleanup synthetic teacher assignment",
+             "resourceId":assignment_id},owner_a,200)
+        code,_,_=http(origin,teacher_path,opener=owner_b)
+        require_status(code,404,"Former primary teacher plan access revoked")
+        code,_,_=http(origin,write_path,method="POST",body=command,opener=owner_b)
+        require_status(code,404,"Former primary teacher replay rejected")
+        role("suspend")
+        print("PASS: Remote Noor 0009 plan, synthetic staff-managed teacher, owner read, stale 409, replay and revoke 404")
+    finally:
+        # Important: no synthetic staff grant or qualified active test teacher
+        # remains capable of accessing any student after success OR failure.
+        timestamp=int(time.time()*1000)
+        if assignment_id is not None:
+            qa_write("UPDATE teacher_assignments SET revoked_at_ms="+str(timestamp)+
+                     " WHERE id='"+assignment_id+"' AND revoked_at_ms IS NULL")
+        if role_id is not None:
+            qa_write("UPDATE teachers SET status='disabled' WHERE id='"+role_id+"'")
+        if staff_seeded:
+            qa_write("UPDATE staff_grants SET revoked_at_ms="+str(timestamp)+
+                     " WHERE auth_subject='"+staff_subject+"' AND permission='roles.manage'")
+        qa_write("UPDATE auth_users SET phone_number_verified=0 WHERE id IN ('"+
+                 staff_subject+"','"+teacher_subject+"')")
+
+
+def smoke(origin, access_password, database_id, config):
     access_password = None  # This development deployment has no staging-wide Basic prompt.
     # Development site: regular application login and learner ownership still apply.
     # The owner requested a browser preview of the *current* Noor main Sheikh
@@ -362,6 +481,13 @@ def smoke(origin, access_password, database_id):
     if len(preserved) != 1 or preserved[0].get("quran_count", 0) < 4 or preserved[0].get("audit_count") != 2:
         raise RuntimeError("Archive did not preserve private Quran records and audit history")
     print("PASS: Noor profile rename, CAS 409, idempotent replay, cross-owner 404, archive, hidden-after-refresh and private history preserved")
+    # The original second student is archived above. Stage the plan only on
+    # the remaining ACTIVE synthetic sibling to avoid bypassing archive.
+    if len(active)!=1:
+        raise RuntimeError("Expected exactly one active synthetic student for plan")
+    plan_stage_synthetic_smoke(origin,database_id,config,owner_a,owner_b,
+                               active[0]["id"],learner_id)
+
 
     
     status, _, _ = http(origin, "/api/auth/logout", access_password, "POST", {}, owner_a)
@@ -499,7 +625,7 @@ def main():
         # Never print generated credentials; even a successful smoke does not
         # authorize real child data, production traffic or OTP delivery.
         credentials = json.loads(secure.read_text())
-        smoke(origin, credentials["STAGING_ACCESS_PASSWORD"], database_id)
+        smoke(origin, credentials["STAGING_ACCESS_PASSWORD"], database_id, config)
         # Native Chrome verifies the freshly deployed account UI (5 viewports),
         # plus real D1 rename/archive/refresh and owner isolation.
         browser_env = dict(os.environ, NOOR_STAGING_ORIGIN=origin + "/")

@@ -166,9 +166,9 @@ def plan_stage_synthetic_smoke(origin, database_id, config, owner_a, owner_b, le
         # no HTTP endpoint allows the user or teacher to grant themselves a role.
         qa_write("UPDATE auth_users SET phone_number_verified=1 WHERE id IN ('"+
                  staff_subject+"','"+teacher_subject+"')")
+        staff_seeded = True  # cleanup even when D1 write response is lost
         qa_write("INSERT INTO staff_grants(auth_subject,permission,revoked_at_ms) "
                  "VALUES('"+staff_subject+"','roles.manage',NULL)")
-        staff_seeded = True
         def role(action):
             return post("/v1/staff/teacher-actions",
                 {"action":action,"targetUserId":teacher_subject,
@@ -211,7 +211,8 @@ def plan_stage_synthetic_smoke(origin, database_id, config, owner_a, owner_b, le
         code, body, _ = http(origin,owner_path,opener=owner_a)
         require_status(code,200,"Owner visible published plan")
         saved_plan=json_body(body).get("plan")
-        if not isinstance(saved_plan,dict) or saved_plan.get("revision")!=1 or            saved_plan.get("nextWird")!=command["nextWird"]:
+        if (not isinstance(saved_plan,dict) or saved_plan.get("revision")!=1 or
+                saved_plan.get("nextWird")!=command["nextWird"]):
             raise RuntimeError("Owner plan failed to reflect server-confirmed teacher write")
         code,_,_=http(origin,owner_path,opener=owner_b)
         require_status(code,404,"Other household plan boundary")

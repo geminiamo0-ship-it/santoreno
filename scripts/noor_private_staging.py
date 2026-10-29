@@ -164,13 +164,30 @@ def smoke(origin, access_password):
     print("PASS: deployed classroom contains new viewport-fit Quran and compact controls")
 
 
-    built = NOOR / "apps/web/out/_next/static"
-    assets = list(built.rglob("*.js"))
-    if not assets:
-        raise RuntimeError("Missing published JavaScript static asset")
-    public_asset = "/" + assets[0].relative_to(NOOR / "apps/web/out").as_posix()
-    status, _, _ = http(origin, public_asset)
-    require_status(status, 200, "Public demo static JS asset")
+    # A random .js file in the build output may not be referenced by this
+    # route (and Cloudflare assets can propagate after HTML). Test the actual
+    # browser scripts linked by the deployed classroom HTML.
+    linked = re.findall(rb'<script[^>]+src="(/_next/static/[^"]+\.js)"', classroom)
+    if not linked:
+        raise RuntimeError("No browser JavaScript scripts referenced by classroom HTML")
+    tested = []
+    for raw_path in dict.fromkeys(linked).keys():
+        path = raw_path.decode("ascii")
+        if not (NOOR / "apps/web/out" / path.lstrip("/")).is_file():
+            raise RuntimeError("Classroom references a JS file absent from build")
+        status = 0
+        for attempt in range(18):
+            status, _, _ = http(origin, path)
+            if status == 200:
+                break
+            if status not in (404, 503):
+                raise RuntimeError(f"Classroom JS asset HTTP {status}")
+            time.sleep(2)
+        require_status(status, 200, "Referenced classroom JS " + str(len(tested)+1))
+        tested.append(path)
+        if len(tested) >= 3:
+            break
+    print(f"PASS: {len(tested)} real classroom JS script assets loaded HTTP 200")
 
     # An anonymous visitor does not receive another site-wide password prompt.
     # Application-level session and learner ownership checks still apply.

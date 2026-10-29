@@ -207,11 +207,12 @@ def main():
         # the fail-closed Worker (no access secret means every path returns 503),
         # then upload BOTH secrets atomically using the pinned 'secret bulk' command.
         wrangler("deploy", "--config", str(config))
-        # New workers.dev routes may initially return an edge 403 until the
-        # route propagates. Both 403 (edge denial) and 503 (our fail-closed gate)
-        # deny the unauthenticated visitor; neither is evidence of readiness.
+        # On first deployment, the unconfigured guard returns 503. Cloudflare
+        # can briefly return edge 403 while propagating. On an *idempotent*
+        # redeploy Wrangler retains existing secrets, so the guard correctly
+        # returns 401 even before this run rotates credentials. All deny access.
         initial_status, _, _ = http(origin, "/")
-        if initial_status not in (403, 503):
+        if initial_status not in (401, 403, 503):
             raise RuntimeError(f"Staging must deny access before secrets (got HTTP {initial_status})")
         wrangler("secret", "bulk", str(secure), "--config", str(config))
         # Never print generated credentials; even a successful smoke does not

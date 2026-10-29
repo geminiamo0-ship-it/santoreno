@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
     inputs:
       browser_qa:
-        description: 'Run targeted synthetic Chrome only when visual acceptance is required'
+        description: "Run targeted synthetic Chrome only when visual acceptance is required"
         required: false
         type: boolean
         default: false

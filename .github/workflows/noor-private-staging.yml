@@ -9,12 +9,19 @@ on:
       - scripts/noor_staging_profile_browser.mjs
       - scripts/noor_staging_teacher_browser.mjs
   workflow_dispatch:
+    inputs:
+      browser_qa:
+        description: "Run targeted synthetic Chrome only when visual acceptance is required"
+        required: false
+        type: boolean
+        default: false
   pull_request:
     branches: [main]
     paths:
       - .github/workflows/noor-private-staging.yml
       - scripts/noor_private_staging.py
       - scripts/noor_staging_profile_browser.mjs
+      - scripts/noor_staging_teacher_browser.mjs
 
 permissions:
   contents: read
@@ -48,6 +55,7 @@ jobs:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       GH_TOKEN: ${{ github.token }}
       WRANGLER_SEND_METRICS: "false"
+      NOOR_STAGING_BROWSER_QA: ${{ github.event_name == 'workflow_dispatch' && inputs.browser_qa && 'true' || 'false' }}
     steps:
       - name: Checkout scoped workflow repository
         uses: actions/checkout@v4

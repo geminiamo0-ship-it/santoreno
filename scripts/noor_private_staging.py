@@ -500,6 +500,15 @@ def main():
         # authorize real child data, production traffic or OTP delivery.
         credentials = json.loads(secure.read_text())
         smoke(origin, credentials["STAGING_ACCESS_PASSWORD"], database_id)
+        # Native Chrome verifies the freshly deployed account UI (5 viewports),
+        # plus real D1 rename/archive/refresh and owner isolation.
+        browser_env = dict(os.environ, NOOR_STAGING_ORIGIN=origin + "/")
+        browser = subprocess.run(["node", "scripts/noor_staging_profile_browser.mjs"],
+                                 cwd=ROOT, env=browser_env, capture_output=True, text=True)
+        if browser.returncode != 0:
+            raise RuntimeError("Noor staging Chrome connected-profile acceptance failed; check screenshot artifact")
+        print(browser.stdout.strip())
+
         # One ordinary development site only. Do not create a second QA worker.
         # The development build exposes account-backed personal Quran saves.
         # Account-level Better Auth and per-learner D1 authorization still apply.

@@ -32,14 +32,6 @@ jobs:
         run: python3 -m unittest discover -s tests -p 'test_noor_canonical_staging.py' -v
       - name: Syntax check remote-staging browser acceptance
         run: node --check scripts/noor_staging_profile_browser.mjs
-      - name: Temporary formatter diagnostic for scoped new browser script
-        run: |
-          corepack enable
-          corepack prepare pnpm@10.34.6 --activate
-          pnpm install --frozen-lockfile
-          echo NOOR_FORMATTER_BEGIN
-          pnpm exec prettier scripts/noor_staging_profile_browser.mjs
-          echo NOOR_FORMATTER_END
 
   deploy:
     needs: validate

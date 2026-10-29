@@ -218,6 +218,28 @@ def plan_stage_synthetic_smoke(origin, database_id, config, owner_a, owner_b, le
         require_status(code,404,"Other household plan boundary")
         code,_,_=http(origin,"/v1/teacher/learners/"+other_learner+"/plan",opener=owner_b)
         require_status(code,404,"Unassigned sibling plan denied")
+        # The only time the connected Chrome test may use teacher privileges is
+        # while the synthetic qualified primary assignment is still current.
+        # Cookie values remain in the runner's child process env; no screenshots
+        # of cookies, no printed tokens and never user-controlled identities.
+        def synthetic_cookies(opener):
+            processors=[h for h in opener.handlers
+                        if isinstance(h,urllib.request.HTTPCookieProcessor)]
+            if len(processors)!=1:
+                raise RuntimeError("Synthetic session cookie jar unavailable")
+            cookies=[{"name":c.name,"value":c.value}
+                     for c in processors[0].cookiejar if c.secure]
+            if not cookies:
+                raise RuntimeError("No secure synthetic Better Auth session")
+            return json.dumps(cookies)
+        browser_env=dict(os.environ,NOOR_STAGING_ORIGIN=origin+"/",
+                         NOOR_SYNTHETIC_TEACHER_COOKIES=synthetic_cookies(owner_b),
+                         NOOR_SYNTHETIC_STAFF_COOKIES=synthetic_cookies(owner_a))
+        browser=subprocess.run(["node","scripts/noor_staging_teacher_browser.mjs"],
+                               cwd=ROOT,env=browser_env,capture_output=True,text=True)
+        if browser.returncode!=0:
+            raise RuntimeError("Noor connected teacher Chrome staging failed; inspect synthetic screenshot artifact")
+        print(browser.stdout.strip())
         post("/v1/staff/schedule-actions",
             {"action":"revoke","operationId":str(uuid4()),
              "reason":"Cleanup synthetic teacher assignment",

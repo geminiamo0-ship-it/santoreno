@@ -11,6 +11,7 @@ const phoneSeed = randomInt(1000000, 8999998);
 const phone = (offset) => "+1202" + String(phoneSeed + offset).padStart(7, "0");
 const ownerA = phone(0),
   ownerB = phone(1);
+const longLearner = "طالب تجريبي ذو اسم عربي طويل لقياس العرض";
 async function present(selector) {
   return waitFor(
     () => browser.evaluate(`Boolean(document.querySelector(${JSON.stringify(selector)}))`),
@@ -61,11 +62,11 @@ try {
     name: "Synthetic Owner A",
     phoneNumber: ownerA,
     password,
-    learnerName: "Synthetic Dev Learner A",
+    learnerName: longLearner,
     learnerType: "child",
   });
   await present("#learner-switch");
-  assert.deepEqual(await names(), ["Synthetic Dev Learner A"]);
+  assert.deepEqual(await names(), [longLearner]);
   await browser.go("/student/account/");
   await present("#create-learner-form");
   await fill({ name: "Synthetic Dev Learner B", learnerType: "child" }, "#create-learner-form");
@@ -92,6 +93,38 @@ try {
     );
     assert.equal(result.dir, "rtl");
     assert(result.scroll <= result.width, "Account horizontal overflow at " + width);
+    const header = await browser.evaluate(`(()=>{
+      const learner = ${JSON.stringify(longLearner)};
+      const select=document.querySelector('#learner-switch');
+      const label=document.querySelector('[class*="selectedLearnerName"]');
+      const logout=document.querySelector('#account-logout');
+      const bar=document.querySelector('header');
+      return {
+        width:Math.round(select?.getBoundingClientRect().width??0),
+        selectTitle:select?.getAttribute('title'),
+        longNameVisible:label?.textContent===learner &&
+          getComputedStyle(label).display!=='none' &&
+          label.getBoundingClientRect().width>0,
+        logoutAccessible:Boolean(logout&&logout.getBoundingClientRect().width>0),
+        headerBottom:Math.round(bar?.getBoundingClientRect().bottom??0),
+      };
+    })()`);
+    assert.equal(header.selectTitle,longLearner,'Header must expose complete selected learner title');
+    assert(header.logoutAccessible,'Logout control inaccessible at '+width);
+    if(width<=390){
+      assert(header.width>=200,'Clipped narrow learner selector '+width+' '+header.width);
+      assert(header.longNameVisible,'Long Arabic name not visible at '+width);
+      await browser.evaluate("document.querySelector('[aria-controls=student-navigation-mobile]').click()");
+      await present('#student-navigation-mobile');
+      const menu=await browser.evaluate(`(()=>{
+        const bar=document.querySelector('header').getBoundingClientRect();
+        const nav=document.querySelector('#student-navigation-mobile').getBoundingClientRect();
+        return {top:nav.top,headerBottom:bar.bottom,left:nav.left,right:nav.right,width:innerWidth};
+      })()`);
+      assert(menu.top>=menu.headerBottom-2,'Mobile menu covers header at '+width);
+      assert(menu.left>=-1&&menu.right<=menu.width+1,'Mobile menu horizontal overflow '+width);
+      await browser.evaluate("document.querySelector('[aria-controls=student-navigation-mobile]').click()");
+    }
     await browser.screenshot("artifacts/noor-staging-profile/account-" + width + ".png");
   }
   await clickProfile("Synthetic Dev Learner B", "تعديل الاسم");
@@ -111,7 +144,7 @@ try {
   assert.equal(revised.revision, 2);
   await browser.go("/student/");
   await present("#learner-switch");
-  assert.deepEqual(await names(), ["Synthetic Dev Learner A", "Synthetic Dev Learner B Updated"]);
+  assert.deepEqual(await names(), [longLearner, "Synthetic Dev Learner B Updated"]);
   await browser.go("/student/account/");
   await present("#create-learner-form");
   await clickProfile("Synthetic Dev Learner B Updated", "أرشفة الملف");
@@ -123,7 +156,7 @@ try {
   await waitFor(async () => (await names()).length === 1, "remote archive server ACK");
   await browser.go("/student/");
   await present("#learner-switch");
-  assert.deepEqual(await names(), ["Synthetic Dev Learner A"]);
+  assert.deepEqual(await names(), [longLearner]);
   const closed = await browser.evaluate(
     `fetch('/v1/learners/${id}',{cache:'no-store'}).then(r=>r.status)`,
   );

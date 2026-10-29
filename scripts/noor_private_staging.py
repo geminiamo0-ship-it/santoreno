@@ -198,8 +198,12 @@ def main():
         # the fail-closed Worker (no access secret means every path returns 503),
         # then upload BOTH secrets atomically using the pinned 'secret bulk' command.
         wrangler("deploy", "--config", str(config))
+        # New workers.dev routes may initially return an edge 403 until the
+        # route propagates. Both 403 (edge denial) and 503 (our fail-closed gate)
+        # deny the unauthenticated visitor; neither is evidence of readiness.
         initial_status, _, _ = http(origin, "/")
-        require_status(initial_status, 503, "Staging fail-closed before secrets upload")
+        if initial_status not in (403, 503):
+            raise RuntimeError(f"Staging must deny access before secrets (got HTTP {initial_status})")
         wrangler("secret", "bulk", str(secure), "--config", str(config))
         # Never print generated credentials; even a successful smoke does not
         # authorize real child data, production traffic or OTP delivery.

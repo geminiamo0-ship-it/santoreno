@@ -7,7 +7,8 @@ import {openNoorStagingChrome,waitFor} from '../noor/scripts/chrome-local.mjs';
 const base=process.env.NOOR_STAGING_ORIGIN;
 const browser=await openNoorStagingChrome(base);
 const password='Synthetic-Noor-2026-'+randomInt(100000000,999999999)+'!Aa';
-const phone=(offset)=>'+1202'+String(randomInt(1000000,9000000)+offset).padStart(7,'0');
+const phoneSeed=randomInt(1000000,8999998);
+const phone=(offset)=>'+1202'+String(phoneSeed+offset).padStart(7,'0');
 const ownerA=phone(0),ownerB=phone(1);
 async function present(selector){
   return waitFor(()=>browser.evaluate(`Boolean(document.querySelector(${JSON.stringify(selector)}))`),selector);

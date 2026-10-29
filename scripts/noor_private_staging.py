@@ -194,16 +194,23 @@ def main():
         temp = Path(dirname)
         config, secure = write_config(temp, database_id, origin, secrets.token_hex(32), secrets.token_hex(32))
         wrangler("d1", "migrations", "apply", DATABASE_NAME, "--config", str(config), "--remote")
-        wrangler("deploy", "--config", str(config), "--secrets-file", str(secure))
-        # The credential stays within this job and the Cloudflare Worker secret store.
+        # Wrangler 4.45 does not support 'deploy --secrets-file'. First deploy
+        # the fail-closed Worker (no access secret means every path returns 503),
+        # then upload BOTH secrets atomically using the pinned 'secret bulk' command.
+        wrangler("deploy", "--config", str(config))
+        initial_status, _, _ = http(origin, "/")
+        require_status(initial_status, 503, "Staging fail-closed before secrets upload")
+        wrangler("secret", "bulk", str(secure), "--config", str(config))
+        # Never print generated credentials; even a successful smoke does not
+        # authorize real child data, production traffic or OTP delivery.
         credentials = json.loads(secure.read_text())
         smoke(origin, credentials["STAGING_ACCESS_PASSWORD"])
     summary = os.environ.get("GITHUB_STEP_SUMMARY")
     if summary:
         with open(summary, "a") as report:
-            report.write(f"## Noor private staging\n- Noor SHA: \`{NOOR_SHA}\`\n"
-                         f"- Worker (password protected): \`{origin}\`\n"
-                         "- D1: \`noor-core-staging\` (independent of production)\n"
+            report.write(f"## Noor private staging\n- Noor SHA: `{NOOR_SHA}`\n"
+                         f"- Worker (password protected): `{origin}`\n"
+                         "- D1: `noor-core-staging` (independent of production)\n"
                          "- Remote synthetic acceptance: PASS\n- OTP and messages: OFF\n")
     print("PASS: isolated Noor staging Worker/D1 deployed and remotely verified; no production resources used")
 

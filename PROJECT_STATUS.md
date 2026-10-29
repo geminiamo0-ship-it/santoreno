@@ -7,7 +7,6 @@
 - On PR, this workflow runs **syntax-only validation**; Cloudflare deployment runs only after merge to Santoreno main or an authorized manual workflow dispatch. Until an actual remote success report is observed, no resource/deployment should be claimed.
 - No change to Santo Worker, Santo D1/DO/R2/queues, tenants or clinical model; no real student data, OTP, payments or messages. Staging preview password generated per deploy, never logged; operator may rotate via Cloudflare secrets/Access for human access.
 
-
 > **Repository:** `geminiamo0-ship-it/santoreno`
 > **Product:** Santo
 > **Purpose:** First file a new developer, coding agent, or AI assistant should read before changing the repository.

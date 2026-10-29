@@ -266,6 +266,47 @@ def smoke(origin, access_password):
     owner_b = account(f"+120255501{first+1:02d}", "Synthetic Noor QA B")
     status, _, _ = http(origin, "/v1/learners/" + learner_id, access_password, opener=owner_b)
     require_status(status, 404, "Cross-account isolation")
+    # Actual private Quran persistence acceptance on the SAME open Dev origin.
+    # Use disposable owner accounts and the independently verified 6236 anchors.
+    from uuid import uuid4
+    endpoint = "/v1/me/learners/" + learner_id + "/mushaf"
+    def persist(kind, item_id, payload, expected=0, action="put"):
+        command = {"operationId": str(uuid4()), "itemId": item_id,
+                   "kind": kind, "action": action, "page": 1,
+                   "expectedVersion": expected, "payload": payload}
+        code, body, _ = http(origin, endpoint, access_password, "POST", command, owner_a)
+        require_status(code, 201, "Quran "+kind+" "+action)
+        value = json_body(body).get("item", {})
+        if value.get("itemId") != item_id or value.get("version") != expected+1:
+            raise RuntimeError("D1 private Quran save ACK did not match expected revision")
+        return value
+    stroke = "synthetic-ink-" + str(uuid4())
+    persist("pen", stroke, {"color": "#f6cd46", "width": 3,
+                            "points": [{"x": 120, "y": 220}, {"x": 180, "y": 280}]})
+    persist("marker", "synthetic-marker-"+str(uuid4()),
+            {"color": "#86c5a8", "width": 16,
+             "points": [{"x": 180, "y": 320}, {"x": 230, "y": 340}]})
+    note = "synthetic-note-" + str(uuid4())
+    note_data = {"target": {"surah": 1, "ayah": 1, "wordIndex": None},
+                 "color": "#f6cd46", "text": "Synthetic development check"}
+    persist("note", note, note_data)
+    persist("bookmark", "bookmark-1", {})
+    code, page_data, _ = http(origin, endpoint+"?page=1", access_password, opener=owner_a)
+    require_status(code, 200, "Quran stored page read")
+    if not any(item.get("itemId") == stroke for item in json_body(page_data).get("items", [])):
+        raise RuntimeError("Saved Quran pen not present after D1 reload")
+    persist("note", note, {}, 1, "hide")
+    code, index_data, _ = http(origin, endpoint+"?index=1", access_password, opener=owner_a)
+    require_status(code, 200, "Quran stored index read")
+    if not any(item.get("itemId") == note and item.get("version") == 2
+               and item.get("visible") is False
+               for item in json_body(index_data).get("items", [])):
+        raise RuntimeError("Private Quran tombstone not preserved after reload")
+    persist("note", note, note_data, 2)
+    code, _, _ = http(origin, endpoint+"?page=1", access_password, opener=owner_b)
+    require_status(code, 404, "Other account Quran isolation")
+    print("PASS: open Dev account-backed Quran pen/marker/note/bookmark, save/reload/restore, foreign-owner 404")
+    
     status, _, _ = http(origin, "/api/auth/logout", access_password, "POST", {}, owner_a)
     require_status(status, 200, "Logout revocation")
     status, _, _ = http(origin, "/api/auth/session", access_password, opener=owner_a)

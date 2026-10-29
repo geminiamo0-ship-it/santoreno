@@ -257,6 +257,58 @@ def plan_stage_synthetic_smoke(origin, database_id, config, owner_a, owner_b, le
         require_status(code,404,"Unassigned learner assignment denied")
         print("PASS: Remote Noor Phase 05A canonical teacher publish, replay 200, conflict 409, owner readback, isolation 404")
 
+        # Phase 05B: explicitly submitted TEXT-only student task + active Sheikh review.
+        owner_submissions=owner_tasks+"/"+task_id+"/submissions"
+        teacher_reviews=teacher_tasks+"/"+task_id+"/reviews"
+        code,body,_=http(origin,owner_submissions,opener=owner_a)
+        require_status(code,200,"Student empty submission list")
+        if json_body(body).get("attempts")!=[]:
+            raise RuntimeError("New synthetic task already has attempts")
+        code,_,_=http(origin,owner_submissions,opener=owner_b)
+        require_status(code,404,"Unrelated owner cannot read homework submissions")
+        code,_,_=http(origin,teacher_reviews,opener=owner_a)
+        require_status(code,404,"Staff-only account cannot see submitted teacher notes")
+        note={"operationId":str(uuid4()),"note":"Synthetic learner confirms preparation; NO AUDIO"}
+        post(owner_submissions,note,owner_b,404)
+        post(owner_submissions,{**note,"actorAuthSubject":"forged"},owner_a,400)
+        submitted=post(owner_submissions,note,owner_a,201)
+        submission_id=submitted.get("submissionId")
+        if not isinstance(submission_id,str) or not re.fullmatch(r"[a-fA-F0-9-]{36}",submission_id) or submitted.get("attempt")!=1:
+            raise RuntimeError("Student submit returned invalid server receipt")
+        duplicate=post(owner_submissions,note,owner_a,200)
+        if duplicate.get("submissionId")!=submission_id:
+            raise RuntimeError("Student submission did not replay exactly")
+        post(owner_submissions,{**note,"note":"changed"},owner_a,409)
+        post(owner_submissions,{"operationId":str(uuid4()),"note":"duplicate attempt"},owner_a,409)
+        code,body,_=http(origin,teacher_reviews,opener=owner_b)
+        require_status(code,200,"Teacher submitted text is visible")
+        attempts=json_body(body).get("attempts")
+        if len(attempts)!=1 or attempts[0].get("id")!=submission_id or attempts[0].get("decision") is not None:
+            raise RuntimeError("Teacher cannot reload pending student submission")
+        review={"operationId":str(uuid4()),"submissionId":submission_id,
+                "decision":"retry_requested","feedback":"Synthetic correction: revisit the first ayah"}
+        review_id=post(teacher_reviews,review,owner_b,201).get("reviewId")
+        if not isinstance(review_id,str):
+            raise RuntimeError("Teacher review missing server ACK")
+        if post(teacher_reviews,review,owner_b,200).get("reviewId")!=review_id:
+            raise RuntimeError("Teacher review replay mismatch")
+        post(teacher_reviews,{**review,"operationId":str(uuid4()),"decision":"accepted"},owner_b,409)
+        second=post(owner_submissions,{"operationId":str(uuid4()),"note":"Synthetic retry after feedback"},owner_a,201)
+        second_id=second.get("submissionId")
+        if second.get("attempt")!=2 or not isinstance(second_id,str):
+            raise RuntimeError("Second student attempt not allowed after retry")
+        post(teacher_reviews,{"operationId":str(uuid4()),"submissionId":second_id,
+                              "decision":"accepted","feedback":"Reviewed and accepted"},owner_b,201)
+        code,body,_=http(origin,owner_submissions,opener=owner_a)
+        require_status(code,200,"Owner sees immutable review history")
+        attempts=json_body(body).get("attempts",[])
+        if (len(attempts)!=2 or attempts[0].get("decision")!="accepted" or
+                attempts[1].get("decision")!="retry_requested"):
+            raise RuntimeError("Student sees incorrect attempt/review history")
+        post(owner_submissions,{"operationId":str(uuid4()),"note":"after accepted"},owner_a,409)
+        print("PASS: Noor Phase 05B remote student submit/replay and teacher retry+accept, immutable history and owner isolation")
+
+
 
         if os.environ.get("NOOR_STAGING_BROWSER_QA")=="true":
             # The only time the connected Chrome test may use teacher privileges is
@@ -292,6 +344,11 @@ def plan_stage_synthetic_smoke(origin, database_id, config, owner_a, owner_b, le
         require_status(code,404,"Former primary teacher replay rejected")
         code,_,_=http(origin,teacher_tasks,method="POST",body=task,opener=owner_b)
         require_status(code,404,"Revoked teacher cannot replay published assignment")
+        code,_,_=http(origin,teacher_reviews,opener=owner_b)
+        require_status(code,404,"Revoked teacher cannot read past learner submission")
+        code,_,_=http(origin,teacher_reviews,method="POST",body=review,opener=owner_b)
+        require_status(code,404,"Revoked teacher cannot replay teacher review")
+
         role("suspend")
         print("PASS: Remote Noor 0009 plan, synthetic staff-managed teacher, owner read, stale 409, replay and revoke 404")
     finally:

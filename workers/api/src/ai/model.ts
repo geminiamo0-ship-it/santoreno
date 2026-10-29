@@ -32,6 +32,22 @@ function modelText(raw: unknown): string | null {
     return JSON.stringify(response);
   }
 
+  if (typeof root.output_text === "string") return root.output_text;
+  if (Array.isArray(root.output)) {
+    const parts: string[] = [];
+    for (const output of root.output) {
+      const message = asRecord(output);
+      if (message?.type !== "message" || !Array.isArray(message.content)) continue;
+      for (const item of message.content) {
+        const content = asRecord(item);
+        if (content?.type === "output_text" && typeof content.text === "string") {
+          parts.push(content.text);
+        }
+      }
+    }
+    if (parts.length) return parts.join("");
+  }
+
   const choices = root.choices;
   if (Array.isArray(choices) && choices.length > 0) {
     const first = asRecord(choices[0]);
@@ -138,6 +154,51 @@ export class CloudflareWorkersAiModel implements ModelPort {
   }
 }
 
-export function createGroundedModel(env: Pick<SantoBindings, "AI" | "SANTO_AI_MODEL">): ModelPort {
+/** Third-party Cloudflare AI Gateway model; staging-only preview until live safety gates pass. */
+export class CloudflareLunaModel implements ModelPort {
+  constructor(private readonly ai: WorkersAiLike | undefined) {}
+
+  async generate(prompt: string): Promise<GroundedModelDraft> {
+    if (!this.ai) {
+      throw new GroundedAiError(503, "AI_NOT_CONFIGURED", "AI binding is required");
+    }
+    try {
+      // Cloudflare's GPT-6 Luna uses the Responses format, not the
+      // legacy Workers AI response_format / max_tokens fields.
+      const raw = await this.ai.run("openai/gpt-6-luna", {
+        input: prompt,
+        instructions:
+          "You are Santo Medical Education Copilot, an expert medical tutor. Teach clearly and adapt your depth to the question. For Arabic questions use warm, natural Egyptian Arabic while preserving precise English medical terms; for English questions use professional medical English. In grounded mode rely ONLY on supplied evidence, never invent source IDs, diagnoses, images or links. Answer valid JSON only and use citation_ids only from the supplied evidence. For explicitly declared GENERAL_MEDICAL_KNOWLEDGE use no Santo citations. Refuse to invent missing evidence.",
+        max_output_tokens: GROUNDED_MODEL_POLICY.maxTokens,
+        reasoning: { effort: "none" },
+        service_tier: "fast",
+        store: false,
+        text: {
+          format: {
+            type: "json_schema",
+            name: "santo_grounded",
+            strict: true,
+            schema: groundedResponseSchema,
+          },
+        },
+      });
+      const text = modelText(raw);
+      if (!text) {
+        throw new GroundedAiError(502, "MODEL_RESPONSE_INVALID", "Model returned no text");
+      }
+      return parseDraft(text);
+    } catch (error) {
+      if (error instanceof GroundedAiError) throw error;
+      throw new GroundedAiError(502, "MODEL_FAILED", "Luna preview model request failed");
+    }
+  }
+}
+
+export function createGroundedModel(
+  env: Pick<SantoBindings, "AI" | "SANTO_AI_MODEL" | "SANTO_ENV" | "SANTO_LUNA_PREVIEW">,
+): ModelPort {
+  if (env.SANTO_ENV === "staging" && env.SANTO_LUNA_PREVIEW === "true") {
+    return new CloudflareLunaModel(env.AI);
+  }
   return new CloudflareWorkersAiModel(env.AI, env.SANTO_AI_MODEL);
 }

@@ -1,0 +1,46 @@
+name: Santo Existing Staging Tenant Readiness (Read-Only)
+on:
+  push:
+    branches: [feat/96-luna-professor-staging]
+    paths: [.github/workflows/santo-staging-tenant-readiness-once.yml]
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - name: Check existing Staging Royal tenant and active credentials without revealing keys
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd workers/api
+          pnpm exec wrangler d1 execute santo-control-plane-staging --env staging --remote --json --command="SELECT t.name, t.slug, t.status, t.workos_org_id, (SELECT COUNT(*) FROM tenant_credentials c WHERE c.tenant_id=t.id AND c.status='active') AS active_credentials, (SELECT COUNT(*) FROM tenant_members m WHERE m.tenant_id=t.id) AS owners, (SELECT COUNT(*) FROM external_users u WHERE u.tenant_id=t.id) AS external_users FROM tenants t" > "$RUNNER_TEMP/staging-tenant-readiness.json"
+          python - <<'PY'
+          import json,os,pathlib
+          raw=json.loads((pathlib.Path(os.environ['RUNNER_TEMP'])/'staging-tenant-readiness.json').read_text())
+          rows=[]
+          for item in (raw if isinstance(raw,list) else [raw]):
+              if not isinstance(item,dict):continue
+              result=item.get('results') or item.get('result') or []
+              if isinstance(result,dict):result=result.get('results') or []
+              if isinstance(result,list):rows.extend(r for r in result if isinstance(r,dict) and 'name' in r)
+          for row in rows:
+              print('STAGING_TENANT_READINESS',json.dumps({k:row.get(k) for k in ('name','slug','status','active_credentials','owners','external_users')},ensure_ascii=False))
+          if not any('royal' in str(r.get('name','')).lower() and r.get('status')=='active' and r.get('active_credentials',0)>=1 for r in rows):
+              print('BLOCKER: Royal Bank Staging missing active tenant or credential')
+              raise SystemExit(3)
+          print('ROYAL_BANK_STAGING_TENANT_ACTIVE_WITH_CREDENTIAL: true')
+          PY
+      - name: Destroy read-only output file
+        if: always()
+        run: rm -f "$RUNNER_TEMP/staging-tenant-readiness.json"

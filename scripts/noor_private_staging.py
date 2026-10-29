@@ -94,7 +94,7 @@ def write_config(target, database_id, origin, access_password, auth_secret):
     return config, secure
 
 
-def http(origin, path, secret=None, method="GET", body=None, opener=None):
+def http(origin, path, secret=None, method="GET", body=None, opener=None, max_bytes=1024 * 128):
     # A browser-like User-Agent avoids Cloudflare edge filtering Python's
     # default urllib user agent; this is synthetic QA, never real user data.
     headers = {"Accept": "application/json",
@@ -111,9 +111,9 @@ def http(origin, path, secret=None, method="GET", body=None, opener=None):
     client = opener or urllib.request.build_opener()
     try:
         with client.open(request, timeout=25) as response:
-            return response.status, response.read(1024 * 128), response.headers
+            return response.status, response.read(max_bytes), response.headers
     except urllib.error.HTTPError as error:
-        return error.code, error.read(1024 * 128), error.headers
+        return error.code, error.read(max_bytes), error.headers
 
 
 def require_status(status, expected, label):
@@ -145,7 +145,9 @@ def smoke(origin, access_password):
             raise RuntimeError("Public demo did not return HTML: " + path)
     # Owner UX acceptance: the refreshed lesson preview must actually include
     # the fullscreen focus control, not an older deployed static build.
-    status, classroom, _ = http(origin, "/classroom/")
+    # Next.js static HTML can contain >128KB of serialized React state.
+    # Truncating the body hid the new Quran component after the header.
+    status, classroom, _ = http(origin, "/classroom/", max_bytes=1024 * 1024)
     require_status(status, 200, "Immersive classroom preview")
     if "وضع الحصة".encode("utf-8") not in classroom:
         raise RuntimeError("Deployed classroom is missing the immersive lesson mode")

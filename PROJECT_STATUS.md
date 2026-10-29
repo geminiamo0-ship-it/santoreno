@@ -1,3 +1,9 @@
+## Noor Phase 02A teacher plan staging gate — #244 (branch only)
+
+- Noor merged PR #165 SHA `87023653c5a8cc75ca9aea5a98e52a8ed034ee83` passed [postmerge Verify #40961335247](https://github.com/geminiamo0-ship-it/nour-elquran/actions/runs/40961335247) attempt 2 (4/4); first Chrome physical-tap smoke was timing-sensitive, rerun passed.
+- Santoreno #244 branch adds remote synthetic teacher qualification, assignment, academic plan CAS, owner/student read, foreign-owner 404, revoked-teacher 404 and **finally** cleanup of test grants/teacher status. Only the pinned Noor `noor-core-staging` D1 / `noor-site-staging` Worker may be used.
+- **No remote test executed or accepted yet from this branch.** Deploy only after Santoreno exact-head Verify and source-main gate; no Production/Santo or actual learner data. This currently verifies API and D1, not connected teacher UI on remote Chrome. Track the UI follow-up in Noor #162.
+
 ## Noor D1 learner lifecycle remote acceptance — #242 (implementation branch, not deployed)
 
 - Noor parent #155 / #157, Draft PR #158. Santoreno branch `feat/242-noor-profile-staging-smoke` extends the **existing** `noor-site-staging` deployment script with synthetic HTTP rename/CAS/idempotency/404/archive and read-only D1 history-count proof. The Worker and database remain the dedicated Noor development resources.

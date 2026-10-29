@@ -76,7 +76,7 @@ jobs:
           corepack prepare pnpm@10.22.0 --activate
           cd noor
           pnpm install --frozen-lockfile
-          NEXT_PUBLIC_ACCOUNT_UI=true pnpm --filter @noor/web build
+          NEXT_PUBLIC_ACCOUNT_UI=true NEXT_PUBLIC_QURAN_PERSISTENCE_ENABLED=true pnpm --filter @noor/web build
       - name: Deploy open developer staging and verify application account security
         shell: bash
         run: |

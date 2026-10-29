@@ -11,6 +11,7 @@ const phoneSeed = randomInt(1000000, 8999998);
 const phone = (offset) => "+1202" + String(phoneSeed + offset).padStart(7, "0");
 const ownerA = phone(0),
   ownerB = phone(1);
+const longLearner = "طالب تجريبي ذو اسم عربي طويل لقياس العرض";
 async function present(selector) {
   return waitFor(
     () => browser.evaluate(`Boolean(document.querySelector(${JSON.stringify(selector)}))`),
@@ -61,11 +62,11 @@ try {
     name: "Synthetic Owner A",
     phoneNumber: ownerA,
     password,
-    learnerName: "Synthetic Dev Learner A",
+    learnerName: longLearner,
     learnerType: "child",
   });
   await present("#learner-switch");
-  assert.deepEqual(await names(), ["Synthetic Dev Learner A"]);
+  assert.deepEqual(await names(), [longLearner]);
   await browser.go("/student/account/");
   await present("#create-learner-form");
   await fill({ name: "Synthetic Dev Learner B", learnerType: "child" }, "#create-learner-form");
@@ -74,6 +75,20 @@ try {
     "fetch('/v1/me/learners',{cache:'no-store'}).then(r=>r.json()).then(d=>d.learners.find(l=>l.name==='Synthetic Dev Learner B')?.id)",
   );
   assert.match(id, /^[0-9a-f-]{36}$/i);
+  await browser.evaluate(`(()=>{
+    const select=document.querySelector('#learner-switch');
+    const option=[...select.options].find(o=>o.textContent===${JSON.stringify(longLearner)});
+    if(!option)throw Error('Missing synthetic learner');
+    select.value=option.value;
+    select.dispatchEvent(new Event('change',{bubbles:true}));
+  })()`);
+  await waitFor(
+    () =>
+      browser.evaluate(
+        `document.querySelector('#learner-switch')?.title===${JSON.stringify(longLearner)}`,
+      ),
+    "Long Arabic learner selected",
+  );
   for (const [width, height] of [
     [360, 667],
     [390, 844],
@@ -92,6 +107,28 @@ try {
     );
     assert.equal(result.dir, "rtl");
     assert(result.scroll <= result.width, "Account horizontal overflow at " + width);
+    const selected = await browser.evaluate(`(()=>{
+      const select=document.querySelector('#learner-switch');
+      const label=document.querySelector('[class*="selectedLearnerName"]');
+      return {width:select.getBoundingClientRect().width,
+        visible:label?.textContent===${JSON.stringify(longLearner)} &&
+          getComputedStyle(label).display!=='none'};
+    })()`);
+    if (width <= 390) {
+      assert(selected.width >= 200, "Mobile learner selector clipped at " + width);
+      assert(selected.visible, "Arabic learner name not visible at " + width);
+      await browser.evaluate(
+        "document.querySelector('[aria-controls=student-navigation-mobile]').click()",
+      );
+      await present("#student-navigation-mobile");
+      const menuClear = await browser.evaluate(
+        "document.querySelector('#student-navigation-mobile').getBoundingClientRect().top >= document.querySelector('header').getBoundingClientRect().bottom - 2",
+      );
+      assert(menuClear, "Mobile navigation overlaps header at " + width);
+      await browser.evaluate(
+        "document.querySelector('[aria-controls=student-navigation-mobile]').click()",
+      );
+    }
     await browser.screenshot("artifacts/noor-staging-profile/account-" + width + ".png");
   }
   await clickProfile("Synthetic Dev Learner B", "تعديل الاسم");
@@ -111,7 +148,7 @@ try {
   assert.equal(revised.revision, 2);
   await browser.go("/student/");
   await present("#learner-switch");
-  assert.deepEqual(await names(), ["Synthetic Dev Learner A", "Synthetic Dev Learner B Updated"]);
+  assert.deepEqual(await names(), [longLearner, "Synthetic Dev Learner B Updated"]);
   await browser.go("/student/account/");
   await present("#create-learner-form");
   await clickProfile("Synthetic Dev Learner B Updated", "أرشفة الملف");
@@ -123,7 +160,7 @@ try {
   await waitFor(async () => (await names()).length === 1, "remote archive server ACK");
   await browser.go("/student/");
   await present("#learner-switch");
-  assert.deepEqual(await names(), ["Synthetic Dev Learner A"]);
+  assert.deepEqual(await names(), [longLearner]);
   const closed = await browser.evaluate(
     `fetch('/v1/learners/${id}',{cache:'no-store'}).then(r=>r.status)`,
   );

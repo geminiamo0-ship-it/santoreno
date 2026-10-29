@@ -1,3 +1,9 @@
+## Noor responsive account remote browser UX gate — #246 (branch only)
+
+- Noor [#160](https://github.com/geminiamo0-ship-it/nour-elquran/issues/160) and PR #166 address the connected mobile header learner name that was clipped in actual Dev Chrome evidence. The Santoreno branch `test/246-noor-mobile-account-staging` extends the **existing** synthetic Chrome test with a long Arabic name, five responsive widths, selector visibility, menu placement, logout access and no horizontal overflow.
+- Scope stays on `noor-site-staging` and `noor-core-staging`; the updated Noor-only workflow path filter will run CI validation on PR and actual deployment only on Santoreno main after verifying the Noor source main SHA. No other staging or Santo Production service.
+- **Not yet remotely deployed or visually accepted**. Next: exact-head Santoreno Verify + staging validate; merge only after Noor #166 merges with successful postmerge Verify; inspect remote Chrome screenshots in Actions artifact before closing #246 and #160.
+
 ## Noor Phase 02A teacher plan staging gate — #244 (branch only)
 
 - Noor merged PR #165 SHA `87023653c5a8cc75ca9aea5a98e52a8ed034ee83` passed [postmerge Verify #40961335247](https://github.com/geminiamo0-ship-it/nour-elquran/actions/runs/40961335247) attempt 2 (4/4); first Chrome physical-tap smoke was timing-sensitive, rerun passed.

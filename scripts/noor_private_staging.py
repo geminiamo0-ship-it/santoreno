@@ -154,7 +154,12 @@ def smoke(origin, access_password):
     for marker in ("ضبط الوقت التجريبي", "الصفحة السابقة", "الصفحة التالية"):
         if marker.encode("utf-8") not in classroom:
             raise RuntimeError("Stale classroom staging: missing compact UI marker " + marker)
-    print("PASS: Sheikh/classroom preview HTTP 200, focus toggle, compact clock and Quran navigation")
+    # Exact deployed markup from Noor PR #133: the old Quran component used
+    # duplicated mobile height restrictions and kept the Quran tiny. Reject
+    # a stale Cloudflare Pages asset/SSR build, not just an HTTP 200 document.
+    if b'data-quran-layout="viewport-fit"' not in classroom:
+        raise RuntimeError("Staging still serves old tiny-Quran layout")
+    print("PASS: deployed classroom contains new viewport-fit Quran and compact controls")
 
 
     built = NOOR / "apps/web/out/_next/static"

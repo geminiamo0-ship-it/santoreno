@@ -7,6 +7,7 @@ on:
       - .github/workflows/noor-private-staging.yml
       - scripts/noor_private_staging.py
       - scripts/noor_staging_profile_browser.mjs
+      - scripts/noor_staging_teacher_browser.mjs
   workflow_dispatch:
   pull_request:
     branches: [main]
@@ -33,7 +34,9 @@ jobs:
       - name: Unit test canonical staging source/identity gates offline
         run: python3 -m unittest discover -s tests -p 'test_noor_canonical_staging.py' -v
       - name: Syntax check remote-staging browser acceptance
-        run: node --check scripts/noor_staging_profile_browser.mjs
+        run: |
+          node --check scripts/noor_staging_profile_browser.mjs
+          node --check scripts/noor_staging_teacher_browser.mjs
 
   deploy:
     needs: validate
@@ -80,7 +83,7 @@ jobs:
           corepack prepare pnpm@10.22.0 --activate
           cd noor
           pnpm install --frozen-lockfile
-          NEXT_PUBLIC_ACCOUNT_UI=true NEXT_PUBLIC_QURAN_PERSISTENCE_ENABLED=true pnpm --filter @noor/web build
+          NEXT_PUBLIC_ACCOUNT_UI=true NEXT_PUBLIC_QURAN_PERSISTENCE_ENABLED=true NEXT_PUBLIC_TEACHER_READONLY_ENABLED=true pnpm --filter @noor/web build
       - name: Deploy open developer staging and verify application account security
         shell: bash
         run: |
@@ -92,5 +95,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: noor-profile-remote-browser
-          path: artifacts/noor-staging-profile/*.png
+          path: |
+            artifacts/noor-staging-profile/*.png
+            artifacts/noor-staging-teacher/*.png
           if-no-files-found: warn

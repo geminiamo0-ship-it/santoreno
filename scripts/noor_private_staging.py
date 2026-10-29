@@ -128,11 +128,22 @@ def json_body(content):
 def smoke(origin, access_password):
     access_password = None  # This development deployment has no staging-wide Basic prompt.
     # Development site: regular application login and learner ownership still apply.
-    for path in ("/", "/student/", "/student/mushaf/"):
+    # The owner requested a browser preview of the *current* Noor main Sheikh
+    # portal and interactive classroom. Verify all static routes against the
+    # deployed Cloudflare Worker, not just CI's local Next.js build.
+    preview_pages = (
+        "/", "/student/", "/student/mushaf/",
+        "/teacher/", "/teacher/schedule/", "/teacher/students/",
+        "/teacher/preparation/", "/teacher/reports/",
+        "/teacher/assignments/", "/teacher/notifications/", "/teacher/cases/",
+        "/classroom/",
+    )
+    for path in preview_pages:
         status, body, _ = http(origin, path)
         require_status(status, 200, "Public demo page: " + path)
         if b"<html" not in body.lower():
             raise RuntimeError("Public demo did not return HTML: " + path)
+    print("PASS: all Sheikh portal and classroom preview routes are HTTP 200")
 
     built = NOOR / "apps/web/out/_next/static"
     assets = list(built.rglob("*.js"))

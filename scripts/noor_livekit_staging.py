@@ -132,6 +132,12 @@ def verify_livekit_gateway(origin, owner, teacher, learner_id, other_learner,
             safe=json_body(raw).get("code")
             if safe not in ("LIVEKIT_PROVIDER_AUTH_REJECTED",
                             "LIVEKIT_PROVIDER_UNAVAILABLE",
+                            "LIVEKIT_PROVIDER_BAD_REQUEST",
+                            "LIVEKIT_PROVIDER_RATE_LIMITED",
+                            "LIVEKIT_PROVIDER_HTTP_4XX",
+                            "LIVEKIT_PROVIDER_UPSTREAM_5XX",
+                            "LIVEKIT_PROVIDER_BAD_RESPONSE",
+                            "LIVEKIT_PROVIDER_NETWORK_ERROR",
                             "LIVEKIT_NOT_CONFIGURED"):
                 safe="UNRECOGNIZED_SAFE_STATUS"
             raise RuntimeError("CR-02A Dev provider probe failed: "+safe)

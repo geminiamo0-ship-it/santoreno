@@ -43,7 +43,8 @@ jobs:
       - name: Compile isolated Noor staging script without network or credentials
         run: python3 -m py_compile scripts/noor_private_staging.py scripts/noor_report_staging.py
       - name: Unit test canonical staging source/identity gates offline
-        run: python3 -m unittest discover -s tests -p 'test_noor_canonical_staging.py' -v
+        run: |
+          python3 -m unittest discover -s tests -p 'test_noor_canonical_staging.py' -v
           python3 -m unittest discover -s tests -p 'test_noor_report_staging.py' -v
       - name: Syntax check remote-staging browser acceptance
         run: |

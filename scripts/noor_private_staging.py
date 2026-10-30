@@ -129,6 +129,7 @@ def plan_stage_synthetic_smoke(origin, database_id, config, owner_a, owner_b, le
     """#244: authorized synthetic teacher plan end-to-end on dedicated Noor Staging only."""
     from noor_report_staging import verify_report_flow
     from noor_notebook_staging import verify_notebook_flow
+    from noor_quran_archive_staging import verify_archive_readonly
     from uuid import uuid4
     def subject(opener):
         status, body, _ = http(origin, "/api/auth/session", opener=opener)
@@ -315,6 +316,9 @@ def plan_stage_synthetic_smoke(origin, database_id, config, owner_a, owner_b, le
         verify_notebook_flow(
             origin,database_id,owner_a,owner_b,learner_id,other_learner,
             report_lesson_id,http,post,d1_read_only,require_status,json_body)
+        verify_archive_readonly(
+            origin,database_id,owner_a,owner_b,learner_id,other_learner,
+            report_lesson_id,http,d1_read_only,require_status,json_body)
 
 
 

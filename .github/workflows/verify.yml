@@ -136,6 +136,16 @@ jobs:
         if: steps.workspace.outputs.exists == 'true'
         run: pnpm install --frozen-lockfile
 
+      - name: Temporary Quran script formatter output
+        if: steps.workspace.outputs.exists == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo QURAN_FORMAT_START
+          pnpm exec prettier scripts/noor_staging_livekit_browser.mjs | base64 -w0
+          echo
+          echo QURAN_FORMAT_END
+
       - name: Lint
         if: steps.workspace.outputs.exists == 'true'
         run: pnpm lint

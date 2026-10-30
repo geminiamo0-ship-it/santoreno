@@ -223,7 +223,9 @@ def main():
 if __name__=="__main__":
     try:main()
     except Exception as error:
-        status = re.search(r"HTTP [1-5]\\d{2}", str(error))
+        # All script-owned RuntimeError strings omit credentials and bearer tokens.
+        # Redact variable URL path segments before a safe diagnostic reaches CI.
+        safe_reason = re.sub(r"/[A-Za-z0-9_-]{16,}", "/[ID]", str(error))[:180]
         print("ERROR: safe synthetic owner demo provisioning failed; credentials were not published; "
-              + (status.group(0) if status else type(error).__name__), file=sys.stderr)
+              + (safe_reason if isinstance(error, RuntimeError) else type(error).__name__), file=sys.stderr)
         raise SystemExit(1)

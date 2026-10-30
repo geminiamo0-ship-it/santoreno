@@ -55,12 +55,14 @@ const mediaReady = (browser) =>
 const remoteVideoReady = (browser) =>
   browser.evaluate(
     "(()=>{const v=document.querySelector('[aria-label=\"فيديو الطرف الآخر\"] video');" +
-      "return !!v&&v.readyState>=2&&v.videoWidth>0&&v.videoHeight>0})()",
+      "return !!v&&v.readyState>=2&&v.videoWidth>0&&v.videoHeight>0&&" +
+      "v.getBoundingClientRect().width>40&&v.getBoundingClientRect().height>40})()",
   );
 const localVideoReady = (browser) =>
   browser.evaluate(
     "(()=>{const v=document.querySelector('[aria-label=\"معاينة كاميرتي\"] video');" +
-      "return !!v&&v.readyState>=2&&v.videoWidth>0})()",
+      "return !!v&&v.readyState>=2&&v.videoWidth>0&&" +
+      "v.getBoundingClientRect().width>40&&v.getBoundingClientRect().height>40})()",
   );
 const remoteAudioExists = (browser) =>
   browser.evaluate("!!document.querySelector('[aria-label=\"صوت الطرف الآخر\"] audio')");

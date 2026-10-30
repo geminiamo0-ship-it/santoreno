@@ -136,6 +136,14 @@ jobs:
         if: steps.workspace.outputs.exists == 'true'
         run: pnpm install --frozen-lockfile
 
+      - name: Temporary exact formatting extraction for Noor test
+        if: steps.workspace.outputs.exists == 'true'
+        run: |
+          echo NOOR_FORMAT_BEGIN
+          pnpm exec prettier scripts/noor_staging_livekit_browser.mjs | base64 -w0
+          echo
+          echo NOOR_FORMAT_DONE
+
       - name: Lint
         if: steps.workspace.outputs.exists == 'true'
         run: pnpm lint

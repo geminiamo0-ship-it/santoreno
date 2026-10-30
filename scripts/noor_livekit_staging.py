@@ -127,7 +127,15 @@ def verify_livekit_gateway(origin, owner, teacher, learner_id, other_learner,
         # or log a participant JWT/LiveKit key.
         provider="/v1/teacher/lessons/"+lesson_id+"/livekit-provider-check"
         code,raw,headers=http(origin,provider,method="POST",body={},opener=teacher)
-        require_status(code,200,"CR-02A signed Dev read-only provider connectivity")
+        if code!=200:
+            # Only this exact internal enum can enter CI logs: no raw HTTP data.
+            safe=json_body(raw).get("code")
+            if safe not in ("LIVEKIT_PROVIDER_AUTH_REJECTED",
+                            "LIVEKIT_PROVIDER_UNAVAILABLE",
+                            "LIVEKIT_NOT_CONFIGURED"):
+                safe="UNRECOGNIZED_SAFE_STATUS"
+            raise RuntimeError("CR-02A Dev provider probe failed: "+safe)
+
         if (json_body(raw).get("code")!="LIVEKIT_PROVIDER_REACHABLE" or
             headers.get("Cache-Control")!="no-store"):
             raise RuntimeError("CR-02A provider returned invalid safe status")

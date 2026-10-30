@@ -368,6 +368,18 @@ def plan_stage_synthetic_smoke(origin, database_id, config, owner_a, owner_b, le
             origin,database_id,owner_a,owner_b,learner_id,other_learner,
             report_lesson_id,http,d1_read_only,require_status,json_body)
 
+        # Capture the exact approved immutable snapshot BEFORE revoking the
+        # Sheikh. Signed classroom End auto-seeds draft revision 1, so the
+        # second approved revision is 3 (legacy fixture used revision 2).
+        # Compare full snapshot, not an outdated hardcoded revision number.
+        code,raw,_=http(origin,"/v1/me/learners/"+learner_id+"/reports",opener=owner_a)
+        require_status(code,200,"Capture approved report before teacher revocation")
+        approved_before=[x for x in json_body(raw).get("reports",[])
+                         if x.get("lessonId")==report_lesson_id]
+        if len(approved_before)!=1 or not isinstance(approved_before[0].get("revision"),int):
+            raise RuntimeError("Missing single approved report before teacher revocation")
+
+
 
 
 
@@ -410,9 +422,10 @@ def plan_stage_synthetic_smoke(origin, database_id, config, owner_a, owner_b, le
         require_status(code,404,"Revoked Sheikh cannot publish old report")
         code,raw,_=http(origin,"/v1/me/learners/"+learner_id+"/reports",opener=owner_a)
         require_status(code,200,"Owner approved report survives teacher revocation")
-        approved=json_body(raw).get("reports",[])
-        if len(approved)!=1 or approved[0].get("revision")!=2:
-            raise RuntimeError("Archived immutable approved report lost after Sheikh revocation")
+        approved=[x for x in json_body(raw).get("reports",[])
+                  if x.get("lessonId")==report_lesson_id]
+        if approved!=approved_before:
+            raise RuntimeError("Archived immutable approved report changed after Sheikh revocation")
 
         code,_,_=http(origin,write_path,method="POST",body=command,opener=owner_b)
         require_status(code,404,"Former primary teacher replay rejected")

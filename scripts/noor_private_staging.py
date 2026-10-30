@@ -367,6 +367,55 @@ def plan_stage_synthetic_smoke(origin, database_id, config, owner_a, owner_b, le
                  staff_subject+"','"+teacher_subject+"')")
 
 
+def verify_disabled_recitation_audio(origin, database_id, owner, foreign, learner_ids):
+    """#254: remote Noor-only owner policy remains DISABLED after 0012 migration.
+
+    No recordings, no mutable consent, no R2 objects and no browser sessions.
+    """
+    if DATABASE_NAME != "noor-core-staging" or WORKER_NAME != "noor-site-staging":
+        raise RuntimeError("Noor audio QA requires dedicated isolated Dev resources")
+    versions = d1_read_only(database_id,
+        "SELECT version FROM noor_schema_meta WHERE component='recitation_audio_privacy'")
+    if versions != [{"version": 1}]:
+        raise RuntimeError("Noor locked recitation privacy migration 0012 not applied")
+    locks = d1_read_only(database_id,
+        "SELECT name FROM sqlite_master WHERE type='trigger' AND name IN "
+        "('recitation_consent_grant_locked','recitation_audio_upload_locked') ORDER BY name")
+    names = [row.get("name") for row in locks]
+    if names != ["recitation_audio_upload_locked", "recitation_consent_grant_locked"]:
+        raise RuntimeError("Noor staging audio D1 grant or upload lock missing")
+    count = d1_read_only(database_id,
+        "SELECT COUNT(*) AS n FROM recitation_audio_assets")
+    if count != [{"n": 0}]:
+        raise RuntimeError("Noor Dev unexpectedly contains private audio asset metadata")
+
+    if len(learner_ids) != 2 or len(set(learner_ids)) != 2:
+        raise RuntimeError("Noor synthetic sibling QA requires exactly two learners")
+    for learner_id in learner_ids:
+        if not isinstance(learner_id, str) or not re.fullmatch(r"[0-9a-f-]{36}", learner_id):
+            raise RuntimeError("Invalid synthetic learner ID")
+        path = "/v1/me/learners/" + learner_id + "/recitation-audio-policy"
+        code, body, headers = http(origin, path, opener=owner)
+        require_status(code, 200, "Owned learner audio capability read")
+        response = json_body(body)
+        if (response.get("uploadEnabled") is not False or
+                response.get("consentStatus") != "not_available" or
+                response.get("storageStatus") != "not_configured" or
+                response.get("code") != "AUDIO_PRIVACY_APPROVAL_REQUIRED"):
+            raise RuntimeError("Noor Dev returned non-disabled recitation capability")
+        if headers.get("Cache-Control") != "no-store":
+            raise RuntimeError("Noor recitation policy response must be non-cacheable")
+        code, _, _ = http(origin, path, opener=foreign)
+        require_status(code, 404, "Foreign owner private audio policy")
+        code, _, _ = http(origin, path)
+        require_status(code, 401, "Anonymous private audio policy")
+        code, _, _ = http(origin, path, method="POST",
+                           body={"grant": True}, opener=owner)
+        require_status(code, 405, "No public guardian grant endpoint")
+    print("PASS: Noor Dev 0012 locked, owner/sibling disabled audio policy,"
+          " other owner 404, anonymous 401, grant POST 405, no R2 assets")
+
+
 def smoke(origin, access_password, database_id, config):
     access_password = None  # This development deployment has no staging-wide Basic prompt.
     # Development site: regular application login and learner ownership still apply.
@@ -508,6 +557,10 @@ def smoke(origin, access_password, database_id, config):
     owner_b = account(f"+1202{first+1:07d}", "Synthetic Noor QA B")
     status, _, _ = http(origin, "/v1/learners/" + learner_id, access_password, opener=owner_b)
     require_status(status, 404, "Cross-account isolation")
+    # #254: only a read-only, disabled audio-policy API is allowed.
+    # Verify the existing Dev D1 locks and BOTH synthetic sibling profiles.
+    synthetic_learners = [row["id"] for row in json_body(result)["learners"]]
+    verify_disabled_recitation_audio(origin, database_id, owner_a, owner_b, synthetic_learners)
     # Actual private Quran persistence acceptance on the SAME open Dev origin.
     # Use disposable owner accounts and the independently verified 6236 anchors.
     from uuid import uuid4

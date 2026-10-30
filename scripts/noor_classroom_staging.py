@@ -69,10 +69,10 @@ def verify_classroom_room(origin,database_id,owner,teacher,learner_id,other_lear
     if json_body(raw).get("presence",{}).get("bothPresent") is not True:
         raise RuntimeError("CR-01 lost live teacher/student DO leases")
 
-    # CR-02A cannot mint media token while LiveKit Cloud credentials are
-    # deliberately absent; both parties are currently joined and signed.
-    from noor_livekit_staging import verify_livekit_unconfigured
-    verify_livekit_unconfigured(origin,owner,teacher,learner_id,other_learner,
+    # Signed synthetic actors: accept only symmetric disabled 503 or strict
+    # short, least-privilege 200 tickets; never print a JWT or publish media.
+    from noor_livekit_staging import verify_livekit_gateway
+    verify_livekit_gateway(origin,owner,teacher,learner_id,other_learner,
                                lesson_id,post,http,require_status,json_body)
 
     left=post(student_action,{"action":"leave"},owner,200)

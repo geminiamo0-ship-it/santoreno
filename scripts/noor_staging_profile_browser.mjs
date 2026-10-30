@@ -81,7 +81,11 @@ try {
       "tasks:document.querySelector('#student-main')?.textContent.includes('الواجبات المنشورة')," +
       "error:document.querySelector('#student-main')?.textContent.includes('تعذّر التحقق من بيانات الطالب')})",
   );
-  assert.equal(authenticatedHome.preview, false, "Signed student dashboard contains example grades");
+  assert.equal(
+    authenticatedHome.preview,
+    false,
+    "Signed student dashboard contains example grades",
+  );
   assert.equal(authenticatedHome.mock, false, "Signed student dashboard contains mock teacher");
   assert.equal(authenticatedHome.tasks, true, "Signed student dashboard lacks real task summary");
   assert.equal(authenticatedHome.error, false, "Signed student owner APIs failed");

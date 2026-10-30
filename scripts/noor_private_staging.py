@@ -15,6 +15,7 @@ import tempfile
 import time
 import urllib.error
 import urllib.request
+from noor_report_staging import verify_report_flow
 
 ROOT = Path.cwd()
 NOOR = ROOT / "noor"
@@ -307,6 +308,10 @@ def plan_stage_synthetic_smoke(origin, database_id, config, owner_a, owner_b, le
             raise RuntimeError("Student sees incorrect attempt/review history")
         post(owner_submissions,{"operationId":str(uuid4()),"note":"after accepted"},owner_a,409)
         print("PASS: Noor Phase 05B remote student submit/replay and teacher retry+accept, immutable history and owner isolation")
+        report_lesson_id = verify_report_flow(
+            origin,database_id,owner_a,owner_b,learner_id,other_learner,role_id,
+            post,http,qa_write,d1_read_only,require_status,json_body)
+
 
 
 
@@ -340,6 +345,19 @@ def plan_stage_synthetic_smoke(origin, database_id, config, owner_a, owner_b, le
              "resourceId":assignment_id},owner_a,200)
         code,_,_=http(origin,teacher_path,opener=owner_b)
         require_status(code,404,"Former primary teacher plan access revoked")
+        code,_,_=http(origin,"/v1/teacher/lessons/"+report_lesson_id+"/report",opener=owner_b)
+        require_status(code,404,"Revoked Sheikh cannot read report after reassignment")
+        code,_,_=http(origin,"/v1/teacher/lessons/"+report_lesson_id+"/report-actions",
+                       method="POST",
+                       body={"kind":"publish","operationId":str(uuid4()),"expectedRevision":2},
+                       opener=owner_b)
+        require_status(code,404,"Revoked Sheikh cannot publish old report")
+        code,raw,_=http(origin,"/v1/me/learners/"+learner_id+"/reports",opener=owner_a)
+        require_status(code,200,"Owner approved report survives teacher revocation")
+        approved=json_body(raw).get("reports",[])
+        if len(approved)!=1 or approved[0].get("revision")!=2:
+            raise RuntimeError("Archived immutable approved report lost after Sheikh revocation")
+
         code,_,_=http(origin,write_path,method="POST",body=command,opener=owner_b)
         require_status(code,404,"Former primary teacher replay rejected")
         code,_,_=http(origin,teacher_tasks,method="POST",body=task,opener=owner_b)

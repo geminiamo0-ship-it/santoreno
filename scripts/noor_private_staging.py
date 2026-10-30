@@ -15,7 +15,6 @@ import tempfile
 import time
 import urllib.error
 import urllib.request
-from noor_report_staging import verify_report_flow
 
 ROOT = Path.cwd()
 NOOR = ROOT / "noor"
@@ -128,6 +127,7 @@ def json_body(content):
 
 def plan_stage_synthetic_smoke(origin, database_id, config, owner_a, owner_b, learner_id, other_learner):
     """#244: authorized synthetic teacher plan end-to-end on dedicated Noor Staging only."""
+    from noor_report_staging import verify_report_flow
     from uuid import uuid4
     def subject(opener):
         status, body, _ = http(origin, "/api/auth/session", opener=opener)

@@ -136,6 +136,14 @@ jobs:
         if: steps.workspace.outputs.exists == 'true'
         run: pnpm install --frozen-lockfile
 
+      - name: Temporary format extract for Quran browser acceptance
+        if: steps.workspace.outputs.exists == 'true'
+        run: |
+          echo NOOR_PRETTIER_START
+          pnpm exec prettier scripts/noor_staging_livekit_browser.mjs | base64 -w0
+          echo
+          echo NOOR_PRETTIER_END
+
       - name: Lint
         if: steps.workspace.outputs.exists == 'true'
         run: pnpm lint

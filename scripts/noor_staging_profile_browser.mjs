@@ -67,6 +67,53 @@ try {
   });
   await present("#learner-switch");
   assert.deepEqual(await names(), [longLearner]);
+  // No local mock snapshot is permitted in authenticated student home.
+  await waitFor(
+    () =>
+      browser.evaluate(
+        "document.querySelector('#student-main')?.textContent.includes('لا توجد حصة مجدولة حاليًا')",
+      ),
+    "owner-backed student home after real API reads",
+  );
+  const authenticatedHome = await browser.evaluate(
+    "({preview:document.querySelector('#student-main')?.textContent.includes('بيانات تقييم توضيحية')," +
+      "mock:document.querySelector('#student-main')?.textContent.includes('شيخ تجريبي')," +
+      "tasks:document.querySelector('#student-main')?.textContent.includes('الواجبات المنشورة')," +
+      "error:document.querySelector('#student-main')?.textContent.includes('تعذّر التحقق من بيانات الطالب')})",
+  );
+  assert.equal(
+    authenticatedHome.preview,
+    false,
+    "Signed student dashboard contains example grades",
+  );
+  assert.equal(authenticatedHome.mock, false, "Signed student dashboard contains mock teacher");
+  assert.equal(authenticatedHome.tasks, true, "Signed student dashboard lacks real task summary");
+  assert.equal(authenticatedHome.error, false, "Signed student owner APIs failed");
+  await browser.screenshot("artifacts/noor-staging-profile/student-home-real.png");
+
+  await browser.go("/student/subscription/");
+  await waitFor(
+    () =>
+      browser.evaluate(
+        "document.querySelector('#student-main')?.textContent.includes('الحالة المالية غير متاحة للتحقق')",
+      ),
+    "unverified financial ledger must be explicitly unknown",
+  );
+  assert.equal(
+    await browser.evaluate(
+      "document.querySelector('#student-main')?.textContent.includes('نشط في بيانات التجربة')",
+    ),
+    false,
+    "Live subscription status must not be inherited from fixtures",
+  );
+  await browser.go("/student/lessons/");
+  await waitFor(
+    () =>
+      browser.evaluate(
+        "document.querySelector('#student-main')?.textContent.includes('مواعيد حساب الطالب الحقيقي')",
+      ),
+    "signed lesson schedule, not booking mock",
+  );
   await browser.go("/student/account/");
   await present("#create-learner-form");
   await fill({ name: "Synthetic Dev Learner B", learnerType: "child" }, "#create-learner-form");
@@ -183,7 +230,7 @@ try {
   );
   assert.equal(foreign, 404);
   console.log(
-    "PASS: Remote Noor Chrome connected account 5 viewports, RTL, rename, D1 refresh, archive and foreign-owner 404",
+    "PASS: Student owner-scoped real home/subscription/lessons, five RTL viewports, sibling rename/archive and foreign-owner 404; zero demo dashboard",
   );
 } catch (error) {
   await browser.screenshot("artifacts/noor-staging-profile/failure.png").catch(() => {});

@@ -31,6 +31,12 @@ async function setCookies(cookies) {
     assert.notEqual(result.success, false, "Could not attach synthetic session");
   }
 }
+async function presentAuthGate() {
+  await waitFor(
+    () => browser.evaluate("Boolean(document.querySelector('#account-form'))"),
+    "signed-out Sheikh requires account login",
+  );
+}
 async function textIncludes(needle) {
   return browser.evaluate(
     `document.querySelector('#teacher-content')?.textContent.includes(${JSON.stringify(needle)})`,
@@ -38,11 +44,15 @@ async function textIncludes(needle) {
 }
 try {
   await browser.go("/teacher/students/");
-  await waitFor(() => textIncludes("نظرة عامة"), "signed-out teacher public demo");
-  const visitor = await browser.evaluate(
-    "document.querySelector('[role=note]')?.textContent.includes('معاينة واجهة الشيخ')",
+  await presentAuthGate();
+  const anonymous = await browser.evaluate(
+    "({demo:document.body.textContent.includes('معاينة واجهة الشيخ')," +
+      "fixtures:document.body.textContent.includes('طالب تجريبي')," +
+      "form:!!document.querySelector('#account-form')})",
   );
-  assert.equal(visitor, true, "Signed-out visitor lost original teacher preview");
+  assert.equal(anonymous.form, true, "Signed-out visitor must see real sign-in gate");
+  assert.equal(anonymous.demo, false, "Signed-out visitor reached Sheikh fixture preview");
+  assert.equal(anonymous.fixtures, false, "Signed-out visitor sees synthetic learners");
 
   await setCookies(teacher);
   await browser.go("/teacher/students/");
@@ -50,7 +60,7 @@ try {
   await waitFor(() => textIncludes("Synthetic Learner 1"), "D1 assigned learner");
   await waitFor(() => textIncludes("Synthetic next memorization"), "D1 persisted plan");
   const connected = await browser.evaluate(
-    "document.querySelector('[role=note]')?.textContent.includes('بوابة الشيخ المتصلة')",
+    "document.querySelector('[role=note]')?.textContent.includes('بوابة الشيخ الموثقة')",
   );
   assert.equal(connected, true, "Connected teacher mode did not activate");
   assert.equal(await textIncludes("المعاينة غير متصلة"), false);
@@ -75,13 +85,30 @@ try {
     assert(state.scroll <= state.width, "Teacher portal horizontal overflow " + width);
     await browser.screenshot("artifacts/noor-staging-teacher/students-" + width + ".png");
   }
+  const demoLinks = await browser.evaluate(
+    "[...document.querySelectorAll('nav a')].filter(a=>new URL(a.href).pathname==='/classroom').length",
+  );
+  assert.equal(demoLinks, 0, "Real Sheikh sidebar must not link the classroom demo");
+
+  await browser.go("/teacher/preparation/");
+  await waitFor(() => textIncludes("التحضير للحصة"), "authenticated teacher preparation");
+  assert.equal(await textIncludes("هذا القسم قيد ربط"), false, "Preparation still dummy fallback");
+
+  await browser.go("/teacher/notifications/");
+  await waitFor(() => textIncludes("الإشعارات غير متصلة بعد"), "honest notification blocker");
+  assert.equal(await textIncludes("تجريبية"), false, "Synthetic notification leaked");
+
+  await browser.go("/teacher/cases/");
+  await waitFor(() => textIncludes("الحضور والبلاغات غير متصلة بعد"), "honest incident blocker");
+  assert.equal(await textIncludes("طالب تجريبي"), false, "Synthetic incident leaked");
+
   await setCookies(staff);
   await browser.go("/teacher/students/");
   await waitFor(() => textIncludes("غير مصرح بعرض بوابة الشيخ"), "staff-only is not teacher");
   assert.equal(await textIncludes("Synthetic Learner 1"), false, "Non-teacher sees real roster");
   assert.equal(await textIncludes("معاينة واجهة الشيخ"), false, "Non-teacher sees demo fallback");
   console.log(
-    "PASS: Open Noor Sheikh demo for anonymous, connected D1 roster and plan for teacher, non-teacher denied, five responsive RTL viewports",
+    "PASS: Sheikh signed-out login gate with zero fixtures; connected D1 roster/preparation, unavailable inbox/cases, non-teacher denied and five RTL viewports",
   );
 } catch (error) {
   await browser.screenshot("artifacts/noor-staging-teacher/failure.png").catch(() => {});

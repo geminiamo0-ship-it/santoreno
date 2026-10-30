@@ -1,3 +1,9 @@
+## Noor Phase 07A remote Dev report gate — #256 (source only; no remote acceptance yet)
+
+- Parent Noor [#186](https://github.com/geminiamo0-ship-it/nour-elquran/issues/186), draft [PR #187](https://github.com/geminiamo0-ship-it/nour-elquran/pull/187). Only when Noor **main** exact-sha Verify is SUCCESS will the existing staging workflow test new 0013 D1, real signed synthetic scheduled lesson, explicitly synthetic Start/End D1 audit, authorized Sheikh draft/publish/replay/new revision and latest-only owner read, sibling/foreign denial and post-revocation teacher 404.
+- Santoreno source branch `test/256-noor-reports-dev` extends existing Noor-only runner (`scripts/noor_private_staging.py`) with modular `scripts/noor_report_staging.py`, offline identity/schema-denial tests, scoped CI. Never touches Santo core/medical data or Production. Existing `noor-core-staging` / `noor-site-staging` only, Chrome remains optional.
+- This records a **planned Dev acceptance**, not deployment or passed E2E; do not close #256 or Noor #186 before exact staging run is recorded. On failure keep PRs open, inspect non-secret logs and correct. Synthetic lesson reports are not evidence of real Classroom presence/guardian consent. Staff privileges and synthetic Sheikh state are cleaned by the inherited `finally` block.
+
 ## Noor Phase 06A1 isolated Dev policy-denial gate — #254 (source branch, pending remote verification)
 
 - Noor [#182](https://github.com/geminiamo0-ship-it/nour-elquran/issues/182) merged its D1 0012 fail-closed consent and asset tables, with owner-only disabled API; [#180](https://github.com/geminiamo0-ship-it/nour-elquran/issues/180) remains open for guardian identity/consent, retention/delete/export and private R2 upload/playback.

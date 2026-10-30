@@ -148,19 +148,13 @@ try {
   // Owner QA #232: Sheikh may mute AND later release microphone moderation.
   // Student is never remotely activated; they opt back in after release.
   await click(teacher, "كتم ميكروفون الطالب");
-  await waitFor(
-    () => has(teacher, "إلغاء كتم الطالب"),
-    "Sheikh moderation shows reversible state",
-  );
+  await waitFor(() => has(teacher, "إلغاء كتم الطالب"), "Sheikh moderation shows reversible state");
   await waitFor(
     () => has(student, "الشيخ كتم ميكروفونك"),
     "Student observes teacher moderator lock",
   );
   await click(teacher, "إلغاء كتم الطالب");
-  await waitFor(
-    () => has(teacher, "كتم ميكروفون الطالب"),
-    "Sheikh moderation release confirmed",
-  );
+  await waitFor(() => has(teacher, "كتم ميكروفون الطالب"), "Sheikh moderation release confirmed");
   await waitFor(
     () =>
       student.evaluate(

@@ -147,20 +147,32 @@ try {
   ]);
   // Owner QA #232: Sheikh may mute AND later release microphone moderation.
   // Student is never remotely activated; they opt back in after release.
-  await click(teacher,"كتم ميكروفون الطالب");
-  await waitFor(()=>has(teacher,"إلغاء كتم الطالب"),
-    "Sheikh moderation shows reversible state");
-  await waitFor(()=>has(student,"الشيخ كتم ميكروفونك"),
-    "Student observes teacher moderator lock");
-  await click(teacher,"إلغاء كتم الطالب");
-  await waitFor(()=>has(teacher,"كتم ميكروفون الطالب"),
-    "Sheikh moderation release confirmed");
-  await waitFor(()=>student.evaluate(
-    "(()=>{const b=[...document.querySelectorAll('button')].find(x=>x.textContent.trim()==='تشغيل ميكروفوني');return !!b&&!b.disabled})()"),
-    "Student can explicitly opt into microphone after release");
-  await click(student,"تشغيل ميكروفوني");
-  await waitFor(()=>remoteAudioExists(teacher),
-    "Student microphone republished after permitted opt-in");
+  await click(teacher, "كتم ميكروفون الطالب");
+  await waitFor(
+    () => has(teacher, "إلغاء كتم الطالب"),
+    "Sheikh moderation shows reversible state",
+  );
+  await waitFor(
+    () => has(student, "الشيخ كتم ميكروفونك"),
+    "Student observes teacher moderator lock",
+  );
+  await click(teacher, "إلغاء كتم الطالب");
+  await waitFor(
+    () => has(teacher, "كتم ميكروفون الطالب"),
+    "Sheikh moderation release confirmed",
+  );
+  await waitFor(
+    () =>
+      student.evaluate(
+        "(()=>{const b=[...document.querySelectorAll('button')].find(x=>x.textContent.trim()==='تشغيل ميكروفوني');return !!b&&!b.disabled})()",
+      ),
+    "Student can explicitly opt into microphone after release",
+  );
+  await click(student, "تشغيل ميكروفوني");
+  await waitFor(
+    () => remoteAudioExists(teacher),
+    "Student microphone republished after permitted opt-in",
+  );
   console.log("PASS: Sheikh mute/release and voluntary learner microphone recovery");
 
   // CR-03: the new page is real LessonDO state, not a cosmetic local turn.

@@ -58,29 +58,34 @@ def verify_report_flow(origin, database_id, owner, foreign, learner_id, other_le
     code, _, _ = http(origin, action_path, method="POST", opener=foreign,
                        body={"kind": "publish", "operationId": str(uuid4()), "expectedRevision": 0})
     require_status(code, 404, "Phase 07A no report for scheduled lesson")
-    # CR-01: optional signed two-account waiting-room proof BEFORE the synthetic
-    # lifecycle Start/End ledger. This is not formal attendance or media.
-    if on_scheduled_lesson is not None:
-        on_scheduled_lesson(lesson_id)
-    # Only dedicated noor-core-staging D1 is updated by guarded synthetic test.
-    time.sleep(max(0.0, (starts + 750 - int(time.time() * 1000)) / 1000.0))
-    started = int(time.time() * 1000)
-    qa_write("UPDATE lessons SET status='live' WHERE id='" + lesson_id +
-             "' AND status='scheduled'")
-    qa_write("INSERT INTO lesson_lifecycle_events(id,lesson_id,teacher_id,action,at_ms,operation_id) "
-             "VALUES('" + str(uuid4()) + "','" + lesson_id + "','" + teacher_id + "',"
-             "'start'," + str(started) + ",'" + str(uuid4()) + "')")
-    ended = int(time.time() * 1000)
-    qa_write("UPDATE lessons SET status='completed',ended_at_ms=" + str(ended) +
-             " WHERE id='" + lesson_id + "' AND status='live'")
-    qa_write("INSERT INTO lesson_lifecycle_events(id,lesson_id,teacher_id,action,at_ms,operation_id) "
-             "VALUES('" + str(uuid4()) + "','" + lesson_id + "','" + teacher_id + "',"
-             "'end'," + str(ended) + ",'" + str(uuid4()) + "')")
+    # The final integrated Dev suite uses real verified teacher Start/End.
+    # Legacy isolated fixture remains for offline/unit test callers.
+    signed = on_scheduled_lesson(lesson_id) is True if on_scheduled_lesson else False
+    if not signed:
+        # Only dedicated noor-core-staging D1 is updated by guarded synthetic test.
+        time.sleep(max(0.0, (starts + 750 - int(time.time() * 1000)) / 1000.0))
+        started = int(time.time() * 1000)
+        qa_write("UPDATE lessons SET status='live' WHERE id='" + lesson_id +
+                 "' AND status='scheduled'")
+        qa_write("INSERT INTO lesson_lifecycle_events(id,lesson_id,teacher_id,action,at_ms,operation_id) "
+                 "VALUES('" + str(uuid4()) + "','" + lesson_id + "','" + teacher_id + "',"
+                 "'start'," + str(started) + ",'" + str(uuid4()) + "')")
+        ended = int(time.time() * 1000)
+        qa_write("UPDATE lessons SET status='completed',ended_at_ms=" + str(ended) +
+                 " WHERE id='" + lesson_id + "' AND status='live'")
+        qa_write("INSERT INTO lesson_lifecycle_events(id,lesson_id,teacher_id,action,at_ms,operation_id) "
+                 "VALUES('" + str(uuid4()) + "','" + lesson_id + "','" + teacher_id + "',"
+                 "'end'," + str(ended) + ",'" + str(uuid4()) + "')")
 
     code, raw, _ = http(origin, path, opener=foreign)
     require_status(code, 200, "Phase 07A verified acting teacher report")
-    if json_body(raw).get("report") is not None:
-        raise RuntimeError("Phase 07A newly completed lesson unexpectedly has report")
+    seeded = json_body(raw).get("report")
+    if signed and (not isinstance(seeded,dict) or seeded.get("revision")!=1
+                   or seeded.get("status")!="draft"):
+        raise RuntimeError("Signed End must prepare private report draft before review")
+    if not signed and seeded is not None:
+        raise RuntimeError("Legacy completed fixture unexpectedly has a report")
+    offset = 1 if signed else 0
     code, _, _ = http(origin, path, opener=owner)
     require_status(code, 404, "Phase 07A owner cannot read teacher draft")
     code, _, _ = http(origin, path, opener=None)
@@ -90,9 +95,9 @@ def verify_report_flow(origin, database_id, owner, foreign, learner_id, other_le
             "strengths": "Synthetic strength", "corrections": "Synthetic correction",
             "nextPlan": "Synthetic next review",
             "memorization": None, "recitation": 0, "tajweed": 10}
-    first = {"kind": "save", "operationId": str(uuid4()), "expectedRevision": 0, **note}
+    first = {"kind": "save", "operationId": str(uuid4()), "expectedRevision": offset, **note}
     result = post(action_path, first, foreign, 200)
-    if result.get("code") != "REPORT_DRAFT_SAVED" or result.get("revision") != 1:
+    if result.get("code") != "REPORT_DRAFT_SAVED" or result.get("revision") != 1+offset:
         raise RuntimeError("Phase 07A draft save ACK invalid")
     if post(action_path, first, foreign, 200).get("code") != "REPORT_ALREADY_APPLIED":
         raise RuntimeError("Phase 07A duplicate operation not idempotent")
@@ -103,7 +108,7 @@ def verify_report_flow(origin, database_id, owner, foreign, learner_id, other_le
     if json_body(raw).get("reports") != []:
         raise RuntimeError("Private draft leaked into learner reports")
 
-    publication = {"kind": "publish", "operationId": str(uuid4()), "expectedRevision": 1}
+    publication = {"kind": "publish", "operationId": str(uuid4()), "expectedRevision": 1+offset}
     result = post(action_path, publication, foreign, 201)
     if result.get("code") != "REPORT_PUBLISHED":
         raise RuntimeError("Phase 07A explicit publication failed")
@@ -112,26 +117,26 @@ def verify_report_flow(origin, database_id, owner, foreign, learner_id, other_le
     code, raw, _ = http(origin, owner_path, opener=owner)
     require_status(code, 200, "Phase 07A published owner report")
     published = json_body(raw).get("reports")
-    if not isinstance(published, list) or len(published) != 1 or published[0].get("revision") != 1:
+    if not isinstance(published, list) or len(published) != 1 or published[0].get("revision") != 1+offset:
         raise RuntimeError("Phase 07A missing latest approved snapshot")
     if any(published[0].get(k) != v for k, v in
            (("memorization", None), ("recitation", 0), ("tajweed", 10))):
         raise RuntimeError("Phase 07A null vs zero/ten score contract failed")
 
     updated = {**note, "scope": "Synthetic revised scope", "memorization": 8}
-    second = {"kind": "save", "operationId": str(uuid4()), "expectedRevision": 1, **updated}
+    second = {"kind": "save", "operationId": str(uuid4()), "expectedRevision": 1+offset, **updated}
     post(action_path, second, foreign, 200)
     code, raw, _ = http(origin, owner_path, opener=owner)
     require_status(code, 200, "Phase 07A previous approved survives new draft")
     history = json_body(raw).get("reports")
-    if len(history) != 1 or history[0].get("revision") != 1 or history[0].get("scope") != note["scope"]:
+    if len(history) != 1 or history[0].get("revision") != 1+offset or history[0].get("scope") != note["scope"]:
         raise RuntimeError("Phase 07A unapproved revision leaked to learner")
     post(action_path, {"kind": "publish", "operationId": str(uuid4()),
-                       "expectedRevision": 2}, foreign, 201)
+                       "expectedRevision": 2+offset}, foreign, 201)
     code, raw, _ = http(origin, owner_path, opener=owner)
     require_status(code, 200, "Phase 07A latest report changed")
     latest = json_body(raw).get("reports")
-    if len(latest) != 1 or latest[0].get("revision") != 2 or latest[0].get("memorization") != 8:
+    if len(latest) != 1 or latest[0].get("revision") != 2+offset or latest[0].get("memorization") != 8:
         raise RuntimeError("Phase 07A learner does not see only latest approval")
     count = d1_read_only(database_id,
                          "SELECT COUNT(*) AS n FROM lesson_report_publications WHERE lesson_id='" +

@@ -99,3 +99,133 @@ def verify_classroom_room(origin,database_id,owner,teacher,learner_id,other_lear
     post(teacher_action,{"action":"leave"},teacher,200)
     print("PASS: CR-01 remote Dev DO two signed roles, forged 400, foreign 404, "
           "anonymous 401, no Start/AV, leave/rejoin and 25s TTL expiry")
+
+
+def verify_signed_lesson_lifecycle(origin, database_id, owner, teacher,
+                                   learner_id, lesson_id, post, http,
+                                   d1_read_only, require_status, json_body):
+    """Single final Dev-only synthetic Start -> Ayah -> correction -> End proof.
+
+    Must execute after the existing two-browser media check and CR-01 lease check,
+    but before the Phase 07 report test. No production, fabricated attendance,
+    real child audio, raw credentials, or provider identity logging.
+    """
+    from uuid import uuid4
+    if not re.fullmatch(r"https://noor-site-staging\.[a-z0-9-]+\.workers\.dev", origin):
+        raise RuntimeError("Noor lifecycle QA requires isolated Dev Worker")
+    if not all(re.fullmatch(r"[0-9a-fA-F-]{36}", v) for v in
+               (database_id, learner_id, lesson_id)):
+        raise RuntimeError("Noor lifecycle QA requires verified synthetic UUIDs")
+
+    teacher_base = "/v1/teacher/lessons/" + lesson_id
+    student_base = "/v1/me/learners/" + learner_id + "/lessons/" + lesson_id
+    teacher_action = teacher_base + "/presence-actions"
+    student_action = student_base + "/presence-actions"
+    action = teacher_base + "/lifecycle-actions"
+    def status(path, principal, expected_phase):
+        code, raw, headers = http(origin, path, opener=principal)
+        require_status(code, 200, "signed Noor lifecycle GET")
+        state = json_body(raw).get("lifecycle", {})
+        if state.get("phase") != expected_phase or headers.get("Cache-Control") != "no-store":
+            raise RuntimeError("Signed Noor lifecycle state mismatch or cache")
+        return state
+    status(teacher_base + "/lifecycle", teacher, "scheduled")
+    status(student_base + "/lifecycle", owner, "scheduled")
+    for principal, expected in ((owner,404),(None,401)):
+        code,_,_ = http(origin, action, method="POST",
+                        body={"action":"start","operationId":str(uuid4())},
+                        opener=principal)
+        require_status(code,expected,"non-teacher cannot Start")
+    for payload in ({"action":"automatic","operationId":str(uuid4())},
+                    {"action":"start","operationId":str(uuid4()),"role":"teacher"},
+                    {"action":"start","operationId":"not-uuid"}):
+        post(action,payload,teacher,400)
+    before = post(action, {"action":"start","operationId":str(uuid4())},teacher,409)
+    if before.get("code") != "WAITING_FOR_PARTICIPANTS":
+        raise RuntimeError("Start without two live DO leases was not denied")
+
+    # CR-01 has already left and exercised lease expiry. Fresh joins here
+    # establish real verified presence for formal Start.
+    post(teacher_action,{"action":"join"},teacher,200)
+    post(student_action,{"action":"join"},owner,200)
+    operation = {"action":"start","operationId":str(uuid4())}
+    started = post(action,operation,teacher,200)
+    if started.get("code")!="LESSON_STARTED" or started.get("lifecycle",{}).get("phase")!="live":
+        raise RuntimeError("Signed Sheikh Start did not commit live transition")
+    if post(action,operation,teacher,200).get("code")!="LESSON_ALREADY_STARTED":
+        raise RuntimeError("Repeat Start changed state")
+    status(teacher_base+"/lifecycle",teacher,"live")
+    status(student_base+"/lifecycle",owner,"live")
+    audit=d1_read_only(database_id,"SELECT action FROM lesson_lifecycle_events WHERE lesson_id='"+
+                       lesson_id+"' ORDER BY at_ms")
+    if [x.get("action") for x in audit]!=["start"]:
+        raise RuntimeError("Start did not append exact single D1 lifecycle audit")
+
+    # Precise KFQC polygon (not calculated page offset) must be verified by
+    # Worker before a signed teacher selection is stored. Learner cannot write.
+    teacher_page=teacher_base+"/quran-page"
+    student_page=student_base+"/quran-page"
+    code,raw,_=http(origin,teacher_page,opener=teacher)
+    require_status(code,200,"canonical shared Quran state")
+    old=json_body(raw).get("quran",{})
+    verse={"surah":1,"ayah":1}
+    change={"action":"set","page":1,"verse":verse,
+            "expectedRevision":old.get("revision"),"requestId":"qa-final-verse-0001"}
+    changed=post(teacher_page,change,teacher,200)
+    if changed.get("quran",{}).get("verse")!=verse:
+        raise RuntimeError("Teacher Ayah not acknowledged by signed LessonDO")
+    code,raw,_=http(origin,student_page,opener=owner)
+    require_status(code,200,"learner signed shared Ayah")
+    if json_body(raw).get("quran",{}).get("verse")!=verse:
+        raise RuntimeError("Learner did not receive identical selected Ayah")
+    code,_,_=http(origin,student_page,method="POST",body=change,opener=owner)
+    require_status(code,405,"learner cannot mutate shared Quran")
+    post(teacher_page,{**change,"role":"teacher"},teacher,400)
+    if post(teacher_page,change,teacher,200).get("code")!="QURAN_PAGE_REPLAY":
+        raise RuntimeError("Ayah operation replay was not idempotent")
+    print("PASS: Noor Dev signed Sheikh Start + exact KFQC Surah/Ayah -> learner sync")
+
+    # Private educational correction is DO-backed and never visible to owner.
+    correction=teacher_base+"/corrections"
+    payload={"action":"add","operationId":str(uuid4()),"page":1,
+             "surah":1,"ayah":1,"kind":"tajweed",
+             "text":"Synthetic tajweed practice note - not real child data"}
+    first=post(correction,payload,teacher,200)
+    if first.get("code")!="CORRECTION_SAVED" or len(first.get("corrections",{}).get("items",[]))!=1:
+        raise RuntimeError("Private Sheikh correction was not persisted")
+    if post(correction,payload,teacher,200).get("code")!="CORRECTION_REPLAY":
+        raise RuntimeError("Duplicate correction not idempotent")
+    code,raw,_=http(origin,correction,opener=teacher)
+    require_status(code,200,"Sheikh correction read")
+    if len(json_body(raw).get("corrections",{}).get("items",[]))!=1:
+        raise RuntimeError("Private correction disappeared after read")
+    for principal,expected in ((owner,404),(None,401)):
+        code,_,_=http(origin,correction,opener=principal)
+        require_status(code,expected,"private correction cannot be read by student")
+    code,raw,_=http(origin,"/v1/me/learners/"+learner_id+"/reports",opener=owner)
+    require_status(code,200,"student reports still private")
+    if json_body(raw).get("reports")!=[]:
+        raise RuntimeError("Draft correction leaked before approved publication")
+
+    ended=post(action,{"action":"end","operationId":str(uuid4())},teacher,200)
+    if ended.get("code")!="LESSON_ENDED" or ended.get("lifecycle",{}).get("phase")!="completed":
+        raise RuntimeError("Explicit Sheikh End did not commit completed state")
+    if ended.get("reportDraft")!="created":
+        raise RuntimeError("Private report draft was not seeded from Sheikh corrections")
+    if ended.get("mediaRevocation") not in ("requested","retry_pending"):
+        raise RuntimeError("End claimed unverified provider ACK")
+    status(teacher_base+"/lifecycle",teacher,"completed")
+    status(student_base+"/lifecycle",owner,"completed")
+    if post(action,{"action":"end","operationId":str(uuid4())},teacher,200).get("code")!="LESSON_ALREADY_ENDED":
+        raise RuntimeError("Duplicate End was not idempotent")
+    audit=d1_read_only(database_id,"SELECT action FROM lesson_lifecycle_events WHERE lesson_id='"+
+                       lesson_id+"' ORDER BY at_ms")
+    if [x.get("action") for x in audit]!=["start","end"]:
+        raise RuntimeError("Start/End must produce exactly two immutable D1 events")
+    code,raw,_=http(origin,teacher_base+"/report",opener=teacher)
+    require_status(code,200,"private draft seeded from signed End")
+    draft=json_body(raw).get("report")
+    if not isinstance(draft,dict) or draft.get("revision")!=1 or        "Synthetic tajweed practice note" not in draft.get("corrections",""):
+        raise RuntimeError("Signed End did not prefill private teacher report draft")
+    print("PASS: Noor Dev exact Start/End D1 audit, private Sheikh correction -> seeded report")
+    return True

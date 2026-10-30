@@ -139,7 +139,7 @@ def plan_stage_synthetic_smoke(origin, database_id, config, owner_a, owner_b, le
     from noor_report_staging import verify_report_flow
     from noor_notebook_staging import verify_notebook_flow
     from noor_quran_archive_staging import verify_archive_readonly
-    from noor_classroom_staging import verify_classroom_room
+    from noor_classroom_staging import verify_classroom_room, verify_signed_lesson_lifecycle
     from uuid import uuid4
     def subject(opener):
         status, body, _ = http(origin, "/api/auth/session", opener=opener)
@@ -350,6 +350,12 @@ def plan_stage_synthetic_smoke(origin, database_id, config, owner_a, owner_b, le
                 for line in browser.stdout.splitlines():
                     if line.startswith("PASS: ") and len(line)<220:
                         print(line)
+
+            # One final integrated signed classroom acceptance, after optional
+            # real LiveKit synthetic Chrome testing and before reporting.
+            return verify_signed_lesson_lifecycle(
+                origin,database_id,owner_a,owner_b,learner_id,room_lesson_id,
+                post,http,d1_read_only,require_status,json_body)
 
         report_lesson_id = verify_report_flow(
             origin,database_id,owner_a,owner_b,learner_id,other_learner,role_id,

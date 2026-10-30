@@ -46,8 +46,8 @@ try {
   await browser.go("/teacher/students/");
   await presentAuthGate();
   const anonymous = await browser.evaluate(
-    "({demo:document.body.textContent.includes('معاينة واجهة الشيخ'),"+
-      "fixtures:document.body.textContent.includes('طالب تجريبي'),"+
+    "({demo:document.body.textContent.includes('معاينة واجهة الشيخ')," +
+      "fixtures:document.body.textContent.includes('طالب تجريبي')," +
       "form:!!document.querySelector('#account-form')})",
   );
   assert.equal(anonymous.form, true, "Signed-out visitor must see real sign-in gate");

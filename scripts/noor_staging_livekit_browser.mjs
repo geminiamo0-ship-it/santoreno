@@ -255,7 +255,9 @@ try {
     waitFor(() => rendered(teacher, 35), "teacher restores Quran page 35"),
     waitFor(() => rendered(student, 35), "student follows restored Quran page 35"),
   ]);
-  console.log("PASS: Sheikh's actual side-rail page buttons synchronize both printed Quran readers");
+  console.log(
+    "PASS: Sheikh's actual side-rail page buttons synchronize both printed Quran readers",
+  );
 
   // CR-04: teacher-only persistent ink, visible to student; forbidden learner
   // writes and stale/fake ink operations remain rejected on the real Worker.
@@ -298,13 +300,16 @@ try {
     409,
   );
   assert.equal((await pageWrite(student, learnerInkPath, inkAction)).status, 405);
-  assert.equal((await pageWrite(teacher, teacherInkPath, { ...inkAction, role: "learner" })).status, 400);
+  assert.equal(
+    (await pageWrite(teacher, teacherInkPath, { ...inkAction, role: "learner" })).status,
+    400,
+  );
   const studentInk = await pageRead(student, learnerInkPath + "?page=35");
   assert.equal(studentInk.status, 200);
   assert.deepEqual(studentInk.body.ink.strokes, [inkMark]);
   const markVisible = (browser) =>
     browser.evaluate(
-      "!!document.querySelector('svg[aria-label=\"طبقة الرسم على المصحف\"] path[stroke=\"#388e68\"]')",
+      '!!document.querySelector(\'svg[aria-label="طبقة الرسم على المصحف"] path[stroke="#388e68"]\')',
     );
   await Promise.all([
     waitFor(() => markVisible(teacher), "teacher canonical green ink visible"),

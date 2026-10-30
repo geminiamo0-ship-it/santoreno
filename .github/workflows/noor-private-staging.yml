@@ -10,6 +10,8 @@ on:
       - scripts/noor_notebook_staging.py
       - scripts/noor_quran_archive_staging.py
       - scripts/noor_classroom_staging.py
+      - scripts/noor_livekit_staging.py
+      - tests/test_noor_livekit_staging.py
       - tests/test_noor_classroom_staging.py
       - tests/test_noor_quran_archive_staging.py
       - tests/test_noor_notebook_staging.py
@@ -32,6 +34,8 @@ on:
       - scripts/noor_notebook_staging.py
       - scripts/noor_quran_archive_staging.py
       - scripts/noor_classroom_staging.py
+      - scripts/noor_livekit_staging.py
+      - tests/test_noor_livekit_staging.py
       - tests/test_noor_classroom_staging.py
       - tests/test_noor_quran_archive_staging.py
       - tests/test_noor_notebook_staging.py
@@ -53,7 +57,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Compile isolated Noor staging script without network or credentials
-        run: python3 -m py_compile scripts/noor_private_staging.py scripts/noor_report_staging.py scripts/noor_notebook_staging.py scripts/noor_quran_archive_staging.py scripts/noor_classroom_staging.py
+        run: python3 -m py_compile scripts/noor_private_staging.py scripts/noor_report_staging.py scripts/noor_notebook_staging.py scripts/noor_quran_archive_staging.py scripts/noor_classroom_staging.py scripts/noor_livekit_staging.py
       - name: Unit test canonical staging source/identity gates offline
         run: |
           python3 -m unittest discover -s tests -p 'test_noor_canonical_staging.py' -v
@@ -61,6 +65,7 @@ jobs:
           python3 -m unittest discover -s tests -p 'test_noor_notebook_staging.py' -v
           python3 -m unittest discover -s tests -p 'test_noor_quran_archive_staging.py' -v
           python3 -m unittest discover -s tests -p 'test_noor_classroom_staging.py' -v
+          python3 -m unittest discover -s tests -p 'test_noor_livekit_staging.py' -v
       - name: Syntax check remote-staging browser acceptance
         run: |
           node --check scripts/noor_staging_profile_browser.mjs

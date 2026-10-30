@@ -171,6 +171,15 @@ def verify_signed_lesson_lifecycle(origin, database_id, owner, teacher,
     verse={"surah":1,"ayah":1}
     change={"action":"set","page":1,"verse":verse,
             "expectedRevision":old.get("revision"),"requestId":"qa-final-verse-0001"}
+    anchors=d1_read_only(database_id,
+        "SELECT page FROM quran_ayah_anchors WHERE edition_id='hafs-kfqc:v1.1.1' "+
+        "AND surah=1 AND ayah=1 LIMIT 1")
+    if anchors!=[{"page":1}]:
+        raise RuntimeError("Staging canonical D1 Ayah anchor 1:1/page1 missing")
+    wrong=post(teacher_page,{**change,"page":2,"requestId":"qa-wrong-page-0001"},
+               teacher,400)
+    if wrong.get("code")!="QURAN_VERSE_PAGE_MISMATCH":
+        raise RuntimeError("Quran metadata accepted forged page 2 for Al-Fatiha 1:1")
     changed=post(teacher_page,change,teacher,200)
     if changed.get("quran",{}).get("verse")!=verse:
         raise RuntimeError("Teacher Ayah not acknowledged by signed LessonDO")

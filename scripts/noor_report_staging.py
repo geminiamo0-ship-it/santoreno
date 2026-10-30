@@ -14,7 +14,7 @@ STAGING_DB = "noor-core-staging"
 
 def verify_report_flow(origin, database_id, owner, foreign, learner_id, other_learner,
                        teacher_id, post, http, qa_write, d1_read_only,
-                       require_status, json_body):
+                       require_status, json_body, on_scheduled_lesson=None):
     if not re.fullmatch(r"[a-f0-9-]{36}", learner_id) or not re.fullmatch(r"[a-f0-9-]{36}", teacher_id):
         raise RuntimeError("Phase 07A: refused invalid synthetic identity")
     if not re.fullmatch(r"[a-f0-9-]{36}", other_learner):
@@ -58,9 +58,11 @@ def verify_report_flow(origin, database_id, owner, foreign, learner_id, other_le
     code, _, _ = http(origin, action_path, method="POST", opener=foreign,
                        body={"kind": "publish", "operationId": str(uuid4()), "expectedRevision": 0})
     require_status(code, 404, "Phase 07A no report for scheduled lesson")
-    # Synthetic room state: DO presence and media are NOT tested here.
-    # Only the dedicated noor-core-staging D1 is ever updated, via the parent
-    # caller's guarded qa_write(config, --remote) for this new synthetic lesson.
+    # CR-01: optional signed two-account waiting-room proof BEFORE the synthetic
+    # lifecycle Start/End ledger. This is not formal attendance or media.
+    if on_scheduled_lesson is not None:
+        on_scheduled_lesson(lesson_id)
+    # Only dedicated noor-core-staging D1 is updated by guarded synthetic test.
     time.sleep(max(0.0, (starts + 750 - int(time.time() * 1000)) / 1000.0))
     started = int(time.time() * 1000)
     qa_write("UPDATE lessons SET status='live' WHERE id='" + lesson_id +

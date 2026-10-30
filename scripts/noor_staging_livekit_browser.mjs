@@ -220,12 +220,128 @@ try {
   console.log(
     "PASS: CR-03 signed teacher page change synced to learner; durable revision, replay, stale CAS, role denial",
   );
+  // The Sheikh's actual navigation controls must drive the same persistent DO
+  // that the learner follows; a direct API-only write is not enough for UX QA.
+  const clickPageArrow = async (browser, label) => {
+    const expression =
+      "(()=>{const buttons=[...document.querySelectorAll('button[aria-label=" +
+      JSON.stringify(label) +
+      "]')];const b=buttons.find(x=>!x.disabled&&x.getBoundingClientRect().width>10);" +
+      "if(!b)return false;b.click();return true})()";
+    await waitFor(() => browser.evaluate(expression), "visible Sheikh page control: " + label);
+  };
+  const rendered = (browser, pageNumber) =>
+    browser.evaluate(
+      "(()=>{const art=document.querySelector('[data-rendered-quran-page=" +
+        JSON.stringify(pageNumber) +
+        "]');const r=art?.getBoundingClientRect();" +
+        "return !!art && !!r && r.width>100 && r.height>100})()",
+    );
+  await clickPageArrow(teacher, "الصفحة التالية");
+  await waitFor(
+    async () => (await pageRead(student, learnerPagePath)).body?.quran?.page === 36,
+    "teacher next button sends shared page 36",
+  );
+  await Promise.all([
+    waitFor(() => rendered(teacher, 36), "teacher displays next Quran page 36"),
+    waitFor(() => rendered(student, 36), "student follows next Quran page 36"),
+  ]);
+  await clickPageArrow(teacher, "الصفحة السابقة");
+  await waitFor(
+    async () => (await pageRead(student, learnerPagePath)).body?.quran?.page === 35,
+    "teacher previous button restores shared page 35",
+  );
+  await Promise.all([
+    waitFor(() => rendered(teacher, 35), "teacher restores Quran page 35"),
+    waitFor(() => rendered(student, 35), "student follows restored Quran page 35"),
+  ]);
+  console.log("PASS: Sheikh's actual side-rail page buttons synchronize both printed Quran readers");
+
+  // CR-04: teacher-only persistent ink, visible to student; forbidden learner
+  // writes and stale/fake ink operations remain rejected on the real Worker.
+  const teacherInkPath = "/v1/teacher/lessons/" + encodeURIComponent(lesson) + "/quran-ink";
+  const learnerInkPath =
+    "/v1/me/learners/" +
+    encodeURIComponent(learner) +
+    "/lessons/" +
+    encodeURIComponent(lesson) +
+    "/quran-ink";
+  const inkMark = {
+    id: "ink-qa-verified-0001",
+    page: 35,
+    color: "#388e68",
+    width: 3,
+    kind: "pen",
+    points: [
+      { x: 120, y: 220 },
+      { x: 240, y: 300 },
+    ],
+  };
+  const inkAction = {
+    action: "add",
+    page: 35,
+    expectedRevision: 0,
+    requestId: "qa-ink-add-0001",
+    stroke: inkMark,
+  };
+  const initialInk = await pageRead(teacher, teacherInkPath + "?page=35");
+  assert.equal(initialInk.status, 200);
+  assert.equal(initialInk.body.ink.revision, 0);
+  const addedInk = await pageWrite(teacher, teacherInkPath, inkAction);
+  assert.equal(addedInk.status, 200);
+  assert.equal(addedInk.body.ink.revision, 1);
+  assert.deepEqual(addedInk.body.ink.strokes, [inkMark]);
+  assert.equal((await pageWrite(teacher, teacherInkPath, inkAction)).body.code, "INK_REPLAY");
+  assert.equal(
+    (await pageWrite(teacher, teacherInkPath, { ...inkAction, requestId: "qa-ink-add-0002" }))
+      .status,
+    409,
+  );
+  assert.equal((await pageWrite(student, learnerInkPath, inkAction)).status, 405);
+  assert.equal((await pageWrite(teacher, teacherInkPath, { ...inkAction, role: "learner" })).status, 400);
+  const studentInk = await pageRead(student, learnerInkPath + "?page=35");
+  assert.equal(studentInk.status, 200);
+  assert.deepEqual(studentInk.body.ink.strokes, [inkMark]);
+  const markVisible = (browser) =>
+    browser.evaluate(
+      "!!document.querySelector('svg[aria-label=\"طبقة الرسم على المصحف\"] path[stroke=\"#388e68\"]')",
+    );
+  await Promise.all([
+    waitFor(() => markVisible(teacher), "teacher canonical green ink visible"),
+    waitFor(() => markVisible(student), "learner receives signed teacher ink"),
+  ]);
+  const teacherPenReady = await teacher.evaluate(
+    "(()=>{const b=document.querySelector('button[aria-label=\"قلم\"]');return !!b&&!b.disabled})()",
+  );
+  const learnerPenDenied = await student.evaluate(
+    "(()=>{const b=document.querySelector('button[aria-label=\"قلم\"]');return !!b&&b.disabled})()",
+  );
+  assert.equal(teacherPenReady, true, "Teacher ink tool never became available");
+  assert.equal(learnerPenDenied, true, "Learner drew without a teacher-controlled grant");
+  console.log("PASS: signed teacher pen persisted and visible in both browser ink overlays");
+
   await snapshot(teacher, 1280, 900, "teacher-desktop-1280");
   await snapshot(student, 390, 844, "student-mobile-390");
   await snapshot(student, 360, 667, "student-mobile-360");
   console.log(
     "PASS: bidirectional real WebRTC with synthetic A/V tracks and responsive screenshots",
   );
+
+  const hiddenInk = await pageWrite(teacher, teacherInkPath, {
+    action: "hide",
+    page: 35,
+    expectedRevision: 1,
+    requestId: "qa-ink-hide-0001",
+    strokeId: inkMark.id,
+  });
+  assert.equal(hiddenInk.status, 200);
+  assert.equal(hiddenInk.body.ink.revision, 2);
+  assert.deepEqual(hiddenInk.body.ink.strokes, []);
+  await Promise.all([
+    waitFor(async () => !(await markVisible(teacher)), "teacher eraser hides stroke"),
+    waitFor(async () => !(await markVisible(student)), "learner sees erased stroke"),
+  ]);
+  console.log("PASS: eraser tombstone visible to both; underlying Quran unchanged");
 
   await click(student, "إنهاء اتصال الصوت والفيديو");
   await waitFor(() => has(student, "دخول الصوت والفيديو"), "student media disconnect");

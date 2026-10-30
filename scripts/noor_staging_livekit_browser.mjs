@@ -145,6 +145,24 @@ try {
     waitFor(() => remoteAudioExists(teacher), "teacher remote student audio"),
     waitFor(() => remoteAudioExists(student), "student remote teacher audio"),
   ]);
+  // Owner QA #232: Sheikh may mute AND later release microphone moderation.
+  // Student is never remotely activated; they opt back in after release.
+  await click(teacher,"كتم ميكروفون الطالب");
+  await waitFor(()=>has(teacher,"إلغاء كتم الطالب"),
+    "Sheikh moderation shows reversible state");
+  await waitFor(()=>has(student,"الشيخ كتم ميكروفونك"),
+    "Student observes teacher moderator lock");
+  await click(teacher,"إلغاء كتم الطالب");
+  await waitFor(()=>has(teacher,"كتم ميكروفون الطالب"),
+    "Sheikh moderation release confirmed");
+  await waitFor(()=>student.evaluate(
+    "(()=>{const b=[...document.querySelectorAll('button')].find(x=>x.textContent.trim()==='تشغيل ميكروفوني');return !!b&&!b.disabled})()"),
+    "Student can explicitly opt into microphone after release");
+  await click(student,"تشغيل ميكروفوني");
+  await waitFor(()=>remoteAudioExists(teacher),
+    "Student microphone republished after permitted opt-in");
+  console.log("PASS: Sheikh mute/release and voluntary learner microphone recovery");
+
   // CR-03: the new page is real LessonDO state, not a cosmetic local turn.
   // This test uses the same two signed actors as the WebRTC acceptance.
   const teacherPagePath = "/v1/teacher/lessons/" + encodeURIComponent(lesson) + "/quran-page";
@@ -353,9 +371,9 @@ try {
   await click(student, "دخول الصوت والفيديو");
   await waitFor(() => mediaReady(student), "student fresh signed WebRTC reconnect");
   console.log("PASS: student LiveKit media disconnect and reconnect");
-  await click(student, "مغادرة غرفة الانتظار");
+  await click(student, "مغادرة الحصة");
   await waitFor(() => has(student, "الانضمام لغرفة الانتظار"), "signed student DO leave");
-  await click(teacher, "مغادرة غرفة الانتظار");
+  await click(teacher, "مغادرة الحصة");
   await waitFor(() => has(teacher, "الانضمام لغرفة الانتظار"), "signed teacher DO leave");
   console.log("PASS: both signed DO leaves detached local A/V");
 } catch (error) {

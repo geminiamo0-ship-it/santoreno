@@ -46,6 +46,10 @@ def verify_classroom_room(origin,database_id,owner,teacher,learner_id,other_lear
     post(teacher_action,{"action":"join","role":"teacher"},teacher,400)
     post(student_action,{"action":"join","actorSubject":"forged"},owner,400)
     post(student_action,{"action":"heartbeat"},owner,404)
+    # CR-02B2 private DO media-intent exists ONLY behind Worker token issuer;
+    # authenticated web clients cannot assert media state or bypass revocation.
+    post(student_action,{"action":"media-intent"},owner,400)
+    post(teacher_action,{"action":"media-intent"},teacher,400)
 
     joined=post(teacher_action,{"action":"join"},teacher,200)
     p=joined.get("presence",{})

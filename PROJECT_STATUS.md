@@ -1,3 +1,8 @@
+## Noor Phase 06A1 isolated Dev policy-denial gate — #254 (source branch, pending remote verification)
+- Noor [#182](https://github.com/geminiamo0-ship-it/nour-elquran/issues/182) merged its D1 0012 fail-closed consent and asset tables, with owner-only disabled API; [#180](https://github.com/geminiamo0-ship-it/nour-elquran/issues/180) remains open for guardian identity/consent, retention/delete/export and private R2 upload/playback.
+- Scoped Santoreno branch `test/254-noor-audio-policy-dev` adds read-only remote D1 migration/lock verification and authenticated synthetic owner/sibling vs foreign/anonymous API checks to the existing `noor-site-staging` + `noor-core-staging` pipeline. No audio writes, R2 buckets, guardian grants, synthetic Chrome or Santo Worker changes. Python unit tests mock the networking and reject missing SQL lock or enabled status.
+- **Not yet Dev-verified** until Noor main exact push Verify, Santoreno PR Verify/validation and a Santoreno main remote staging workflow with evidence. Do not declare production audio available; rollback existing staging Worker only if necessary, never drop additive D1 tables.
+
 ## Noor Phase 05B remote synthetic submit/review gate — #252 (branch, not deployed)
 
 - Noor source [PR #179](https://github.com/geminiamo0-ship-it/nour-elquran/pull/179) merged `b0b03c2278325cc63de2b38770cc4eb05781ca46`; exact PR [Verify #40974785462](https://github.com/geminiamo0-ship-it/nour-elquran/actions/runs/40974785462) 4/4 SUCCESS; **postmerge main Verify + Santoreno stage pending**.

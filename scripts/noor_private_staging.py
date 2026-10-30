@@ -128,6 +128,7 @@ def json_body(content):
 def plan_stage_synthetic_smoke(origin, database_id, config, owner_a, owner_b, learner_id, other_learner):
     """#244: authorized synthetic teacher plan end-to-end on dedicated Noor Staging only."""
     from noor_report_staging import verify_report_flow
+    from noor_notebook_staging import verify_notebook_flow
     from uuid import uuid4
     def subject(opener):
         status, body, _ = http(origin, "/api/auth/session", opener=opener)
@@ -311,6 +312,9 @@ def plan_stage_synthetic_smoke(origin, database_id, config, owner_a, owner_b, le
         report_lesson_id = verify_report_flow(
             origin,database_id,owner_a,owner_b,learner_id,other_learner,role_id,
             post,http,qa_write,d1_read_only,require_status,json_body)
+        verify_notebook_flow(
+            origin,database_id,owner_a,owner_b,learner_id,other_learner,
+            report_lesson_id,http,post,d1_read_only,require_status,json_body)
 
 
 

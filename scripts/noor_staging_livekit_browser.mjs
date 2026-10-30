@@ -203,9 +203,19 @@ try {
   const confirmedStudent = await pageRead(student, learnerPagePath);
   assert.equal(confirmedStudent.status, 200);
   assert.equal(confirmedStudent.body.quran.page, 35);
+  // The approved learner phone layout deliberately hides the Quran footer;
+  // assert the canonical printed page itself, not presentation-only text.
+  const renderedPage35 = (browser) =>
+    browser.evaluate(
+      "(()=>{const art=document.querySelector('[data-rendered-quran-page=\"35\"]');" +
+        'const sheet=art?.closest(\'[role="group"][aria-label^="مصحف المدينة"]\');' +
+        "const r=art?.getBoundingClientRect();" +
+        "return !!art && !!sheet && sheet.getAttribute('aria-label')==='مصحف المدينة، الصفحة 35' " +
+        "&& !!r && r.width>100 && r.height>100 && !sheet.closest('[aria-busy=\"true\"]')})()",
+    );
   await Promise.all([
-    waitFor(() => has(teacher, "الصفحة 35 من ٦٠٤"), "Teacher canonical Quran page 35"),
-    waitFor(() => has(student, "الصفحة 35 من ٦٠٤"), "Student synchronized Quran page 35"),
+    waitFor(() => renderedPage35(teacher), "Teacher rendered canonical Quran page 35"),
+    waitFor(() => renderedPage35(student), "Student rendered synchronized Quran page 35"),
   ]);
   console.log(
     "PASS: CR-03 signed teacher page change synced to learner; durable revision, replay, stale CAS, role denial",

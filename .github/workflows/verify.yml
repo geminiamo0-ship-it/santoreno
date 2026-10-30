@@ -136,6 +136,17 @@ jobs:
         if: steps.workspace.outputs.exists == 'true'
         run: pnpm install --frozen-lockfile
 
+      # Temporary one-time generation of a canonical Prettier artifact for QA script.
+      - name: Print canonical LiveKit QA source for review
+        if: steps.workspace.outputs.exists == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo NOOR_PRETTIER_BASE64_START
+          pnpm exec prettier scripts/noor_staging_livekit_browser.mjs | base64 -w0
+          echo
+          echo NOOR_PRETTIER_BASE64_END
+
       - name: Lint
         if: steps.workspace.outputs.exists == 'true'
         run: pnpm lint

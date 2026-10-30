@@ -145,6 +145,69 @@ try {
     waitFor(() => remoteAudioExists(teacher), "teacher remote student audio"),
     waitFor(() => remoteAudioExists(student), "student remote teacher audio"),
   ]);
+  // CR-03: the new page is real LessonDO state, not a cosmetic local turn.
+  // This test uses the same two signed actors as the WebRTC acceptance.
+  const teacherPagePath = "/v1/teacher/lessons/" + encodeURIComponent(lesson) + "/quran-page";
+  const learnerPagePath =
+    "/v1/me/learners/" +
+    encodeURIComponent(learner) +
+    "/lessons/" +
+    encodeURIComponent(lesson) +
+    "/quran-page";
+  const pageRead = (browser, url) =>
+    browser.evaluate(
+      "(async()=>{const r=await fetch(" +
+        JSON.stringify(url) +
+        ",{credentials:'same-origin',cache:'no-store'});" +
+        "return {status:r.status,body:await r.json()}})()",
+    );
+  const pageWrite = (browser, url, payload) =>
+    browser.evaluate(
+      "(async()=>{const r=await fetch(" +
+        JSON.stringify(url) +
+        ",{method:'POST',credentials:'same-origin',headers:{'content-type':'application/json'}," +
+        "body:JSON.stringify(" +
+        JSON.stringify(payload) +
+        ")});return {status:r.status,body:await r.json()}})()",
+    );
+  const first = await pageRead(teacher, teacherPagePath);
+  assert.equal(first.status, 200, "Teacher shared Quran read denied");
+  assert.equal(first.body.quran.edition, "hafs-kfqc-v1.1.1");
+  assert.equal(first.body.quran.page, 1);
+  assert.equal(first.body.quran.revision, 0);
+  const initialStudent = await pageRead(student, learnerPagePath);
+  assert.equal(initialStudent.body.quran.page, 1, "Learner did not see canonical shared page");
+  const change = {
+    action: "set",
+    page: 35,
+    expectedRevision: 0,
+    requestId: "qa-page-change-00001",
+  };
+  const teacherTurn = await pageWrite(teacher, teacherPagePath, change);
+  assert.equal(teacherTurn.status, 200, "Teacher page mutation was not confirmed");
+  assert.equal(teacherTurn.body.quran.page, 35);
+  assert.equal(teacherTurn.body.quran.revision, 1);
+  const replay = await pageWrite(teacher, teacherPagePath, change);
+  assert.equal(replay.body.code, "QURAN_PAGE_REPLAY", "Duplicate page event not idempotent");
+  const stale = await pageWrite(teacher, teacherPagePath, {
+    ...change,
+    page: 36,
+    requestId: "qa-page-change-00002",
+  });
+  assert.equal(stale.status, 409, "Stale Quran revision was not rejected");
+  assert.equal(stale.body.quran.page, 35);
+  const studentWrite = await pageWrite(student, learnerPagePath, change);
+  assert.equal(studentWrite.status, 405, "Learner was allowed to mutate the Quran");
+  const forged = await pageWrite(teacher, teacherPagePath, { ...change, role: "learner" });
+  assert.equal(forged.status, 400, "Browser-forged shared Quran identity was accepted");
+  const confirmedStudent = await pageRead(student, learnerPagePath);
+  assert.equal(confirmedStudent.status, 200);
+  assert.equal(confirmedStudent.body.quran.page, 35);
+  await Promise.all([
+    waitFor(() => has(teacher, "الصفحة 35 من ٦٠٤"), "Teacher canonical Quran page 35"),
+    waitFor(() => has(student, "الصفحة 35 من ٦٠٤"), "Student synchronized Quran page 35"),
+  ]);
+  console.log("PASS: CR-03 signed teacher page change synced to learner; durable revision, replay, stale CAS, role denial");
   await snapshot(teacher, 1280, 900, "teacher-desktop-1280");
   await snapshot(student, 390, 844, "student-mobile-390");
   await snapshot(student, 360, 667, "student-mobile-360");

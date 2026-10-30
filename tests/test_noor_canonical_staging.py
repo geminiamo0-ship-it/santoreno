@@ -70,4 +70,46 @@ class SafeCanonTests(TestCase):
    stage.canonical_quran_staging(self.root/"config.json","12345678-1234-1234-1234-123456789abc",self.root)
    write.assert_called_once()
    self.assertIn("noor-core-staging",write.call_args.args)
+
+class PrivateRecitationStageTests(TestCase):
+ def setUp(self):
+  self.learners=["10000000-0000-4000-8000-000000000001",
+                 "10000000-0000-4000-8000-000000000002"]
+  self.db_rows=[[{"version":1}],
+    [{"name":"recitation_audio_upload_locked"},{"name":"recitation_consent_grant_locked"}],
+    [{"n":0}]]
+ def test_locked_migration_and_every_identity_boundary(self):
+  def request(origin,path,opener=None,method="GET",body=None):
+   if method=="POST":return (405,b'{}',{})
+   if opener is None:return (401,b'{}',{})
+   if opener=="foreign":return (404,b'{}',{})
+   return (200,json.dumps({"uploadEnabled":False,"consentStatus":"not_available",
+      "storageStatus":"not_configured","code":"AUDIO_PRIVACY_APPROVAL_REQUIRED"}).encode(),
+      {"Cache-Control":"no-store"})
+  with patch.object(stage,"d1_read_only",side_effect=self.db_rows) as read,\
+       patch.object(stage,"http",side_effect=request) as http:
+   stage.verify_disabled_recitation_audio("https://noor-dev.invalid",
+     "12345678-1234-1234-1234-123456789abc","owner","foreign",self.learners)
+   self.assertEqual(read.call_count,3)
+   self.assertEqual(http.call_count,8)
+ def test_missing_db_lock_fails_before_any_http(self):
+  with patch.object(stage,"d1_read_only",side_effect=self.db_rows[:1]+[[]]) as read,\
+       patch.object(stage,"http") as http:
+   with self.assertRaisesRegex(RuntimeError,"lock missing"):
+    stage.verify_disabled_recitation_audio("https://noor-dev.invalid",
+      "12345678-1234-1234-1234-123456789abc","owner","foreign",self.learners)
+   self.assertEqual(read.call_count,2)
+   http.assert_not_called()
+ def test_enabled_or_cacheable_audio_policy_fails_closed(self):
+  def request(origin,path,opener=None,method="GET",body=None):
+   if opener=="owner":return (200,json.dumps({"uploadEnabled":True,
+       "consentStatus":"not_available","storageStatus":"not_configured",
+       "code":"AUDIO_PRIVACY_APPROVAL_REQUIRED"}).encode(),{"Cache-Control":"no-store"})
+   return (404,b'{}',{})
+  with patch.object(stage,"d1_read_only",side_effect=self.db_rows),\
+       patch.object(stage,"http",side_effect=request):
+   with self.assertRaisesRegex(RuntimeError,"non-disabled"):
+    stage.verify_disabled_recitation_audio("https://noor-dev.invalid",
+      "12345678-1234-1234-1234-123456789abc","owner","foreign",self.learners)
+
  if __name__=="__main__":main()

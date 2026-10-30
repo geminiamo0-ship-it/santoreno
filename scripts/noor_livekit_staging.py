@@ -39,5 +39,25 @@ def verify_livekit_unconfigured(origin, owner, teacher, learner_id, other_learne
                               lesson_id+"/media-token",owner,404)):
         code,_,_=http(origin,path,method="POST",body={},opener=who)
         require_status(code,status,"CR-02A owner/teacher isolation")
+    # CR-02B2: actual signed acting Sheikh can request ONLY server-side mute;
+    # without provider credentials this fails closed, never fabricates a mute.
+    mute="/v1/teacher/lessons/"+lesson_id+"/mute-learner-microphone"
+    code,raw,headers=http(origin,mute,method="POST",body={},opener=teacher)
+    require_status(code,503,"CR-02B2 unconfigured mute fail-closed")
+    value=json_body(raw)
+    if value.get("code")!="LIVEKIT_NOT_CONFIGURED" or headers.get("Cache-Control")!="no-store":
+        raise RuntimeError("CR-02B2 unconfigured mute returned an invented provider state")
+    code,_,_=http(origin,mute,method="GET",opener=teacher)
+    require_status(code,405,"CR-02B2 teacher mute POST only")
+    for body in ({"muted":False},{"trackSid":"forged"},{"room":"other"},
+                 {"identity":"child","muted":True}):
+        code,_,_=http(origin,mute,method="POST",body=body,opener=teacher)
+        require_status(code,400,"CR-02B2 forged track/room/unmute denied")
+    for principal,status in ((owner,404),(None,401)):
+        code,_,_=http(origin,mute,method="POST",body={},opener=principal)
+        require_status(code,status,"CR-02B2 Sheikh-only mute authorization")
+    print("PASS: CR-02B2 remote Dev Sheikh microphone-only mute 503/no provider "
+          "secret; forged unmute/track 400, student 404, anonymous 401, GET 405")
+
     print("PASS: CR-02A isolated Dev signed LiveKit gateway 503/no token without "
           "credentials; fake room/role 400, foreign 404, anonymous 401, GET 405")

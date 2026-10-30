@@ -208,7 +208,7 @@ try {
   const renderedPage35 = (browser) =>
     browser.evaluate(
       "(()=>{const art=document.querySelector('[data-rendered-quran-page=\"35\"]');" +
-        "const sheet=art?.closest('[role=\"group\"][aria-label^=\"مصحف المدينة\"]');" +
+        'const sheet=art?.closest(\'[role="group"][aria-label^="مصحف المدينة"]\');' +
         "const r=art?.getBoundingClientRect();" +
         "return !!art && !!sheet && sheet.getAttribute('aria-label')==='مصحف المدينة، الصفحة 35' " +
         "&& !!r && r.width>100 && r.height>100 && !sheet.closest('[aria-busy=\"true\"]')})()",

@@ -1,3 +1,7 @@
+## Noor Phase 08A notebook notes remote Dev gate — #258 (source, NOT YET REMOTE ACCEPTED)
+- After Noor #190 PR #191 main Verify, existing dedicated Noor stage reuses signed synthetic staff/Sheikh/owner lessons from Phase 07A to test D1 0014. New `scripts/noor_notebook_staging.py` checks 0014, authenticated owner save/edit/hide, idempotent replay, 409 conflict, latest read, immutable audit count, sibling/foreign 404 and anonymous 401. No new Cloudflare services, no Santo data, no real minors or private media.
+- `noor_private_staging.py` invokes notebook flow after synthetic completed lesson report and before grant cleanup. CI PR is offline only; actual Dev acceptance not claimed until Santoreno main deployment. No default Chrome. See source #258 and Noor #190.
+
 ## Noor Phase 07A remote Dev report gate — #256 (source only; no remote acceptance yet)
 
 - Parent Noor [#186](https://github.com/geminiamo0-ship-it/nour-elquran/issues/186), draft [PR #187](https://github.com/geminiamo0-ship-it/nour-elquran/pull/187). Only when Noor **main** exact-sha Verify is SUCCESS will the existing staging workflow test new 0013 D1, real signed synthetic scheduled lesson, explicitly synthetic Start/End D1 audit, authorized Sheikh draft/publish/replay/new revision and latest-only owner read, sibling/foreign denial and post-revocation teacher 404.

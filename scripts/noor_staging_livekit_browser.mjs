@@ -233,7 +233,7 @@ try {
   const rendered = (browser, pageNumber) =>
     browser.evaluate(
       "(()=>{const art=document.querySelector('[data-rendered-quran-page=" +
-        JSON.stringify(pageNumber) +
+        JSON.stringify(String(pageNumber)) +
         "]');const r=art?.getBoundingClientRect();" +
         "return !!art && !!r && r.width>100 && r.height>100})()",
     );

@@ -1,0 +1,71 @@
+name: Noor Dev — encrypted owner hands-on classroom demo
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/noor-owner-demo.yml
+      - scripts/noor_owner_demo.py
+      - scripts/noor_owner_demo_recipient.crt
+  pull_request:
+    branches: [main]
+    paths:
+      - .github/workflows/noor-owner-demo.yml
+      - scripts/noor_owner_demo.py
+      - scripts/noor_owner_demo_recipient.crt
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: noor-dev-owner-demo-provision
+  cancel-in-progress: false
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify restricted demo script and recipient public certificate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile scripts/noor_owner_demo.py
+          openssl x509 -in scripts/noor_owner_demo_recipient.crt -noout -pubkey >/dev/null
+          grep -Fq 'noor-core-staging' scripts/noor_owner_demo.py
+          grep -Fq 'noor-site-staging' scripts/noor_owner_demo.py
+  provision:
+    needs: validate
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout owner demo script
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate Noor main was verified and only Dev resources will be used
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_ACCOUNT_ID" && test -n "$CLOUDFLARE_API_TOKEN"
+          SHA="$(gh api repos/geminiamo0-ship-it/nour-elquran/branches/main --jq '.commit.sha')"
+          test -n "$SHA"
+          COUNT="$(gh api "repos/geminiamo0-ship-it/nour-elquran/actions/runs?head_sha=$SHA&per_page=10" --jq '[.workflow_runs[] | select(.name == "Verify" and .event == "push" and .conclusion == "success")] | length')"
+          test "$COUNT" -ge 1
+          echo "Noor verified main; isolated owner demo only. All test credentials are encrypted at rest."
+      - name: Create synthetic accounts and staff-approved lesson on existing Noor Dev
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/noor_owner_demo.py
+      - name: Upload encrypted private-key-only owner demo credential envelope
+        uses: actions/upload-artifact@v4
+        with:
+          name: noor-owner-demo-encrypted
+          path: artifacts/noor-owner-demo/demo.cms
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0

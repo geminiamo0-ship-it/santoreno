@@ -323,6 +323,34 @@ def plan_stage_synthetic_smoke(origin, database_id, config, owner_a, owner_b, le
         def check_scheduled_room(room_lesson_id):
             verify_classroom_room(origin,database_id,owner_a,owner_b,learner_id,
                 other_learner,room_lesson_id,post,http,d1_read_only,require_status,json_body)
+            if os.environ.get("NOOR_STAGING_LIVEKIT_BROWSER_QA")=="true":
+                # These separate Better Auth sessions are ephemeral and do not
+                # appear in logs, screenshots, URLs, artifacts or GitHub outputs.
+                def synthetic_cookies(opener):
+                    processors=[h for h in opener.handlers
+                                if isinstance(h,urllib.request.HTTPCookieProcessor)]
+                    if len(processors)!=1:
+                        raise RuntimeError("Missing isolated Noor browser session jar")
+                    cookies=[{"name":c.name,"value":c.value}
+                             for c in processors[0].cookiejar if c.secure]
+                    if not cookies:
+                        raise RuntimeError("Missing signed synthetic browser session")
+                    return json.dumps(cookies)
+                livekit_env=dict(os.environ,
+                    NOOR_STAGING_ORIGIN=origin+"/",
+                    NOOR_SYNTHETIC_LIVEKIT_QA="true",
+                    NOOR_SYNTHETIC_LIVEKIT_LESSON=room_lesson_id,
+                    NOOR_SYNTHETIC_LIVEKIT_LEARNER=learner_id,
+                    NOOR_SYNTHETIC_TEACHER_COOKIES=synthetic_cookies(owner_b),
+                    NOOR_SYNTHETIC_STUDENT_COOKIES=synthetic_cookies(owner_a))
+                browser=subprocess.run(["node","scripts/noor_staging_livekit_browser.mjs"],
+                    cwd=ROOT,env=livekit_env,capture_output=True,text=True,timeout=180)
+                if browser.returncode!=0:
+                    raise RuntimeError("Noor two-browser LiveKit QA failed; inspect synthetic screenshot artifact")
+                for line in browser.stdout.splitlines():
+                    if line.startswith("PASS: ") and len(line)<220:
+                        print(line)
+
         report_lesson_id = verify_report_flow(
             origin,database_id,owner_a,owner_b,learner_id,other_learner,role_id,
             post,http,qa_write,d1_read_only,require_status,json_body,

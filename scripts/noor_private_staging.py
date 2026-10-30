@@ -82,6 +82,15 @@ def write_config(target, database_id, origin, access_password, auth_secret):
         "binding": "DB", "database_name": DATABASE_NAME, "database_id": database_id,
         "migrations_dir": str(NOOR / "workers/api/migrations"),
     }]
+    # Only the Noor developer Worker, never its Production binding.
+    # Pinned Wrangler 4.45 supports new_sqlite_classes legacy migrations.
+    if WORKER_NAME != "noor-site-staging" or DATABASE_NAME != "noor-core-staging":
+        raise RuntimeError("Refusing Classroom DO outside the isolated Noor Dev worker")
+    cfg["durable_objects"] = {"bindings": [
+        {"name": "LESSON_ROOMS", "class_name": "LessonRoom"},
+    ]}
+    cfg["migrations"] = [{"tag":"noor-classroom-sqlite-v1",
+                           "new_sqlite_classes":["LessonRoom"]}]
     cfg["vars"] = {
         "NOOR_ENVIRONMENT": "staging", "NOOR_DEV_OPEN": "true",
         "AUTH_ENABLED": "true", "AUTH_ORIGIN": origin,
@@ -130,6 +139,7 @@ def plan_stage_synthetic_smoke(origin, database_id, config, owner_a, owner_b, le
     from noor_report_staging import verify_report_flow
     from noor_notebook_staging import verify_notebook_flow
     from noor_quran_archive_staging import verify_archive_readonly
+    from noor_classroom_staging import verify_classroom_room
     from uuid import uuid4
     def subject(opener):
         status, body, _ = http(origin, "/api/auth/session", opener=opener)
@@ -310,9 +320,13 @@ def plan_stage_synthetic_smoke(origin, database_id, config, owner_a, owner_b, le
             raise RuntimeError("Student sees incorrect attempt/review history")
         post(owner_submissions,{"operationId":str(uuid4()),"note":"after accepted"},owner_a,409)
         print("PASS: Noor Phase 05B remote student submit/replay and teacher retry+accept, immutable history and owner isolation")
+        def check_scheduled_room(room_lesson_id):
+            verify_classroom_room(origin,database_id,owner_a,owner_b,learner_id,
+                other_learner,room_lesson_id,post,http,d1_read_only,require_status,json_body)
         report_lesson_id = verify_report_flow(
             origin,database_id,owner_a,owner_b,learner_id,other_learner,role_id,
-            post,http,qa_write,d1_read_only,require_status,json_body)
+            post,http,qa_write,d1_read_only,require_status,json_body,
+            on_scheduled_lesson=check_scheduled_room)
         verify_notebook_flow(
             origin,database_id,owner_a,owner_b,learner_id,other_learner,
             report_lesson_id,http,post,d1_read_only,require_status,json_body)

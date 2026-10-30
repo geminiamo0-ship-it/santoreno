@@ -207,7 +207,9 @@ try {
     waitFor(() => has(teacher, "الصفحة 35 من ٦٠٤"), "Teacher canonical Quran page 35"),
     waitFor(() => has(student, "الصفحة 35 من ٦٠٤"), "Student synchronized Quran page 35"),
   ]);
-  console.log("PASS: CR-03 signed teacher page change synced to learner; durable revision, replay, stale CAS, role denial");
+  console.log(
+    "PASS: CR-03 signed teacher page change synced to learner; durable revision, replay, stale CAS, role denial",
+  );
   await snapshot(teacher, 1280, 900, "teacher-desktop-1280");
   await snapshot(student, 390, 844, "student-mobile-390");
   await snapshot(student, 360, 667, "student-mobile-360");

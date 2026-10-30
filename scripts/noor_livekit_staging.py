@@ -121,6 +121,26 @@ def verify_livekit_gateway(origin, owner, teacher, learner_id, other_learner,
             urls[0]!=urls[1]):
             raise RuntimeError("CR-02A failed room/role credential isolation")
 
+    if configured:
+        # Actual server-side LiveKit API auth, read-only and room-filtered.
+        # The server returns ONLY a safe status; never request provider payloads
+        # or log a participant JWT/LiveKit key.
+        provider="/v1/teacher/lessons/"+lesson_id+"/livekit-provider-check"
+        code,raw,headers=http(origin,provider,method="POST",body={},opener=teacher)
+        require_status(code,200,"CR-02A signed Dev read-only provider connectivity")
+        if (json_body(raw).get("code")!="LIVEKIT_PROVIDER_REACHABLE" or
+            headers.get("Cache-Control")!="no-store"):
+            raise RuntimeError("CR-02A provider returned invalid safe status")
+        code,_,_=http(origin,provider,method="GET",opener=teacher)
+        require_status(code,405,"CR-02A provider check POST-only")
+        code,_,_=http(origin,provider,method="POST",
+                      body={"room":"forged"},opener=teacher)
+        require_status(code,400,"CR-02A provider check rejects injected room")
+        for principal,status in ((owner,404),(None,401)):
+            code,_,_=http(origin,provider,method="POST",body={},opener=principal)
+            require_status(code,status,"CR-02A provider check actor scope")
+        print("PASS: CR-02A Dev LiveKit provider authenticated server-side read-only; no media or room created")
+
     for path,who,status in ((student,teacher,404),(teacher_path,owner,404),
                              (student,None,401),(teacher_path,None,401),
                              ("/v1/me/learners/"+other_learner+"/lessons/"+

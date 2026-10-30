@@ -82,6 +82,22 @@ async function snapshot(browser, width, height, label) {
 }
 try {
   student = await openNoorStagingChrome(origin, { syntheticMedia: true });
+  // A default headless 780x490 viewport collapses the original teaching dock;
+  // real acceptance starts at the explicitly approved role-specific viewports.
+  await Promise.all([
+    teacher.send("Emulation.setDeviceMetricsOverride", {
+      width: 1280,
+      height: 900,
+      deviceScaleFactor: 1,
+      mobile: false,
+    }),
+    student.send("Emulation.setDeviceMetricsOverride", {
+      width: 390,
+      height: 844,
+      deviceScaleFactor: 1,
+      mobile: true,
+    }),
+  ]);
   await Promise.all([applyCookies(teacher, teacherCookies), applyCookies(student, studentCookies)]);
   await Promise.all([
     teacher.go("/classroom/live/?role=teacher&lessonId=" + encodeURIComponent(lesson)),

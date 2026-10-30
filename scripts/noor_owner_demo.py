@@ -99,6 +99,10 @@ def new_account(origin,label,used_phones):
         status,payload=http(origin,"/api/auth/register","POST",
             {"name":label,"phoneNumber":phone,"password":password},browser)
         if status in (400,409):continue
+        if status == 429:
+            # Better Auth stores a per-origin signup rate limit; never bypass it.
+            time.sleep(70)
+            continue
         if status!=200:raise RuntimeError("Dev synthetic signup failed HTTP "+str(status))
         uid=payload.get("user",{}).get("id")
         if not isinstance(uid,str) or not UUID.fullmatch(uid):
@@ -218,6 +222,8 @@ def main():
 
 if __name__=="__main__":
     try:main()
-    except Exception:
-        print("ERROR: safe synthetic owner demo provisioning failed; credentials were not published",file=sys.stderr)
+    except Exception as error:
+        status = re.search(r"HTTP [1-5]\\d{2}", str(error))
+        print("ERROR: safe synthetic owner demo provisioning failed; credentials were not published; "
+              + (status.group(0) if status else type(error).__name__), file=sys.stderr)
         raise SystemExit(1)

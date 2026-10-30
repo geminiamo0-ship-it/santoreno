@@ -18,10 +18,16 @@ on:
       - tests/test_noor_report_staging.py
       - scripts/noor_staging_profile_browser.mjs
       - scripts/noor_staging_teacher_browser.mjs
+      - scripts/noor_staging_livekit_browser.mjs
   workflow_dispatch:
     inputs:
       browser_qa:
         description: "Run targeted synthetic Chrome only when visual acceptance is required"
+        required: false
+        type: boolean
+        default: false
+      livekit_browser_qa:
+        description: "Run two signed synthetic browsers with fake media and real LiveKit Dev"
         required: false
         type: boolean
         default: false
@@ -42,6 +48,7 @@ on:
       - tests/test_noor_report_staging.py
       - scripts/noor_staging_profile_browser.mjs
       - scripts/noor_staging_teacher_browser.mjs
+      - scripts/noor_staging_livekit_browser.mjs
 
 permissions:
   contents: read
@@ -70,6 +77,7 @@ jobs:
         run: |
           node --check scripts/noor_staging_profile_browser.mjs
           node --check scripts/noor_staging_teacher_browser.mjs
+          node --check scripts/noor_staging_livekit_browser.mjs
 
   deploy:
     needs: validate
@@ -82,6 +90,7 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       WRANGLER_SEND_METRICS: "false"
       NOOR_STAGING_BROWSER_QA: ${{ github.event_name == 'workflow_dispatch' && inputs.browser_qa && 'true' || 'false' }}
+      NOOR_STAGING_LIVEKIT_BROWSER_QA: ${{ (github.event_name == 'workflow_dispatch' && inputs.livekit_browser_qa && 'true') || (github.event_name == 'push' && contains(github.event.head_commit.message, '[noor-livekit-e2e]') && 'true') || 'false' }}
     steps:
       - name: Checkout scoped workflow repository
         uses: actions/checkout@v4
@@ -132,4 +141,5 @@ jobs:
           path: |
             artifacts/noor-staging-profile/*.png
             artifacts/noor-staging-teacher/*.png
+            artifacts/noor-staging-livekit/*.png
           if-no-files-found: warn

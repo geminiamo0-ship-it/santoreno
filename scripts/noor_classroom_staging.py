@@ -13,7 +13,7 @@ def verify_classroom_room(origin,database_id,owner,teacher,learner_id,other_lear
         raise RuntimeError("CR-01 denied non-synthetic DB/lesson ID")
     if learner_id==other_learner:
         raise RuntimeError("CR-01 refused identical sibling IDs")
-    if not origin.startswith("https://noor-site-staging."):
+    if not re.fullmatch(r"https://noor-site-staging\.[a-z0-9-]+\.workers\.dev",origin):
         raise RuntimeError("CR-01 refused non-isolated Noor Dev origin")
 
     base="/v1/me/learners/"+learner_id+"/lessons/"+lesson_id

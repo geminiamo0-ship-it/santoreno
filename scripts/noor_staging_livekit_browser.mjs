@@ -458,6 +458,34 @@ try {
   await click(student, "دخول الصوت والفيديو");
   await waitFor(() => mediaReady(student), "student fresh signed WebRTC reconnect");
   console.log("PASS: student LiveKit media disconnect and reconnect");
+  // A lesson without Sheikh corrections has an intentionally EMPTY report
+  // draft. Add one private signed synthetic correction while the lesson is
+  // genuinely live, then prove the teacher report is seeded at explicit End.
+  // The student must never read this unpublished correction directly.
+  const correctionPath = "/v1/teacher/lessons/" + encodeURIComponent(lesson) + "/corrections";
+  const correction = {
+    action: "add",
+    operationId: crypto.randomUUID(),
+    page: 1,
+    surah: 1,
+    ayah: 1,
+    kind: "tajweed",
+    text: "Synthetic tajweed practice note - not real child data",
+  };
+  const savedCorrection = await pageWrite(teacher, correctionPath, correction);
+  assert.equal(savedCorrection.status, 200, "Signed Sheikh correction rejected before End");
+  assert.equal(savedCorrection.body.code, "CORRECTION_SAVED");
+  assert.equal(savedCorrection.body.corrections?.items?.length, 1);
+  const replayCorrection = await pageWrite(teacher, correctionPath, correction);
+  assert.equal(replayCorrection.status, 200, "Sheikh correction replay not acknowledged");
+  assert.equal(replayCorrection.body.code, "CORRECTION_REPLAY");
+  const privateCorrection = await pageRead(teacher, correctionPath);
+  assert.equal(privateCorrection.status, 200, "Sheikh correction did not persist");
+  assert.equal(privateCorrection.body.corrections?.items?.length, 1);
+  const refusedCorrection = await pageRead(student, correctionPath);
+  assert.equal(refusedCorrection.status, 404, "Unpublished correction leaked to learner");
+  console.log("PASS: signed private Sheikh correction persisted, replayed and denied to learner");
+
   // This UI has already performed the real Sheikh Start. A separate HTTP
   // Start would now be invalid; complete the SAME lesson through Sheikh UI.
   await click(teacher, "إنهاء الحصة");

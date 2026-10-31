@@ -35,3 +35,54 @@ class RoomDevGuards(TestCase):
   with self.assertRaisesRegex(RuntimeError,"identical sibling"):
    module.verify_classroom_room(**a)
   a["post"].assert_not_called()
+
+
+class BrowserDevEndGuards(TestCase):
+ def values(self):
+  import json
+  owner,teacher=object(),object()
+  def http(origin,path,opener=None):
+   if path.endswith("/lifecycle"):
+    return 200,json.dumps({"lifecycle":{"phase":"completed","startedAtMs":1000,
+     "endedAtMs":2000}}).encode(),{"Cache-Control":"no-store"}
+   if path.endswith("/report"):
+    return 200,json.dumps({"report":{"status":"draft","revision":1}}).encode(),{}
+   if path.endswith("/reports"):
+    return 200,json.dumps({"reports":[]}).encode(),{}
+   raise AssertionError("Unexpected remote path")
+  def require_status(actual,expected,label):
+   self.assertEqual(actual,expected,label)
+  return dict(origin="https://noor-site-staging.geminiamo0.workers.dev",
+   database_id=uid(4),owner=owner,teacher=teacher,learner_id=uid(1),
+   lesson_id=uid(3),http=Mock(side_effect=http),
+   d1_read_only=Mock(return_value=[{"action":"start"},{"action":"end"}]),
+   require_status=require_status,json_body=lambda raw:json.loads(raw))
+ def test_browser_completed_requires_isolated_hostname(self):
+  a=self.values();a["origin"]="https://noor-site-staging.evil.com"
+  with self.assertRaisesRegex(RuntimeError,"isolated"):
+   module.verify_browser_lesson_completion(**a)
+  a["http"].assert_not_called();a["d1_read_only"].assert_not_called()
+ def test_browser_completed_denies_wrong_synthetic_identity(self):
+  a=self.values();a["learner_id"]="not-a-uuid"
+  with self.assertRaisesRegex(RuntimeError,"synthetic"):
+   module.verify_browser_lesson_completion(**a)
+  a["http"].assert_not_called()
+ def test_browser_completed_requires_exact_d1_start_end_audit(self):
+  a=self.values();a["d1_read_only"].return_value=[{"action":"start"}]
+  with self.assertRaisesRegex(RuntimeError,"two D1 audit"):
+   module.verify_browser_lesson_completion(**a)
+ def test_browser_completed_requires_private_teacher_report_seed(self):
+  import json
+  a=self.values()
+  original=a["http"].side_effect
+  def no_seed(origin,path,opener=None):
+   if path.endswith("/report"):
+    return 200,json.dumps({"report":None}).encode(),{}
+   return original(origin,path,opener=opener)
+  a["http"].side_effect=no_seed
+  with self.assertRaisesRegex(RuntimeError,"private Sheikh report"):
+   module.verify_browser_lesson_completion(**a)
+ def test_browser_signed_end_succeeds_only_with_d1_and_private_report(self):
+  a=self.values()
+  self.assertTrue(module.verify_browser_lesson_completion(**a))
+  self.assertEqual(a["d1_read_only"].call_count,1)

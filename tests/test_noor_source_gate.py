@@ -91,6 +91,11 @@ class SourceGateTests(unittest.TestCase):
             [approved(reviewer="Reviewer"), approved(reviewer="reviewer", state="CHANGES_REQUESTED", at="2026-10-31T11:00:00Z")],
             [approved(reviewer="alice"), approved(reviewer="bob", state="CHANGES_REQUESTED", at="2026-10-31T11:00:00Z")],
             [approved(reviewer="bob", state="CHANGES_REQUESTED"), approved(reviewer="alice", at="2026-10-31T11:00:00Z")],
+            [
+                approved(reviewer="alice", state="CHANGES_REQUESTED"),
+                approved(reviewer="bob", at="2026-10-31T11:00:00Z"),
+                approved(reviewer="alice", state="COMMENTED", at="2026-10-31T12:00:00Z"),
+            ],
             [approved(reviewer="reviewer")] * 100,
         ]:
             with self.subTest(reviews=reviews[:2], count=len(reviews)):
@@ -104,6 +109,13 @@ class SourceGateTests(unittest.TestCase):
             approved(reviewer="alice", state="DISMISSED", at="2026-10-31T12:00:00Z"),
         ]
         self.assertEqual(gate.resolve_source("288", fixture(reviews=reviews)), SHA)
+        self.assertEqual(
+            gate.resolve_source("288", fixture(reviews=[
+                approved(reviewer="alice"),
+                approved(reviewer="alice", state="COMMENTED", at="2026-10-31T11:00:00Z"),
+            ])),
+            SHA,
+        )
 
     def test_reject_wrong_event_failed_ci_or_stale_sha(self):
         for result in [

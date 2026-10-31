@@ -8,6 +8,7 @@ import json
 import os
 import re
 import sys
+import time
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -42,16 +43,31 @@ def api_json(path):
 
 def verify_run(sha, event, get_json):
     result = get_json("actions/runs?head_sha=" + sha + "&per_page=100")
-    runs = result.get("workflow_runs", []) if isinstance(result, dict) else []
-    return any(
-        isinstance(run, dict)
+    runs = result.get("workflow_runs") if isinstance(result, dict) else None
+    if not isinstance(runs, list) or len(runs) >= 100:
+        # The first page may omit a newer failure or pending Verify.
+        return False
+    matching = [
+        run for run in runs
+        if isinstance(run, dict)
         and run.get("name") == "Verify"
         and run.get("head_sha") == sha
         and run.get("event") == event
-        and run.get("status") == "completed"
-        and run.get("conclusion") == "success"
-        for run in runs
-    )
+    ]
+    if not matching:
+        return False
+    # A previous green run must not authorize Dev secrets if a later run
+    # is pending or failed on the exact same source SHA. GitHub timestamps
+    # are authoritative; unknown/malformed dates are denied.
+    if any(
+        not isinstance(run.get("created_at"), str)
+        or not re.fullmatch(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ", run["created_at"])
+        or not isinstance(run.get("id"), int)
+        for run in matching
+    ):
+        return False
+    newest = max(matching, key=lambda run: (run["created_at"], run["id"]))
+    return newest.get("status") == "completed" and newest.get("conclusion") == "success"
 
 
 def eligible_approvers(reviews, sha, author):
@@ -113,15 +129,37 @@ def has_write_reviewer(approvers, get_json):
     return False
 
 
-def resolve_source(pr_number, get_json):
+def verified_main_source(sha, get_json, sleep=None, checks=1):
+    """Wait a bounded time for the exact Noor main SHA CI, without weakening it.
+
+    A same-minute Santoreno push can run before Noor's Verify finishes. Recheck
+    the main ref before every attempt, and NEVER accept an older SHA, another
+    event, or an in-progress/failed workflow as success. Unit tests leave
+    sleep disabled; only the workflow entry point enables bounded retries.
+    """
+    if type(checks) is not int or not 1 <= checks <= 10:
+        raise SourceGateError("Invalid Noor Verify retry count")
+    if checks > 1 and sleep is None:
+        raise SourceGateError("Noor Verify retry must provide a bounded sleeper")
+    for attempt in range(checks):
+        branch = get_json("branches/main")
+        current = (branch.get("commit") or {}).get("sha") if isinstance(branch, dict) else None
+        if current != sha:
+            raise SourceGateError("Noor main changed during exact-head Verify check")
+        if verify_run(sha, "push", get_json):
+            return sha
+        if attempt + 1 < checks:
+            sleep(12)
+    raise SourceGateError("No successful exact-head Noor main Verify")
+
+
+def resolve_source(pr_number, get_json, *, sleep=None, main_checks=1):
     if not pr_number:
         branch = get_json("branches/main")
         sha = (branch.get("commit") or {}).get("sha") if isinstance(branch, dict) else None
         if not isinstance(sha, str) or not SHA.fullmatch(sha):
             raise SourceGateError("Invalid Noor main commit")
-        if not verify_run(sha, "push", get_json):
-            raise SourceGateError("No successful exact-head Noor main Verify")
-        return sha
+        return verified_main_source(sha, get_json, sleep=sleep, checks=main_checks)
 
     if not PR_NUMBER.fullmatch(pr_number):
         raise SourceGateError("Invalid Noor PR number")
@@ -156,7 +194,10 @@ def resolve_source(pr_number, get_json):
 
 def main():
     try:
-        print(resolve_source(os.environ.get("NOOR_PR_NUMBER", ""), api_json))
+        print(resolve_source(
+            os.environ.get("NOOR_PR_NUMBER", ""), api_json,
+            sleep=time.sleep, main_checks=10,
+        ))
     except SourceGateError as exc:
         print("NOOR_SOURCE_GATE_DENIED: " + str(exc), file=sys.stderr)
         return 1

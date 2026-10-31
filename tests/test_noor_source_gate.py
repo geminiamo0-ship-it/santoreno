@@ -35,6 +35,7 @@ def runs(sha=SHA, event="pull_request", conclusion="success"):
     return {"workflow_runs": [{
         "name": "Verify", "head_sha": sha, "event": event,
         "status": "completed", "conclusion": conclusion,
+        "created_at": "2026-10-31T10:00:00Z", "id": 1,
     }]}
 
 
@@ -109,6 +110,120 @@ class SourceGateTests(unittest.TestCase):
         with self.assertRaisesRegex(gate.SourceGateError, "main Verify"):
             gate.resolve_source("", lambda path: {"commit": {"sha": SHA}} if path == "branches/main" else runs(SHA, "pull_request"))
 
+    def test_later_failed_or_pending_exact_sha_verify_overrides_older_success(self):
+        earlier = {
+            "name": "Verify", "head_sha": SHA, "event": "push",
+            "status": "completed", "conclusion": "success",
+            "created_at": "2026-10-31T10:00:00Z", "id": 11,
+        }
+        for status, conclusion in (("completed", "failure"), ("in_progress", None),
+                                   ("completed", "cancelled")):
+            newer = {**earlier, "status": status, "conclusion": conclusion,
+                     "created_at": "2026-10-31T11:00:00Z", "id": 12}
+            for order in ([earlier, newer], [newer, earlier]):
+                def get_json(path):
+                    if path == "branches/main":
+                        return {"commit": {"sha": SHA}}
+                    return {"workflow_runs": order}
+                with self.subTest(status=status, order=order):
+                    with self.assertRaisesRegex(gate.SourceGateError, "main Verify"):
+                        gate.resolve_source("", get_json)
+        fresh = {**earlier, "id": 12, "created_at": "2026-10-31T11:00:00Z"}
+        def green_get_json(path):
+            if path == "branches/main":
+                return {"commit": {"sha": SHA}}
+            return {"workflow_runs": [earlier, fresh]}
+        self.assertEqual(gate.resolve_source("", green_get_json), SHA)
+
+    def test_missing_or_incomplete_verify_history_fails_closed(self):
+        base = runs(SHA, "push")["workflow_runs"][0]
+        for result in (
+            {"workflow_runs": [{k: v for k, v in base.items() if k != "created_at"}]},
+            {"workflow_runs": [{**base, "created_at": "unparseable"}]},
+            {"workflow_runs": [{k: v for k, v in base.items() if k != "id"}]},
+            {"workflow_runs": [base] * 100},
+            {"workflow_runs": None},
+        ):
+            def get_json(path):
+                if path == "branches/main":
+                    return {"commit": {"sha": SHA}}
+                return result
+            with self.subTest(result=str(result)[:100]):
+                with self.assertRaisesRegex(gate.SourceGateError, "main Verify"):
+                    gate.resolve_source("", get_json)
+
+    def test_waits_only_for_same_main_sha_completed_successful_push_verify(self):
+        calls = {"runs": 0, "sleeps": []}
+        def get_json(path):
+            if path == "branches/main":
+                return {"commit": {"sha": SHA}}
+            if path.startswith("actions/runs?"):
+                calls["runs"] += 1
+                if calls["runs"] == 1:
+                    return {"workflow_runs": [{
+                        "name": "Verify", "head_sha": SHA, "event": "push",
+                        "status": "in_progress", "conclusion": None,
+                        "created_at": "2026-10-31T10:00:00Z", "id": 2,
+                    }]}
+                return runs(SHA, "push")
+            self.fail("Unexpected GitHub endpoint")
+        self.assertEqual(gate.resolve_source(
+            "", get_json, sleep=lambda seconds: calls["sleeps"].append(seconds),
+            main_checks=3,
+        ), SHA)
+        self.assertEqual(calls["sleeps"], [12])
+        self.assertEqual(calls["runs"], 2)
+
+    def test_main_ref_change_during_ci_wait_fails_closed(self):
+        counts = {"branch": 0, "sleeps": []}
+        def get_json(path):
+            if path == "branches/main":
+                counts["branch"] += 1
+                return {"commit": {"sha": SHA if counts["branch"] <= 2 else OTHER}}
+            if path.startswith("actions/runs?"):
+                return {"workflow_runs": []}
+            self.fail("Unexpected GitHub endpoint")
+        with self.assertRaisesRegex(gate.SourceGateError, "main changed"):
+            gate.resolve_source(
+                "", get_json, sleep=lambda n: counts["sleeps"].append(n),
+                main_checks=4,
+            )
+        self.assertEqual(counts["sleeps"], [12])
+    
+    def test_pending_or_failed_main_verify_never_unlocks_staging(self):
+        for status, conclusion in [
+            ("in_progress", None), ("completed", "failure"),
+            ("completed", "cancelled"),
+        ]:
+            with self.subTest(status=status, conclusion=conclusion):
+                observed = []
+                def get_json(path):
+                    if path == "branches/main":
+                        return {"commit": {"sha": SHA}}
+                    return {"workflow_runs": [{
+                        "name": "Verify", "head_sha": SHA, "event": "push",
+                        "status": status, "conclusion": conclusion,
+                        "created_at": "2026-10-31T10:00:00Z", "id": 3,
+                    }]}
+                with self.assertRaisesRegex(gate.SourceGateError, "main Verify"):
+                    gate.resolve_source(
+                        "", get_json, sleep=lambda n: observed.append(n),
+                        main_checks=3,
+                    )
+                self.assertEqual(observed, [12, 12])
+
+    def test_retry_limits_are_bounded_and_no_waiter_fails_closed(self):
+        def get_json(path):
+            return {"commit": {"sha": SHA}} if path == "branches/main" else runs(SHA, "push")
+        for checks in (0, 11, -1, True, "10"):
+            # Bool is a Python int subclass, but should never be an accepted
+            # caller-controlled retry count.
+            with self.subTest(checks=checks):
+                with self.assertRaises(gate.SourceGateError):
+                    gate.verified_main_source(SHA, get_json, sleep=lambda _: None, checks=checks)
+        with self.assertRaisesRegex(gate.SourceGateError, "bounded sleeper"):
+            gate.verified_main_source(SHA, get_json, checks=2)
+        
     def test_reject_fork_draft_wrong_base_and_closed(self):
         for key, value in [
             ("head", {"sha": SHA, "repo": {"full_name": "outsider/fork"}}),

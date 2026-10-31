@@ -1,3 +1,9 @@
+## 2026-10-31 — exact-main Verify race guard (#312, candidate only)
+
+- Incident: Santoreno [Dev #41233982557](https://github.com/geminiamo0-ship-it/santoreno/actions/runs/41233982557) failed **before** touching Cloudflare because the Noor main SHA's push Verify was not completed at the time of the source gate. Noor [Verify #41233957031](https://github.com/geminiamo0-ship-it/nour-elquran/actions/runs/41233957031) later succeeded for the same exact merge `acdd869ac596edb4019bf453d8b1ccf6f56c5c51`.
+- PR #312 changes **only** the default main-source CI check: on the secret-bearing workflow, poll up to ten times with 12-second intervals; before **each** poll verify the Noor main SHA still matches the initial SHA. Success requires the exact SHA, push event, **latest matching Verify run** and a completed successful conclusion. An older successful run cannot override a newer failure or pending run. Incomplete/unknown first-page run history, malformed timestamps, failed, cancelled, in-progress, stale SHA or ref changes never count as success; exhausted polls fail closed. Reviewed-PR checks remain unchanged.
+- **Important release safety:** Noor PR #288 and Santoreno PR #307 are already merged but have **no independent APPROVED reviews** recorded on GitHub. Exact-head CI passing does not replace independent review of the D1 0023 source. PR #312 must be independently reviewed before merge; **do not trigger a remote D1 migration run** or enable cumulative ink until an independent qualified reviewer has audited the actual migrated SQL and staging scripts and signed Dev tests pass. No Cloudflare credentials are used in PR #312 validation.
+
 # Noor Dev: reviewed PR SHA staging gate (#306)
 
 This is an **opt-in isolated Cloudflare Dev** path for testing a Noor change before merging it. It does not deploy Noor Production or Santo and does not change feature flags.

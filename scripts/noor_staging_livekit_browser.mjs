@@ -458,11 +458,16 @@ try {
   await click(student, "دخول الصوت والفيديو");
   await waitFor(() => mediaReady(student), "student fresh signed WebRTC reconnect");
   console.log("PASS: student LiveKit media disconnect and reconnect");
-  await click(student, "مغادرة الحصة");
-  await waitFor(() => has(student, "الانضمام لغرفة الانتظار"), "signed student DO leave");
-  await click(teacher, "مغادرة الحصة");
-  await waitFor(() => has(teacher, "الانضمام لغرفة الانتظار"), "signed teacher DO leave");
-  console.log("PASS: both signed DO leaves detached local A/V");
+  // This UI has already performed the real Sheikh Start. A separate HTTP
+  // Start would now be invalid; complete the SAME lesson through Sheikh UI.
+  await click(teacher, "إنهاء الحصة");
+  await waitFor(() => has(teacher, "تأكيد إنهاء الحصة"), "signed End confirmation visible");
+  await click(teacher, "تأكيد الإنهاء");
+  await Promise.all([
+    waitFor(() => has(teacher, "انتهت الحصة"), "Sheikh sees confirmed End"),
+    waitFor(() => has(student, "انتهت الحصة"), "learner sees confirmed End"),
+  ]);
+  console.log("PASS: Sheikh explicitly ended same signed browser lesson; both see completed");
 } catch (error) {
   await teacher.screenshot("artifacts/noor-staging-livekit/teacher-failure.png").catch(() => {});
   if (student)

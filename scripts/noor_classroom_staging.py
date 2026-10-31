@@ -248,7 +248,7 @@ def verify_browser_lesson_completion(origin, database_id, owner, teacher,
     Called after separately signed synthetic teacher and learner Chrome have
     exercised optional LiveKit media. Never turns UI text into a lifecycle ACK.
     """
-    if not re.fullmatch(r"https://noor-site-staging\\.[a-z0-9-]+\\.workers\\.dev", origin):
+    if not re.fullmatch(r"https://noor-site-staging\.[a-z0-9-]+\.workers\.dev", origin):
         raise RuntimeError("Browser lifecycle requires isolated Noor Dev Worker")
     if not all(isinstance(v,str) and re.fullmatch(r"[0-9a-fA-F-]{36}",v) for v in
                (database_id,learner_id,lesson_id)):

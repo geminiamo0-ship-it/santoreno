@@ -395,9 +395,6 @@ def plan_stage_synthetic_smoke(origin, database_id, config, owner_a, owner_b, le
         code,_,_=http(origin,"/v1/teacher/learners/"+other_learner+"/assignments",opener=owner_b)
         require_status(code,404,"Unassigned learner assignment denied")
         print("PASS: Remote Noor Phase 05A canonical teacher publish, replay 200, conflict 409, owner readback, isolation 404")
-        verify_signed_marked_homework(origin,database_id,owner_a,owner_b,
-            learner_id,other_learner,assignment_edition,teacher_tasks,owner_tasks,post)
-
         # Phase 05B: explicitly submitted TEXT-only student task + active Sheikh review.
         owner_submissions=owner_tasks+"/"+task_id+"/submissions"
         teacher_reviews=teacher_tasks+"/"+task_id+"/reviews"
@@ -479,8 +476,13 @@ def plan_stage_synthetic_smoke(origin, database_id, config, owner_a, owner_b, le
                     if line.startswith("PASS: ") and len(line)<220:
                         print(line)
 
-            # One final integrated signed classroom acceptance, after optional
-            # real LiveKit synthetic Chrome testing and before reporting.
+            # Both branches must prove a signed, completed Start/End. A/V
+            # opt-in runs that lifecycle through the actual two-browser UI;
+            # regular isolated runs still enforce full signed HTTP corrections.
+            if os.environ.get("NOOR_STAGING_LIVEKIT_BROWSER_QA")=="true":
+                return verify_browser_lesson_completion(
+                    origin,database_id,owner_a,owner_b,learner_id,room_lesson_id,
+                    http,d1_read_only,require_status,json_body)
             return verify_signed_lesson_lifecycle(
                 origin,database_id,owner_a,owner_b,learner_id,room_lesson_id,
                 post,http,d1_read_only,require_status,json_body)
@@ -489,6 +491,11 @@ def plan_stage_synthetic_smoke(origin, database_id, config, owner_a, owner_b, le
             origin,database_id,owner_a,owner_b,learner_id,other_learner,role_id,
             post,http,qa_write,d1_read_only,require_status,json_body,
             on_scheduled_lesson=check_scheduled_room)
+        # The independent P0 D1 marked-homework write must remain fail-fast,
+        # but only AFTER signed classroom/LiveKit acceptance. Otherwise its
+        # existing HTTP 503 incorrectly hides all separate AV evidence.
+        verify_signed_marked_homework(origin,database_id,owner_a,owner_b,
+            learner_id,other_learner,assignment_edition,teacher_tasks,owner_tasks,post)
         verify_notebook_flow(
             origin,database_id,owner_a,owner_b,learner_id,other_learner,
             report_lesson_id,http,post,d1_read_only,require_status,json_body)

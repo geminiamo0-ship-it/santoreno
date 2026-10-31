@@ -36,6 +36,39 @@ def wrangler(*args):
     return result.stdout
 
 
+def names_of_deployed_staging_secrets(config):
+    """Read metadata only; preserve signing credentials across a Dev refresh.
+
+    Wrangler returns names and types, never secret values. Refuse an
+    unexpected response instead of rotating a live signing key blindly.
+    """
+    if WORKER_NAME != "noor-site-staging" or DATABASE_NAME != "noor-core-staging":
+        raise RuntimeError("Refusing secret read outside Noor isolated Dev")
+    listed = json.loads(wrangler("secret", "list", "--config", str(config)))
+    if not isinstance(listed, list):
+        raise RuntimeError("Unexpected Cloudflare secret metadata")
+    names = set()
+    for item in listed:
+        if not isinstance(item, dict) or not isinstance(item.get("name"), str):
+            raise RuntimeError("Invalid Cloudflare secret metadata")
+        names.add(item["name"])
+    return names
+
+
+def select_missing_staging_secrets(candidate, existing_names):
+    """Only initialize absent secrets; never rotate active Dev login sessions."""
+    allowed = {"AUTH_SECRET", "STAGING_ACCESS_PASSWORD"}
+    if set(candidate) != allowed or not all(
+        isinstance(value, str) and len(value) >= 32 for value in candidate.values()
+    ):
+        raise RuntimeError("Unexpected staging secret bootstrap payload")
+    if not isinstance(existing_names, set) or not all(
+        isinstance(name, str) for name in existing_names
+    ):
+        raise RuntimeError("Unexpected existing secret names")
+    return {key: value for key, value in candidate.items() if key not in existing_names}
+
+
 def cloudflare_subdomain():
     req = urllib.request.Request(
         f"https://api.cloudflare.com/client/v4/accounts/{ACCOUNT}/workers/subdomain",
@@ -872,6 +905,14 @@ def main():
     with tempfile.TemporaryDirectory(prefix="noor-staging-", dir=os.environ.get("RUNNER_TEMP", "/tmp")) as dirname:
         temp = Path(dirname)
         config, secure = write_config(temp, database_id, origin, secrets.token_hex(32), secrets.token_hex(32))
+        # Preserve the deployed AUTH_SECRET and other Dev secrets on every
+        # code refresh; rotating it would invalidate existing test sessions.
+        # Wrangler metadata lists NAMES only; values are never retrieved.
+        existing_names = names_of_deployed_staging_secrets(config)
+        candidates = json.loads(secure.read_text())
+        missing_secrets = select_missing_staging_secrets(candidates, existing_names)
+        secure.write_text(json.dumps(missing_secrets))
+        secure.chmod(0o600)
         wrangler("d1", "migrations", "apply", DATABASE_NAME, "--config", str(config), "--remote")
         canonical_quran_staging(config, database_id, temp)
         # Wrangler 4.45 does not support 'deploy --secrets-file'. First deploy
@@ -884,11 +925,16 @@ def main():
         initial_status, _, _ = http(origin, "/")
         if initial_status not in (200, 401, 403, 503):
             raise RuntimeError(f"Unexpected staging transition status HTTP {initial_status}")
-        wrangler("secret", "bulk", str(secure), "--config", str(config))
+        if missing_secrets:
+            wrangler("secret", "bulk", str(secure), "--config", str(config))
+        else:
+            print("PASS: existing Noor Dev secret names preserved, no value changed")
         # Never print generated credentials; even a successful smoke does not
         # authorize real child data, production traffic or OTP delivery.
-        credentials = json.loads(secure.read_text())
-        smoke(origin, credentials["STAGING_ACCESS_PASSWORD"], database_id, config)
+        # With NOOR_DEV_OPEN the HTTP tests use app authorization rather
+        # than staging Basic. The temporary candidate is never deployed
+        # when the corresponding secret already exists.
+        smoke(origin, candidates["STAGING_ACCESS_PASSWORD"], database_id, config)
         if os.environ.get("NOOR_STAGING_BROWSER_QA")=="true":
             # Native Chrome verifies the freshly deployed account UI (5 viewports),
             # plus real D1 rename/archive/refresh and owner isolation.

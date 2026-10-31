@@ -461,7 +461,7 @@ try {
   // This UI has already performed the real Sheikh Start. A separate HTTP
   // Start would now be invalid; complete the SAME lesson through Sheikh UI.
   await click(teacher, "إنهاء الحصة");
-  await waitFor(() => has(teacher, "تأكيد إنهاء الحصة"), "signed End confirmation visible");
+  await waitFor(() => has(teacher, "تأكيد الإنهاء"), "signed End confirmation visible");
   await click(teacher, "تأكيد الإنهاء");
   await Promise.all([
     waitFor(() => has(teacher, "انتهت الحصة"), "Sheikh sees confirmed End"),

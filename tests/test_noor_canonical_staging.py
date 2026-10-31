@@ -113,3 +113,36 @@ class PrivateRecitationStageTests(TestCase):
       "12345678-1234-1234-1234-123456789abc","owner","foreign",self.learners)
 
  if __name__=="__main__":main()
+
+
+class StagingSecretPreservationTests(TestCase):
+ def setUp(self):
+  self.candidate={"AUTH_SECRET":"a"*64,
+                  "STAGING_ACCESS_PASSWORD":"b"*64}
+ def test_redeploy_with_existing_names_never_rotates_either_secret(self):
+  self.assertEqual(stage.select_missing_staging_secrets(
+   self.candidate,{"AUTH_SECRET","STAGING_ACCESS_PASSWORD"}),{})
+ def test_first_setup_only_initializes_missing_secret(self):
+  self.assertEqual(stage.select_missing_staging_secrets(self.candidate,set()),
+                   self.candidate)
+  self.assertEqual(stage.select_missing_staging_secrets(
+   self.candidate,{"AUTH_SECRET"}),{"STAGING_ACCESS_PASSWORD":"b"*64})
+ def test_reject_malformed_names_and_secret_payload(self):
+  with self.assertRaises(RuntimeError):
+   stage.select_missing_staging_secrets(
+    {**self.candidate,"OTHER_APP_TOKEN":"x"*64},set())
+  with self.assertRaises(RuntimeError):
+   stage.select_missing_staging_secrets(self.candidate,{"AUTH_SECRET",None})
+  with self.assertRaises(RuntimeError):
+   stage.select_missing_staging_secrets(
+    {"AUTH_SECRET":"x","STAGING_ACCESS_PASSWORD":"b"*64},set())
+ def test_names_are_read_from_metadata_only_and_no_production_worker(self):
+  example=json.dumps([{"name":"AUTH_SECRET","type":"secret_text"},
+                      {"name":"STAGING_ACCESS_PASSWORD","type":"secret_text"}])
+  with patch.object(stage,"wrangler",return_value=example) as cli:
+   result=stage.names_of_deployed_staging_secrets(Path("/tmp/noor-safe.json"))
+  self.assertEqual(result,{"AUTH_SECRET","STAGING_ACCESS_PASSWORD"})
+  self.assertEqual(cli.call_args.args[:2],("secret","list"))
+  with patch.object(stage,"wrangler",return_value=json.dumps({"tokens":["forbidden"]})):
+   with self.assertRaisesRegex(RuntimeError,"metadata"):
+    stage.names_of_deployed_staging_secrets(Path("/tmp/noor-safe.json"))

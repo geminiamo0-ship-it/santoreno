@@ -57,6 +57,10 @@ def verify_run(sha, event, get_json):
 def independently_approved(reviews, sha, author):
     if not isinstance(reviews, list):
         return False
+    # The REST endpoint returns at most 100 reviews per page. Deny when the
+    # response may be incomplete, rather than missing an outstanding veto.
+    if len(reviews) >= 100:
+        return False
     latest = {}
     for review in sorted(
         (item for item in reviews if isinstance(item, dict) and item.get("submitted_at")),
@@ -64,8 +68,12 @@ def independently_approved(reviews, sha, author):
     ):
         user = review.get("user") or {}
         login = user.get("login") if isinstance(user, dict) else None
-        if isinstance(login, str) and login != author:
-            latest[login] = review
+        if isinstance(login, str) and login and login.casefold() != author.casefold():
+            latest[login.casefold()] = review
+    # One reviewer's outstanding change request must not be overridden by
+    # another reviewer's approval; a later dismissal or approval clears it.
+    if any(item.get("state") == "CHANGES_REQUESTED" for item in latest.values()):
+        return False
     return any(
         item.get("state") == "APPROVED" and item.get("commit_id") == sha
         for item in latest.values()

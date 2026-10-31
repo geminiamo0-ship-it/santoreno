@@ -68,7 +68,14 @@ def independently_approved(reviews, sha, author):
     ):
         user = review.get("user") or {}
         login = user.get("login") if isinstance(user, dict) else None
-        if isinstance(login, str) and login and login.casefold() != author.casefold():
+        # COMMENTED reviews do not withdraw an outstanding change request.
+        # Only decisive review states replace the prior decision.
+        if (
+            isinstance(login, str)
+            and login
+            and login.casefold() != author.casefold()
+            and review.get("state") in ("APPROVED", "CHANGES_REQUESTED", "DISMISSED")
+        ):
             latest[login.casefold()] = review
     # One reviewer's outstanding change request must not be overridden by
     # another reviewer's approval; a later dismissal or approval clears it.

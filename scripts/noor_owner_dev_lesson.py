@@ -22,8 +22,8 @@ OWNER_HASH = "f043236099dc6f3539ad6fc5ec3bff08ec2d5310d134b2c6ae08b92551cd66ff"
 SHEIKH_HASH = "b94f5193ca2605d95976fbe52619b49fbd2101f515c374a7c7fb8fe1d0c19766"
 ACCOUNT = os.environ["CLOUDFLARE_ACCOUNT_ID"]
 TOKEN = os.environ["CLOUDFLARE_API_TOKEN"]
-HEX_ID = re.compile(r"[A-Za-z0-9_-]{1,128}\\Z")
-UUID = re.compile(r"[0-9a-f-]{36}\\Z")
+HEX_ID = re.compile(r"[A-Za-z0-9_-]{1,128}")
+UUID = re.compile(r"[0-9a-f-]{36}")
 
 def fail(reason):
     raise RuntimeError("NOOR_OWNER_DEV_LESSON: " + reason)

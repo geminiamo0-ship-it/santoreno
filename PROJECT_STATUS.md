@@ -1,4 +1,5 @@
 ## 2026-10-31 — Noor P0 #286 reviewed-PR SHA Dev gate candidate (#306)
+
 - Branch `test/306-noor-reviewed-pr-sha-staging` adds a **manual-only** `noor_pr_number` option to the existing isolated Noor Dev workflow, with exact SHA verification, same-repo/main-only, non-draft, independent exact-head approval, exact-head successful Verify, and a second eligibility check before Dev deployment. Default main-only push and manual dispatch behavior remains verified and unchanged.
 - Offline fail-closed tests cover fork/draft/closed/wrong-base, self/stale/withdrawn review, wrong-event/failing Verify and invalid PR input. No secrets or Production code changed. See `docs/NOOR_REVIEWED_PR_DEV_GATE.md`.
 - **Candidate only:** require PR CI and independent review before merge; no reviewed Noor #288 PR-head staging dispatch, D1 0023 application or signed teacher ink acceptance has occurred. Noor #286 remains OPEN; cumulative ink flag OFF.

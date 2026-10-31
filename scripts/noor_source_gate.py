@@ -122,7 +122,7 @@ def verified_main_source(sha, get_json, sleep=None, checks=1):
     event, or an in-progress/failed workflow as success. Unit tests leave
     sleep disabled; only the workflow entry point enables bounded retries.
     """
-    if not isinstance(checks, int) or not 1 <= checks <= 10:
+    if type(checks) is not int or not 1 <= checks <= 10:
         raise SourceGateError("Invalid Noor Verify retry count")
     if checks > 1 and sleep is None:
         raise SourceGateError("Noor Verify retry must provide a bounded sleeper")

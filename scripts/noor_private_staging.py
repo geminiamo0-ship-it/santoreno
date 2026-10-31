@@ -421,6 +421,17 @@ def verify_dev_trial_atomic_reschedule(origin, database_id, staff, guardian,
             {**command,"slotId":slots[0]},409)
         if conflict.get("code")!="TRIAL_OPERATION_CONFLICT":
             raise RuntimeError("Modified operation ID reused as a new reschedule")
+        # Even if the other household steals the exact operation ID, it
+        # cannot replay the successful receipt or mutate the learner.
+        foreign_replay=signed(root+"/trial-reschedules",other_owner,"POST",command,404)
+        if foreign_replay.get("code")!="NOT_FOUND":
+            raise RuntimeError("Foreign owner replay exposed private booking")
+        # A second fresh operation against the *cancelled* old lesson is
+        # forbidden: cancellation and replacement must be one-time and atomic.
+        stale=signed(root+"/trial-reschedules",guardian,"POST",
+            {**command,"operationId":str(uuid4())},404)
+        if stale.get("code")!="NOT_FOUND":
+            raise RuntimeError("Already replaced trial was reusable")
         completed=d1_read_only(database_id,
             "SELECT (SELECT status FROM lessons WHERE id='"+old_id+
             "') AS old_status, (SELECT status FROM lessons WHERE id='"+new_id+
@@ -434,9 +445,12 @@ def verify_dev_trial_atomic_reschedule(origin, database_id, staff, guardian,
             "(SELECT COUNT(*) FROM teacher_assignments g "
             "JOIN trial_booking_auto_grants a ON a.assignment_id=g.id "
             "JOIN trial_booking_events b ON b.id=a.booking_id "
-            "WHERE b.lesson_id='"+new_id+"' AND g.revoked_at_ms IS NULL) AS active")
+            "WHERE b.lesson_id='"+new_id+"' AND g.revoked_at_ms IS NULL) AS active, "
+            "(SELECT ends_at_ms-starts_at_ms FROM lessons "
+            "WHERE id='"+new_id+"') AS reserved_ms")
         if completed!=[{"old_status":"cancelled","new_status":"scheduled",
-                        "other_status":"scheduled","replacements":1,"revoked":1,"active":1}]:
+                        "other_status":"scheduled","replacements":1,"revoked":1,"active":1,
+                        "reserved_ms":2400000}]:
             raise RuntimeError("Replacement D1 audit/grant/foreign isolation inconsistent")
         print("PASS: Noor Dev 0025 signed atomic trial replace 201, replay 200, conflict 409, original rollback, foreign 404, proper grant revocation")
         return True

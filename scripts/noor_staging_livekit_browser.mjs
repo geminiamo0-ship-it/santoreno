@@ -22,6 +22,7 @@ if (
 
 const teacher = await openNoorStagingChrome(origin, { syntheticMedia: true });
 let student;
+let safeStage = "browser-preflight";
 async function applyCookies(browser, cookies) {
   for (const cookie of cookies) {
     if (!cookie || typeof cookie.name !== "string" || typeof cookie.value !== "string")
@@ -462,15 +463,20 @@ try {
   // draft. Add one private signed synthetic correction while the lesson is
   // genuinely live, then prove the teacher report is seeded at explicit End.
   // The student must never read this unpublished correction directly.
+  safeStage = "private-correction";
   const correctionPath = "/v1/teacher/lessons/" + encodeURIComponent(lesson) + "/corrections";
+  // The shared DO is on page 35 after the real Sheikh arrow tests. A
+  // verse-specific note on page 1 is rightly denied as CORRECTION_CONFLICT.
+  // A general note is valid at the currently displayed page, without
+  // inventing a verse selection. Content stays private until publication.
   const correction = {
     action: "add",
     operationId: crypto.randomUUID(),
-    page: 1,
-    surah: 1,
-    ayah: 1,
-    kind: "tajweed",
-    text: "Synthetic tajweed practice note - not real child data",
+    page: 35,
+    surah: null,
+    ayah: null,
+    kind: "general",
+    text: "Synthetic teacher practice note - not real child data",
   };
   const savedCorrection = await pageWrite(teacher, correctionPath, correction);
   assert.equal(savedCorrection.status, 200, "Signed Sheikh correction rejected before End");
@@ -488,6 +494,7 @@ try {
 
   // This UI has already performed the real Sheikh Start. A separate HTTP
   // Start would now be invalid; complete the SAME lesson through Sheikh UI.
+  safeStage = "signed-end";
   await click(teacher, "إنهاء الحصة");
   await waitFor(() => has(teacher, "تأكيد الإنهاء"), "signed End confirmation visible");
   await click(teacher, "تأكيد الإنهاء");
@@ -497,6 +504,8 @@ try {
   ]);
   console.log("PASS: Sheikh explicitly ended same signed browser lesson; both see completed");
 } catch (error) {
+  // Only fixed test stage labels; no exception message, cookies or tokens.
+  console.log("FAIL_STAGE: " + safeStage);
   await teacher.screenshot("artifacts/noor-staging-livekit/teacher-failure.png").catch(() => {});
   if (student)
     await student.screenshot("artifacts/noor-staging-livekit/student-failure.png").catch(() => {});

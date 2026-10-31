@@ -471,11 +471,18 @@ def plan_stage_synthetic_smoke(origin, database_id, config, owner_a, owner_b, le
                     NOOR_SYNTHETIC_STUDENT_COOKIES=synthetic_cookies(owner_a))
                 browser=subprocess.run(["node","scripts/noor_staging_livekit_browser.mjs"],
                     cwd=ROOT,env=livekit_env,capture_output=True,text=True,timeout=180)
-                if browser.returncode!=0:
-                    raise RuntimeError("Noor two-browser LiveKit QA failed; inspect synthetic screenshot artifact")
+                # The child browser hides raw errors because they may contain
+                # provider identity, signed cookies or page payloads. Preserve
+                # only fixed PASS labels and allowlisted stage identifiers,
+                # including on failure, to make independent gates debuggable.
+                safe_stages={"browser-preflight","private-correction","signed-end"}
                 for line in browser.stdout.splitlines():
                     if line.startswith("PASS: ") and len(line)<220:
                         print(line)
+                    elif line.startswith("FAIL_STAGE: ") and line[12:] in safe_stages:
+                        print(line)
+                if browser.returncode!=0:
+                    raise RuntimeError("Noor two-browser LiveKit QA failed; inspect synthetic screenshot artifact")
 
             # Both branches must prove a signed, completed Start/End. A/V
             # opt-in runs that lifecycle through the actual two-browser UI;

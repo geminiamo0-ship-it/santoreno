@@ -8,6 +8,7 @@ import json
 import os
 import re
 import sys
+import time
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -113,15 +114,37 @@ def has_write_reviewer(approvers, get_json):
     return False
 
 
-def resolve_source(pr_number, get_json):
+def verified_main_source(sha, get_json, sleep=None, checks=1):
+    """Wait a bounded time for the exact Noor main SHA CI, without weakening it.
+
+    A same-minute Santoreno push can run before Noor's Verify finishes. Recheck
+    the main ref before every attempt, and NEVER accept an older SHA, another
+    event, or an in-progress/failed workflow as success. Unit tests leave
+    sleep disabled; only the workflow entry point enables bounded retries.
+    """
+    if not isinstance(checks, int) or not 1 <= checks <= 10:
+        raise SourceGateError("Invalid Noor Verify retry count")
+    if checks > 1 and sleep is None:
+        raise SourceGateError("Noor Verify retry must provide a bounded sleeper")
+    for attempt in range(checks):
+        branch = get_json("branches/main")
+        current = (branch.get("commit") or {}).get("sha") if isinstance(branch, dict) else None
+        if current != sha:
+            raise SourceGateError("Noor main changed during exact-head Verify check")
+        if verify_run(sha, "push", get_json):
+            return sha
+        if attempt + 1 < checks:
+            sleep(12)
+    raise SourceGateError("No successful exact-head Noor main Verify")
+
+
+def resolve_source(pr_number, get_json, *, sleep=None, main_checks=1):
     if not pr_number:
         branch = get_json("branches/main")
         sha = (branch.get("commit") or {}).get("sha") if isinstance(branch, dict) else None
         if not isinstance(sha, str) or not SHA.fullmatch(sha):
             raise SourceGateError("Invalid Noor main commit")
-        if not verify_run(sha, "push", get_json):
-            raise SourceGateError("No successful exact-head Noor main Verify")
-        return sha
+        return verified_main_source(sha, get_json, sleep=sleep, checks=main_checks)
 
     if not PR_NUMBER.fullmatch(pr_number):
         raise SourceGateError("Invalid Noor PR number")
@@ -156,7 +179,10 @@ def resolve_source(pr_number, get_json):
 
 def main():
     try:
-        print(resolve_source(os.environ.get("NOOR_PR_NUMBER", ""), api_json))
+        print(resolve_source(
+            os.environ.get("NOOR_PR_NUMBER", ""), api_json,
+            sleep=time.sleep, main_checks=10,
+        ))
     except SourceGateError as exc:
         print("NOOR_SOURCE_GATE_DENIED: " + str(exc), file=sys.stderr)
         return 1

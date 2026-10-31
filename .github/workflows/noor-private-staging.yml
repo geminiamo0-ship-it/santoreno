@@ -15,6 +15,7 @@ on:
       - tests/test_noor_livekit_staging.py
       - tests/test_noor_source_gate.py
       - tests/test_noor_trial_staging.py
+      - tests/test_noor_trial_reschedule_staging.py
       - tests/test_noor_classroom_staging.py
       - tests/test_noor_quran_archive_staging.py
       - tests/test_noor_notebook_staging.py
@@ -53,6 +54,7 @@ on:
       - tests/test_noor_livekit_staging.py
       - tests/test_noor_source_gate.py
       - tests/test_noor_trial_staging.py
+      - tests/test_noor_trial_reschedule_staging.py
       - tests/test_noor_classroom_staging.py
       - tests/test_noor_quran_archive_staging.py
       - tests/test_noor_notebook_staging.py
@@ -87,6 +89,7 @@ jobs:
           python3 -m unittest discover -s tests -p 'test_noor_livekit_staging.py' -v
           python3 -m unittest discover -s tests -p 'test_noor_source_gate.py' -v
           python3 -m unittest discover -s tests -p 'test_noor_trial_staging.py' -v
+          python3 -m unittest discover -s tests -p 'test_noor_trial_reschedule_staging.py' -v
           python3 -m unittest discover -s tests -p 'test_noor_dev_realtime.py' -v
       - name: Syntax check remote-staging browser acceptance
         run: |

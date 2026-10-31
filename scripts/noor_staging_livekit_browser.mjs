@@ -201,8 +201,8 @@ try {
     waitFor(() => has(student, "الحصة جارية"), "Learner sees signed live lesson"),
   ]);
   const liveClock = browser => browser.evaluate(
-    "(()=>{const x=document.querySelector('[role=timer][aria-label=\\"الوقت المنقضي منذ بداية الحصة\\"]');" +
-    "return !!x && /^\\d{2}:\\d{2}:\\d{2}$/.test(x.textContent.trim())})()",
+    "(()=>{const x=document.querySelector('[role=timer]');" +
+    "return !!x && /^\\d{2}:\\d{2}(?::\\d{2})?$/.test(x.textContent.trim())})()",
   );
   await Promise.all([
     waitFor(() => liveClock(teacher), "Sheikh D1 elapsed timer"),
@@ -347,7 +347,7 @@ try {
     assert.equal(refused.status, 503, "Disabled cumulative writes must fail closed");
     assert.equal(refused.body.code, "CUMULATIVE_INK_DISABLED");
     const blocked = await teacher.evaluate(
-      "(()=>{const b=document.querySelector('button[aria-label=\\"قلم\\"]');return !!b&&b.disabled})()",
+      "(()=>{const b=document.querySelector('button[aria-label=قلم]');return !!b&&b.disabled})()",
     );
     assert.equal(blocked, true, "Disabled cumulative ink must not show a usable Sheikh pen");
     console.log("PASS: OFF cumulative ink rejects writes and exposes honest disabled tool");

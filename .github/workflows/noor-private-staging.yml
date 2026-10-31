@@ -6,12 +6,14 @@ on:
     paths:
       - .github/workflows/noor-private-staging.yml
       - scripts/noor_private_staging.py
+      - scripts/noor_source_gate.py
       - scripts/noor_report_staging.py
       - scripts/noor_notebook_staging.py
       - scripts/noor_quran_archive_staging.py
       - scripts/noor_classroom_staging.py
       - scripts/noor_livekit_staging.py
       - tests/test_noor_livekit_staging.py
+      - tests/test_noor_source_gate.py
       - tests/test_noor_classroom_staging.py
       - tests/test_noor_quran_archive_staging.py
       - tests/test_noor_notebook_staging.py
@@ -31,17 +33,24 @@ on:
         required: false
         type: boolean
         default: false
+      noor_pr_number:
+        description: "Optional same-repo reviewed Noor PR number; empty selects verified main"
+        required: false
+        type: string
+        default: ""
   pull_request:
     branches: [main]
     paths:
       - .github/workflows/noor-private-staging.yml
       - scripts/noor_private_staging.py
+      - scripts/noor_source_gate.py
       - scripts/noor_report_staging.py
       - scripts/noor_notebook_staging.py
       - scripts/noor_quran_archive_staging.py
       - scripts/noor_classroom_staging.py
       - scripts/noor_livekit_staging.py
       - tests/test_noor_livekit_staging.py
+      - tests/test_noor_source_gate.py
       - tests/test_noor_classroom_staging.py
       - tests/test_noor_quran_archive_staging.py
       - tests/test_noor_notebook_staging.py
@@ -53,6 +62,7 @@ on:
 permissions:
   contents: read
   actions: read
+  pull-requests: read
 
 concurrency:
   group: noor-private-staging-provision
@@ -64,7 +74,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Compile isolated Noor staging script without network or credentials
-        run: python3 -m py_compile scripts/noor_private_staging.py scripts/noor_report_staging.py scripts/noor_notebook_staging.py scripts/noor_quran_archive_staging.py scripts/noor_classroom_staging.py scripts/noor_livekit_staging.py
+        run: python3 -m py_compile scripts/noor_private_staging.py scripts/noor_report_staging.py scripts/noor_notebook_staging.py scripts/noor_quran_archive_staging.py scripts/noor_classroom_staging.py scripts/noor_livekit_staging.py scripts/noor_source_gate.py
       - name: Unit test canonical staging source/identity gates offline
         run: |
           python3 -m unittest discover -s tests -p 'test_noor_canonical_staging.py' -v
@@ -73,6 +83,7 @@ jobs:
           python3 -m unittest discover -s tests -p 'test_noor_quran_archive_staging.py' -v
           python3 -m unittest discover -s tests -p 'test_noor_classroom_staging.py' -v
           python3 -m unittest discover -s tests -p 'test_noor_livekit_staging.py' -v
+          python3 -m unittest discover -s tests -p 'test_noor_source_gate.py' -v
       - name: Syntax check remote-staging browser acceptance
         run: |
           node --check scripts/noor_staging_profile_browser.mjs
@@ -88,6 +99,7 @@ jobs:
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       GH_TOKEN: ${{ github.token }}
+      NOOR_PR_NUMBER: ${{ (github.event_name == 'workflow_dispatch' && inputs.noor_pr_number) || '' }}
       WRANGLER_SEND_METRICS: "false"
       NOOR_STAGING_BROWSER_QA: ${{ ((github.event_name == 'workflow_dispatch' && inputs.browser_qa) || (github.event_name == 'push' && contains(github.event.head_commit.message, '[noor-portal-e2e]'))) && 'true' || 'false' }}
       NOOR_STAGING_LIVEKIT_BROWSER_QA: ${{ (github.event_name == 'workflow_dispatch' && inputs.livekit_browser_qa && 'true') || (github.event_name == 'push' && contains(github.event.head_commit.message, '[noor-livekit-e2e]') && 'true') || 'false' }}
@@ -96,25 +108,29 @@ jobs:
         uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - name: Checkout verified public Noor main
-        uses: actions/checkout@v4
-        with:
-          repository: geminiamo0-ship-it/nour-elquran
-          ref: main
-          path: noor
-          persist-credentials: false
-      - name: Verify exact Noor main SHA and private guard
+      - name: Resolve verified Noor main or independently reviewed PR head
         shell: bash
         run: |
           set -euo pipefail
-          NOOR_SHA="$(git -C noor rev-parse HEAD)"
+          NOOR_SHA="$(python3 scripts/noor_source_gate.py)"
+          echo "NOOR_SHA=$NOOR_SHA" >> "$GITHUB_ENV"
+      - name: Checkout immutable verified Noor source SHA
+        uses: actions/checkout@v4
+        with:
+          repository: geminiamo0-ship-it/nour-elquran
+          ref: ${{ env.NOOR_SHA }}
+          path: noor
+          persist-credentials: false
+      - name: Verify exact Noor checkout and private guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C noor rev-parse HEAD)" = "$NOOR_SHA"
+          test "$(python3 scripts/noor_source_gate.py)" = "$NOOR_SHA"
           test -f noor/workers/site/src/staging-access.ts
           test -f noor/tests/staging-access.test.mjs
           test -f noor/docs/NOOR_STAGING_RUNBOOK.md
           grep -Fq 'stagingAccessGuard(request, env)' noor/workers/site/src/index.ts
-          COUNT="$(gh api "repos/geminiamo0-ship-it/nour-elquran/actions/runs?head_sha=$NOOR_SHA&per_page=20" --jq '[.workflow_runs[] | select(.name == "Verify" and .event == "push" and .conclusion == "success")] | length')"
-          test "$COUNT" -ge 1 || { echo "Noor main Verify not successful for exact checkout SHA"; exit 1; }
-          echo "NOOR_SHA=$NOOR_SHA" >> "$GITHUB_ENV"
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
@@ -131,6 +147,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          test "$(python3 scripts/noor_source_gate.py)" = "$NOOR_SHA"
           test -n "$CLOUDFLARE_ACCOUNT_ID" && test -n "$CLOUDFLARE_API_TOKEN" || { echo "Cloudflare GitHub secrets missing"; exit 1; }
           python3 scripts/noor_private_staging.py
       - name: Upload Noor synthetic staging Chrome screenshots

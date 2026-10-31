@@ -265,7 +265,8 @@ def plan_stage_synthetic_smoke(origin, database_id, config, owner_a, owner_b, le
     from noor_report_staging import verify_report_flow
     from noor_notebook_staging import verify_notebook_flow
     from noor_quran_archive_staging import verify_archive_readonly
-    from noor_classroom_staging import verify_classroom_room, verify_signed_lesson_lifecycle
+    from noor_classroom_staging import (verify_classroom_room, verify_signed_lesson_lifecycle,
+                                       verify_browser_lesson_completion)
     from uuid import uuid4
     def subject(opener):
         status, body, _ = http(origin, "/api/auth/session", opener=opener)

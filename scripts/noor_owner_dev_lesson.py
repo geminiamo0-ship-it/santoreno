@@ -126,46 +126,46 @@ def main():
         query(db, """INSERT INTO teachers(id,auth_subject,qualified,status)
                      VALUES(?,?,1,'active')""", [teacher_id, teacher_subject])
 
-    # Reuse an eligible existing scheduled session: reruns must never double-book.
+    # 31 Oct 2026 owner-directed CHANGE to the exact existing Dev lesson.
+    # Never create a second lesson and never alter other students' lessons.
+    lesson_id = "ab6e1388-5b49-41fd-8024-ca4dbe3273f8"
+    rows = query(db, """SELECT id,learner_id,actual_teacher_id,status,
+                        starts_at_ms,ends_at_ms FROM lessons WHERE id=?""", [lesson_id])
+    if len(rows) != 1 or rows[0]["learner_id"] != learner_id or (
+       rows[0]["actual_teacher_id"] != teacher_id or rows[0]["status"] != "scheduled"):
+        fail("PINNED_LESSON_NOT_SCHEDULED_FOR_TEST_PAIR")
+    from datetime import datetime
+    target_start = int(datetime(2026,10,31,20,30,tzinfo=timezone.utc).timestamp() * 1000)
+    target_end = target_start + 40 * 60_000
+    old_start = int(datetime(2026,10,31,21,0,tzinfo=timezone.utc).timestamp() * 1000)
+    old_end = old_start + 40 * 60_000
+    current_start, current_end = int(rows[0]["starts_at_ms"]), int(rows[0]["ends_at_ms"])
     now = int(time.time() * 1000)
-    recent = query(db, """SELECT id,starts_at_ms,ends_at_ms FROM lessons
-                WHERE learner_id=? AND actual_teacher_id=? AND status='scheduled'
-                AND starts_at_ms>? AND starts_at_ms<?
-                ORDER BY starts_at_ms LIMIT 2""",
-                [learner_id, teacher_id, now - 5 * 60_000, now + 3 * 60 * 60_000])
-    if len(recent) > 1:
-        fail("MULTIPLE_UPCOMING_OWNER_TEST_LESSONS")
-    if recent:
-        lesson_id = scalar_id(recent[0]["id"], "LESSON_ID")
-        start = int(recent[0]["starts_at_ms"])
-        end = int(recent[0]["ends_at_ms"])
-        result = "REUSED_EXISTING"
+    if target_start < now - 6 * 60_000:
+        fail("REQUESTED_2230_LESSON_TIME_ALREADY_PASSED")
+    if (current_start,current_end) == (target_start,target_end):
+        result = "ALREADY_RESCHEDULED_2230"
+    elif (current_start,current_end) == (old_start,old_end):
+        active = query(db, """SELECT id FROM teacher_assignments WHERE learner_id=?
+                         AND teacher_id=? AND revoked_at_ms IS NULL
+                         AND starts_at_ms<=? AND ends_at_ms>=?""",
+                       [learner_id,teacher_id,target_start,target_end])
+        if len(active) != 1:
+            fail("NO_ACTIVE_TEACHER_ASSIGNMENT_COVERING_2230")
+        # D1's lessons_*_conflict_update triggers reject overlapping slots.
+        # WHERE predicates make this an exact state CAS, never a blind overwrite.
+        changed = query(db, """UPDATE lessons
+          SET starts_at_ms=?, ends_at_ms=?
+          WHERE id=? AND learner_id=? AND actual_teacher_id=?
+            AND status='scheduled' AND starts_at_ms=? AND ends_at_ms=?
+          RETURNING id""",
+          [target_start,target_end,lesson_id,learner_id,teacher_id,old_start,old_end])
+        if len(changed) != 1 or changed[0]["id"] != lesson_id:
+            fail("RESCHEDULE_CONFLICT_OR_D1_UPDATE_NOT_COMMITTED")
+        result = "RESCHEDULED_2230"
     else:
-        # Start after this workflow finishes; no automatic Start or End.
-        start = ((now + 35 * 60_000 + 299999) // 300000) * 300000
-        end = start + 40 * 60_000
-        grants = query(db, """SELECT id,teacher_id,starts_at_ms,ends_at_ms FROM teacher_assignments
-             WHERE learner_id=? AND revoked_at_ms IS NULL
-               AND starts_at_ms<? AND ends_at_ms>?""",
-             [learner_id, end, start])
-        if grants:
-            if len(grants) != 1 or grants[0]["teacher_id"] != teacher_id or (
-               int(grants[0]["starts_at_ms"]) > start or int(grants[0]["ends_at_ms"]) < end):
-                fail("CONFLICTING_TEACHER_ASSIGNMENT")
-        else:
-            query(db, """INSERT INTO teacher_assignments(
-                       id,learner_id,teacher_id,starts_at_ms,ends_at_ms)
-                       VALUES(?,?,?,?,?)""",
-                       [str(uuid4()), learner_id, teacher_id, now + 60_000,
-                        end + 30 * 60_000])
-        lesson_id = str(uuid4())
-        # Native D1 scheduling triggers validate teacher/learner, 40-minute
-        # slot and conflicts; NO direct live state, fake Start/End, or media.
-        query(db, """INSERT INTO lessons(id,learner_id,actual_teacher_id,kind,status,
-                    starts_at_ms,ends_at_ms)
-                    VALUES(?,?,?,'standard','scheduled',?,?)""",
-                    [lesson_id, learner_id, teacher_id, start, end])
-        result = "CREATED_NEW"
+        fail("UNEXPECTED_EXISTING_LESSON_TIME")
+    start, end = target_start,target_end
 
     checked = query(db, """SELECT id,learner_id,actual_teacher_id,status,starts_at_ms,
                            ends_at_ms FROM lessons WHERE id=?""", [lesson_id])

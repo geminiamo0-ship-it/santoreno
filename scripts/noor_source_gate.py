@@ -54,13 +54,18 @@ def verify_run(sha, event, get_json):
     )
 
 
-def independently_approved(reviews, sha, author):
+def eligible_approvers(reviews, sha, author):
+    """Candidate reviewers after the full review/veto history is checked.
+
+    APPROVED alone is not authority to deploy other people's code with
+    Cloudflare secrets: caller must separately verify reviewer write access.
+    """
     if not isinstance(reviews, list):
-        return False
+        return []
     # The REST endpoint returns at most 100 reviews per page. Deny when the
     # response may be incomplete, rather than missing an outstanding veto.
     if len(reviews) >= 100:
-        return False
+        return []
     latest = {}
     for review in sorted(
         (item for item in reviews if isinstance(item, dict) and item.get("submitted_at")),
@@ -80,11 +85,32 @@ def independently_approved(reviews, sha, author):
     # One reviewer's outstanding change request must not be overridden by
     # another reviewer's approval; a later dismissal or approval clears it.
     if any(item.get("state") == "CHANGES_REQUESTED" for item in latest.values()):
-        return False
-    return any(
-        item.get("state") == "APPROVED" and item.get("commit_id") == sha
-        for item in latest.values()
-    )
+        return []
+    return [
+        login for login, item in latest.items()
+        if item.get("state") == "APPROVED" and item.get("commit_id") == sha
+        and re.fullmatch(r"[a-z0-9-]{1,39}", login)
+    ]
+
+
+def independently_approved(reviews, sha, author):
+    """Source-history check; does not by itself establish reviewer authority."""
+    return bool(eligible_approvers(reviews, sha, author))
+
+
+def has_write_reviewer(approvers, get_json):
+    """Only repo collaborators with verified write+ may approve a Dev deploy.
+
+    Trust the authenticated GitHub collaborator permission endpoint, never a
+    reviewer's claimed association, submitted review state, or PR author.
+    Endpoint errors are fail-closed by api_json; no identity or secret logged.
+    """
+    for reviewer in approvers:
+        response = get_json("collaborators/" + reviewer + "/permission")
+        permission = response.get("permission") if isinstance(response, dict) else None
+        if permission in ("admin", "maintain", "write"):
+            return True
+    return False
 
 
 def resolve_source(pr_number, get_json):
@@ -118,8 +144,11 @@ def resolve_source(pr_number, get_json):
     ):
         raise SourceGateError("Noor PR is not an eligible same-repository main PR")
     reviews = get_json("pulls/" + pr_number + "/reviews?per_page=100")
-    if not independently_approved(reviews, sha, author):
+    approvers = eligible_approvers(reviews, sha, author)
+    if not approvers:
         raise SourceGateError("No independent exact-head Noor PR approval")
+    if not has_write_reviewer(approvers, get_json):
+        raise SourceGateError("No approved Noor reviewer has verified write permission")
     if not verify_run(sha, "pull_request", get_json):
         raise SourceGateError("No successful exact-head Noor PR Verify")
     return sha

@@ -263,6 +263,78 @@ def verify_signed_marked_homework(origin, database_id, owner, teacher, learner_i
     print("PASS: Noor Dev signed Sheikh pen+highlight draft/replay, publish, global learner Quran marks and sibling isolation")
 
 
+def verify_dev_trial_slot_withdrawal(origin, database_id, staff, guardian,
+                                     foreign_owner, learner_id, teacher_id):
+    """#244: signed isolated DEV 0024 withdrawal test; never Prod or real child data.
+
+    Exercises actual HTTPS session routes plus read-only D1 auditing. A booked
+    40-minute trial must survive a denied staff withdrawal; only an explicit
+    authenticated owner cancellation releases its advertised slot.
+    """
+    from uuid import uuid4
+    if DATABASE_NAME != "noor-core-staging" or WORKER_NAME != "noor-site-staging":
+        raise RuntimeError("Trial withdrawal QA must use isolated Noor Dev")
+    schema=d1_read_only(database_id,
+        "SELECT version FROM noor_schema_meta WHERE component='trial_slot_close_booking_guard'")
+    if schema != [{"version":1}]:
+        raise RuntimeError("Dev D1 booked-trial guard 0024 not applied")
+    now=int(time.time()*1000)
+    begins=now+26*3600000
+    trial_root="/v1/me/learners/"+learner_id
+    def call(path,method="GET",body=None,opener=None,expect=200):
+        status,raw,_=http(origin,path,method=method,body=body,opener=opener)
+        require_status(status,expect,"Signed Noor trial slot QA")
+        return json_body(raw)
+    # The Sheikh is qualified and activated in the standard synthetic role
+    # setup; staff can open a future slot but browser never chooses the Sheikh.
+    slot=call("/v1/staff/trial-slots","POST",
+        {"operationId":str(uuid4()),"teacherId":teacher_id,
+         "startsAtMs":begins},staff,201).get("slotId")
+    if not isinstance(slot,str) or not re.fullmatch(r"[0-9a-f-]{36}",slot):
+        raise RuntimeError("Synthetic staff publication lacked real slot ID")
+    avail=call(trial_root+"/trial-slots",opener=guardian)
+    if not avail.get("eligible") or not any(v.get("slotId")==slot for v in avail.get("slots",[])):
+        raise RuntimeError("New signed Dev trial slot not available to guardian")
+    call(trial_root+"/trial-slots",opener=foreign_owner,expect=404)
+    booked=call(trial_root+"/trial-bookings","POST",
+        {"operationId":str(uuid4()),"slotId":slot},guardian,201)
+    lesson=booked.get("lessonId")
+    if not isinstance(lesson,str) or not re.fullmatch(r"[0-9a-f-]{36}",lesson):
+        raise RuntimeError("Synthetic guardian booking lacks confirmed lesson")
+    close_url="/v1/staff/trial-slots/"+slot+"/close"
+    denied=call(close_url,"POST",
+        {"operationId":str(uuid4()),"reason":"Synthetic booked-slot withdrawal denial"},
+        staff,409)
+    if denied.get("code")!="TRIAL_SLOT_CLOSE_DENIED":
+        raise RuntimeError("Booked trial withdrawal did not use denied outcome")
+    # Only synthetic UUIDs obtained through signed responses are included.
+    # This D1 query is READ ONLY and confirms the committed booking survived.
+    committed=d1_read_only(database_id,
+      "SELECT l.status AS status, (SELECT COUNT(*) FROM trial_slot_closure_events "
+      "c WHERE c.slot_id='"+slot+"') AS closures "
+      "FROM lessons l WHERE l.id='"+lesson+"'")
+    if committed!=[{"status":"scheduled","closures":0}]:
+        raise RuntimeError("Denied staff withdrawal changed booked lesson or closure history")
+    call(trial_root+"/trial-cancellations","POST",
+        {"operationId":str(uuid4()),"lessonId":lesson},guardian,201)
+    closed=call(close_url,"POST",
+        {"operationId":str(uuid4()),"reason":"Synthetic closure after owner cancellation"},
+        staff,200)
+    if closed.get("code")!="TRIAL_SLOT_CLOSED":
+        raise RuntimeError("Post-cancellation staff closure was not confirmed")
+    final=d1_read_only(database_id,
+      "SELECT l.status AS status,(SELECT COUNT(*) FROM trial_slot_closure_events "
+      "c WHERE c.slot_id='"+slot+"') AS closures "
+      "FROM lessons l WHERE l.id='"+lesson+"'")
+    if final!=[{"status":"cancelled","closures":1}]:
+        raise RuntimeError("Trial cancellation did not precede authorized slot closure")
+    denied=call(trial_root+"/trial-bookings","POST",
+        {"operationId":str(uuid4()),"slotId":slot},guardian,409)
+    if denied.get("code")!="TRIAL_SLOT_UNAVAILABLE":
+        raise RuntimeError("Withdrawn trial slot still allowed another booking")
+    print("PASS: signed Noor Dev 0024 booked trial withdrawal denied; original preserved, owner cancel then staff closure, foreign household 404")
+
+
 def plan_stage_synthetic_smoke(origin, database_id, config, owner_a, owner_b, learner_id, other_learner):
     """#244: authorized synthetic teacher plan end-to-end on dedicated Noor Staging only."""
     from noor_report_staging import verify_report_flow
@@ -323,6 +395,8 @@ def plan_stage_synthetic_smoke(origin, database_id, config, owner_a, owner_b, le
             raise RuntimeError("Synthetic teacher role provisioning failed")
         role("qualify")
         role("activate")
+        verify_dev_trial_slot_withdrawal(origin,database_id,owner_a,owner_a,
+                                        owner_b,learner_id,role_id)
         now = int(time.time()*1000)
         assigned = post("/v1/staff/schedule-actions",
             {"action":"assign","operationId":str(uuid4()),

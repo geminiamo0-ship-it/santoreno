@@ -1,3 +1,7 @@
+## 2026-10-31 — #306 source-gate review conflict regression (unmerged)
+- Review of PR #307 found a fail-open approval condition: a different independent reviewer could request changes while another approved, and the gate would still accept; mixed-case GitHub author aliases also escaped the self-review check. The first page of 100 reviews could silently hide a later veto.
+- Candidate branch now rejects any outstanding independent CHANGES_REQUESTED, compares logins case-insensitively, and denies potentially incomplete 100-review histories. Offline regression covers cross-reviewer conflicts, case aliases, pagination limit and dismissed-request recovery. Exact-head CI and independent review are pending; no Dev/Production deployment or Noor migration/flag change.
+
 ## 2026-10-31 — Noor P0 #286 reviewed-PR SHA Dev gate candidate (#306)
 
 - Branch `test/306-noor-reviewed-pr-sha-staging` adds a **manual-only** `noor_pr_number` option to the existing isolated Noor Dev workflow, with exact SHA verification, same-repo/main-only, non-draft, independent exact-head approval, exact-head successful Verify, and a second eligibility check before Dev deployment. Default main-only push and manual dispatch behavior remains verified and unchanged.

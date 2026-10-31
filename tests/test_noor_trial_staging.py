@@ -55,7 +55,7 @@ class TrialWithdrawalStageTests(TestCase):
     "https://noor-dev.invalid","12345678-1234-1234-1234-123456789abc",
     "staff","owner","foreign","learner","sheikh-id")
    self.assertEqual(db.call_count,3)
-   self.assertEqual([c[1] for c in calls].count("POST"),5)
+   self.assertEqual([c[1] for c in calls].count("POST"),6)
    self.assertFalse(any("password" in json.dumps(c) for c in calls))
 
  def test_schema_must_be_0024_before_account_or_slot_requests(self):

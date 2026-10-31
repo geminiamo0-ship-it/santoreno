@@ -43,16 +43,31 @@ def api_json(path):
 
 def verify_run(sha, event, get_json):
     result = get_json("actions/runs?head_sha=" + sha + "&per_page=100")
-    runs = result.get("workflow_runs", []) if isinstance(result, dict) else []
-    return any(
-        isinstance(run, dict)
+    runs = result.get("workflow_runs") if isinstance(result, dict) else None
+    if not isinstance(runs, list) or len(runs) >= 100:
+        # The first page may omit a newer failure or pending Verify.
+        return False
+    matching = [
+        run for run in runs
+        if isinstance(run, dict)
         and run.get("name") == "Verify"
         and run.get("head_sha") == sha
         and run.get("event") == event
-        and run.get("status") == "completed"
-        and run.get("conclusion") == "success"
-        for run in runs
-    )
+    ]
+    if not matching:
+        return False
+    # A previous green run must not authorize Dev secrets if a later run
+    # is pending or failed on the exact same source SHA. GitHub timestamps
+    # are authoritative; unknown/malformed dates are denied.
+    if any(
+        not isinstance(run.get("created_at"), str)
+        or not re.fullmatch(r"\\d{4}-\\d\\d-\\d\\dT\\d\\d:\\d\\d:\\d\\dZ", run["created_at"])
+        or not isinstance(run.get("id"), int)
+        for run in matching
+    ):
+        return False
+    newest = max(matching, key=lambda run: (run["created_at"], run["id"]))
+    return newest.get("status") == "completed" and newest.get("conclusion") == "success"
 
 
 def eligible_approvers(reviews, sha, author):

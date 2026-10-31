@@ -88,8 +88,13 @@ def required(origin,path,expected,method="GET",body=None,opener=None):
     return payload
 
 def new_account(origin,label,used_phones):
-    # +1 202 555 0100..0199 is reserved fictional NANP range.
-    candidates=[f"+120255501{i:02d}" for i in range(100)]
+    # US 555-0100..0199 across real NANP area codes is reserved for
+    # fictional use. The original 202-only 100-number pool can be exhausted
+    # by repeat synthetic staging runs, causing HTTP 422 duplicate signup.
+    # Never substitute plausible real phone numbers.
+    area_codes=("212","213","303","312","404","415","510","617","646","650",
+                "702","714","718","773","801","818","917","925","971","202")
+    candidates=[f"+1{area}55501{i:02d}" for area in area_codes for i in range(100)]
     secrets.SystemRandom().shuffle(candidates)
     for phone in candidates:
         if phone in used_phones: continue
@@ -98,9 +103,13 @@ def new_account(origin,label,used_phones):
         password=secrets.token_urlsafe(20)+"Aa1!"
         status,payload=http(origin,"/api/auth/register","POST",
             {"name":label,"phoneNumber":phone,"password":password},browser)
-        if status in (400,409):continue
+        if status in (400,409,422):
+            # Better Auth may emit 422 for a duplicate fictional phone
+            # registration; choose a different RESERVED fictional number.
+            # Keep built-in signup throttles enforced.
+            continue
         if status == 429:
-            # Better Auth stores a per-origin signup rate limit; never bypass it.
+            # Respect Better Auth per-origin signup rate limiting.
             time.sleep(70)
             continue
         if status!=200:raise RuntimeError("Dev synthetic signup failed HTTP "+str(status))

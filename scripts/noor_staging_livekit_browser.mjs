@@ -50,7 +50,7 @@ const mediaReady = (browser) =>
   browser.evaluate(
     "!!document.querySelector('section[aria-label=\"الصوت والفيديو المباشر\"]')" +
       " && document.querySelector('section[aria-label=\"الصوت والفيديو المباشر\"]')" +
-      ".textContent.includes('متصل بالصوت والفيديو')",
+      ".textContent.includes('متصل بغرفة LiveKit')",
   );
 const remoteVideoReady = (browser) =>
   browser.evaluate(
@@ -66,6 +66,19 @@ const localVideoReady = (browser) =>
   );
 const remoteAudioExists = (browser) =>
   browser.evaluate("!!document.querySelector('[aria-label=\"صوت الطرف الآخر\"] audio')");
+// The remote tile is an actual subscribed-track signal, never a 'connected' inference.
+const peerTracks = (browser) =>
+  browser.evaluate(
+    "(()=>{const el=document.querySelector('[data-peer-audio][data-peer-video]');" +
+      "return el?{audio:el.getAttribute('data-peer-audio')," +
+      "video:el.getAttribute('data-peer-video')}:null})()",
+  );
+const assertPeerMedia = async (browser, audio, video, label) => {
+  await waitFor(async () => {
+    const current = await peerTracks(browser);
+    return current?.audio === audio && current?.video === video;
+  }, label);
+};
 async function snapshot(browser, width, height, label) {
   await browser.send("Emulation.setDeviceMetricsOverride", {
     width,
@@ -130,6 +143,8 @@ try {
       false,
       "Microphone published without local opt-in",
     );
+    assert.deepEqual(await peerTracks(browser), {audio:"missing",video:"missing"},
+      "LiveKit signaling must not pretend peer media is received");
   }
   console.log("PASS: two signed synthetic browser actors connected to LiveKit with camera/mic OFF");
 
@@ -140,11 +155,20 @@ try {
     waitFor(() => remoteVideoReady(teacher), "teacher remote student video"),
     waitFor(() => remoteVideoReady(student), "student remote teacher video"),
   ]);
+  await Promise.all([
+    assertPeerMedia(teacher, "missing", "received", "teacher remote video only"),
+    assertPeerMedia(student, "missing", "received", "learner remote video only"),
+  ]);
   await Promise.all([click(teacher, "تشغيل ميكروفوني"), click(student, "تشغيل ميكروفوني")]);
   await Promise.all([
     waitFor(() => remoteAudioExists(teacher), "teacher remote student audio"),
     waitFor(() => remoteAudioExists(student), "student remote teacher audio"),
   ]);
+  await Promise.all([
+    assertPeerMedia(teacher, "received", "received", "teacher verified remote A/V"),
+    assertPeerMedia(student, "received", "received", "learner verified remote A/V"),
+  ]);
+  console.log("PASS: remote audio/video indicators reflect actual subscribed tracks");
   // Owner QA #232: Sheikh may mute AND later release microphone moderation.
   // Student is never remotely activated; they opt back in after release.
   await click(teacher, "كتم ميكروفون الطالب");
@@ -374,6 +398,8 @@ try {
 
   await click(student, "إنهاء اتصال الصوت والفيديو");
   await waitFor(() => has(student, "دخول الصوت والفيديو"), "student media disconnect");
+  assert.deepEqual(await peerTracks(student), {audio:"missing",video:"missing"},
+    "Media Leave must reset stale reception flags");
   await click(student, "دخول الصوت والفيديو");
   await waitFor(() => mediaReady(student), "student fresh signed WebRTC reconnect");
   console.log("PASS: student LiveKit media disconnect and reconnect");

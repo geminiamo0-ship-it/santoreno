@@ -61,7 +61,7 @@ def verify_run(sha, event, get_json):
     # are authoritative; unknown/malformed dates are denied.
     if any(
         not isinstance(run.get("created_at"), str)
-        or not re.fullmatch(r"\\d{4}-\\d\\d-\\d\\dT\\d\\d:\\d\\d:\\d\\dZ", run["created_at"])
+        or not re.fullmatch(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ", run["created_at"])
         or not isinstance(run.get("id"), int)
         for run in matching
     ):

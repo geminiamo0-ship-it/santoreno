@@ -238,3 +238,53 @@ def verify_signed_lesson_lifecycle(origin, database_id, owner, teacher,
         raise RuntimeError("Signed End did not prefill private teacher report draft")
     print("PASS: Noor Dev exact Start/End D1 audit, private Sheikh correction -> seeded report")
     return True
+
+
+def verify_browser_lesson_completion(origin, database_id, owner, teacher,
+                                     learner_id, lesson_id, http, d1_read_only,
+                                     require_status, json_body):
+    """Fail closed on two-browser UI Start/End; only authoritative D1 counts.
+
+    Called after separately signed synthetic teacher and learner Chrome have
+    exercised optional LiveKit media. Never turns UI text into a lifecycle ACK.
+    """
+    if not re.fullmatch(r"https://noor-site-staging\\.[a-z0-9-]+\\.workers\\.dev", origin):
+        raise RuntimeError("Browser lifecycle requires isolated Noor Dev Worker")
+    if not all(isinstance(v,str) and re.fullmatch(r"[0-9a-fA-F-]{36}",v) for v in
+               (database_id,learner_id,lesson_id)):
+        raise RuntimeError("Browser lifecycle requires synthetic UUIDs")
+    teacher_base="/v1/teacher/lessons/"+lesson_id
+    owner_base="/v1/me/learners/"+learner_id+"/lessons/"+lesson_id
+    states=[]
+    for principal,path in ((teacher,teacher_base),(owner,owner_base)):
+        status,raw,headers=http(origin,path+"/lifecycle",opener=principal)
+        require_status(status,200,"Signed browser lesson completed GET")
+        value=json_body(raw).get("lifecycle",{})
+        if (headers.get("Cache-Control")!="no-store" or
+            value.get("phase")!="completed" or
+            not isinstance(value.get("startedAtMs"),int) or
+            not isinstance(value.get("endedAtMs"),int) or
+            value["startedAtMs"]>value["endedAtMs"]):
+            raise RuntimeError("Signed browser End is not in authoritative D1")
+        states.append((value["startedAtMs"],value["endedAtMs"]))
+    if states[0]!=states[1]:
+        raise RuntimeError("Teacher and learner disagree on D1 Start/End")
+    actions=d1_read_only(database_id,
+        "SELECT action FROM lesson_lifecycle_events WHERE lesson_id='"+lesson_id+
+        "' ORDER BY at_ms")
+    if [row.get("action") for row in actions]!=["start","end"]:
+        raise RuntimeError("Browser Start/End must append exactly two D1 audit entries")
+    status,raw,_=http(origin,teacher_base+"/report",opener=teacher)
+    require_status(status,200,"Signed browser private report draft")
+    draft=json_body(raw).get("report")
+    if (not isinstance(draft,dict) or draft.get("status")!="draft" or
+        draft.get("revision")!=1):
+        raise RuntimeError("Browser End did not seed private Sheikh report draft")
+    # Student can only read an explicitly published report later.
+    status,raw,_=http(origin,
+        "/v1/me/learners/"+learner_id+"/reports",opener=owner)
+    require_status(status,200,"Signed learner approved reports after Browser End")
+    if json_body(raw).get("reports")!=[]:
+        raise RuntimeError("Unapproved browser End report leaked to student")
+    print("PASS: signed teacher and learner UI End verified in D1, audit and private report")
+    return True

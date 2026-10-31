@@ -1,0 +1,75 @@
+name: Noor Owner QA — one real Dev lesson
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/noor-owner-dev-lesson.yml
+      - scripts/noor_owner_dev_lesson.py
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+  pull-requests: read
+
+concurrency:
+  group: noor-owner-qa-lesson-single
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check syntax and Dev-only credential handling
+        run: |
+          python3 -m py_compile scripts/noor_owner_dev_lesson.py
+          python3 - <<'PY'
+          import ast
+          from pathlib import Path
+          source=Path("scripts/noor_owner_dev_lesson.py").read_text()
+          ast.parse(source)
+          for prohibited in ("--production", "noor-core-prod", "nour-elquran-prod", "CLOUDFLARE_API_TOKEN="):
+              assert prohibited not in source
+          assert "noor-core-staging" in source and "NOOR_OWNER_QA_ONLY" in source
+          PY
+
+  create_dev_lesson:
+    if: github.event_name != 'pull_request'
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      GH_TOKEN: ${{ github.token }}
+      NOOR_OWNER_QA_ONLY: "true"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Lock Noor to exact verified main SHA
+        shell: bash
+        run: |
+          set -euo pipefail
+          NOOR_SHA="$(python3 scripts/noor_source_gate.py)"
+          test "$NOOR_SHA" = "acdd869ac596edb4019bf453d8b1ccf6f56c5c51"
+          echo "NOOR_SHA=$NOOR_SHA" >> "$GITHUB_ENV"
+      - name: Checkout verified Noor source (no private data)
+        uses: actions/checkout@v4
+        with:
+          repository: geminiamo0-ship-it/nour-elquran
+          ref: ${{ env.NOOR_SHA }}
+          path: noor
+          persist-credentials: false
+      - name: Verify isolated production boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C noor rev-parse HEAD)" = "$NOOR_SHA"
+          test "$(python3 scripts/noor_source_gate.py)" = "$NOOR_SHA"
+          test -n "$CLOUDFLARE_ACCOUNT_ID" && test -n "$CLOUDFLARE_API_TOKEN"
+      - name: Create or reuse one scheduled lesson in Noor isolated Dev D1
+        shell: bash
+        run: python3 scripts/noor_owner_dev_lesson.py

@@ -127,6 +127,9 @@ def write_config(target, database_id, origin, access_password, auth_secret):
     cfg["vars"] = {
         "NOOR_ENVIRONMENT": "staging", "NOOR_DEV_OPEN": "true",
         "AUTH_ENABLED": "true", "AUTH_ORIGIN": origin,
+        # DEV ONLY: independently gated teacher/learner signed live ink & realtime.
+        "NOOR_REALTIME_HINTS_ENABLED": "true",
+        "NOOR_CUMULATIVE_INK_ENABLED": "true",
     }
     config = target / "wrangler-staging.json"
     config.write_text(json.dumps(cfg, ensure_ascii=False))

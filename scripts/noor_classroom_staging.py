@@ -194,6 +194,59 @@ def verify_signed_lesson_lifecycle(origin, database_id, owner, teacher,
         raise RuntimeError("Ayah operation replay was not idempotent")
     print("PASS: Noor Dev signed Sheikh Start + exact KFQC Surah/Ayah -> learner sync")
 
+    # Dev rollout acceptance: this proof must exercise real live classroom
+    # pen + marker WRITE, not just source/tests or personal Quran Reader ink.
+    teacher_ink=teacher_base+"/quran-ink"
+    student_ink=student_base+"/quran-ink"
+    for url,opener in ((teacher_ink,teacher),(student_ink,owner)):
+        code,raw,_=http(origin,url+"?page=1",opener=opener)
+        require_status(code,200,"signed live Quran ink read")
+        view=json_body(raw)
+        if view.get("canWrite") is not True or view.get("ink",{}).get("page")!=1:
+            raise RuntimeError("SIGNED_LIVE_INK_NOT_ENABLED")
+    pen_id="qa-pen-"+uuid4().hex
+    mark_id="qa-marker-"+uuid4().hex
+    def write_mark(url,opener,kind,stroke_id,revision):
+        payload={"action":"add","page":1,"expectedRevision":revision,
+                 "requestId":str(uuid4()),"stroke":{
+                   "id":stroke_id,"page":1,"color":"#397ca7",
+                   "width":3 if kind=="pen" else 16,"kind":kind,
+                   "points":[{"x":110,"y":230},{"x":175,"y":250}]}}
+        code,raw,_=http(origin,url,method="POST",body=payload,opener=opener)
+        if code not in (200,202):
+            raise RuntimeError("SIGNED_LIVE_INK_WRITE_FAILED_HTTP_"+str(code))
+        value=json_body(raw)
+        if value.get("code") not in ("INK_APPLIED","INK_PENDING_PERSISTENCE") or (
+           value.get("ink",{}).get("revision")!=revision+1):
+            raise RuntimeError("SIGNED_LIVE_INK_WRITE_NOT_ACKNOWLEDGED")
+        # Explicitly distinguish pending D1 from globally saved.
+        if code==202 and value.get("persistence")!="pending":
+            raise RuntimeError("SIGNED_LIVE_INK_PENDING_FALSLY_SAVED")
+        return revision+1
+    teacher_view=json_body(http(origin,teacher_ink+"?page=1",opener=teacher)[1])
+    rev=write_mark(teacher_ink,teacher,"pen",pen_id,teacher_view["ink"]["revision"])
+    rev=write_mark(student_ink,owner,"marker",mark_id,rev)
+    code,raw,_=http(origin,student_ink+"?page=1",opener=owner)
+    require_status(code,200,"learner sees teacher and own pen")
+    student_view=json_body(raw).get("ink",{})
+    if student_view.get("revision")!=rev or not {pen_id,mark_id}.issubset(
+       {x.get("id") for x in student_view.get("strokes",[])}):
+        raise RuntimeError("SIGNED_LIVE_INK_MISSING_CROSS_ROLE_STROKES")
+    # A Durable Object write is not global persistence until real D1 ledger
+    # readback confirms both synthetic events; alarms may retry pending rows.
+    import time
+    count=0
+    for _ in range(12):
+        rows=d1_read_only(database_id,
+          "SELECT COUNT(*) AS n FROM learner_quran_events WHERE learner_id='"+
+          learner_id+"' AND origin_type='lesson' AND origin_id='"+lesson_id+"'")
+        count=rows[0].get("n",0) if len(rows)==1 else 0
+        if count>=2:break
+        time.sleep(2)
+    if count<2:raise RuntimeError("SIGNED_LIVE_INK_D1_OUTBOX_NOT_DURABLE")
+    # The written QA strokes are synthetic-only, isolated to the QA learner.
+    print("PASS: Signed Dev live Sheikh pen + learner marker WRITE, cross-role sync, D1 durable ledger readback")
+
     # Private educational correction is DO-backed and never visible to owner.
     correction=teacher_base+"/corrections"
     payload={"action":"add","operationId":str(uuid4()),"page":1,

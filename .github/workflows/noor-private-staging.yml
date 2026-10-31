@@ -84,6 +84,7 @@ jobs:
           python3 -m unittest discover -s tests -p 'test_noor_classroom_staging.py' -v
           python3 -m unittest discover -s tests -p 'test_noor_livekit_staging.py' -v
           python3 -m unittest discover -s tests -p 'test_noor_source_gate.py' -v
+          python3 -m unittest discover -s tests -p 'test_noor_dev_realtime.py' -v
       - name: Syntax check remote-staging browser acceptance
         run: |
           node --check scripts/noor_staging_profile_browser.mjs
@@ -142,7 +143,7 @@ jobs:
           corepack prepare pnpm@10.22.0 --activate
           cd noor
           pnpm install --frozen-lockfile
-          NEXT_PUBLIC_ACCOUNT_UI=true NEXT_PUBLIC_QURAN_PERSISTENCE_ENABLED=true NEXT_PUBLIC_TEACHER_READONLY_ENABLED=true pnpm --filter @noor/web build
+          NEXT_PUBLIC_ACCOUNT_UI=true NEXT_PUBLIC_QURAN_PERSISTENCE_ENABLED=true NEXT_PUBLIC_TEACHER_READONLY_ENABLED=true NEXT_PUBLIC_NOOR_REALTIME_HINTS_ENABLED=true NEXT_PUBLIC_NOOR_REALTIME_PREVIEW_ENABLED=true pnpm --filter @noor/web build
       - name: Deploy open developer staging and verify application account security
         shell: bash
         run: |

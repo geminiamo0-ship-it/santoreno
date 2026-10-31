@@ -200,7 +200,22 @@ def verify_signed_marked_homework(origin, database_id, owner, teacher, learner_i
           "toAyah":7,"dueAtMs":int(time.time()*1000)+86400000,
           "instructions":"Synthetic marked Quran review, no child data"}
     draft={**task,"draftId":draft_id,"revision":1,"marks":marks}
-    result=post(drafts,draft,teacher,201)
+    status,raw,_=http(origin,drafts,method="POST",body=draft,opener=teacher)
+    if status!=201:
+        # Only static machine-readable error classes, never runtime SQL,
+        # user credentials, request IDs, cookie values or marker coordinates.
+        response=json_body(raw) if raw else {}
+        code=response.get("code") if isinstance(response,dict) else None
+        reason=response.get("reason") if isinstance(response,dict) else None
+        allowed_codes={"DRAFT_STORAGE_UNAVAILABLE","DRAFT_WRITE_REJECTED",
+                       "DRAFT_SCHEMA_NOT_READY","INVALID_DRAFT"}
+        allowed_reasons={"D1_JSON","D1_SCHEMA","D1_CONSTRAINT",
+                         "D1_NETWORK","D1_UNKNOWN"}
+        safe_code=code if code in allowed_codes else "OTHER"
+        safe_reason=reason if reason in allowed_reasons else "UNCLASSIFIED"
+        raise RuntimeError("Sheikh marked homework save HTTP "+str(status)+
+                           " code="+safe_code+" reason="+safe_reason)
+    result=json_body(raw)
     if (result.get("code")!="DRAFT_SAVED" or
             result.get("draft",{}).get("revision")!=1 or
             len(result.get("draft",{}).get("marks",[]))!=2):

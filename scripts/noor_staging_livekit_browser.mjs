@@ -193,6 +193,23 @@ try {
   );
   console.log("PASS: Sheikh mute/release and voluntary learner microphone recovery");
 
+  // P0 owner acceptance: a signed teacher starts only once both are present.
+  // The clock must be server-backed and visible to both signed participants.
+  await click(teacher, "بدء الحصة");
+  await Promise.all([
+    waitFor(() => has(teacher, "الحصة جارية"), "Sheikh signed Start is live"),
+    waitFor(() => has(student, "الحصة جارية"), "Learner sees signed live lesson"),
+  ]);
+  const liveClock = browser => browser.evaluate(
+    "(()=>{const x=document.querySelector('[role=timer][aria-label=\\"الوقت المنقضي منذ بداية الحصة\\"]');" +
+    "return !!x && /^\\d{2}:\\d{2}:\\d{2}$/.test(x.textContent.trim())})()",
+  );
+  await Promise.all([
+    waitFor(() => liveClock(teacher), "Sheikh D1 elapsed timer"),
+    waitFor(() => liveClock(student), "Learner D1 elapsed timer"),
+  ]);
+  console.log("PASS: D1 Start displays authoritative live state and time on both accounts");
+
   // CR-03: the new page is real LessonDO state, not a cosmetic local turn.
   // This test uses the same two signed actors as the WebRTC acceptance.
   const teacherPagePath = "/v1/teacher/lessons/" + encodeURIComponent(lesson) + "/quran-page";
@@ -316,6 +333,25 @@ try {
     "/lessons/" +
     encodeURIComponent(lesson) +
     "/quran-ink";
+  // Cumulative D1 writes are a separate security/durability gate. When OFF,
+  // a disabled toolbar and explicit 503 are CORRECT, never a test failure.
+  const inkAccess = await pageRead(teacher, teacherInkPath + "?page=35");
+  assert.equal(inkAccess.status, 200, "Signed Sheikh ink snapshot denied");
+  assert.equal(typeof inkAccess.body.canWrite, "boolean", "Ink gate is not explicit");
+  if (!inkAccess.body.canWrite) {
+    const refused = await pageWrite(teacher, teacherInkPath, {
+      action:"add",page:35,expectedRevision:0,requestId:"qa-ink-disabled-0001",
+      stroke:{id:"ink-qa-disabled-0001",page:35,color:"#388e68",width:3,
+        kind:"pen",points:[{x:120,y:220},{x:240,y:300}]},
+    });
+    assert.equal(refused.status, 503, "Disabled cumulative writes must fail closed");
+    assert.equal(refused.body.code, "CUMULATIVE_INK_DISABLED");
+    const blocked = await teacher.evaluate(
+      "(()=>{const b=document.querySelector('button[aria-label=\\"قلم\\"]');return !!b&&b.disabled})()",
+    );
+    assert.equal(blocked, true, "Disabled cumulative ink must not show a usable Sheikh pen");
+    console.log("PASS: OFF cumulative ink rejects writes and exposes honest disabled tool");
+  } else {
   const inkMark = {
     id: "ink-qa-verified-0001",
     page: 35,
@@ -373,13 +409,6 @@ try {
   assert.equal(learnerPenDenied, true, "Learner drew without a teacher-controlled grant");
   console.log("PASS: signed teacher pen persisted and visible in both browser ink overlays");
 
-  await snapshot(teacher, 1280, 900, "teacher-desktop-1280");
-  await snapshot(student, 390, 844, "student-mobile-390");
-  await snapshot(student, 360, 667, "student-mobile-360");
-  console.log(
-    "PASS: bidirectional real WebRTC with synthetic A/V tracks and responsive screenshots",
-  );
-
   const hiddenInk = await pageWrite(teacher, teacherInkPath, {
     action: "hide",
     page: 35,
@@ -395,6 +424,13 @@ try {
     waitFor(async () => !(await markVisible(student)), "learner sees erased stroke"),
   ]);
   console.log("PASS: eraser tombstone visible to both; underlying Quran unchanged");
+  }
+  await snapshot(teacher, 1280, 900, "teacher-desktop-1280");
+  await snapshot(student, 390, 844, "student-mobile-390");
+  await snapshot(student, 360, 667, "student-mobile-360");
+  console.log(
+    "PASS: bidirectional real WebRTC with synthetic A/V tracks and responsive screenshots",
+  );
 
   await click(student, "إنهاء اتصال الصوت والفيديو");
   await waitFor(() => has(student, "دخول الصوت والفيديو"), "student media disconnect");

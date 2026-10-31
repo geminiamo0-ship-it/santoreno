@@ -38,19 +38,67 @@ def runs(sha=SHA, event="pull_request", conclusion="success"):
     }]}
 
 
-def fixture(pr=None, reviews=None, workflow=None):
+def fixture(pr=None, reviews=None, workflow=None, permissions=None):
     mapping = {
         "branches/main": {"commit": {"sha": SHA}},
         "pulls/288": eligible_pr() if pr is None else pr,
         "pulls/288/reviews?per_page=100": [approved()] if reviews is None else reviews,
         "actions/runs?head_sha=" + SHA + "&per_page=100": runs() if workflow is None else workflow,
     }
-    return lambda path: mapping[path]
+    def get_json(path):
+        if path.startswith("collaborators/") and path.endswith("/permission"):
+            reviewer = path.split("/")[1]
+            permission = (permissions or {}).get(reviewer, "write")
+            return {"permission": permission}
+        return mapping[path]
+    return get_json
 
 
 class SourceGateTests(unittest.TestCase):
     def test_reviewed_same_repo_exact_head_is_eligible(self):
         self.assertEqual(gate.resolve_source("288", fixture()), SHA)
+
+    def test_denies_unprivileged_approvals_even_when_review_and_ci_green(self):
+        for role in ("read", "triage", None, "unknown"):
+            with self.subTest(permission=role):
+                with self.assertRaisesRegex(gate.SourceGateError, "write permission"):
+                    gate.resolve_source("288", fixture(permissions={"reviewer": role}))
+
+    def test_accepts_only_verified_reviewer_write_or_higher(self):
+        for role in ("write", "maintain", "admin"):
+            with self.subTest(permission=role):
+                self.assertEqual(
+                    gate.resolve_source("288", fixture(permissions={"reviewer": role})),
+                    SHA,
+                )
+
+    def test_one_valid_writer_needed_among_independent_approvers(self):
+        reviews = [
+            approved(reviewer="alice"),
+            approved(reviewer="bob", at="2026-10-31T11:00:00Z"),
+        ]
+        self.assertEqual(gate.resolve_source(
+            "288", fixture(reviews=reviews, permissions={"alice": "read", "bob": "write"})
+        ), SHA)
+        with self.assertRaisesRegex(gate.SourceGateError, "write permission"):
+            gate.resolve_source(
+                "288", fixture(reviews=reviews, permissions={"alice": "read", "bob": "triage"})
+            )
+
+    def test_permission_lookup_error_is_fail_closed(self):
+        base = fixture()
+        def fail_permission(path):
+            if path.startswith("collaborators/"):
+                raise gate.SourceGateError("GitHub source verification unavailable")
+            return base(path)
+        with self.assertRaisesRegex(gate.SourceGateError, "unavailable"):
+            gate.resolve_source("288", fail_permission)
+
+    def test_unknown_reviewer_logins_cannot_construct_api_paths(self):
+        for reviewer in ("../admin", "outsider/permission", "q" * 50):
+            with self.subTest(reviewer=reviewer):
+                with self.assertRaisesRegex(gate.SourceGateError, "approval"):
+                    gate.resolve_source("288", fixture(reviews=[approved(reviewer=reviewer)]))
 
     def test_default_main_requires_successful_push_verify(self):
         def get_json(path):

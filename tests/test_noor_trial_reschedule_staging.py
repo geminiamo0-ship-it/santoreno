@@ -83,6 +83,8 @@ class SignedTrialReplacementStageTests(TestCase):
     if body["slotId"]==SLOTS[0]:
      return ok(409,{"code":"TRIAL_OPERATION_CONFLICT"})
     n=sum(1 for v in seen if v[0]==path and v[2]=="guardian" and v[3]["slotId"]==SLOTS[2])
+    if n>=3:
+     return ok(404,{"code":"NOT_FOUND"})
     return ok(201 if n==1 else 200,
               {"code":"TRIAL_RESCHEDULED" if n==1 else "TRIAL_RESCHEDULE_REPLAY",
                "lessonId":NEW})
@@ -94,14 +96,14 @@ class SignedTrialReplacementStageTests(TestCase):
    [{"version":1}],
    [{"old_status":"scheduled","other_status":"scheduled","replacements":0}],
    [{"old_status":"cancelled","new_status":"scheduled","other_status":"scheduled",
-     "replacements":1,"revoked":1,"active":1}],
+     "replacements":1,"revoked":1,"active":1,"reserved_ms":2400000}],
   ]
   with patch.object(stage,"d1_read_only",side_effect=rows) as db,\
        patch.object(stage,"http",side_effect=fake_http):
    self.assertTrue(self.run_stage())
    self.assertEqual(db.call_count,3)
   self.assertEqual(len([x for x in seen if x[0].endswith("trial-cancellations")]),2)
-  self.assertEqual(len([x for x in seen if x[0].endswith("trial-reschedules")]),5)
+  self.assertEqual(len([x for x in seen if x[0].endswith("trial-reschedules")]),7)
   self.assertTrue(all(x[2]=="guardian" for x in seen
     if x[0].endswith("trial-cancellations") and "child-1/" in x[0]))
   self.assertTrue(any(x[2]=="other" and x[0].endswith("trial-cancellations")

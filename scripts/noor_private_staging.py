@@ -167,6 +167,84 @@ def json_body(content):
     return json.loads(content.decode())
 
 
+def verify_signed_marked_homework(origin, database_id, owner, teacher, learner_id,
+                                   foreign_learner, edition, teacher_tasks,
+                                   owner_tasks, post):
+    """Owner QA #284: synthetic signed Dev draft -> publish -> learner projection."""
+    from uuid import uuid4
+    metadata = d1_read_only(database_id,
+        "SELECT version FROM noor_schema_meta WHERE component='teacher_assignment_drafts'")
+    if metadata != [{"version":1}]:
+        raise RuntimeError("Dev D1 teacher ink draft migration 0018 missing")
+    drafts="/v1/teacher/learners/"+learner_id+"/assignment-drafts"
+    code,body,_=http(origin,drafts,opener=teacher)
+    require_status(code,200,"Teacher signed private drafts GET")
+    if json_body(body).get("drafts")!=[]:
+        raise RuntimeError("Synthetic student already has Sheikh drafts")
+    code,body,_=http(origin,
+        "/v1/teacher/learners/"+learner_id+
+        "/assignment-page-range?editionId=hafs-kfqc%3Av1.1.1&surah=1&fromAyah=1&toAyah=7",
+        opener=teacher)
+    require_status(code,200,"Signed Quran homework range")
+    if json_body(body).get("startPage")!=1 or json_body(body).get("endPage")!=1:
+        raise RuntimeError("Sheikh Quran homework range mismatch")
+    marks=[
+      {"id":"mk-"+uuid4().hex,"kind":"highlight","page":1,
+       "surah":1,"ayah":1,"payload":{"color":"#d0a94c"}},
+      {"id":"mk-"+uuid4().hex,"kind":"pen","page":1,"surah":None,"ayah":None,
+       "payload":{"color":"#d0a94c","width":3,
+                  "points":[{"x":120,"y":220},{"x":140,"y":235}]}}
+    ]
+    draft_id=str(uuid4())
+    task={"kind":"revision","editionId":edition,"surah":1,"fromAyah":1,
+          "toAyah":7,"dueAtMs":int(time.time()*1000)+86400000,
+          "instructions":"Synthetic marked Quran review, no child data"}
+    draft={**task,"draftId":draft_id,"revision":1,"marks":marks}
+    result=post(drafts,draft,teacher,201)
+    if (result.get("code")!="DRAFT_SAVED" or
+            result.get("draft",{}).get("revision")!=1 or
+            len(result.get("draft",{}).get("marks",[]))!=2):
+        raise RuntimeError("Private Sheikh draft marks not committed")
+    if post(drafts,draft,teacher,200).get("code")!="DRAFT_ALREADY_SAVED":
+        raise RuntimeError("Sheikh draft replay not idempotent")
+    code,body,_=http(origin,drafts,opener=teacher)
+    require_status(code,200,"Sheikh ink draft reload")
+    if not any(x.get("draftId")==draft_id and len(x.get("marks",[]))==2
+               for x in json_body(body).get("drafts",[])):
+        raise RuntimeError("Sheikh draft ink not visible after refresh")
+    code,_,_=http(origin,drafts,opener=owner)
+    require_status(code,404,"Owner must not read unpublished Sheikh draft")
+    code,_,_=http(origin,
+        "/v1/teacher/learners/"+foreign_learner+"/assignment-drafts",opener=teacher)
+    require_status(code,404,"Unassigned learner draft denied")
+    owner_page="/v1/me/learners/"+learner_id+"/cumulative-quran?page=1"
+    code,body,_=http(origin,owner_page,opener=owner)
+    require_status(code,200,"Owner initial cumulative Quran page")
+    if any(x.get("originType")=="assignment" for x in json_body(body).get("current",[])):
+        raise RuntimeError("Private Sheikh draft leaked before publication")
+    task_id=post(teacher_tasks,{**task,"draftId":draft_id,"operationId":str(uuid4())},
+                 teacher,201).get("assignmentId")
+    if not isinstance(task_id,str) or not re.fullmatch(r"[0-9a-fA-F-]{36}",task_id):
+        raise RuntimeError("Marked task publication lacks verified assignment ID")
+    code,body,_=http(origin,owner_tasks,opener=owner)
+    require_status(code,200,"Owner marked assignment list")
+    if not any(row.get("id")==task_id for row in json_body(body).get("assignments",[])):
+        raise RuntimeError("Marked task missing from published learner training")
+    code,body,_=http(origin,owner_page,opener=owner)
+    require_status(code,200,"Owner global Quran with published Sheikh ink")
+    visible=[x for x in json_body(body).get("current",[])
+             if x.get("originType")=="assignment" and x.get("originId")==task_id]
+    if len(visible)!=2 or {m.get("kind") for m in visible}!={"pen","highlight"}:
+        raise RuntimeError("Published Sheikh marks not projected into global Mushaf")
+    code,body,_=http(origin,drafts,opener=teacher)
+    require_status(code,200,"Published draft removed from private editing")
+    if any(x.get("draftId")==draft_id for x in json_body(body).get("drafts",[])):
+        raise RuntimeError("Published Sheikh draft still editable")
+    code,_,_=http(origin,owner_page,opener=teacher)
+    require_status(code,404,"Foreign household cannot read learner Quran")
+    print("PASS: Noor Dev signed Sheikh pen+highlight draft/replay, publish, global learner Quran marks and sibling isolation")
+
+
 def plan_stage_synthetic_smoke(origin, database_id, config, owner_a, owner_b, learner_id, other_learner):
     """#244: authorized synthetic teacher plan end-to-end on dedicated Noor Staging only."""
     from noor_report_staging import verify_report_flow
@@ -302,6 +380,8 @@ def plan_stage_synthetic_smoke(origin, database_id, config, owner_a, owner_b, le
         code,_,_=http(origin,"/v1/teacher/learners/"+other_learner+"/assignments",opener=owner_b)
         require_status(code,404,"Unassigned learner assignment denied")
         print("PASS: Remote Noor Phase 05A canonical teacher publish, replay 200, conflict 409, owner readback, isolation 404")
+        verify_signed_marked_homework(origin,database_id,owner_a,owner_b,
+            learner_id,other_learner,assignment_edition,teacher_tasks,owner_tasks,post)
 
         # Phase 05B: explicitly submitted TEXT-only student task + active Sheikh review.
         owner_submissions=owner_tasks+"/"+task_id+"/submissions"

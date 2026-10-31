@@ -439,7 +439,7 @@ try {
       waitFor(async () => !(await markVisible(teacher)), "teacher eraser hides stroke"),
       waitFor(async () => !(await markVisible(student)), "learner sees erased stroke"),
     ]);
-      console.log("PASS: eraser tombstone visible to both; underlying Quran unchanged");
+    console.log("PASS: eraser tombstone visible to both; underlying Quran unchanged");
   }
   await snapshot(teacher, 1280, 900, "teacher-desktop-1280");
   await snapshot(student, 390, 844, "student-mobile-390");

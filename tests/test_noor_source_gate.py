@@ -85,6 +85,26 @@ class SourceGateTests(unittest.TestCase):
                 with self.assertRaisesRegex(gate.SourceGateError, "approval"):
                     gate.resolve_source("288", fixture(reviews=reviews))
 
+    def test_review_gate_rejects_cross_reviewer_veto_and_case_aliases(self):
+        for reviews in [
+            [approved(reviewer="OWNER")],
+            [approved(reviewer="Reviewer"), approved(reviewer="reviewer", state="CHANGES_REQUESTED", at="2026-10-31T11:00:00Z")],
+            [approved(reviewer="alice"), approved(reviewer="bob", state="CHANGES_REQUESTED", at="2026-10-31T11:00:00Z")],
+            [approved(reviewer="bob", state="CHANGES_REQUESTED"), approved(reviewer="alice", at="2026-10-31T11:00:00Z")],
+            [approved(reviewer="reviewer")] * 100,
+        ]:
+            with self.subTest(reviews=reviews[:2], count=len(reviews)):
+                with self.assertRaisesRegex(gate.SourceGateError, "approval"):
+                    gate.resolve_source("288", fixture(reviews=reviews))
+
+    def test_review_gate_allows_resolved_change_request(self):
+        reviews = [
+            approved(reviewer="alice", state="CHANGES_REQUESTED"),
+            approved(reviewer="bob", at="2026-10-31T11:00:00Z"),
+            approved(reviewer="alice", state="DISMISSED", at="2026-10-31T12:00:00Z"),
+        ]
+        self.assertEqual(gate.resolve_source("288", fixture(reviews=reviews)), SHA)
+
     def test_reject_wrong_event_failed_ci_or_stale_sha(self):
         for result in [
             runs(event="push"),

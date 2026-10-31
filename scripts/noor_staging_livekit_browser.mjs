@@ -50,7 +50,7 @@ const mediaReady = (browser) =>
   browser.evaluate(
     "!!document.querySelector('section[aria-label=\"الصوت والفيديو المباشر\"]')" +
       " && document.querySelector('section[aria-label=\"الصوت والفيديو المباشر\"]')" +
-      ".textContent.includes('متصل بالصوت والفيديو')",
+      ".textContent.includes('متصل بغرفة LiveKit')",
   );
 const remoteVideoReady = (browser) =>
   browser.evaluate(
@@ -66,6 +66,19 @@ const localVideoReady = (browser) =>
   );
 const remoteAudioExists = (browser) =>
   browser.evaluate("!!document.querySelector('[aria-label=\"صوت الطرف الآخر\"] audio')");
+// The remote tile is an actual subscribed-track signal, never a 'connected' inference.
+const peerTracks = (browser) =>
+  browser.evaluate(
+    "(()=>{const el=document.querySelector('[data-peer-audio][data-peer-video]');" +
+      "return el?{audio:el.getAttribute('data-peer-audio')," +
+      "video:el.getAttribute('data-peer-video')}:null})()",
+  );
+const assertPeerMedia = async (browser, audio, video, label) => {
+  await waitFor(async () => {
+    const current = await peerTracks(browser);
+    return current?.audio === audio && current?.video === video;
+  }, label);
+};
 async function snapshot(browser, width, height, label) {
   await browser.send("Emulation.setDeviceMetricsOverride", {
     width,
@@ -130,6 +143,11 @@ try {
       false,
       "Microphone published without local opt-in",
     );
+    assert.deepEqual(
+      await peerTracks(browser),
+      { audio: "missing", video: "missing" },
+      "LiveKit signaling must not pretend peer media is received",
+    );
   }
   console.log("PASS: two signed synthetic browser actors connected to LiveKit with camera/mic OFF");
 
@@ -140,11 +158,20 @@ try {
     waitFor(() => remoteVideoReady(teacher), "teacher remote student video"),
     waitFor(() => remoteVideoReady(student), "student remote teacher video"),
   ]);
+  await Promise.all([
+    assertPeerMedia(teacher, "missing", "received", "teacher remote video only"),
+    assertPeerMedia(student, "missing", "received", "learner remote video only"),
+  ]);
   await Promise.all([click(teacher, "تشغيل ميكروفوني"), click(student, "تشغيل ميكروفوني")]);
   await Promise.all([
     waitFor(() => remoteAudioExists(teacher), "teacher remote student audio"),
     waitFor(() => remoteAudioExists(student), "student remote teacher audio"),
   ]);
+  await Promise.all([
+    assertPeerMedia(teacher, "received", "received", "teacher verified remote A/V"),
+    assertPeerMedia(student, "received", "received", "learner verified remote A/V"),
+  ]);
+  console.log("PASS: remote audio/video indicators reflect actual subscribed tracks");
   // Owner QA #232: Sheikh may mute AND later release microphone moderation.
   // Student is never remotely activated; they opt back in after release.
   await click(teacher, "كتم ميكروفون الطالب");
@@ -168,6 +195,24 @@ try {
     "Student microphone republished after permitted opt-in",
   );
   console.log("PASS: Sheikh mute/release and voluntary learner microphone recovery");
+
+  // P0 owner acceptance: a signed teacher starts only once both are present.
+  // The clock must be server-backed and visible to both signed participants.
+  await click(teacher, "بدء الحصة");
+  await Promise.all([
+    waitFor(() => has(teacher, "الحصة جارية"), "Sheikh signed Start is live"),
+    waitFor(() => has(student, "الحصة جارية"), "Learner sees signed live lesson"),
+  ]);
+  const liveClock = (browser) =>
+    browser.evaluate(
+      "(()=>{const x=document.querySelector('[role=timer]');" +
+        "return !!x && /^\\d{2}:\\d{2}(?::\\d{2})?$/.test(x.textContent.trim())})()",
+    );
+  await Promise.all([
+    waitFor(() => liveClock(teacher), "Sheikh D1 elapsed timer"),
+    waitFor(() => liveClock(student), "Learner D1 elapsed timer"),
+  ]);
+  console.log("PASS: D1 Start displays authoritative live state and time on both accounts");
 
   // CR-03: the new page is real LessonDO state, not a cosmetic local turn.
   // This test uses the same two signed actors as the WebRTC acceptance.
@@ -292,63 +337,110 @@ try {
     "/lessons/" +
     encodeURIComponent(lesson) +
     "/quran-ink";
-  const inkMark = {
-    id: "ink-qa-verified-0001",
-    page: 35,
-    color: "#388e68",
-    width: 3,
-    kind: "pen",
-    points: [
-      { x: 120, y: 220 },
-      { x: 240, y: 300 },
-    ],
-  };
-  const inkAction = {
-    action: "add",
-    page: 35,
-    expectedRevision: 0,
-    requestId: "qa-ink-add-0001",
-    stroke: inkMark,
-  };
-  const initialInk = await pageRead(teacher, teacherInkPath + "?page=35");
-  assert.equal(initialInk.status, 200);
-  assert.equal(initialInk.body.ink.revision, 0);
-  const addedInk = await pageWrite(teacher, teacherInkPath, inkAction);
-  assert.equal(addedInk.status, 200);
-  assert.equal(addedInk.body.ink.revision, 1);
-  assert.deepEqual(addedInk.body.ink.strokes, [inkMark]);
-  assert.equal((await pageWrite(teacher, teacherInkPath, inkAction)).body.code, "INK_REPLAY");
-  assert.equal(
-    (await pageWrite(teacher, teacherInkPath, { ...inkAction, requestId: "qa-ink-add-0002" }))
-      .status,
-    409,
-  );
-  assert.equal((await pageWrite(student, learnerInkPath, inkAction)).status, 405);
-  assert.equal(
-    (await pageWrite(teacher, teacherInkPath, { ...inkAction, role: "learner" })).status,
-    400,
-  );
-  const studentInk = await pageRead(student, learnerInkPath + "?page=35");
-  assert.equal(studentInk.status, 200);
-  assert.deepEqual(studentInk.body.ink.strokes, [inkMark]);
-  const markVisible = (browser) =>
-    browser.evaluate(
-      '!!document.querySelector(\'svg[aria-label="طبقة الرسم على المصحف"] path[stroke="#388e68"]\')',
+  // Cumulative D1 writes are a separate security/durability gate. When OFF,
+  // a disabled toolbar and explicit 503 are CORRECT, never a test failure.
+  const inkAccess = await pageRead(teacher, teacherInkPath + "?page=35");
+  assert.equal(inkAccess.status, 200, "Signed Sheikh ink snapshot denied");
+  assert.equal(typeof inkAccess.body.canWrite, "boolean", "Ink gate is not explicit");
+  if (!inkAccess.body.canWrite) {
+    const refused = await pageWrite(teacher, teacherInkPath, {
+      action: "add",
+      page: 35,
+      expectedRevision: 0,
+      requestId: "qa-ink-disabled-0001",
+      stroke: {
+        id: "ink-qa-disabled-0001",
+        page: 35,
+        color: "#388e68",
+        width: 3,
+        kind: "pen",
+        points: [
+          { x: 120, y: 220 },
+          { x: 240, y: 300 },
+        ],
+      },
+    });
+    assert.equal(refused.status, 503, "Disabled cumulative writes must fail closed");
+    assert.equal(refused.body.code, "CUMULATIVE_INK_DISABLED");
+    const blocked = await teacher.evaluate(
+      "(()=>{const b=document.querySelector('button[aria-label=قلم]');return !!b&&b.disabled})()",
     );
-  await Promise.all([
-    waitFor(() => markVisible(teacher), "teacher canonical green ink visible"),
-    waitFor(() => markVisible(student), "learner receives signed teacher ink"),
-  ]);
-  const teacherPenReady = await teacher.evaluate(
-    "(()=>{const b=document.querySelector('button[aria-label=\"قلم\"]');return !!b&&!b.disabled})()",
-  );
-  const learnerPenDenied = await student.evaluate(
-    "(()=>{const b=document.querySelector('button[aria-label=\"قلم\"]');return !!b&&b.disabled})()",
-  );
-  assert.equal(teacherPenReady, true, "Teacher ink tool never became available");
-  assert.equal(learnerPenDenied, true, "Learner drew without a teacher-controlled grant");
-  console.log("PASS: signed teacher pen persisted and visible in both browser ink overlays");
+    assert.equal(blocked, true, "Disabled cumulative ink must not show a usable Sheikh pen");
+    console.log("PASS: OFF cumulative ink rejects writes and exposes honest disabled tool");
+  } else {
+    const inkMark = {
+      id: "ink-qa-verified-0001",
+      page: 35,
+      color: "#388e68",
+      width: 3,
+      kind: "pen",
+      points: [
+        { x: 120, y: 220 },
+        { x: 240, y: 300 },
+      ],
+    };
+    const inkAction = {
+      action: "add",
+      page: 35,
+      expectedRevision: 0,
+      requestId: "qa-ink-add-0001",
+      stroke: inkMark,
+    };
+    const initialInk = await pageRead(teacher, teacherInkPath + "?page=35");
+    assert.equal(initialInk.status, 200);
+    assert.equal(initialInk.body.ink.revision, 0);
+    const addedInk = await pageWrite(teacher, teacherInkPath, inkAction);
+    assert.equal(addedInk.status, 200);
+    assert.equal(addedInk.body.ink.revision, 1);
+    assert.deepEqual(addedInk.body.ink.strokes, [inkMark]);
+    assert.equal((await pageWrite(teacher, teacherInkPath, inkAction)).body.code, "INK_REPLAY");
+    assert.equal(
+      (await pageWrite(teacher, teacherInkPath, { ...inkAction, requestId: "qa-ink-add-0002" }))
+        .status,
+      409,
+    );
+    assert.equal((await pageWrite(student, learnerInkPath, inkAction)).status, 405);
+    assert.equal(
+      (await pageWrite(teacher, teacherInkPath, { ...inkAction, role: "learner" })).status,
+      400,
+    );
+    const studentInk = await pageRead(student, learnerInkPath + "?page=35");
+    assert.equal(studentInk.status, 200);
+    assert.deepEqual(studentInk.body.ink.strokes, [inkMark]);
+    const markVisible = (browser) =>
+      browser.evaluate(
+        '!!document.querySelector(\'svg[aria-label="طبقة الرسم على المصحف"] path[stroke="#388e68"]\')',
+      );
+    await Promise.all([
+      waitFor(() => markVisible(teacher), "teacher canonical green ink visible"),
+      waitFor(() => markVisible(student), "learner receives signed teacher ink"),
+    ]);
+    const teacherPenReady = await teacher.evaluate(
+      "(()=>{const b=document.querySelector('button[aria-label=\"قلم\"]');return !!b&&!b.disabled})()",
+    );
+    const learnerPenDenied = await student.evaluate(
+      "(()=>{const b=document.querySelector('button[aria-label=\"قلم\"]');return !!b&&b.disabled})()",
+    );
+    assert.equal(teacherPenReady, true, "Teacher ink tool never became available");
+    assert.equal(learnerPenDenied, true, "Learner drew without a teacher-controlled grant");
+    console.log("PASS: signed teacher pen persisted and visible in both browser ink overlays");
 
+    const hiddenInk = await pageWrite(teacher, teacherInkPath, {
+      action: "hide",
+      page: 35,
+      expectedRevision: 1,
+      requestId: "qa-ink-hide-0001",
+      strokeId: inkMark.id,
+    });
+    assert.equal(hiddenInk.status, 200);
+    assert.equal(hiddenInk.body.ink.revision, 2);
+    assert.deepEqual(hiddenInk.body.ink.strokes, []);
+    await Promise.all([
+      waitFor(async () => !(await markVisible(teacher)), "teacher eraser hides stroke"),
+      waitFor(async () => !(await markVisible(student)), "learner sees erased stroke"),
+    ]);
+    console.log("PASS: eraser tombstone visible to both; underlying Quran unchanged");
+  }
   await snapshot(teacher, 1280, 900, "teacher-desktop-1280");
   await snapshot(student, 390, 844, "student-mobile-390");
   await snapshot(student, 360, 667, "student-mobile-360");
@@ -356,24 +448,13 @@ try {
     "PASS: bidirectional real WebRTC with synthetic A/V tracks and responsive screenshots",
   );
 
-  const hiddenInk = await pageWrite(teacher, teacherInkPath, {
-    action: "hide",
-    page: 35,
-    expectedRevision: 1,
-    requestId: "qa-ink-hide-0001",
-    strokeId: inkMark.id,
-  });
-  assert.equal(hiddenInk.status, 200);
-  assert.equal(hiddenInk.body.ink.revision, 2);
-  assert.deepEqual(hiddenInk.body.ink.strokes, []);
-  await Promise.all([
-    waitFor(async () => !(await markVisible(teacher)), "teacher eraser hides stroke"),
-    waitFor(async () => !(await markVisible(student)), "learner sees erased stroke"),
-  ]);
-  console.log("PASS: eraser tombstone visible to both; underlying Quran unchanged");
-
   await click(student, "إنهاء اتصال الصوت والفيديو");
   await waitFor(() => has(student, "دخول الصوت والفيديو"), "student media disconnect");
+  assert.deepEqual(
+    await peerTracks(student),
+    { audio: "missing", video: "missing" },
+    "Media Leave must reset stale reception flags",
+  );
   await click(student, "دخول الصوت والفيديو");
   await waitFor(() => mediaReady(student), "student fresh signed WebRTC reconnect");
   console.log("PASS: student LiveKit media disconnect and reconnect");

@@ -335,6 +335,129 @@ def verify_dev_trial_slot_withdrawal(origin, database_id, staff, guardian,
     print("PASS: signed Noor Dev 0024 booked trial withdrawal denied; original preserved, owner cancel then staff closure, foreign household 404")
 
 
+def verify_dev_trial_atomic_reschedule(origin, database_id, staff, guardian,
+                                       other_owner, learner_id, teacher_id):
+    """#244: signed Dev migration 0025 acceptance, only if Noor main contains 0025.
+
+    Always require remote schema when the source includes the migration.
+    An older main source explicitly SKIPs, never misreports 0025 acceptance.
+    """
+    source = NOOR / "workers/api/migrations/0025_trial_owner_reschedule.sql"
+    if not source.is_file():
+        print("SKIP: Noor main has no 0025 atomic trial replacement; no remote test claimed")
+        return False
+    if DATABASE_NAME != "noor-core-staging" or WORKER_NAME != "noor-site-staging":
+        raise RuntimeError("Trial replacement QA restricted to isolated Noor Dev")
+    from uuid import uuid4
+    marker=d1_read_only(database_id,
+        "SELECT version FROM noor_schema_meta WHERE component='trial_owner_reschedule'")
+    if marker!=[{"version":1}]:
+        raise RuntimeError("Noor main includes 0025 but Dev D1 reschedule schema is missing")
+    def signed(path,actor,method="GET",payload=None,expected=200):
+        status,body,_=http(origin,path,method=method,body=payload,opener=actor)
+        require_status(status,expected,"Signed atomic trial replacement Dev")
+        return json_body(body)
+    def request_uuid(value):
+        if not isinstance(value,str) or not re.fullmatch(r"[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}",value,re.I):
+            raise RuntimeError("Synthetic trial reply contained invalid UUID")
+        return value
+    root="/v1/me/learners/"+learner_id
+    # Synthetic Teacher and Guardian are distinct signed sessions from the
+    # existing staging setup; only the account owner may mutate this learner.
+    now=int(time.time()*1000)
+    slots=[]
+    old_id=None
+    other_id=None
+    new_id=None
+    other_learner=None
+    try:
+        for hours in (30,32,34):
+            result=signed("/v1/staff/trial-slots",staff,"POST",
+                 {"operationId":str(uuid4()),"teacherId":teacher_id,
+                  "startsAtMs":now+hours*3600000},201)
+            slots.append(request_uuid(result.get("slotId")))
+        child=signed("/v1/me/learners",other_owner,"POST",
+                 {"name":"Synthetic Reschedule Other Household","learnerType":"child"},201)
+        other_learner=child.get("learner",{}).get("id")
+        if not isinstance(other_learner,str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,128}",other_learner):
+            raise RuntimeError("Foreign synthetic account learner missing")
+        old_id=request_uuid(signed(root+"/trial-bookings",guardian,"POST",
+            {"operationId":str(uuid4()),"slotId":slots[0]},201).get("lessonId"))
+        other_id=request_uuid(signed("/v1/me/learners/"+other_learner+
+            "/trial-bookings",other_owner,"POST",
+            {"operationId":str(uuid4()),"slotId":slots[1]},201).get("lessonId"))
+        alternatives=signed(root+"/trial-reschedule-slots?lessonId="+old_id,guardian)
+        allowed={x.get("slotId") for x in alternatives.get("slots",[])}
+        if (alternatives.get("code")!="TRIAL_RESCHEDULE_SLOTS"
+            or slots[0] in allowed or slots[1] in allowed or slots[2] not in allowed):
+            raise RuntimeError("Owner replacement availability did not enforce occupancy")
+        signed(root+"/trial-reschedule-slots?lessonId="+old_id,other_owner,expected=404)
+        denied=signed(root+"/trial-reschedules",other_owner,"POST",
+               {"operationId":str(uuid4()),"oldLessonId":old_id,"slotId":slots[2]},404)
+        if denied.get("code")!="NOT_FOUND":
+            raise RuntimeError("Other owner was not denied a trial reschedule")
+        attempt=signed(root+"/trial-reschedules",guardian,"POST",
+               {"operationId":str(uuid4()),"oldLessonId":old_id,"slotId":slots[1]},409)
+        if attempt.get("code")!="TRIAL_RESCHEDULE_UNAVAILABLE":
+            raise RuntimeError("Occupied alternative was not denied atomically")
+        # Read committed remote D1, not UI optimistic state or a mocked SQLite.
+        before=d1_read_only(database_id,
+            "SELECT (SELECT status FROM lessons WHERE id='"+old_id+
+            "') AS old_status, (SELECT status FROM lessons WHERE id='"+other_id+
+            "') AS other_status, (SELECT COUNT(*) FROM trial_owner_reschedule_events "
+            "WHERE old_lesson_id='"+old_id+"') AS replacements")
+        if before!=[{"old_status":"scheduled","other_status":"scheduled","replacements":0}]:
+            raise RuntimeError("Denied reschedule altered original/foreign booked lessons")
+        op=str(uuid4())
+        command={"operationId":op,"oldLessonId":old_id,"slotId":slots[2]}
+        receipt=signed(root+"/trial-reschedules",guardian,"POST",command,201)
+        new_id=request_uuid(receipt.get("lessonId"))
+        if receipt.get("code")!="TRIAL_RESCHEDULED":
+            raise RuntimeError("Replacement did not return committed result")
+        replay=signed(root+"/trial-reschedules",guardian,"POST",command,200)
+        if replay.get("code")!="TRIAL_RESCHEDULE_REPLAY" or replay.get("lessonId")!=new_id:
+            raise RuntimeError("Idempotent trial replacement replay mismatch")
+        conflict=signed(root+"/trial-reschedules",guardian,"POST",
+            {**command,"slotId":slots[0]},409)
+        if conflict.get("code")!="TRIAL_OPERATION_CONFLICT":
+            raise RuntimeError("Modified operation ID reused as a new reschedule")
+        completed=d1_read_only(database_id,
+            "SELECT (SELECT status FROM lessons WHERE id='"+old_id+
+            "') AS old_status, (SELECT status FROM lessons WHERE id='"+new_id+
+            "') AS new_status, (SELECT status FROM lessons WHERE id='"+other_id+
+            "') AS other_status, (SELECT COUNT(*) FROM trial_owner_reschedule_events "
+            "WHERE old_lesson_id='"+old_id+"') AS replacements, "
+            "(SELECT COUNT(*) FROM teacher_assignments g "
+            "JOIN trial_booking_auto_grants a ON a.assignment_id=g.id "
+            "JOIN trial_booking_events b ON b.id=a.booking_id "
+            "WHERE b.lesson_id='"+old_id+"' AND g.revoked_at_ms IS NOT NULL) AS revoked, "
+            "(SELECT COUNT(*) FROM teacher_assignments g "
+            "JOIN trial_booking_auto_grants a ON a.assignment_id=g.id "
+            "JOIN trial_booking_events b ON b.id=a.booking_id "
+            "WHERE b.lesson_id='"+new_id+"' AND g.revoked_at_ms IS NULL) AS active")
+        if completed!=[{"old_status":"cancelled","new_status":"scheduled",
+                        "other_status":"scheduled","replacements":1,"revoked":1,"active":1}]:
+            raise RuntimeError("Replacement D1 audit/grant/foreign isolation inconsistent")
+        print("PASS: Noor Dev 0025 signed atomic trial replace 201, replay 200, conflict 409, original rollback, foreign 404, proper grant revocation")
+        return True
+    finally:
+        # Only confirmed synthetic IDs are ever sent to signed owner
+        # cancellation; no staff override, direct SQL deletion, or real child.
+        for account,path,lesson in (
+            (guardian,root, new_id or old_id),
+            (other_owner,"/v1/me/learners/"+(other_learner or ""),other_id)):
+            if lesson and (account is guardian or other_learner):
+                try:
+                    status,_,_=http(origin,path+"/trial-cancellations",method="POST",
+                           body={"operationId":str(uuid4()),"lessonId":lesson},opener=account)
+                    if status not in (200,201):
+                        raise RuntimeError("Synthetic future trial cleanup denied")
+                except Exception:
+                    # Do not suppress a failing acceptance; existing staff
+                    # role cleanup in plan_stage_synthetic_smoke still runs.
+                    print("WARNING: synthetic trial cancellation cleanup needs inspection")
+
+
 def plan_stage_synthetic_smoke(origin, database_id, config, owner_a, owner_b, learner_id, other_learner):
     """#244: authorized synthetic teacher plan end-to-end on dedicated Noor Staging only."""
     from noor_report_staging import verify_report_flow
@@ -397,6 +520,8 @@ def plan_stage_synthetic_smoke(origin, database_id, config, owner_a, owner_b, le
         role("activate")
         verify_dev_trial_slot_withdrawal(origin,database_id,owner_a,owner_a,
                                         owner_b,learner_id,role_id)
+        verify_dev_trial_atomic_reschedule(origin,database_id,owner_a,owner_a,
+                                           owner_b,learner_id,role_id)
         now = int(time.time()*1000)
         assigned = post("/v1/staff/schedule-actions",
             {"action":"assign","operationId":str(uuid4()),

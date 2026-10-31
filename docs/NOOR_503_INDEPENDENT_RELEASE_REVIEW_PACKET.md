@@ -4,12 +4,10 @@ This file is an **audit handoff**, NOT an independent approval or a release auth
 
 ## Source and proof (immutable references)
 
-| Scope | Head | Evidence |
-| --- | --- | --- |
-| Noor migration source, merged PR [#288](https://github.com/geminiamo0-ship-it/nour-elquran/pull/288) | original PR head `09fed0cddb4fcfc6ded5f96183361bbb1b003399`; merged to main `acdd869ac596edb4019bf453d8b1ccf6f56c5c51` | [Noor native D1 Verify #41228150823](https://github.com/geminiamo0-ship-it/nour-elquran/actions/runs/41228150823), [Noor main Verify #41233957031](https://github.com/geminiamo0-ship-it/nour-elquran/actions/runs/41233957031) |
-| Santoreno original Dev gate, merged PR [#307](https://github.com/geminiamo0-ship-it/santoreno/pull/307) | original PR head `a2b271df01caaab920ac1d2fbdc8da3d4bdafa19`; merged to main `bafd5fa4ba7cea08f712252fe2212a23220e1f32` | [Santoreno Verify #41229150081](https://github.com/geminiamo0-ship-it/santoreno/actions/runs/41229150081) |
-| Santoreno bounded latest-main-Verify race fix, PR [#312](https://github.com/geminiamo0-ship-it/santoreno/pull/312) | **Use exact current PR SHA**, recheck at review time | [Latest Verify](https://github.com/geminiamo0-ship-it/santoreno/actions/workflows/verify.yml), [PR-only Dev validation](https://github.com/geminiamo0-ship-it/santoreno/actions/workflows/noor-private-staging.yml) |
-| Actual failed automatic Dev run | Santoreno `bafd5fa4ba7cea08f712252fe2212a23220e1f32` | [Run #41233982557](https://github.com/geminiamo0-ship-it/santoreno/actions/runs/41233982557), `NOOR_SOURCE_GATE_DENIED: No successful exact-head Noor main Verify` **before remote D1 migration** |
+- **Noor migration:** [PR #288](https://github.com/geminiamo0-ship-it/nour-elquran/pull/288), original PR head `09fed0cddb4fcfc6ded5f96183361bbb1b003399`, main merge `acdd869ac596edb4019bf453d8b1ccf6f56c5c51`. Evidence: [native D1 Verify #41228150823](https://github.com/geminiamo0-ship-it/nour-elquran/actions/runs/41228150823) and [main Verify #41233957031](https://github.com/geminiamo0-ship-it/nour-elquran/actions/runs/41233957031).
+- **Santoreno original Dev gate:** [PR #307](https://github.com/geminiamo0-ship-it/santoreno/pull/307), original PR head `a2b271df01caaab920ac1d2fbdc8da3d4bdafa19`, main merge `bafd5fa4ba7cea08f712252fe2212a23220e1f32`. Evidence: [Verify #41229150081](https://github.com/geminiamo0-ship-it/santoreno/actions/runs/41229150081).
+- **Santoreno bounded latest-main-Verify fix:** [PR #312](https://github.com/geminiamo0-ship-it/santoreno/pull/312). Review its exact current HEAD; recheck CI after any change.
+- **Failed automatic Dev run:** [#41233982557](https://github.com/geminiamo0-ship-it/santoreno/actions/runs/41233982557), Santoreno `bafd5fa4ba7cea08f712252fe2212a23220e1f32`, source-gate denial **before remote D1 migration**.
 
 ## Incident and code being reviewed
 

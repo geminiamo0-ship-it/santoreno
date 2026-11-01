@@ -1,3 +1,11 @@
+## 2026-11-01 — Noor #305 signed Sheikh directory Dev QA extension (Santoreno #330)
+
+- Noor [PR #306](https://github.com/geminiamo0-ship-it/nour-elquran/pull/306) merged `1c9791540d6bc1b6500da27d2bb613209387a8d3`; postmerge [Verify #41266027780](https://github.com/geminiamo0-ship-it/nour-elquran/actions/runs/41266027780) **PASS 4/4**. Only this verified Noor main may deploy, not unmerged PR heads.
+- Santoreno #330 updates signed synthetic Dev `GET /v1/staff/teachers`: anonymous 401, Sheikh 403, verified staff 200, POST 405, strict envelope `requestId`, exactly six safe teacher fields, bounded 50 rows, no private learner names/teacher contact/financial data. Verifies real activated synthetic teacher appears, active assignment count >=1 after scheduling, and revoking same staff D1 grant yields 403 immediately.
+- Admin Chrome test now requires connected Sheikh directory rather than old placeholder, captures synthetic-only 360/390/768/1280/1440 screenshots and checks no horizontal overflow/role leakage. Existing `noor-site-staging` Worker and `noor-core-staging` D1 only, no new resources, Production, payments, WhatsApp, R2 audio or real learner records.
+- **Pending:** exact-head Santoreno Verify and source-only PR validation, then owner-directed Dev QA merge and remote signed runtime Chrome evidence. No claim of verified Dev roster or visual delivery until successful terminal staging run.
+- Personal owner Admin access is not granted by synthetic testing and requires separately verifying the owner's signed Noor identity.
+
 ## 2026-11-01 — Noor Admin Dev trace-envelope contract fix (#327)
 
 - Owner-mergable Noor source `main@382a2603a54fd356f106b351c621e012abc80413` deployed to existing isolated `noor-site-staging` in Santoreno run [#41264212222](https://github.com/geminiamo0-ship-it/santoreno/actions/runs/41264212222), but Dev verification **FAILED** at a QA parser before Chrome screenshots. The new smoke incorrectly required exactly four _top-level_ response fields. Noor's shared `workers/api/src/responses.ts` intentionally adds a nonidentifying `requestId` to every response, so the valid staff `GET /v1/staff/overview` triggered `Admin Dev overview has an unexpected response shape`.

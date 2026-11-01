@@ -301,6 +301,10 @@ def verify_dev_trial_slot_withdrawal(origin, database_id, staff, guardian,
     lesson=booked.get("lessonId")
     if not isinstance(lesson,str) or not re.fullmatch(r"[0-9a-f-]{36}",lesson):
         raise RuntimeError("Synthetic guardian booking lacks confirmed lesson")
+    # A live first-trial booking must revoke eligibility before cancellation.
+    booked_availability=call(trial_root+"/trial-slots",opener=guardian)
+    if booked_availability.get("eligible") is not False or booked_availability.get("slots")!=[]:
+        raise RuntimeError("Booked first trial still appeared rebookable to guardian")
     close_url="/v1/staff/trial-slots/"+slot+"/close"
     denied=call(close_url,"POST",
         {"operationId":str(uuid4()),"reason":"Synthetic booked-slot withdrawal denial"},
@@ -317,6 +321,11 @@ def verify_dev_trial_slot_withdrawal(origin, database_id, staff, guardian,
         raise RuntimeError("Denied staff withdrawal changed booked lesson or closure history")
     call(trial_root+"/trial-cancellations","POST",
         {"operationId":str(uuid4()),"lessonId":lesson},guardian,201)
+    # Read authoritative signed D1 eligibility BEFORE staff can withdraw slot.
+    released=call(trial_root+"/trial-slots",opener=guardian)
+    if released.get("eligible") is not True or not any(
+            row.get("slotId")==slot for row in released.get("slots",[])):
+        raise RuntimeError("Confirmed cancellation did not restore signed trial rebooking")
     closed=call(close_url,"POST",
         {"operationId":str(uuid4()),"reason":"Synthetic closure after owner cancellation"},
         staff,200)
@@ -332,7 +341,7 @@ def verify_dev_trial_slot_withdrawal(origin, database_id, staff, guardian,
         {"operationId":str(uuid4()),"slotId":slot},guardian,409)
     if denied.get("code")!="TRIAL_SLOT_UNAVAILABLE":
         raise RuntimeError("Withdrawn trial slot still allowed another booking")
-    print("PASS: signed Noor Dev 0024 booked trial withdrawal denied; original preserved, owner cancel then staff closure, foreign household 404")
+    print("PASS: signed Noor Dev 0024 booked trial withdrawal denied; cancel restored owner rebooking eligibility, staff closure, foreign 404")
 
 
 def verify_dev_trial_atomic_reschedule(origin, database_id, staff, guardian,

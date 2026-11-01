@@ -265,6 +265,32 @@ def verify_signed_marked_homework(origin, database_id, owner, teacher, learner_i
     print("PASS: Noor Dev signed Sheikh pen+highlight draft/replay, publish, global learner Quran marks and sibling isolation")
 
 
+def _academy_trial_approved(learner_id, slot_id, staff, guardian, call):
+    """Both trial routes use the same signed synthetic accounts and genuine D1.
+
+    Source-pinned migration 0030 requires a guardian REQUEST and explicit
+    staff APPROVAL. Legacy pre-0030 staging retains old instant-book testing.
+    call(path,method,payload,actor,expected) returns trusted JSON body.
+    """
+    from uuid import uuid4
+    root="/v1/me/learners/"+learner_id
+    if (NOOR/"workers/api/migrations/0030_academy_requests_booking.sql").is_file():
+        request=call(root+"/trial-requests","POST",
+          {"operationId":str(uuid4()),"slotId":slot_id},guardian,201)
+        request_id=request.get("requestId")
+        if not isinstance(request_id,str) or not re.fullmatch(r"[0-9a-f-]{36}",request_id):
+            raise RuntimeError("Synthetic owner trial approval request ID missing")
+        accepted=call("/v1/staff/academy/trial-decisions","POST",
+          {"operationId":str(uuid4()),"requestId":request_id,
+           "decision":"approved","reason":"Synthetic guardian trial slot approved by staff"},
+          staff,201)
+        if accepted.get("code")!="ACADEMY_TRIAL_DECIDED":
+            raise RuntimeError("Staff did not approve synthetic trial booking")
+        return accepted
+    return call(root+"/trial-bookings","POST",
+      {"operationId":str(uuid4()),"slotId":slot_id},guardian,201)
+
+
 def verify_dev_trial_slot_withdrawal(origin, database_id, staff, guardian,
                                      foreign_owner, learner_id, teacher_id):
     """#244: signed isolated DEV 0024 withdrawal test; never Prod or real child data.
@@ -298,8 +324,7 @@ def verify_dev_trial_slot_withdrawal(origin, database_id, staff, guardian,
     if not avail.get("eligible") or not any(v.get("slotId")==slot for v in avail.get("slots",[])):
         raise RuntimeError("New signed Dev trial slot not available to guardian")
     call(trial_root+"/trial-slots",opener=foreign_owner,expect=404)
-    booked=call(trial_root+"/trial-bookings","POST",
-        {"operationId":str(uuid4()),"slotId":slot},guardian,201)
+    booked=_academy_trial_approved(learner_id,slot,staff,guardian,call)
     lesson=booked.get("lessonId")
     if not isinstance(lesson,str) or not re.fullmatch(r"[0-9a-f-]{36}",lesson):
         raise RuntimeError("Synthetic guardian booking lacks confirmed lesson")
@@ -339,9 +364,11 @@ def verify_dev_trial_slot_withdrawal(origin, database_id, staff, guardian,
       "FROM lessons l WHERE l.id='"+lesson+"'")
     if final!=[{"status":"cancelled","closures":1}]:
         raise RuntimeError("Trial cancellation did not precede authorized slot closure")
-    denied=call(trial_root+"/trial-bookings","POST",
-        {"operationId":str(uuid4()),"slotId":slot},guardian,409)
-    if denied.get("code")!="TRIAL_SLOT_UNAVAILABLE":
+    confirmed_admin=(NOOR/"workers/api/migrations/0030_academy_requests_booking.sql").is_file()
+    denied=call(trial_root+("/trial-requests" if confirmed_admin else "/trial-bookings"),
+        "POST",{"operationId":str(uuid4()),"slotId":slot},guardian,409)
+    if denied.get("code")!=("ACADEMY_TRIAL_REQUEST_DENIED" if confirmed_admin
+                          else "TRIAL_SLOT_UNAVAILABLE"):
         raise RuntimeError("Withdrawn trial slot still allowed another booking")
     print("PASS: signed Noor Dev 0024 booked trial withdrawal denied; cancel restored owner rebooking eligibility, staff closure, foreign 404")
 
@@ -392,11 +419,11 @@ def verify_dev_trial_atomic_reschedule(origin, database_id, staff, guardian,
         other_learner=child.get("learner",{}).get("id")
         if not isinstance(other_learner,str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,128}",other_learner):
             raise RuntimeError("Foreign synthetic account learner missing")
-        old_id=request_uuid(signed(root+"/trial-bookings",guardian,"POST",
-            {"operationId":str(uuid4()),"slotId":slots[0]},201).get("lessonId"))
-        other_id=request_uuid(signed("/v1/me/learners/"+other_learner+
-            "/trial-bookings",other_owner,"POST",
-            {"operationId":str(uuid4()),"slotId":slots[1]},201).get("lessonId"))
+        wrapper=lambda path,method,body,opener,expect: signed(path,opener,method,body,expect)
+        old_id=request_uuid(_academy_trial_approved(learner_id,slots[0],staff,
+             guardian,wrapper).get("lessonId"))
+        other_id=request_uuid(_academy_trial_approved(other_learner,slots[1],staff,
+             other_owner,wrapper).get("lessonId"))
         alternatives=signed(root+"/trial-reschedule-slots?lessonId="+old_id,guardian)
         allowed={x.get("slotId") for x in alternatives.get("slots",[])}
         if (alternatives.get("code")!="TRIAL_RESCHEDULE_SLOTS"

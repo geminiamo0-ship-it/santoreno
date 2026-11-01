@@ -13,7 +13,11 @@ test("signed synthetic learner lookup compiles and preserves Arabic/quoted label
     const mockFetch = async (url, options) => {
       assert.equal(url, "/v1/me/learners");
       assert.deepEqual(options, { cache: "no-store" });
-      return { json: async () => ({ learners: [{ name: "Other", id: "other" }, { name, id: "expected" }] }) };
+      return {
+        json: async () => ({
+          learners: [{ name: "Other", id: "other" }, { name, id: "expected" }],
+        }),
+      };
     };
     assert.equal(await execute(mockFetch), "expected");
   }

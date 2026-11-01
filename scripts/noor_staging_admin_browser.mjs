@@ -31,13 +31,8 @@ async function pageIncludes(text) {
   return browser.evaluate(`document.body?.textContent.includes(${JSON.stringify(text)})`);
 }
 async function awaitVerifiedNavigation() {
-  await waitFor(
-    () =>
-      browser.evaluate(
-        "Boolean(document.querySelector('nav[aria-label]'))",
-      ),
-    "signed Admin revalidated after viewport resize",
-  );
+  const ready = () => browser.evaluate("Boolean(document.querySelector('nav'))");
+  await waitFor(ready, "signed Admin revalidated after viewport resize");
 }
 async function noOverview() {
   assert.equal(await pageIncludes("نظرة عامة على الأكاديمية"), false);

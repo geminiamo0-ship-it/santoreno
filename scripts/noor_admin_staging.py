@@ -61,3 +61,83 @@ def verify_revoked_admin_overview(origin, staff, http, require_status):
     if b'"metrics"' in body:
         raise RuntimeError("Revoked staff received protected aggregate metrics")
     print("PASS: Noor Admin Dev revoked staff grant immediately returns 403")
+
+
+TEACHER_KEYS = {
+    "id", "name", "qualified", "status", "currentLearners", "upcomingLessons",
+}
+DIRECTORY_KEYS = {"code", "asOfMs", "readOnly", "teachers", "truncated", "requestId"}
+
+
+def assert_teacher_directory(data, teacher_id=None, min_learners=0):
+    if not isinstance(data, dict) or set(data) != DIRECTORY_KEYS:
+        raise RuntimeError("Admin Sheikh directory unexpected response fields")
+    if data.get("code") != "STAFF_TEACHER_DIRECTORY" or data.get("readOnly") is not True:
+        raise RuntimeError("Admin Sheikh directory not read-only")
+    trace = data.get("requestId")
+    if (not isinstance(trace, str) or not 1 <= len(trace) <= 128 or
+            not all(c.isalnum() or c == "-" for c in trace)):
+        raise RuntimeError("Invalid Admin Sheikh directory requestId")
+    if type(data.get("asOfMs")) is not int or data["asOfMs"] <= 0:
+        raise RuntimeError("Admin Sheikh directory missing source timestamp")
+    rows = data.get("teachers")
+    if (not isinstance(rows, list) or len(rows) > 50 or
+            type(data.get("truncated")) is not bool or
+            data["truncated"] and len(rows) != 50):
+        raise RuntimeError("Admin Sheikh directory unbounded or inconsistent")
+    ids = set()
+    for row in rows:
+        if not isinstance(row, dict) or set(row) != TEACHER_KEYS:
+            raise RuntimeError("Admin Sheikh directory contains personal fields")
+        identifier = row.get("id")
+        if (not isinstance(identifier, str) or not 1 <= len(identifier) <= 128 or
+                not all(c.isalnum() or c == "-" for c in identifier) or
+                identifier in ids):
+            raise RuntimeError("Admin Sheikh directory duplicate or invalid teacher ID")
+        ids.add(identifier)
+        name = row.get("name")
+        if (not isinstance(name, str) or not 1 <= len(name) <= 120 or
+                name != name.strip() or
+                type(row.get("qualified")) is not bool or
+                row.get("status") not in ("active", "disabled") or
+                type(row.get("currentLearners")) is not int or
+                type(row.get("upcomingLessons")) is not int or
+                row["currentLearners"] < 0 or row["upcomingLessons"] < 0):
+            raise RuntimeError("Admin Sheikh directory row invalid")
+    if teacher_id is not None:
+        matching = [row for row in rows if row["id"] == teacher_id]
+        if (len(matching) != 1 or matching[0]["qualified"] is not True or
+                matching[0]["status"] != "active" or
+                matching[0]["currentLearners"] < min_learners):
+            raise RuntimeError("Signed synthetic teacher/assignment not in directory")
+    return True
+
+
+def verify_signed_teacher_directory(origin, staff, teacher, teacher_id,
+                                    http, require_status, json_body,
+                                    min_learners=0):
+    route = "/v1/staff/teachers"
+    code, body, _ = http(origin, route)
+    require_status(code, 401, "Anonymous Admin Sheikh directory")
+    if b'"teachers"' in body:
+        raise RuntimeError("Admin roster leaked anonymously")
+    code, body, _ = http(origin, route, opener=teacher)
+    require_status(code, 403, "Teacher cannot enumerate staff directory")
+    if b'"teachers"' in body:
+        raise RuntimeError("Admin roster leaked to teacher")
+    code, body, headers = http(origin, route, opener=staff)
+    require_status(code, 200, "Signed Admin Sheikh directory")
+    assert_teacher_directory(json_body(body), teacher_id, min_learners)
+    if headers.get("Cache-Control") != "no-store":
+        raise RuntimeError("Signed Admin Sheikh directory is cacheable")
+    code, _, _ = http(origin, route, method="POST", body={}, opener=staff)
+    require_status(code, 405, "Admin Sheikh directory forbids mutation")
+    print("PASS: Noor signed Dev Sheikh directory staff 200, teacher 403, anonymous 401, POST 405, no PII")
+
+
+def verify_revoked_teacher_directory(origin, staff, http, require_status):
+    code, body, _ = http(origin, "/v1/staff/teachers", opener=staff)
+    require_status(code, 403, "Revoked Admin still reads Sheikh directory")
+    if b'"teachers"' in body:
+        raise RuntimeError("Revoked Admin received teacher records")
+    print("PASS: Noor signed Dev revoked staff denied Sheikh directory immediately")

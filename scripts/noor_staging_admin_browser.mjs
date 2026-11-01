@@ -85,10 +85,35 @@ try {
   }
 
   await browser.go("/admin/teachers/");
+  await waitFor(() => pageIncludes("دليل شيوخ الأكاديمية"), "signed Admin Sheikh directory");
   await waitFor(
-    () => pageIncludes("هذا القسم غير مفعل تشغيليًا"),
-    "honest pending teacher section",
+    () => browser.evaluate("document.querySelectorAll('main article').length>0"),
+    "actual signed D1 teacher list",
   );
+  assert.equal(await pageIncludes("هذا القسم غير مفعل تشغيليًا"), false);
+  assert.equal(await pageIncludes("السجل غير متاح الآن"), false);
+  for (const [width, height] of [
+    [360, 667],
+    [390, 844],
+    [768, 1024],
+    [1280, 900],
+    [1440, 900],
+  ]) {
+    await browser.send("Emulation.setDeviceMetricsOverride", {
+      width,
+      height,
+      deviceScaleFactor: 1,
+      mobile: width < 768,
+    });
+    const state = await browser.evaluate(
+      "({rtl:document.documentElement.dir==='rtl'," +
+        "scroll:document.documentElement.scrollWidth,width:innerWidth," +
+        "connected:document.querySelectorAll('main article').length>0})",
+    );
+    assert(state.rtl && state.connected, "Signed Sheikh directory missing");
+    assert(state.scroll <= state.width, "Sheikh directory overflow " + width);
+    await browser.screenshot("artifacts/noor-staging-admin/teachers-" + width + ".png");
+  }
   assert.equal(await pageIncludes("تم اعتماد"), false, "Fake Admin activation");
   await browser.go("/admin/subscriptions/");
   await waitFor(
@@ -98,12 +123,18 @@ try {
   assert.equal(await pageIncludes("تم الدفع"), false, "Fake payment confirmation");
 
   await setCookies(teacher);
+  await browser.go("/admin/teachers/");
+  await waitFor(
+    () => pageIncludes("غير مصرح بعرض لوحة الإدارة"),
+    "signed Sheikh denied staff directory",
+  );
+  await noOverview();
   await browser.go("/admin/");
   await waitFor(() => pageIncludes("غير مصرح بعرض لوحة الإدارة"), "switch to denied role");
   await noOverview();
 
   console.log(
-    "PASS: Noor Admin Dev signed D1 overview, anonymous/Sheikh denied, staff switch purged, RTL no overflow at five viewports",
+    "PASS: Noor Admin Dev overview and D1 Sheikh directory, signed roles and staff switch, five RTL viewports",
   );
 } catch (error) {
   await browser.screenshot("artifacts/noor-staging-admin/failure.png").catch(() => {});

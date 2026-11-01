@@ -472,6 +472,67 @@ def verify_dev_trial_atomic_reschedule(origin, database_id, staff, guardian,
                     print("WARNING: synthetic trial cancellation cleanup needs inspection")
 
 
+def verify_dev_subscription_ledger_read(origin, database_id, owner, foreign_owner,
+                                        active_learner, archived_sibling):
+    """#244 source-gated, signed, read-only remote Dev 0026 ledger acceptance.
+
+    No sample money, synthetic credits, payment statuses or paid bookings are
+    minted by this test. A missing source is SKIP; an unupgraded D1 is FAIL.
+    """
+    source = NOOR / "workers/api/migrations/0026_subscription_ledger_foundation.sql"
+    if not source.is_file():
+        print("SKIP: Noor main has no 0026 subscription ledger; Dev not accepted")
+        return False
+    if DATABASE_NAME != "noor-core-staging" or WORKER_NAME != "noor-site-staging":
+        raise RuntimeError("Subscription ledger QA is restricted to isolated Noor Dev")
+    marker = d1_read_only(database_id,
+        "SELECT version FROM noor_schema_meta WHERE component='subscription_ledger'")
+    if marker != [{"version": 1}]:
+        raise RuntimeError("Noor main includes 0026 but remote Dev D1 ledger schema is missing")
+    if not all(re.fullmatch(r"[A-Za-z0-9_-]{1,128}", value or "")
+               for value in (active_learner, archived_sibling)):
+        raise RuntimeError("Non-synthetic learner ID passed to subscription QA")
+    # Read-only D1 metadata audit first: a test run must never manufacture
+    # paid entitlements from fixture assumptions.
+    rows = d1_read_only(database_id,
+        "SELECT "
+        "(SELECT COUNT(*) FROM subscription_cycles WHERE learner_id='"
+        + active_learner + "') AS cycles, "
+        "(SELECT COUNT(*) FROM subscription_compensation_grants WHERE learner_id='"
+        + active_learner + "') AS grants, "
+        "(SELECT COUNT(*) FROM subscription_spend_events WHERE learner_id='"
+        + active_learner + "') AS spends")
+    if rows != [{"cycles": 0, "grants": 0, "spends": 0}]:
+        raise RuntimeError("New synthetic Dev learner unexpectedly has entitlement rows")
+    endpoint = "/v1/me/learners/" + active_learner + "/subscription-ledger"
+    status, body, _ = http(origin, endpoint, opener=owner)
+    require_status(status, 200, "Signed guardian subscription read")
+    payload = json_body(body)
+    expected = {
+        "code": "SUBSCRIPTION_LEDGER", "bookingEnabled": False,
+        "latestCycle": None, "compensationUnspentSessions": 0,
+        "compensationGrantCount": 0,
+    }
+    if any(payload.get(k) != v for k, v in expected.items()):
+        raise RuntimeError("Subscription read fabricated a paid balance or bookable status")
+    if any("payment" in k.lower() or "price" in k.lower() or "currency" in k.lower()
+           for k in payload.keys()):
+        raise RuntimeError("Unapproved financial status exposed by academic ledger")
+    status, _, _ = http(origin, endpoint, opener=foreign_owner)
+    require_status(status, 404, "Foreign signed household subscription isolation")
+    status, _, _ = http(origin,
+        "/v1/me/learners/" + archived_sibling + "/subscription-ledger",
+        opener=owner)
+    require_status(status, 404, "Archived synthetic sibling ledger denial")
+    status, _, _ = http(origin, endpoint)
+    require_status(status, 401, "Anonymous academic ledger denial")
+    status, _, _ = http(origin, endpoint, method="POST", body={},
+                       opener=owner)
+    require_status(status, 405, "Subscription writer never exposed")
+    print("PASS: Noor Dev 0026 remote D1 schema, signed owner-only zero-ledger GET, foreign/archived 404, anonymous 401, credit writes 405, no invented payment")
+    return True
+
+
 def plan_stage_synthetic_smoke(origin, database_id, config, owner_a, owner_b, learner_id, other_learner):
     """#244: authorized synthetic teacher plan end-to-end on dedicated Noor Staging only."""
     from noor_report_staging import verify_report_flow
@@ -532,6 +593,8 @@ def plan_stage_synthetic_smoke(origin, database_id, config, owner_a, owner_b, le
             raise RuntimeError("Synthetic teacher role provisioning failed")
         role("qualify")
         role("activate")
+        verify_dev_subscription_ledger_read(origin,database_id,owner_a,owner_b,
+                                            learner_id,other_learner)
         verify_dev_trial_slot_withdrawal(origin,database_id,owner_a,owner_a,
                                         owner_b,learner_id,role_id)
         verify_dev_trial_atomic_reschedule(origin,database_id,owner_a,owner_a,

@@ -112,7 +112,15 @@ try {
     );
     assert(state.rtl && state.connected, "Signed Sheikh directory missing");
     assert(state.scroll <= state.width, "Sheikh directory overflow " + width);
-    await browser.screenshot("artifacts/noor-staging-admin/teachers-" + width + ".png");
+    assert.equal(await pageIncludes("إجراءات الشيوخ"), true);
+    assert.equal(
+      await browser.evaluate(
+        "Boolean(document.querySelector('main button[type=submit]:disabled'))",
+      ),
+      true,
+      "Teacher action must require an explicit confirmation",
+    );
+    // Never screenshot Dev teacher names or child-linked counts.
   }
   assert.equal(await pageIncludes("تم اعتماد"), false, "Fake Admin activation");
   // #332: verify *real* D1 views on all viewports, not retired placeholders.
@@ -156,6 +164,21 @@ try {
       );
       assert(state.rtl && state.connected, "Admin " + section + " signed list missing");
       assert(state.scroll <= state.width, "Admin " + section + " overflow at " + width);
+      if (section === "schedule" || section === "attendance") {
+        assert.equal(
+          await pageIncludes(
+            section === "schedule" ? "إدارة الإسناد والحصص" : "البتّ في اعتراض الحضور",
+          ),
+          true,
+        );
+        assert.equal(
+          await browser.evaluate(
+            "Boolean(document.querySelector('main button[type=submit]:disabled'))",
+          ),
+          true,
+          "Admin write controls require explicit confirmation",
+        );
+      }
     }
   }
   console.log(

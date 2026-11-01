@@ -91,13 +91,17 @@ try {
   assert.equal(authenticatedHome.error, false, "Signed student owner APIs failed");
   await browser.screenshot("artifacts/noor-staging-profile/student-home-real.png");
 
+  const ownerLearnerId = await browser.evaluate(
+    "fetch('/v1/me/learners',{cache:'no-store'}).then(r=>r.json()).then(d=>d.learners.find(l=>l.name==='طالب تجريبي ذو اسم عربي طويل لقياس العرض'')?.id)",
+  );
+  assert.match(ownerLearnerId, /^[0-9a-f-]{36}$/i);
   await browser.go("/student/subscription/");
   await waitFor(
     () =>
       browser.evaluate(
-        "document.querySelector('#student-main')?.textContent.includes('الحالة المالية غير متاحة للتحقق')",
+        "document.querySelector('#student-main')?.textContent.includes('لا توجد دورة اشتراك مسجلة لهذا الطالب بعد')",
       ),
-    "unverified financial ledger must be explicitly unknown",
+    "signed academic ledger must not fabricate paid activation",
   );
   assert.equal(
     await browser.evaluate(
@@ -106,6 +110,31 @@ try {
     false,
     "Live subscription status must not be inherited from fixtures",
   );
+  assert.equal(
+    await browser.evaluate(
+      "document.querySelector('#student-main')?.textContent.includes('تفعيل الاشتراكات المدفوعة')",
+    ),
+    true,
+    "Paid booking must remain disabled",
+  );
+  for (const [width, height] of [
+    [360, 667],
+    [390, 844],
+    [1280, 900],
+  ]) {
+    await browser.send("Emulation.setDeviceMetricsOverride", {
+      width,
+      height,
+      deviceScaleFactor: 1,
+      mobile: width < 768,
+    });
+    const result = await browser.evaluate(
+      "({dir:document.documentElement.dir,scroll:document.documentElement.scrollWidth,width:innerWidth})",
+    );
+    assert.equal(result.dir, "rtl");
+    assert(result.scroll <= result.width, "Subscription horizontal overflow at " + width);
+    await browser.screenshot("artifacts/noor-staging-profile/subscription-" + width + ".png");
+  }
   await browser.go("/student/lessons/");
   await waitFor(
     () =>
@@ -229,8 +258,12 @@ try {
     `fetch('/v1/learners/${id}',{cache:'no-store'}).then(r=>r.status)`,
   );
   assert.equal(foreign, 404);
+  const foreignLedger = await browser.evaluate(
+    `fetch('/v1/me/learners/${ownerLearnerId}/subscription-ledger',{cache:'no-store'}).then(r=>r.status)`,
+  );
+  assert.equal(foreignLedger, 404);
   console.log(
-    "PASS: Student owner-scoped real home/subscription/lessons, five RTL viewports, sibling rename/archive and foreign-owner 404; zero demo dashboard",
+    "PASS: Signed academic subscription view unbookable, real student home, five RTL viewports, archived sibling and foreign owner subscription denial",
   );
 } catch (error) {
   await browser.screenshot("artifacts/noor-staging-profile/failure.png").catch(() => {});

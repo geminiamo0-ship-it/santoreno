@@ -260,3 +260,73 @@ def verify_revoked_staff_collections(origin, staff, http, require_status):
         if b'"rows"' in body:
             raise RuntimeError("Revoked staff received Admin collection rows")
     print("PASS: Noor Dev revoked staff denied all four academic Admin collections")
+
+
+# #334: signed, read-only and guaranteed-rejected operational QA.
+# Real successful transitions use only isolated synthetic fixtures in the
+# parent staging runner; this function never mutates real Dev academic state.
+def verify_signed_admin_operations(origin, staff, nonstaff, teacher_id, http,
+                                   require_status, json_body):
+    from uuid import uuid4
+
+    def attempt(route, body, opener):
+        return http(origin, route, method="POST", body=body, opener=opener)
+
+    route = "/v1/staff/teachers/transition"
+    command = {"teacherId": teacher_id, "action": "activate",
+               "operationId": str(uuid4()),
+               "reason": "Synthetic Dev duplicate activation must be denied"}
+    # This teacher was already activated by the synthetic staging fixture.
+    for opener, expected, label in [
+        (None, 401, "Anonymous teacher transition"),
+        (nonstaff, 403, "Sheikh cannot transition teacher roles"),
+        (staff, 409, "Duplicate teacher activation rejected"),
+    ]:
+        code, body, _ = attempt(route, command, opener)
+        require_status(code, expected, label)
+        if b'"auth_subject"' in body or b'"phone"' in body:
+            raise RuntimeError("Private teacher authentication identifiers exposed")
+    code, _, _ = http(origin, route, opener=staff)
+    require_status(code, 405, "Teacher transition is POST only")
+    code, _, _ = attempt(route, dict(command, role="admin"), staff)
+    require_status(code, 400, "Teacher transition cannot spoof a staff role")
+    code, _, _ = attempt(route, dict(command, teacherId="missing-roster-id"), staff)
+    require_status(code, 404, "Unlisted teacher ID denied")
+
+    appeal_route = "/v1/staff/attendance-appeals/review"
+    review = {"appealId": str(uuid4()), "operationId": str(uuid4()),
+              "decision": "accepted",
+              "reason": "Unprivileged attendance decision must never commit"}
+    for opener, expected, label in [
+        (None, 401, "Anonymous attendance decision"),
+        (nonstaff, 403, "Sheikh cannot issue attendance decision"),
+        (staff, 403, "roles.manage alone is NOT attendance.review"),
+    ]:
+        code, _, _ = attempt(appeal_route, review, opener)
+        require_status(code, expected, label)
+    print("PASS: signed Noor Admin Dev roster transitions and independent attendance.review permission denied safely")
+
+
+def verify_admin_guard_migrations(database_id, d1_read_only):
+    """Both additive SQL guards must exist in the actual isolated Dev DB."""
+    components = d1_read_only(database_id,
+        "SELECT component,version FROM noor_schema_meta WHERE component IN "
+        "('teacher_role_active_lesson_guard','attendance_review_verified_actor_guard') "
+        "ORDER BY component")
+    required = [
+        {"component": "attendance_review_verified_actor_guard", "version": 1},
+        {"component": "teacher_role_active_lesson_guard", "version": 1},
+    ]
+    if components != required:
+        raise RuntimeError("Noor Dev D1 Admin guard migrations 0027/0028 not verified")
+    triggers = d1_read_only(database_id,
+        "SELECT name FROM sqlite_master WHERE type='trigger' AND name IN "
+        "('teacher_role_active_lesson_guard','attendance_review_verified_actor_guard') "
+        "ORDER BY name")
+    required_triggers = [
+        {"name": "attendance_review_verified_actor_guard"},
+        {"name": "teacher_role_active_lesson_guard"},
+    ]
+    if triggers != required_triggers:
+        raise RuntimeError("Noor Dev D1 Admin safety triggers missing")
+    print("PASS: isolated Noor Dev D1 0027/0028 guard metadata and triggers present")

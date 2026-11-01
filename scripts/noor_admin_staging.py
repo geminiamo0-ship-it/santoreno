@@ -141,3 +141,122 @@ def verify_revoked_teacher_directory(origin, staff, http, require_status):
     if b'"teachers"' in body:
         raise RuntimeError("Revoked Admin received teacher records")
     print("PASS: Noor signed Dev revoked staff denied Sheikh directory immediately")
+
+
+# #332: bounded, nonidentifying contract checks for four fixed staff-only
+# academic collections. Never log actual returned child names or cases.
+ADMIN_COLLECTION_FIELDS = {
+    "students": {"id", "name", "learnerType", "status", "lessonCount"},
+    "schedule": {"id", "startsAtMs", "kind", "status", "learnerName", "teacherName"},
+    "subscriptions": {
+        "id", "learnerName", "startsAtMs", "endsAtMs",
+        "baseSessions", "rolloverSessions", "spentSessions",
+    },
+    "attendance": {"id", "kind", "submittedAtMs", "decision"},
+}
+COLLECTION_ENVELOPE = {
+    "code", "view", "readOnly", "rows", "truncated", "asOfMs", "requestId",
+}
+
+
+def assert_staff_collection(data, view):
+    if view not in ADMIN_COLLECTION_FIELDS:
+        raise RuntimeError("Unsupported Dev Admin collection")
+    if not isinstance(data, dict) or set(data) != COLLECTION_ENVELOPE:
+        raise RuntimeError("Staff academic collection contains unexpected response fields")
+    if (data.get("code") != "STAFF_COLLECTION" or data.get("view") != view or
+            data.get("readOnly") is not True):
+        raise RuntimeError("Staff academic collection is not approved read-only view")
+    trace = data.get("requestId")
+    if (not isinstance(trace, str) or not 1 <= len(trace) <= 128 or
+            not all(c.isalnum() or c == "-" for c in trace)):
+        raise RuntimeError("Invalid staff collection requestId")
+    if type(data.get("asOfMs")) is not int or data["asOfMs"] <= 0:
+        raise RuntimeError("Invalid staff collection D1 source clock")
+    rows = data.get("rows")
+    if (not isinstance(rows, list) or len(rows) > 50 or
+            type(data.get("truncated")) is not bool or
+            (data["truncated"] and len(rows) != 50)):
+        raise RuntimeError("Staff collection exceeds bounded result")
+    seen = set()
+    for row in rows:
+        if not isinstance(row, dict) or set(row) != ADMIN_COLLECTION_FIELDS[view]:
+            raise RuntimeError("Staff collection leaked private or unsupported fields")
+        identifier = row.get("id")
+        if (not isinstance(identifier, str) or not 1 <= len(identifier) <= 128 or
+                not all(c.isalnum() or c in "-_" for c in identifier) or
+                identifier in seen):
+            raise RuntimeError("Staff collection record identifier invalid")
+        seen.add(identifier)
+        def text_field(name, max_length=120):
+            value = row.get(name)
+            return (isinstance(value, str) and 1 <= len(value) <= max_length
+                    and value == value.strip())
+        def number_field(name):
+            value = row.get(name)
+            return type(value) is int and 0 <= value <= 9007199254740991
+        if view == "students":
+            allowed = (text_field("name", 80) and
+                       row["learnerType"] in ("adult", "child") and
+                       row["status"] in ("active", "archived") and
+                       number_field("lessonCount"))
+        elif view == "schedule":
+            allowed = (number_field("startsAtMs") and
+                       text_field("learnerName", 80) and text_field("teacherName") and
+                       row["kind"] in ("trial", "standard", "makeup") and
+                       row["status"] in ("scheduled", "live", "completed", "cancelled"))
+        elif view == "subscriptions":
+            allowed = (text_field("learnerName", 80) and
+                       number_field("startsAtMs") and number_field("endsAtMs") and
+                       row["endsAtMs"] > row["startsAtMs"] and
+                       number_field("baseSessions") and 1 <= row["baseSessions"] <= 60 and
+                       number_field("rolloverSessions") and
+                       row["rolloverSessions"] <= 60 and
+                       number_field("spentSessions") and
+                       row["spentSessions"] <= row["baseSessions"]+row["rolloverSessions"])
+        else:
+            allowed = (number_field("submittedAtMs") and
+                       row["kind"] in ("student_no_show", "connection_interruption") and
+                       row["decision"] in ("pending", "accepted", "rejected"))
+        if not allowed:
+            raise RuntimeError("Staff academic collection invalid bounded row")
+    return True
+
+
+def verify_signed_staff_collections(origin, staff, nonstaff, http, require_status, json_body):
+    for view in ADMIN_COLLECTION_FIELDS:
+        route = "/v1/staff/collections?view=" + view
+        code, body, _ = http(origin, route)
+        require_status(code, 401, "Anonymous staff collection denied")
+        if b'"rows"' in body:
+            raise RuntimeError("Anonymous user received protected list")
+        code, body, _ = http(origin, route, opener=nonstaff)
+        require_status(code, 403, "Sheikh cannot read staff collection")
+        if b'"rows"' in body:
+            raise RuntimeError("Sheikh received protected staff list")
+        code, body, headers = http(origin, route, opener=staff)
+        require_status(code, 200, "Current staff collection")
+        assert_staff_collection(json_body(body), view)
+        if headers.get("Cache-Control") != "no-store":
+            raise RuntimeError("Staff collection is cacheable")
+    code, _, _ = http(origin, "/v1/staff/collections?view=students",
+                      method="POST", body={}, opener=staff)
+    require_status(code, 405, "Staff collection forbids writes")
+    for route in [
+        "/v1/staff/collections?view=finance",
+        "/v1/staff/collections?view=students&view=schedule",
+        "/v1/staff/collections?view=students&limit=1000",
+    ]:
+        code, _, _ = http(origin, route, opener=staff)
+        require_status(code, 400, "Staff collection rejects unapproved filters")
+    print("PASS: Noor Dev four signed Admin collections staff 200, Sheikh 403, anonymous 401, strict no-PII/no-store, POST 405, bad view 400")
+
+
+def verify_revoked_staff_collections(origin, staff, http, require_status):
+    for view in ADMIN_COLLECTION_FIELDS:
+        code, body, _ = http(origin, "/v1/staff/collections?view="+view,
+                             opener=staff)
+        require_status(code, 403, "Revoked staff must lose all Admin collections")
+        if b'"rows"' in body:
+            raise RuntimeError("Revoked staff received Admin collection rows")
+    print("PASS: Noor Dev revoked staff denied all four academic Admin collections")

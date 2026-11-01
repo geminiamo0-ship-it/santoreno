@@ -607,10 +607,14 @@ def plan_stage_synthetic_smoke(origin, database_id, config, owner_a, owner_b, le
         from noor_admin_staging import (verify_signed_admin_overview,
                                         verify_revoked_admin_overview,
                                         verify_signed_teacher_directory,
-                                        verify_revoked_teacher_directory)
+                                        verify_revoked_teacher_directory,
+                                        verify_signed_staff_collections,
+                                        verify_revoked_staff_collections)
         verify_signed_admin_overview(origin, owner_a, owner_b, http,
                                       require_status, json_body)
         verify_signed_teacher_directory(origin, owner_a, owner_b, role_id,
+                                        http, require_status, json_body)
+        verify_signed_staff_collections(origin, owner_a, owner_b,
                                         http, require_status, json_body)
         if os.environ.get("NOOR_STAGING_BROWSER_QA") == "true":
             def admin_browser_cookies(opener):
@@ -914,6 +918,7 @@ def plan_stage_synthetic_smoke(origin, database_id, config, owner_a, owner_b, le
                  " WHERE auth_subject='"+staff_subject+"' AND permission='roles.manage'")
         verify_revoked_admin_overview(origin, owner_a, http, require_status)
         verify_revoked_teacher_directory(origin, owner_a, http, require_status)
+        verify_revoked_staff_collections(origin, owner_a, http, require_status)
         print("PASS: Remote Noor 0009 plan, synthetic staff-managed teacher, owner read, stale 409, replay and revoke 404")
     finally:
         # Important: no synthetic staff grant or qualified active test teacher

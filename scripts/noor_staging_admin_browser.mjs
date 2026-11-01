@@ -120,7 +120,10 @@ try {
   const disabledTeacherSubmit = await browser.evaluate(
     "Boolean(document.querySelector('main button[type=submit]:disabled'))",
   );
-  assert(disabledTeacherSubmit, "Unchecked Sheikh operation must not be actionable");
+  assert(
+    disabledTeacherSubmit,
+    "Unchecked Sheikh operation must not be actionable",
+  );
   assert.equal(await pageIncludes("تم اعتماد"), false, "Fake Admin activation");
   // #332: verify *real* D1 views on all viewports, not retired placeholders.
   // No screenshots for learner names, class rosters or appeals: the Dev D1 may
@@ -144,13 +147,22 @@ try {
     assert.equal(await pageIncludes("السجل غير متاح حاليًا"), false);
     assert.equal(await pageIncludes("تم الدفع"), false, "Fake payment confirmation");
     if (section === "schedule" || section === "attendance") {
-      const title = section === "schedule"
-        ? "إدارة الإسناد والحصص" : "البتّ في اعتراض الحضور";
-      assert.equal(await pageIncludes(title), true, "Missing signed operations " + section);
+      const title =
+        section === "schedule"
+          ? "إدارة الإسناد والحصص"
+          : "البتّ في اعتراض الحضور";
+      assert.equal(
+        await pageIncludes(title),
+        true,
+        "Missing signed operations " + section,
+      );
       const operationDisabled = await browser.evaluate(
         "Boolean(document.querySelector('main button[type=submit]:disabled'))",
       );
-      assert(operationDisabled, "Unconfirmed Admin operation must remain disabled");
+      assert(
+        operationDisabled,
+        "Unconfirmed Admin operation must remain disabled",
+      );
     }
     for (const [width, height] of [
       [360, 667],

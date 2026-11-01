@@ -1391,6 +1391,21 @@ def canonical_quran_staging(config, database_id, temporary):
 def main():
     if not re.fullmatch(r"[0-9a-f]{40}", NOOR_SHA):
         raise RuntimeError("Exact validated Noor commit required")
+    # #319 P0 acceptance: do not deploy an old seven-day session or an
+    # opaque activation handler when source has the new academy schema.
+    auth_cfg=NOOR/"workers/api/src/auth/config.ts"
+    academy=NOOR/"workers/api/src/academy-admin-mvp.ts"
+    cache=NOOR/"apps/web/src/features/account/account-cache.ts"
+    if (NOOR/"workers/api/migrations/0029_academy_admin_mvp.sql").is_file():
+        source=auth_cfg.read_text()
+        if ("expiresIn: 60 * 60," not in source or
+            "cookieCache: { enabled: false }" not in source or
+            not academy.is_file() or
+            "ACADEMY_REQUEST_ALREADY_ACTIVATED" not in academy.read_text() or
+            not cache.is_file() or "OWNER_UI_CACHE_MS=5*60*1000" not in cache.read_text()):
+            raise RuntimeError("Noor Dev source missing signed one-hour sessions or safe P0 activation/cache fix")
+        print("PASS: pinned source contains one-hour D1-backed session, bounded owner UI cache and typed activation conflicts")
+
     if not (NOOR / "apps/web/out/index.html").is_file():
         raise RuntimeError("Account UI static build is missing")
     subdomain = cloudflare_subdomain()

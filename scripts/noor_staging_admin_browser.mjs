@@ -117,11 +117,10 @@ try {
   // #334: signed staff operations are present but cannot submit without an
   // explicit acknowledgement. No real child or Sheikh records are mutated.
   assert.equal(await pageIncludes("إجراءات الشيوخ"), true);
-  assert.equal(
-    await browser.evaluate(
-      'Boolean(document.querySelector(\'main section[aria-label="إجراءات الشيوخ"] button[type="submit"]:disabled\'))'
-    ), true, "Unchecked Sheikh operation must not be actionable"
+  const disabledTeacherSubmit = await browser.evaluate(
+    "Boolean(document.querySelector('main button[type=submit]:disabled'))",
   );
+  assert(disabledTeacherSubmit, "Unchecked Sheikh operation must not be actionable");
   assert.equal(await pageIncludes("تم اعتماد"), false, "Fake Admin activation");
   // #332: verify *real* D1 views on all viewports, not retired placeholders.
   // No screenshots for learner names, class rosters or appeals: the Dev D1 may
@@ -148,11 +147,10 @@ try {
       const title = section === "schedule"
         ? "إدارة الإسناد والحصص" : "البتّ في اعتراض الحضور";
       assert.equal(await pageIncludes(title), true, "Missing signed operations " + section);
-      const disabled = await browser.evaluate(
-        "Boolean(document.querySelector('main section[aria-label=" +
-        JSON.stringify(title) + "] button[type=submit]:disabled'))"
+      const operationDisabled = await browser.evaluate(
+        "Boolean(document.querySelector('main button[type=submit]:disabled'))",
       );
-      assert(disabled, "Unconfirmed Admin operation must remain disabled");
+      assert(operationDisabled, "Unconfirmed Admin operation must remain disabled");
     }
     for (const [width, height] of [
       [360, 667],

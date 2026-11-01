@@ -91,6 +91,10 @@ try {
   assert.equal(authenticatedHome.error, false, "Signed student owner APIs failed");
   await browser.screenshot("artifacts/noor-staging-profile/student-home-real.png");
 
+  const ownerLearnerId = await browser.evaluate(
+    "fetch('/v1/me/learners',{cache:'no-store'}).then(r=>r.json()).then(d=>d.learners.find(l=>l.name==='طالب تجريبي ذو اسم عربي طويل لقياس العرض'')?.id)",
+  );
+  assert.match(ownerLearnerId, /^[0-9a-f-]{36}$/i);
   await browser.go("/student/subscription/");
   await waitFor(
     () =>
@@ -113,6 +117,24 @@ try {
     true,
     "Paid booking must remain disabled",
   );
+  for (const [width, height] of [
+    [360, 667],
+    [390, 844],
+    [1280, 900],
+  ]) {
+    await browser.send("Emulation.setDeviceMetricsOverride", {
+      width,
+      height,
+      deviceScaleFactor: 1,
+      mobile: width < 768,
+    });
+    const result = await browser.evaluate(
+      "({dir:document.documentElement.dir,scroll:document.documentElement.scrollWidth,width:innerWidth})",
+    );
+    assert.equal(result.dir, "rtl");
+    assert(result.scroll <= result.width, "Subscription horizontal overflow at " + width);
+    await browser.screenshot("artifacts/noor-staging-profile/subscription-" + width + ".png");
+  }
   await browser.go("/student/lessons/");
   await waitFor(
     () =>
@@ -237,7 +259,7 @@ try {
   );
   assert.equal(foreign, 404);
   const foreignLedger = await browser.evaluate(
-    `fetch('/v1/me/learners/${id}/subscription-ledger',{cache:'no-store'}).then(r=>r.status)`,
+    `fetch('/v1/me/learners/${ownerLearnerId}/subscription-ledger',{cache:'no-store'}).then(r=>r.status)`,
   );
   assert.equal(foreignLedger, 404);
   console.log(

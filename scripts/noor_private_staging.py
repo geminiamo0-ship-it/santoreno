@@ -129,6 +129,8 @@ def write_config(target, database_id, origin, access_password, auth_secret):
         "AUTH_ENABLED": "true", "AUTH_ORIGIN": origin,
         # DEV ONLY: independently gated teacher/learner signed live ink & realtime.
         "NOOR_REALTIME_HINTS_ENABLED": "true",
+        # #327: only the existing isolated Noor Dev Worker.
+        "NOOR_ADMIN_PORTAL_ENABLED": "true",
         "NOOR_CUMULATIVE_INK_ENABLED": "true",
     }
     config = target / "wrangler-staging.json"
@@ -602,6 +604,37 @@ def plan_stage_synthetic_smoke(origin, database_id, config, owner_a, owner_b, le
             raise RuntimeError("Synthetic teacher role provisioning failed")
         role("qualify")
         role("activate")
+        from noor_admin_staging import (verify_signed_admin_overview,
+                                        verify_revoked_admin_overview)
+        verify_signed_admin_overview(origin, owner_a, owner_b, http,
+                                      require_status, json_body)
+        if os.environ.get("NOOR_STAGING_BROWSER_QA") == "true":
+            def admin_browser_cookies(opener):
+                handlers = [h for h in opener.handlers
+                            if isinstance(h, urllib.request.HTTPCookieProcessor)]
+                if len(handlers) != 1:
+                    raise RuntimeError("Synthetic Admin Dev session jar missing")
+                cookies = [{"name": c.name, "value": c.value}
+                           for c in handlers[0].cookiejar if c.secure]
+                if not cookies:
+                    raise RuntimeError("Signed synthetic Admin Dev session missing")
+                return json.dumps(cookies)
+            browser_env = dict(
+                os.environ, NOOR_STAGING_ORIGIN=origin + "/",
+                NOOR_SYNTHETIC_STAFF_COOKIES=admin_browser_cookies(owner_a),
+                NOOR_SYNTHETIC_TEACHER_COOKIES=admin_browser_cookies(owner_b),
+            )
+            browser = subprocess.run(
+                ["node", "scripts/noor_staging_admin_browser.mjs"],
+                cwd=ROOT, env=browser_env, capture_output=True, text=True, timeout=180,
+            )
+            if browser.returncode != 0:
+                raise RuntimeError(
+                    "Noor signed Admin Dev Chrome failed; inspect synthetic screenshot artifact"
+                )
+            for line in browser.stdout.splitlines():
+                if line.startswith("PASS: Noor Admin Dev") and len(line) < 220:
+                    print(line)
         verify_dev_subscription_ledger_read(origin,database_id,owner_a,owner_b,
                                             learner_id,other_learner)
         verify_dev_trial_slot_withdrawal(origin,database_id,owner_a,owner_a,
@@ -868,6 +901,11 @@ def plan_stage_synthetic_smoke(origin, database_id, config, owner_a, owner_b, le
         require_status(code,404,"Revoked teacher cannot replay teacher review")
 
         role("suspend")
+        # Check the same signed cookie immediately after fresh D1 staff revocation.
+        # The existing finally block still cleans up grants and verification.
+        qa_write("UPDATE staff_grants SET revoked_at_ms="+str(int(time.time()*1000))+
+                 " WHERE auth_subject='"+staff_subject+"' AND permission='roles.manage'")
+        verify_revoked_admin_overview(origin, owner_a, http, require_status)
         print("PASS: Remote Noor 0009 plan, synthetic staff-managed teacher, owner read, stale 409, replay and revoke 404")
     finally:
         # Important: no synthetic staff grant or qualified active test teacher
@@ -945,7 +983,7 @@ def smoke(origin, access_password, database_id, config):
         "/teacher/", "/teacher/schedule/", "/teacher/students/",
         "/teacher/preparation/", "/teacher/reports/",
         "/teacher/assignments/", "/teacher/notifications/", "/teacher/cases/",
-        "/classroom/",
+        "/classroom/", "/admin/", "/admin/teachers/",
     )
     for path in preview_pages:
         status, body, _ = http(origin, path)
@@ -1355,6 +1393,7 @@ def main():
                          "- Pages and assets: HTTP 200; app session/learner APIs: HTTP 401 without login\n"
                          "- Remote private synthetic acceptance: PASS\n- OTP and messages: OFF\n")
     print("PASS: open Noor development site and authenticated application APIs remotely verified; no production resources used")
+    print("NOOR_ADMIN_DEV_PREVIEW_URL="+origin+"/admin/")
 
 
 if __name__ == "__main__":

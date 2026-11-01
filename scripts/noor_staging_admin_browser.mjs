@@ -35,7 +35,7 @@ async function noOverview() {
   assert.equal(await pageIncludes("مؤشرات من السجل الفعلي"), false);
   assert.equal(
     await browser.evaluate(
-      "Boolean(document.querySelector('nav[aria-label=\"أقسام لوحة الإدارة\"]'))")
+      "Boolean(document.querySelector('nav[aria-label=\"أقسام لوحة الإدارة\"]'))",
     ),
     false,
     "Denied user must not see administrative navigation",

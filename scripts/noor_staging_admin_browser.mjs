@@ -31,7 +31,8 @@ async function pageIncludes(text) {
   return browser.evaluate(`document.body?.textContent.includes(${JSON.stringify(text)})`);
 }
 async function awaitVerifiedNavigation() {
-  const ready = () => browser.evaluate("Boolean(document.querySelector('nav'))");
+  const ready = () =>
+    browser.evaluate("Boolean(document.querySelector('nav'))");
   await waitFor(ready, "signed Admin revalidated after viewport resize");
 }
 async function noOverview() {

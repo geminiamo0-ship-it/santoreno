@@ -110,6 +110,79 @@ class AdminStagingTests(unittest.TestCase):
             ("POST", "staff"), ("GET", "revoked"),
         ])
 
+    def test_four_admin_collections_allowlisted_and_fail_closed(self):
+        samples = {
+            "students": {
+                "id": "student-a", "name": "طالب تجريبي", "learnerType": "child",
+                "status": "active", "lessonCount": 2,
+            },
+            "schedule": {
+                "id": "lesson-a", "startsAtMs": 1793600000000,
+                "kind": "trial", "status": "scheduled",
+                "learnerName": "طالب تجريبي", "teacherName": "شيخ تجريبي",
+            },
+            "subscriptions": {
+                "id": "cycle-a", "learnerName": "طالب تجريبي",
+                "startsAtMs": 1793600000000, "endsAtMs": 1796192000000,
+                "baseSessions": 8, "rolloverSessions": 1, "spentSessions": 2,
+            },
+            "attendance": {
+                "id": "appeal-a", "kind": "student_no_show",
+                "submittedAtMs": 1793600000000, "decision": "pending",
+            },
+        }
+        for view, row in samples.items():
+            good = {
+                "code": "STAFF_COLLECTION", "view": view, "readOnly": True,
+                "requestId": "synthetic-request", "asOfMs": 1793600000000,
+                "rows": [row], "truncated": False,
+            }
+            self.assertTrue(admin.assert_staff_collection(good, view))
+            for bad in [
+                {**good, "phone": "private"},
+                {**good, "view": "finance"},
+                {**good, "readOnly": False},
+                {**good, "rows": [dict(row, phone="private")]},
+                {**good, "rows": [dict(row, id="bad/id")]},
+                {**good, "rows": [row, row]},
+                {**good, "rows": [row], "truncated": True},
+                {**good, "rows": [row] * 51},
+                {**good, "requestId": "!"},
+            ]:
+                with self.subTest(view=view, bad=str(bad)[:60]):
+                    with self.assertRaises(RuntimeError):
+                        admin.assert_staff_collection(bad, view)
+
+    def test_four_admin_signed_permissions_and_revocation(self):
+        fixtures = {
+            view: {
+                "code": "STAFF_COLLECTION", "view": view, "readOnly": True,
+                "requestId": "synthetic", "asOfMs": 1793600000000,
+                "rows": [], "truncated": False,
+            } for view in admin.ADMIN_COLLECTION_FIELDS
+        }
+        calls = []
+        def fake_http(_origin, path, method="GET", body=None, opener=None):
+            calls.append((path, method, opener))
+            if method == "POST":
+                return 405, b'{"code":"METHOD_NOT_ALLOWED"}', {}
+            if "finance" in path or "&" in path:
+                return 400, b'{"code":"INVALID_COLLECTION_VIEW"}', {}
+            if opener is None:
+                return 401, b'{"code":"UNAUTHENTICATED"}', {}
+            if opener != "staff":
+                return 403, b'{"code":"STAFF_ACCESS_DENIED"}', {}
+            view = path.split("view=", 1)[1]
+            return 200, json.dumps(fixtures[view]).encode(), {"Cache-Control": "no-store"}
+        def require_status(actual, wanted, _label):
+            self.assertEqual(actual, wanted)
+        admin.verify_signed_staff_collections("https://staging.invalid", "staff",
+            "teacher", fake_http, require_status, json.loads)
+        admin.verify_revoked_staff_collections("https://staging.invalid", "revoked",
+            fake_http, require_status)
+        self.assertEqual(len(calls), 20)
+        self.assertEqual(len([c for c in calls if c[2] == "revoked"]), 4)
+
     def test_unexpected_staff_response_never_passes(self):
         def fail_http(_origin, _path, method="GET", body=None, opener=None):
             if opener is None:

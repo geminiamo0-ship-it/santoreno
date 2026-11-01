@@ -115,14 +115,55 @@ try {
     await browser.screenshot("artifacts/noor-staging-admin/teachers-" + width + ".png");
   }
   assert.equal(await pageIncludes("تم اعتماد"), false, "Fake Admin activation");
-  await browser.go("/admin/subscriptions/");
-  await waitFor(
-    () => pageIncludes("هذا القسم غير مفعل تشغيليًا"),
-    "honest pending subscription section",
-  );
-  assert.equal(await pageIncludes("تم الدفع"), false, "Fake payment confirmation");
+  // #332: verify *real* D1 views on all viewports, not retired placeholders.
+  // No screenshots for learner names, class rosters or appeals: the Dev D1 may
+  // contain real records. Existing overview screenshots contain aggregates only.
+  for (const [section, title] of [
+    ["students", "الطلاب والأسر"],
+    ["schedule", "الحصص والجدول"],
+    ["subscriptions", "دورات الاشتراكات"],
+    ["attendance", "الحضور والتعويضات"],
+  ]) {
+    await browser.go("/admin/" + section + "/");
+    await waitFor(
+      () => browser.evaluate("Boolean(document.querySelector('main input[type=search]:not([disabled])'))"),
+      "signed connected Admin " + section,
+    );
+    assert.equal(await pageIncludes(title), true, "Incorrect Admin section " + section);
+    assert.equal(await pageIncludes("هذا القسم غير مفعل تشغيليًا"), false);
+    assert.equal(await pageIncludes("السجل غير متاح حاليًا"), false);
+    assert.equal(await pageIncludes("تم الدفع"), false, "Fake payment confirmation");
+    for (const [width, height] of [
+      [360, 667],
+      [390, 844],
+      [768, 1024],
+      [1280, 900],
+      [1440, 900],
+    ]) {
+      await browser.send("Emulation.setDeviceMetricsOverride", {
+        width,
+        height,
+        deviceScaleFactor: 1,
+        mobile: width < 768,
+      });
+      const state = await browser.evaluate(
+        "({rtl:document.documentElement.dir==='rtl'," +
+          "width:innerWidth,scroll:document.documentElement.scrollWidth," +
+          "connected:Boolean(document.querySelector('main input[type=search]:not([disabled])'))})",
+      );
+      assert(state.rtl && state.connected, "Admin " + section + " signed list missing");
+      assert(state.scroll <= state.width, "Admin " + section + " overflow at " + width);
+    }
+  }
+  console.log("PASS: Noor Dev four connected staff Admin collections, real D1 loading and five RTL viewports, no sensitive screenshots");
 
   await setCookies(teacher);
+  for (const section of ["students", "schedule", "subscriptions", "attendance"]) {
+    await browser.go("/admin/" + section + "/");
+    await waitFor(() => pageIncludes("غير مصرح بعرض لوحة الإدارة"),
+      "Sheikh denied Admin " + section);
+    await noOverview();
+  }
   await browser.go("/admin/teachers/");
   await waitFor(
     () => pageIncludes("غير مصرح بعرض لوحة الإدارة"),

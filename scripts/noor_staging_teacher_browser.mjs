@@ -102,10 +102,16 @@ try {
     () => textIncludes("غير مقروء:") || textIncludes("تعذّر تحميل الإشعارات من الخادم"),
     "signed teacher inbox D1 read",
   );
-  assert.equal(await textIncludes("تعذّر تحميل الإشعارات من الخادم"), false,
-    "Signed teacher inbox GET failed");
-  assert.equal(await textIncludes("الإشعارات غير متصلة بعد"), false,
-    "Connected teacher inbox fell back to historical placeholder");
+  assert.equal(
+    await textIncludes("تعذّر تحميل الإشعارات من الخادم"),
+    false,
+    "Signed teacher inbox GET failed",
+  );
+  assert.equal(
+    await textIncludes("الإشعارات غير متصلة بعد"),
+    false,
+    "Connected teacher inbox fell back to historical placeholder",
+  );
   assert.equal(await textIncludes("إشعار تجريبي"), false, "Synthetic notification leaked");
 
   await browser.go("/teacher/cases/");
@@ -114,10 +120,16 @@ try {
     () => textIncludes("سجل البلاغات المُرسلة") || textIncludes("خدمة الحضور غير متاحة"),
     "signed attendance cases D1 read",
   );
-  assert.equal(await textIncludes("خدمة الحضور غير متاحة"), false,
-    "Signed teacher attendance GET failed");
-  assert.equal(await textIncludes("الحضور والبلاغات غير متصلة بعد"), false,
-    "Connected attendance fell back to historical placeholder");
+  assert.equal(
+    await textIncludes("خدمة الحضور غير متاحة"),
+    false,
+    "Signed teacher attendance GET failed",
+  );
+  assert.equal(
+    await textIncludes("الحضور والبلاغات غير متصلة بعد"),
+    false,
+    "Connected attendance fell back to historical placeholder",
+  );
   assert.equal(await textIncludes("طالب تجريبي"), false, "Synthetic incident leaked");
 
   await setCookies(staff);

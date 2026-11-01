@@ -30,6 +30,15 @@ async function setCookies(cookies) {
 async function pageIncludes(text) {
   return browser.evaluate(`document.body?.textContent.includes(${JSON.stringify(text)})`);
 }
+async function awaitVerifiedNavigation() {
+  await waitFor(
+    () =>
+      browser.evaluate(
+        "Boolean(document.querySelector('nav[aria-label=\\\"أقسام لوحة الإدارة\\\"]'))",
+      ),
+    "signed Admin revalidated after viewport resize",
+  );
+}
 async function noOverview() {
   assert.equal(await pageIncludes("نظرة عامة على الأكاديمية"), false);
   assert.equal(await pageIncludes("مؤشرات من السجل الفعلي"), false);
@@ -74,6 +83,7 @@ try {
       deviceScaleFactor: 1,
       mobile: width < 768,
     });
+    await awaitVerifiedNavigation();
     const state = await browser.evaluate(
       "({rtl:document.documentElement.dir==='rtl'," +
         "scroll:document.documentElement.scrollWidth,width:innerWidth," +
@@ -105,6 +115,7 @@ try {
       deviceScaleFactor: 1,
       mobile: width < 768,
     });
+    await awaitVerifiedNavigation();
     const state = await browser.evaluate(
       "({rtl:document.documentElement.dir==='rtl'," +
         "scroll:document.documentElement.scrollWidth,width:innerWidth," +
@@ -157,7 +168,8 @@ try {
         deviceScaleFactor: 1,
         mobile: width < 768,
       });
-      const state = await browser.evaluate(
+      await awaitVerifiedNavigation();
+    const state = await browser.evaluate(
         "({rtl:document.documentElement.dir==='rtl'," +
           "width:innerWidth,scroll:document.documentElement.scrollWidth," +
           "connected:Boolean(document.querySelector('main input[type=search]:not([disabled])'))})",

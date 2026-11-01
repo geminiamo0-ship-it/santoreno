@@ -34,7 +34,9 @@ async function noOverview() {
   assert.equal(await pageIncludes("نظرة عامة على الأكاديمية"), false);
   assert.equal(await pageIncludes("مؤشرات من السجل الفعلي"), false);
   assert.equal(
-    await browser.evaluate("Boolean(document.querySelector('nav[aria-label=\"أقسام لوحة الإدارة\"]'))"),
+    await browser.evaluate(
+      "Boolean(document.querySelector('nav[aria-label=\"أقسام لوحة الإدارة\"]'))")
+    ),
     false,
     "Denied user must not see administrative navigation",
   );
@@ -74,8 +76,8 @@ try {
     });
     const state = await browser.evaluate(
       "({rtl:document.documentElement.dir==='rtl'," +
-      "scroll:document.documentElement.scrollWidth,width:innerWidth," +
-      "real:document.body.textContent.includes('نظرة عامة على الأكاديمية')})",
+        "scroll:document.documentElement.scrollWidth,width:innerWidth," +
+        "real:document.body.textContent.includes('نظرة عامة على الأكاديمية')})",
     );
     assert(state.rtl && state.real, "Admin signed RTL/overview missing");
     assert(state.scroll <= state.width, "Admin horizontal overflow " + width);
@@ -83,10 +85,16 @@ try {
   }
 
   await browser.go("/admin/teachers/");
-  await waitFor(() => pageIncludes("هذا القسم غير مفعل تشغيليًا"), "honest pending teacher section");
+  await waitFor(
+    () => pageIncludes("هذا القسم غير مفعل تشغيليًا"),
+    "honest pending teacher section",
+  );
   assert.equal(await pageIncludes("تم اعتماد"), false, "Fake Admin activation");
   await browser.go("/admin/subscriptions/");
-  await waitFor(() => pageIncludes("هذا القسم غير مفعل تشغيليًا"), "honest pending subscription section");
+  await waitFor(
+    () => pageIncludes("هذا القسم غير مفعل تشغيليًا"),
+    "honest pending subscription section",
+  );
   assert.equal(await pageIncludes("تم الدفع"), false, "Fake payment confirmation");
 
   await setCookies(teacher);

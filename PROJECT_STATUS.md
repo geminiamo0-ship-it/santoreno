@@ -1,4 +1,5 @@
 ## 2026-11-01 — Noor #302 signed isolated Admin Dev browser preview (Issue #327)
+
 - Owner merged Noor PR #304 as `382a2603a54fd356f106b351c621e012abc80413`, postmerge GitHub Verify 41263587275 PASS 4/4. Under Santoreno fail-closed source gate, that verified Noor `main` alone is eligible for existing dedicated Cloudflare Dev.
 - This scoped QA branch enables **Admin only on the existing isolated Dev Worker** `noor-site-staging` (Worker NOOR_ADMIN_PORTAL_ENABLED) and its one Next static development build (NEXT_PUBLIC_ADMIN_PORTAL_ENABLED). It does not change Production, real staff roles or finances. Existing local/no-production auth tests remain unchanged.
 - Signed synthetic 2-account D1 acceptance: anonymous 401, Sheikh 403, short-lived staff `roles.manage` 200 with exactly four nonnegative count integers/no names/financial fields/no-store; POST 405. Signed same-account access is 403 after explicit D1 grant revocation. Existing finally always clears synthetic grants.

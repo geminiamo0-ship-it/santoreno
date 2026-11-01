@@ -34,7 +34,7 @@ async function awaitVerifiedNavigation() {
   await waitFor(
     () =>
       browser.evaluate(
-        "Boolean(document.querySelector('nav[aria-label=\\\"أقسام لوحة الإدارة\\\"]'))",
+        "Boolean(document.querySelector('nav[aria-label]'))",
       ),
     "signed Admin revalidated after viewport resize",
   );

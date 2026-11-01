@@ -277,7 +277,7 @@ def _academy_trial_approved(learner_id, slot_id, staff, guardian, call):
     if (NOOR/"workers/api/migrations/0030_academy_requests_booking.sql").is_file():
         request=call(root+"/trial-requests","POST",
           {"operationId":str(uuid4()),"slotId":slot_id},guardian,201)
-        request_id=request.get("requestId")
+        request_id=request.get("trialRequestId")
         if not isinstance(request_id,str) or not re.fullmatch(r"[0-9a-f-]{36}",request_id):
             raise RuntimeError("Synthetic owner trial approval request ID missing")
         accepted=call("/v1/staff/academy/trial-decisions","POST",

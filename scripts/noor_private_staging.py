@@ -1405,6 +1405,12 @@ def main():
             not cache.is_file() or "OWNER_UI_CACHE_MS=5*60*1000" not in cache.read_text()):
             raise RuntimeError("Noor Dev source missing signed one-hour sessions or safe P0 activation/cache fix")
         print("PASS: pinned source contains one-hour D1-backed session, bounded owner UI cache and typed activation conflicts")
+        admin_ui=(NOOR/"apps/web/src/features/admin/AdminShell.tsx").read_text()
+        if ("previous.phase==='ready'" not in admin_ui or
+            "previous.session===session" not in admin_ui or
+            "fetchAdminOverview(ctrl.signal)" not in admin_ui):
+            raise RuntimeError("Noor Dev Admin does not keep verified same-session read during background role validation")
+        print("PASS: source preserves signed Admin UI while refreshing staff grant, without bypassing D1")
 
     if not (NOOR / "apps/web/out/index.html").is_file():
         raise RuntimeError("Account UI static build is missing")

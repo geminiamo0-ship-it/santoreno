@@ -1,3 +1,11 @@
+## 2026-11-01 — Noor consolidated Admin four-view Dev acceptance (#332)
+
+- Owner requested entire Noor Admin at once. Noor read-only batch [PR #308](https://github.com/geminiamo0-ship-it/nour-elquran/pull/308) merged `bd1224be3beffa14476be1305e40713c770b51e7` after exact-head Verify [#41269780147](https://github.com/geminiamo0-ship-it/nour-elquran/actions/runs/41269780147) PASS 4/4. Postmerge main Verify must be PASS before Santoreno Dev deploy gate accepts source.
+- Santoreno Issue #332 adds synthetic signed Dev acceptance of `GET /v1/staff/collections?view=students|schedule|subscriptions|attendance`: anonymous 401, Sheikh 403, verified staff 200/no-store, strict max 50 and exact safe academic row fields, POST 405, invalid/duplicate/extra filters 400, immediate revoked-grant 403. No real child/guardian contact, private incident reasons or payment settlement.
+- Admin Chrome QA now verifies all four newly connected pages at 360/390/768/1280/1440 with role gate and no horizontal overflow. **Screenshots of student names, classes or attendance are deliberately NOT captured** even if isolated Dev has real records. Existing aggregate-only overview QA and signed Sheikh QA preserved.
+- All QA remains on existing isolated `noor-site-staging` and `noor-core-staging`; no Production deployment, finance integrations, consent changes, teacher invites or persistent synthetic roles. After exact-head source-only validation and Verify, a Santoreno merge with `[noor-portal-e2e]` triggers actual isolated Dev staging and terminal role/browser checks.
+- Still not full Admin operational completion; #23–#36 depend on audit/privacy/payment/WhatsApp and trusted staff approvals. NEXT: check Santoreno exact-head CI, repair failing QA, then run source-pinned Dev and record evidence and version.
+
 ## 2026-11-01 — Noor #305 signed Sheikh directory Dev QA extension (Santoreno #330)
 
 - Noor [PR #306](https://github.com/geminiamo0-ship-it/nour-elquran/pull/306) merged `1c9791540d6bc1b6500da27d2bb613209387a8d3`; postmerge [Verify #41266027780](https://github.com/geminiamo0-ship-it/nour-elquran/actions/runs/41266027780) **PASS 4/4**. Only this verified Noor main may deploy, not unmerged PR heads.

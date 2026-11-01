@@ -593,6 +593,12 @@ def plan_stage_synthetic_smoke(origin, database_id, config, owner_a, owner_b, le
         staff_seeded = True  # cleanup even when D1 write response is lost
         qa_write("INSERT INTO staff_grants(auth_subject,permission,revoked_at_ms) "
                  "VALUES('"+staff_subject+"','roles.manage',NULL)")
+        # Keep the NEW signed synthetic Sheikh discoverable in the bounded,
+        # alphabetical 50-row Admin directory. Existing accumulated Dev QA
+        # teacher records must not mask the fresh authenticated fixture.
+        # This affects only the test-created subject, never real teacher data.
+        qa_write("UPDATE auth_users SET name='! Noor Synthetic Sheikh' WHERE id='"+
+                 teacher_subject+"'")
         def role(action):
             return post("/v1/staff/teacher-actions",
                 {"action":action,"targetUserId":teacher_subject,

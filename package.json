@@ -10,7 +10,7 @@
     "build": "turbo run build",
     "dev": "turbo run dev --parallel",
     "format": "prettier --write .",
-    "format:check": "prettier --write scripts/noor_staging_admin_browser.mjs PROJECT_STATUS.md && git diff -- scripts/noor_staging_admin_browser.mjs PROJECT_STATUS.md && prettier --check .",
+    "format:check": "prettier --check .",
     "lint": "oxlint . && pnpm format:check",
     "smoke": "node scripts/smoke.mjs",
     "test": "turbo run test",

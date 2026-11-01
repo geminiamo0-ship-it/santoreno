@@ -8,13 +8,19 @@ METRIC_KEYS = {
     "activeLearners", "activeQualifiedTeachers",
     "upcomingLessons", "completedLessons",
 }
-OVERVIEW_KEYS = {"code", "asOfMs", "metrics", "readOnly"}
+# Noor's shared Worker reply() always adds a nonidentifying trace requestId.
+# Do not allow any other envelope fields, including names or financial data.
+OVERVIEW_KEYS = {"code", "asOfMs", "metrics", "readOnly", "requestId"}
 
 
 def assert_admin_overview(data):
     """Fail closed on leaked personal fields or invented aggregate values."""
     if not isinstance(data, dict) or set(data) != OVERVIEW_KEYS:
         raise RuntimeError("Admin Dev overview has an unexpected response shape")
+    request_id = data.get("requestId")
+    if (not isinstance(request_id, str) or not 1 <= len(request_id) <= 128 or
+            not all(ch.isalnum() or ch == "-" for ch in request_id)):
+        raise RuntimeError("Admin Dev overview has an invalid trace request ID")
     if data.get("code") != "STAFF_OVERVIEW" or data.get("readOnly") is not True:
         raise RuntimeError("Admin Dev overview is not the approved read-only contract")
     timestamp = data.get("asOfMs")

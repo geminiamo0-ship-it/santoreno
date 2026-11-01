@@ -1,3 +1,9 @@
+## 2026-11-01 — Noor #244 signed Dev cancellation eligibility (Issue #325)
+
+- The existing remote Dev 0024 booking/withdrawal test correctly checked booking and cancellation but did not re-read the guardian's signed trial eligibility after either transition. This slice now requires `eligible:false` and zero slots while an active first trial is scheduled, then `eligible:true` including the same released published slot immediately after signed confirmed cancellation, before the staff withdrawal. Wrong owner remains 404. The existing local Python smoke now enforces exactly three guardian reads in order.
+- This proves **backend signed re-eligibility only** if the real isolated Dev job passes; it does not establish same-page React auto-refetch or mobile browser behavior, which remains Noor #244/#155 acceptance. No Production, payments, R2, real minors, feature flags or credentials changed.
+- NEXT: exact-head Verify/PR staging validation; independently review, then isolated Dev synthetic acceptance at verified Noor main. Keep #244 OPEN for complete booking/subscription lifecycle.
+
 ## 2026-11-01 — Noor #244/#155 Chrome evaluator syntax regression (#323)
 
 - After updating the signed Sheikh Dev smoke, a separate real QA-runner bug was found in `scripts/noor_staging_profile_browser.mjs`: the synthetic Arabic learner lookup had an extra apostrophe inside the Chrome evaluator expression and a Node parse probe gave `SyntaxError: missing ) after argument list`. Previous [Dev run #41256926173](https://github.com/geminiamo0-ship-it/santoreno/actions/runs/41256926173) stopped earlier at the outdated teacher inbox expectation, so this lookup bug was not yet reachable in that run.

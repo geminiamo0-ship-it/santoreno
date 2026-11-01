@@ -31,7 +31,14 @@ class TrialWithdrawalStageTests(TestCase):
    if path=="/v1/me/learners/learner/trial-slots":
     if opener=="foreign":
      return 404,b'{"code":"NOT_FOUND"}',{}
-    return 200,json.dumps({"eligible":True,"slots":[{"slotId":SLOT}]}).encode(),{}
+    events=[p for p,m,_,_ in calls if m=="POST"]
+    if "/v1/me/learners/learner/trial-cancellations" in events:
+     body={"eligible":True,"slots":[{"slotId":SLOT}]}
+    elif "/v1/me/learners/learner/trial-bookings" in events:
+     body={"eligible":False,"slots":[]}
+    else:
+     body={"eligible":True,"slots":[{"slotId":SLOT}]}
+    return 200,json.dumps(body).encode(),{}
    if path=="/v1/me/learners/learner/trial-bookings":
     if len([x for x in calls if x[0]==path])==1:
      return 201,json.dumps({"code":"TRIAL_BOOKED","lessonId":LESSON}).encode(),{}
@@ -56,6 +63,9 @@ class TrialWithdrawalStageTests(TestCase):
     "staff","owner","foreign","learner","sheikh-id")
    self.assertEqual(db.call_count,3)
    self.assertEqual([c[1] for c in calls].count("POST"),6)
+   signed_reads=[c for c in calls if c[0]=="/v1/me/learners/learner/trial-slots"
+                 and c[2]=="owner"]
+   self.assertEqual(len(signed_reads),3)  # free, booked, restored after cancellation
    self.assertFalse(any("password" in json.dumps(c) for c in calls))
 
  def test_schema_must_be_0024_before_account_or_slot_requests(self):

@@ -91,21 +91,53 @@ try {
   assert.equal(authenticatedHome.error, false, "Signed student owner APIs failed");
   await browser.screenshot("artifacts/noor-staging-profile/student-home-real.png");
 
+  // #244: verified academic ledger replaces the old disconnected placeholder.
+  const ownerLearnerId = await browser.evaluate(
+    `fetch('/v1/me/learners',{cache:'no-store'}).then(r=>r.json())
+      .then(d=>d.learners.find(l=>l.name===${JSON.stringify(longLearner)})?.id)`,
+  );
+  assert.match(ownerLearnerId, /^[0-9a-f-]{36}$/i);
   await browser.go("/student/subscription/");
   await waitFor(
     () =>
       browser.evaluate(
-        "document.querySelector('#student-main')?.textContent.includes('الحالة المالية غير متاحة للتحقق')",
+        "document.querySelector('#student-main')?.textContent.includes('لا توجد دورة اشتراك مسجلة لهذا الطالب بعد')",
       ),
-    "unverified financial ledger must be explicitly unknown",
+    "signed owner D1 ledger shows true no-cycle state",
   );
-  assert.equal(
-    await browser.evaluate(
-      "document.querySelector('#student-main')?.textContent.includes('نشط في بيانات التجربة')",
-    ),
-    false,
-    "Live subscription status must not be inherited from fixtures",
+  const initialLedger = await browser.evaluate(
+    `fetch('/v1/me/learners/${ownerLearnerId}/subscription-ledger',
+      {cache:'no-store'}).then(async r=>({status:r.status,data:await r.json()}))`,
   );
+  assert.equal(initialLedger.status, 200);
+  assert.equal(initialLedger.data.code, "SUBSCRIPTION_LEDGER");
+  assert.equal(initialLedger.data.bookingEnabled, false);
+  assert.equal(initialLedger.data.latestCycle, null);
+  assert.equal(initialLedger.data.compensationUnspentSessions, 0);
+  const subscriptionText = await browser.evaluate(
+    "document.querySelector('#student-main')?.textContent",
+  );
+  assert.equal(subscriptionText.includes("نشط في بيانات التجربة"), false);
+  assert.equal(subscriptionText.includes("تم الدفع"), false);
+  assert.equal(subscriptionText.includes("تفعيل الاشتراكات المدفوعة"), true);
+  for (const [width, height] of [
+    [360, 667],
+    [390, 844],
+    [1280, 900],
+  ]) {
+    await browser.send("Emulation.setDeviceMetricsOverride", {
+      width,
+      height,
+      deviceScaleFactor: 1,
+      mobile: width < 768,
+    });
+    const shape = await browser.evaluate(
+      "({width:innerWidth,scroll:document.documentElement.scrollWidth,rtl:document.documentElement.dir})",
+    );
+    assert.equal(shape.rtl, "rtl");
+    assert(shape.scroll <= shape.width, "Subscription overflow at " + width);
+    await browser.screenshot("artifacts/noor-staging-profile/subscription-" + width + ".png");
+  }
   await browser.go("/student/lessons/");
   await waitFor(
     () =>
@@ -178,6 +210,52 @@ try {
     }
     await browser.screenshot("artifacts/noor-staging-profile/account-" + width + ".png");
   }
+  // A new selected learner forces a different owner-scoped D1 GET.
+  await browser.go("/student/subscription/");
+  await waitFor(
+    () =>
+      browser.evaluate(
+        "document.querySelector('#student-main')?.textContent.includes('لا توجد دورة اشتراك مسجلة لهذا الطالب بعد')",
+      ),
+    "owner A confirmed ledger before switching",
+  );
+  await browser.evaluate(`(()=>{
+    const previous=window.fetch;
+    window.__noorLedgerRequests=[];
+    window.fetch=function(...args){
+      const url=String(args[0]);
+      if(url.includes('/subscription-ledger'))window.__noorLedgerRequests.push(url);
+      return previous.apply(this,args);
+    };
+  })()`);
+  await browser.evaluate(`(()=>{
+    const select=document.querySelector('#learner-switch');
+    select.value=${JSON.stringify(id)};
+    select.dispatchEvent(new Event('change',{bubbles:true}));
+  })()`);
+  await waitFor(
+    () =>
+      browser.evaluate(
+        "window.__noorLedgerRequests?.some(url=>url.endsWith('/" +
+          id + "/subscription-ledger'))",
+      ),
+    "new signed ledger request on sibling switch",
+  );
+  await waitFor(
+    () =>
+      browser.evaluate(
+        "document.querySelector('#student-main')?.textContent.includes('لا توجد دورة اشتراك مسجلة لهذا الطالب بعد')",
+      ),
+    "sibling B confirmed owner ledger",
+  );
+  assert.equal(
+    await browser.evaluate(
+      "document.querySelector('#student-main')?.textContent.includes('تم الدفع')",
+    ),
+    false,
+  );
+  await browser.go("/student/account/");
+  await present("#create-learner-form");
   await clickProfile("Synthetic Dev Learner B", "تعديل الاسم");
   await present('form[id^="rename-profile-"]');
   await browser.evaluate(`(()=>{
@@ -229,8 +307,13 @@ try {
     `fetch('/v1/learners/${id}',{cache:'no-store'}).then(r=>r.status)`,
   );
   assert.equal(foreign, 404);
+  const foreignLedger = await browser.evaluate(
+    `fetch('/v1/me/learners/${ownerLearnerId}/subscription-ledger',
+      {cache:'no-store'}).then(r=>r.status)`,
+  );
+  assert.equal(foreignLedger, 404, "Foreign household denied previous owner's ledger");
   console.log(
-    "PASS: Student owner-scoped real home/subscription/lessons, five RTL viewports, sibling rename/archive and foreign-owner 404; zero demo dashboard",
+    "PASS: Signed Noor D1 academic ledger owner GET, 360/390/1280 subscription RTL, sibling switch request, foreign 404, no paid data; existing student profile checks",
   );
 } catch (error) {
   await browser.screenshot("artifacts/noor-staging-profile/failure.png").catch(() => {});

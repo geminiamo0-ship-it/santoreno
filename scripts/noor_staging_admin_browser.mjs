@@ -185,7 +185,8 @@ try {
     "PASS: Noor Admin Dev overview and D1 Sheikh directory, signed roles and staff switch, five RTL viewports",
   );
 } catch (error) {
-  await browser.screenshot("artifacts/noor-staging-admin/failure.png").catch(() => {});
+  // Do not screenshot a failed student/lesson/appeal page: isolated Dev can
+  // contain real learner names. The error and route label are sufficient.
   throw error;
 } finally {
   await browser.close();

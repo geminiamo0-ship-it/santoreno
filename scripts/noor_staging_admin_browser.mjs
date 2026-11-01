@@ -85,10 +85,7 @@ try {
   }
 
   await browser.go("/admin/teachers/");
-  await waitFor(
-    () => pageIncludes("دليل شيوخ الأكاديمية"),
-    "signed Admin Sheikh directory",
-  );
+  await waitFor(() => pageIncludes("دليل شيوخ الأكاديمية"), "signed Admin Sheikh directory");
   await waitFor(
     () => browser.evaluate("document.querySelectorAll('main article').length>0"),
     "actual signed D1 teacher list",

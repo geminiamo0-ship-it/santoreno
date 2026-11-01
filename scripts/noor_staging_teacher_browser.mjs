@@ -95,11 +95,41 @@ try {
   assert.equal(await textIncludes("هذا القسم قيد ربط"), false, "Preparation still dummy fallback");
 
   await browser.go("/teacher/notifications/");
-  await waitFor(() => textIncludes("الإشعارات غير متصلة بعد"), "honest notification blocker");
-  assert.equal(await textIncludes("تجريبية"), false, "Synthetic notification leaked");
+  await waitFor(() => textIncludes("سجل D1 الحقيقي"), "connected teacher inbox");
+  // A heading renders before the signed GET finishes. Require the actual D1 read
+  // to settle, and fail rather than silently accepting a server error or preview.
+  await waitFor(
+    () => textIncludes("غير مقروء:") || textIncludes("تعذّر تحميل الإشعارات من الخادم"),
+    "signed teacher inbox D1 read",
+  );
+  assert.equal(
+    await textIncludes("تعذّر تحميل الإشعارات من الخادم"),
+    false,
+    "Signed teacher inbox GET failed",
+  );
+  assert.equal(
+    await textIncludes("الإشعارات غير متصلة بعد"),
+    false,
+    "Connected teacher inbox fell back to historical placeholder",
+  );
+  assert.equal(await textIncludes("إشعار تجريبي"), false, "Synthetic notification leaked");
 
   await browser.go("/teacher/cases/");
-  await waitFor(() => textIncludes("الحضور والبلاغات غير متصلة بعد"), "honest incident blocker");
+  await waitFor(() => textIncludes("سجل D1 موثّق"), "connected teacher attendance");
+  await waitFor(
+    () => textIncludes("سجل البلاغات المُرسلة") || textIncludes("خدمة الحضور غير متاحة"),
+    "signed attendance cases D1 read",
+  );
+  assert.equal(
+    await textIncludes("خدمة الحضور غير متاحة"),
+    false,
+    "Signed teacher attendance GET failed",
+  );
+  assert.equal(
+    await textIncludes("الحضور والبلاغات غير متصلة بعد"),
+    false,
+    "Connected attendance fell back to historical placeholder",
+  );
   assert.equal(await textIncludes("طالب تجريبي"), false, "Synthetic incident leaked");
 
   await setCookies(staff);
@@ -108,7 +138,7 @@ try {
   assert.equal(await textIncludes("Synthetic Learner 1"), false, "Non-teacher sees real roster");
   assert.equal(await textIncludes("معاينة واجهة الشيخ"), false, "Non-teacher sees demo fallback");
   console.log(
-    "PASS: Sheikh signed-out login gate with zero fixtures; connected D1 roster/preparation, unavailable inbox/cases, non-teacher denied and five RTL viewports",
+    "PASS: Sheikh anonymous gate/no fixtures; connected D1 roster/preparation/inbox/attendance, non-teacher denied and five RTL viewports",
   );
 } catch (error) {
   await browser.screenshot("artifacts/noor-staging-teacher/failure.png").catch(() => {});

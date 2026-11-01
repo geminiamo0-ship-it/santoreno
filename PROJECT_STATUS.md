@@ -1,3 +1,9 @@
+## 2026-11-01 — Noor Dev teacher browser gate: connected D1 inbox/attendance (#321)
+
+- Verified isolated Dev [run #41256926173](https://github.com/geminiamo0-ship-it/santoreno/actions/runs/41256926173) passed signed API, D1 0024/0025/0026 and two-role ink/assignment checks but FAILED at the opt-in Sheikh Chrome smoke. Synthetic screenshot artifact showed real D1 `الإشعارات`, while old QA awaited `الإشعارات غير متصلة بعد`; similarly obsolete `الحضور والبلاغات غير متصلة بعد` would fail after the connected teacher attendance rollout.
+- This branch updates **test assertions only** in `scripts/noor_staging_teacher_browser.mjs` to require signed D1 inbox/attendance settled reads, reject error and demo placeholders, and retain anonymous login, roster, preparation, staff-denied checks and five RTL viewports. No Noor/Production/Cloudflare resources, secrets or customer content changed.
+- NEXT: exact-head Santoreno Verify and PR-mode Dev validation; independent review, then a scoped verified-Noor-main isolated Dev run with the opt-in [noor-portal-e2e] marker. Do not claim browser acceptance until its deploy job is successful. Related Noor #284/#246/#247; no issue closure yet.
+
 ## 2026-11-01 — Noor #244 / 0025 signed Dev rescheduling acceptance candidate
 
 - After Noor [PR #280](https://github.com/geminiamo0-ship-it/nour-elquran/pull/280) merged and remote Dev booked-slot withdrawal test [Santoreno #41253059957](https://github.com/geminiamo0-ship-it/santoreno/actions/runs/41253059957) PASS, Noor [PR #298](https://github.com/geminiamo0-ship-it/nour-elquran/pull/298) is **ready for review**, not merged. Source head `63a9079dee25259d490f632401bc2803fb3c5c20` CI [#41252897641](https://github.com/geminiamo0-ship-it/nour-elquran/actions/runs/41252897641) PASS 4/4.

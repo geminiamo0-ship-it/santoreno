@@ -1,4 +1,5 @@
 ## 2026-11-01 — Noor #244/#155 Chrome evaluator syntax regression (#323)
+
 - After updating the signed Sheikh Dev smoke, a separate real QA-runner bug was found in `scripts/noor_staging_profile_browser.mjs`: the synthetic Arabic learner lookup had an extra apostrophe inside the Chrome evaluator expression and a Node parse probe gave `SyntaxError: missing ) after argument list`. Previous [Dev run #41256926173](https://github.com/geminiamo0-ship-it/santoreno/actions/runs/41256926173) stopped earlier at the outdated teacher inbox expectation, so this lookup bug was not yet reachable in that run.
 - This branch switches lookup assembly to a small bounded `JSON.stringify` helper, adds offline Node contract tests for Arabic, apostrophes and injected syntax, and wires the test into the Noor staging validate job. **It does not change Noor application APIs, authentication, resources, flags or production.**
 - NEXT: check exact-head Verify/PR staging validate, then independently review and re-run opt-in Noor connected two-account Chrome on isolated Dev after merge. Do not claim remote E2E success until deployment output proves it; Noor #244/#155 remain open.

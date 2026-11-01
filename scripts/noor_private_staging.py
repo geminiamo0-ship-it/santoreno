@@ -605,9 +605,13 @@ def plan_stage_synthetic_smoke(origin, database_id, config, owner_a, owner_b, le
         role("qualify")
         role("activate")
         from noor_admin_staging import (verify_signed_admin_overview,
-                                        verify_revoked_admin_overview)
+                                        verify_revoked_admin_overview,
+                                        verify_signed_teacher_directory,
+                                        verify_revoked_teacher_directory)
         verify_signed_admin_overview(origin, owner_a, owner_b, http,
                                       require_status, json_body)
+        verify_signed_teacher_directory(origin, owner_a, owner_b, role_id,
+                                        http, require_status, json_body)
         if os.environ.get("NOOR_STAGING_BROWSER_QA") == "true":
             def admin_browser_cookies(opener):
                 handlers = [h for h in opener.handlers
@@ -652,6 +656,9 @@ def plan_stage_synthetic_smoke(origin, database_id, config, owner_a, owner_b, le
         if not isinstance(assignment_id,str) or not re.fullmatch(r"[0-9a-f-]{36}",assignment_id):
             raise RuntimeError("Synthetic teacher assignment failed")
         time.sleep(max(0,(now+10000-int(time.time()*1000))/1000))
+        verify_signed_teacher_directory(origin, owner_a, owner_b, role_id,
+                                        http, require_status, json_body,
+                                        min_learners=1)
         teacher_path="/v1/teacher/learners/"+learner_id+"/plan"
         write_path=teacher_path+"-actions"
         owner_path="/v1/me/learners/"+learner_id+"/plan"
@@ -906,6 +913,7 @@ def plan_stage_synthetic_smoke(origin, database_id, config, owner_a, owner_b, le
         qa_write("UPDATE staff_grants SET revoked_at_ms="+str(int(time.time()*1000))+
                  " WHERE auth_subject='"+staff_subject+"' AND permission='roles.manage'")
         verify_revoked_admin_overview(origin, owner_a, http, require_status)
+        verify_revoked_teacher_directory(origin, owner_a, http, require_status)
         print("PASS: Remote Noor 0009 plan, synthetic staff-managed teacher, owner read, stale 409, replay and revoke 404")
     finally:
         # Important: no synthetic staff grant or qualified active test teacher

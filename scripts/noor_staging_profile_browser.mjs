@@ -3,6 +3,7 @@
 import assert from "node:assert/strict";
 import { randomInt } from "node:crypto";
 import { openNoorStagingChrome, waitFor } from "../noor/scripts/chrome-local.mjs";
+import { buildSyntheticLearnerLookup } from "./noor_staging_browser_lookup.mjs";
 
 const base = process.env.NOOR_STAGING_ORIGIN;
 const browser = await openNoorStagingChrome(base);
@@ -91,9 +92,7 @@ try {
   assert.equal(authenticatedHome.error, false, "Signed student owner APIs failed");
   await browser.screenshot("artifacts/noor-staging-profile/student-home-real.png");
 
-  const ownerLearnerId = await browser.evaluate(
-    "fetch('/v1/me/learners',{cache:'no-store'}).then(r=>r.json()).then(d=>d.learners.find(l=>l.name==='طالب تجريبي ذو اسم عربي طويل لقياس العرض'')?.id)",
-  );
+  const ownerLearnerId = await browser.evaluate(buildSyntheticLearnerLookup(longLearner));
   assert.match(ownerLearnerId, /^[0-9a-f-]{36}$/i);
   await browser.go("/student/subscription/");
   await waitFor(

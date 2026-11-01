@@ -22,6 +22,8 @@ on:
       - tests/test_noor_notebook_staging.py
       - tests/test_noor_report_staging.py
       - scripts/noor_staging_profile_browser.mjs
+      - scripts/noor_staging_browser_lookup.mjs
+      - tests/noor_staging_browser_lookup.test.mjs
       - scripts/noor_staging_teacher_browser.mjs
       - scripts/noor_staging_livekit_browser.mjs
   workflow_dispatch:
@@ -62,6 +64,8 @@ on:
       - tests/test_noor_notebook_staging.py
       - tests/test_noor_report_staging.py
       - scripts/noor_staging_profile_browser.mjs
+      - scripts/noor_staging_browser_lookup.mjs
+      - tests/noor_staging_browser_lookup.test.mjs
       - scripts/noor_staging_teacher_browser.mjs
       - scripts/noor_staging_livekit_browser.mjs
 
@@ -94,6 +98,8 @@ jobs:
           python3 -m unittest discover -s tests -p 'test_noor_trial_reschedule_staging.py' -v
           python3 -m unittest discover -s tests -p 'test_noor_subscription_ledger_staging.py' -v
           python3 -m unittest discover -s tests -p 'test_noor_dev_realtime.py' -v
+      - name: Verify synthetic browser learner lookup expression
+        run: node --test tests/noor_staging_browser_lookup.test.mjs
       - name: Syntax check remote-staging browser acceptance
         run: |
           node --check scripts/noor_staging_profile_browser.mjs

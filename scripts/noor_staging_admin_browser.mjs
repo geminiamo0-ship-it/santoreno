@@ -30,11 +30,6 @@ async function setCookies(cookies) {
 async function pageIncludes(text) {
   return browser.evaluate(`document.body?.textContent.includes(${JSON.stringify(text)})`);
 }
-async function awaitVerifiedNavigation() {
-  const ready = () =>
-    browser.evaluate("Boolean(document.querySelector('nav'))");
-  await waitFor(ready, "signed Admin revalidated after viewport resize");
-}
 async function noOverview() {
   assert.equal(await pageIncludes("نظرة عامة على الأكاديمية"), false);
   assert.equal(await pageIncludes("مؤشرات من السجل الفعلي"), false);
@@ -79,7 +74,7 @@ try {
       deviceScaleFactor: 1,
       mobile: width < 768,
     });
-    await awaitVerifiedNavigation();
+    await waitFor(() => pageIncludes("نظرة عامة على الأكاديمية"), "overview after resize");
     const state = await browser.evaluate(
       "({rtl:document.documentElement.dir==='rtl'," +
         "scroll:document.documentElement.scrollWidth,width:innerWidth," +
@@ -111,7 +106,7 @@ try {
       deviceScaleFactor: 1,
       mobile: width < 768,
     });
-    await awaitVerifiedNavigation();
+    await waitFor(() => pageIncludes("إجراءات الشيوخ"), "Sheikh after resize");
     const state = await browser.evaluate(
       "({rtl:document.documentElement.dir==='rtl'," +
         "scroll:document.documentElement.scrollWidth,width:innerWidth," +
@@ -164,7 +159,7 @@ try {
         deviceScaleFactor: 1,
         mobile: width < 768,
       });
-      await awaitVerifiedNavigation();
+      await waitFor(() => pageIncludes(title), "collection after resize");
     const state = await browser.evaluate(
         "({rtl:document.documentElement.dir==='rtl'," +
           "width:innerWidth,scroll:document.documentElement.scrollWidth," +

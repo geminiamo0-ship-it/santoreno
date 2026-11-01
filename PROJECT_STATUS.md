@@ -1,3 +1,9 @@
+## 2026-11-01 — Noor Admin Dev trace-envelope contract fix (#327)
+
+- Owner-mergable Noor source `main@382a2603a54fd356f106b351c621e012abc80413` deployed to existing isolated `noor-site-staging` in Santoreno run [#41264212222](https://github.com/geminiamo0-ship-it/santoreno/actions/runs/41264212222), but Dev verification **FAILED** at a QA parser before Chrome screenshots. The new smoke incorrectly required exactly four *top-level* response fields. Noor's shared `workers/api/src/responses.ts` intentionally adds a nonidentifying `requestId` to every response, so the valid staff `GET /v1/staff/overview` triggered `Admin Dev overview has an unexpected response shape`.
+- Correct scope: retain only four D1 count metric fields while explicitly accepting a small, bounded string `requestId` in the response envelope and rejecting all unknown or private fields. Test the real envelope, missing/invalid requestId and personal field leakage.
+- Backend/Admin application unchanged; fix only Santoreno Dev QA helper+unit fixtures. Existing synthetic staff grant cleanup remains mandatory. **Not yet a successful visual or remote acceptance**; follow-up verify, PR merge and rerun the isolated Dev workflow. No Production/finance/WhatsApp/R2 changes.
+
 ## 2026-11-01 — Noor #302 signed isolated Admin Dev browser preview (Issue #327)
 
 - Owner merged Noor PR #304 as `382a2603a54fd356f106b351c621e012abc80413`, postmerge GitHub Verify 41263587275 PASS 4/4. Under Santoreno fail-closed source gate, that verified Noor `main` alone is eligible for existing dedicated Cloudflare Dev.

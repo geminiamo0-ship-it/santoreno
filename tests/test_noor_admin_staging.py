@@ -9,7 +9,8 @@ spec = importlib.util.spec_from_file_location("noor_admin_staging", path)
 admin = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(admin)
 
-GOOD = {"code": "STAFF_OVERVIEW", "readOnly": True, "asOfMs": 1793600000000,
+GOOD = {"code": "STAFF_OVERVIEW", "requestId": "synthetic-uuid-request",
+        "readOnly": True, "asOfMs": 1793600000000,
         "metrics": {"activeLearners": 2, "activeQualifiedTeachers": 1,
                     "upcomingLessons": 0, "completedLessons": 3}}
 
@@ -19,6 +20,9 @@ class AdminStagingTests(unittest.TestCase):
         self.assertTrue(admin.assert_admin_overview(GOOD))
         mutations = [
             {**GOOD, "email": "test@example.invalid"},
+            {**GOOD, "requestId": ""},
+            {**GOOD, "requestId": {"email": "bad"}},
+            {key: value for key, value in GOOD.items() if key != "requestId"},
             {**GOOD, "metrics": {**GOOD["metrics"], "guardianPhone": "hidden"}},
             {**GOOD, "metrics": {**GOOD["metrics"], "activeLearners": True}},
             {**GOOD, "metrics": {**GOOD["metrics"], "completedLessons": -1}},

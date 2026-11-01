@@ -6,6 +6,9 @@ on:
     paths:
       - .github/workflows/noor-private-staging.yml
       - scripts/noor_private_staging.py
+      - scripts/noor_admin_staging.py
+      - scripts/noor_staging_admin_browser.mjs
+      - tests/test_noor_admin_staging.py
       - scripts/noor_source_gate.py
       - scripts/noor_report_staging.py
       - scripts/noor_notebook_staging.py
@@ -48,6 +51,9 @@ on:
     paths:
       - .github/workflows/noor-private-staging.yml
       - scripts/noor_private_staging.py
+      - scripts/noor_admin_staging.py
+      - scripts/noor_staging_admin_browser.mjs
+      - tests/test_noor_admin_staging.py
       - scripts/noor_source_gate.py
       - scripts/noor_report_staging.py
       - scripts/noor_notebook_staging.py
@@ -84,7 +90,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Compile isolated Noor staging script without network or credentials
-        run: python3 -m py_compile scripts/noor_private_staging.py scripts/noor_report_staging.py scripts/noor_notebook_staging.py scripts/noor_quran_archive_staging.py scripts/noor_classroom_staging.py scripts/noor_livekit_staging.py scripts/noor_source_gate.py
+        run: python3 -m py_compile scripts/noor_admin_staging.py scripts/noor_private_staging.py scripts/noor_report_staging.py scripts/noor_notebook_staging.py scripts/noor_quran_archive_staging.py scripts/noor_classroom_staging.py scripts/noor_livekit_staging.py scripts/noor_source_gate.py
       - name: Unit test canonical staging source/identity gates offline
         run: |
           python3 -m unittest discover -s tests -p 'test_noor_canonical_staging.py' -v
@@ -94,6 +100,7 @@ jobs:
           python3 -m unittest discover -s tests -p 'test_noor_classroom_staging.py' -v
           python3 -m unittest discover -s tests -p 'test_noor_livekit_staging.py' -v
           python3 -m unittest discover -s tests -p 'test_noor_source_gate.py' -v
+          python3 -m unittest discover -s tests -p 'test_noor_admin_staging.py' -v
           python3 -m unittest discover -s tests -p 'test_noor_trial_staging.py' -v
           python3 -m unittest discover -s tests -p 'test_noor_trial_reschedule_staging.py' -v
           python3 -m unittest discover -s tests -p 'test_noor_subscription_ledger_staging.py' -v
@@ -102,6 +109,7 @@ jobs:
         run: node --test tests/noor_staging_browser_lookup.test.mjs
       - name: Syntax check remote-staging browser acceptance
         run: |
+          node --check scripts/noor_staging_admin_browser.mjs
           node --check scripts/noor_staging_profile_browser.mjs
           node --check scripts/noor_staging_teacher_browser.mjs
           node --check scripts/noor_staging_livekit_browser.mjs
@@ -158,7 +166,7 @@ jobs:
           corepack prepare pnpm@10.22.0 --activate
           cd noor
           pnpm install --frozen-lockfile
-          NEXT_PUBLIC_ACCOUNT_UI=true NEXT_PUBLIC_QURAN_PERSISTENCE_ENABLED=true NEXT_PUBLIC_TEACHER_READONLY_ENABLED=true NEXT_PUBLIC_NOOR_REALTIME_HINTS_ENABLED=true NEXT_PUBLIC_NOOR_REALTIME_PREVIEW_ENABLED=true pnpm --filter @noor/web build
+          NEXT_PUBLIC_ACCOUNT_UI=true NEXT_PUBLIC_ADMIN_PORTAL_ENABLED=true NEXT_PUBLIC_QURAN_PERSISTENCE_ENABLED=true NEXT_PUBLIC_TEACHER_READONLY_ENABLED=true NEXT_PUBLIC_NOOR_REALTIME_HINTS_ENABLED=true NEXT_PUBLIC_NOOR_REALTIME_PREVIEW_ENABLED=true pnpm --filter @noor/web build
       - name: Deploy open developer staging and verify application account security
         shell: bash
         run: |
@@ -172,6 +180,7 @@ jobs:
         with:
           name: noor-profile-remote-browser
           path: |
+            artifacts/noor-staging-admin/*.png
             artifacts/noor-staging-profile/*.png
             artifacts/noor-staging-teacher/*.png
             artifacts/noor-staging-livekit/*.png

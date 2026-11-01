@@ -126,7 +126,10 @@ try {
   ]) {
     await browser.go("/admin/" + section + "/");
     await waitFor(
-      () => browser.evaluate("Boolean(document.querySelector('main input[type=search]:not([disabled])'))"),
+      () =>
+        browser.evaluate(
+          "Boolean(document.querySelector('main input[type=search]:not([disabled])'))",
+        ),
       "signed connected Admin " + section,
     );
     assert.equal(await pageIncludes(title), true, "Incorrect Admin section " + section);
@@ -155,13 +158,17 @@ try {
       assert(state.scroll <= state.width, "Admin " + section + " overflow at " + width);
     }
   }
-  console.log("PASS: Noor Dev four connected staff Admin collections, real D1 loading and five RTL viewports, no sensitive screenshots");
+  console.log(
+    "PASS: Noor Dev four connected staff Admin collections, real D1 loading and five RTL viewports, no sensitive screenshots",
+  );
 
   await setCookies(teacher);
   for (const section of ["students", "schedule", "subscriptions", "attendance"]) {
     await browser.go("/admin/" + section + "/");
-    await waitFor(() => pageIncludes("غير مصرح بعرض لوحة الإدارة"),
-      "Sheikh denied Admin " + section);
+    await waitFor(
+      () => pageIncludes("غير مصرح بعرض لوحة الإدارة"),
+      "Sheikh denied Admin " + section,
+    );
     await noOverview();
   }
   await browser.go("/admin/teachers/");

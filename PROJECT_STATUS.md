@@ -1,10 +1,3 @@
-## 2026-11-01 — #244 signed 0026 subscription ledger Dev QA (harness candidate)
-- Noor [PR #299](https://github.com/geminiamo0-ship-it/nour-elquran/pull/299) is READY FOR REVIEW, exact-head CI #41255360089 passed 4/4 at `b006a2f98dfb92d4c3e1433f375fba92fb6f737a`, and has **no independent reviewer approval**. Its migration 0026 is not yet in Noor main or remote Dev.
-- This Santoreno QA adds a **source-gated** `verify_dev_subscription_ledger_read` to `noor_private_staging.py`: absent 0026 on verified Noor main = explicit SKIP; present 0026 with absent Dev D1 schema marker = hard FAIL. No bypass of `noor_source_gate.py`.
-- After safe merge of Noor PR #299, the same isolated staged workflow must prove actual remote D1 schema and read-only HTTP signed owner GET: zero entitlements for new synthetic learner, `bookingEnabled:false`, foreign household/archived sibling 404, anonymous 401, POST 405, no currency/payment fields. No fake staff grants, prices, money, credits, paid lessons or write endpoints are created by this QA.
-- Run offline tests and CI in Santoreno, then optionally merge only the QA harness. It will re-run staging on *current* verified Noor main, likely print SKIP for 0026 until separately approved #299 is merged. A green run with SKIP is NOT evidence that 0026 works on Dev.
-- Later phases still need explicit Cairo-calendar month, manual staff renewal approval, entitlement-backed paid booking and admin UI last. Production untouched; #244 open.
-
 ## 2026-11-01 — Noor #244 / 0025 signed Dev rescheduling acceptance candidate
 
 - After Noor [PR #280](https://github.com/geminiamo0-ship-it/nour-elquran/pull/280) merged and remote Dev booked-slot withdrawal test [Santoreno #41253059957](https://github.com/geminiamo0-ship-it/santoreno/actions/runs/41253059957) PASS, Noor [PR #298](https://github.com/geminiamo0-ship-it/nour-elquran/pull/298) is **ready for review**, not merged. Source head `63a9079dee25259d490f632401bc2803fb3c5c20` CI [#41252897641](https://github.com/geminiamo0-ship-it/nour-elquran/actions/runs/41252897641) PASS 4/4.

@@ -609,13 +609,18 @@ def plan_stage_synthetic_smoke(origin, database_id, config, owner_a, owner_b, le
                                         verify_signed_teacher_directory,
                                         verify_revoked_teacher_directory,
                                         verify_signed_staff_collections,
-                                        verify_revoked_staff_collections)
+                                        verify_revoked_staff_collections,
+                                        verify_signed_admin_operations,
+                                        verify_admin_guard_migrations)
         verify_signed_admin_overview(origin, owner_a, owner_b, http,
                                       require_status, json_body)
         verify_signed_teacher_directory(origin, owner_a, owner_b, role_id,
                                         http, require_status, json_body)
         verify_signed_staff_collections(origin, owner_a, owner_b,
                                         http, require_status, json_body)
+        verify_admin_guard_migrations(database_id, d1_read_only)
+        verify_signed_admin_operations(origin, owner_a, owner_b, role_id,
+                                       http, require_status, json_body)
         if os.environ.get("NOOR_STAGING_BROWSER_QA") == "true":
             def admin_browser_cookies(opener):
                 handlers = [h for h in opener.handlers
@@ -911,7 +916,14 @@ def plan_stage_synthetic_smoke(origin, database_id, config, owner_a, owner_b, le
         code,_,_=http(origin,teacher_reviews,method="POST",body=review,opener=owner_b)
         require_status(code,404,"Revoked teacher cannot replay teacher review")
 
-        role("suspend")
+        # #334: exercise the NEW roster-ID transition with a previously
+        # verified synthetic Sheikh. D1 0027 must reject outstanding
+        # scheduled/live classes: this operation is valid only after the
+        # staged classroom and assignment have been closed.
+        post("/v1/staff/teachers/transition",
+             {"teacherId":role_id,"action":"suspend",
+              "reason":"Synthetic Dev staff closes completed Sheikh fixture",
+              "operationId":str(uuid4())},owner_a,200)
         # Check the same signed cookie immediately after fresh D1 staff revocation.
         # The existing finally block still cleans up grants and verification.
         qa_write("UPDATE staff_grants SET revoked_at_ms="+str(int(time.time()*1000))+

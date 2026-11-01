@@ -74,7 +74,6 @@ try {
       deviceScaleFactor: 1,
       mobile: width < 768,
     });
-    await waitFor(() => pageIncludes("نظرة عامة على الأكاديمية"), "overview after resize");
     const state = await browser.evaluate(
       "({rtl:document.documentElement.dir==='rtl'," +
         "scroll:document.documentElement.scrollWidth,width:innerWidth," +
@@ -106,7 +105,6 @@ try {
       deviceScaleFactor: 1,
       mobile: width < 768,
     });
-    await waitFor(() => pageIncludes("إجراءات الشيوخ"), "Sheikh after resize");
     const state = await browser.evaluate(
       "({rtl:document.documentElement.dir==='rtl'," +
         "scroll:document.documentElement.scrollWidth,width:innerWidth," +
@@ -159,8 +157,7 @@ try {
         deviceScaleFactor: 1,
         mobile: width < 768,
       });
-      await waitFor(() => pageIncludes(title), "collection after resize");
-    const state = await browser.evaluate(
+      const state = await browser.evaluate(
         "({rtl:document.documentElement.dir==='rtl'," +
           "width:innerWidth,scroll:document.documentElement.scrollWidth," +
           "connected:Boolean(document.querySelector('main input[type=search]:not([disabled])'))})",

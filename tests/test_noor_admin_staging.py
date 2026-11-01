@@ -183,6 +183,60 @@ class AdminStagingTests(unittest.TestCase):
         self.assertEqual(len(calls), 20)
         self.assertEqual(len([c for c in calls if c[2] == "revoked"]), 4)
 
+    def test_operational_staff_permissions_and_invalid_roster_actions(self):
+        requests = []
+        def fake_http(_origin, path, method="GET", body=None, opener=None):
+            requests.append((path, method, opener, body))
+            if opener is None:
+                return 401, b'{"code":"UNAUTHENTICATED"}', {}
+            if opener != "staff":
+                return 403, b'{"code":"STAFF_ACCESS_DENIED"}', {}
+            if method != "POST":
+                return 405, b'{"code":"METHOD_NOT_ALLOWED"}', {}
+            if path.endswith("/review"):
+                return 403, b'{"code":"STAFF_ACCESS_DENIED"}', {}
+            if "role" in body:
+                return 400, b'{"code":"INVALID_TEACHER_TRANSITION"}', {}
+            if body.get("teacherId") == "missing-roster-id":
+                return 404, b'{"code":"TEACHER_NOT_FOUND"}', {}
+            return 409, b'{"code":"TEACHER_ROLE_TRANSITION_DENIED"}', {}
+        def require_status(got, expected, label):
+            self.assertEqual(got, expected, label)
+        admin.verify_signed_admin_operations(
+            "https://staging.invalid", "staff", "teacher", "teacher-id",
+            fake_http, require_status, json.loads)
+        self.assertEqual(len(requests), 9)
+        self.assertEqual(sum(1 for r in requests if r[1] == "POST"), 8)
+        self.assertEqual(sum(1 for r in requests if r[0].endswith("/review")), 3)
+
+    def test_remote_guard_metadata_required_and_unexpected_schema_denied(self):
+        rows = [
+            {"component":"attendance_review_verified_actor_guard","version":1},
+            {"component":"teacher_role_active_lesson_guard","version":1},
+        ]
+        triggers = [
+            {"name":"attendance_review_verified_actor_guard"},
+            {"name":"teacher_role_active_lesson_guard"},
+        ]
+        def read(_database, sql):
+            if "sqlite_master" in sql:
+                return triggers
+            return rows
+        admin.verify_admin_guard_migrations("isolated-database", read)
+        for variant in [
+            lambda _: [],
+            lambda _: [{"component":"teacher_role_active_lesson_guard","version":1}],
+            lambda _: [rows[0],dict(rows[1],version=0)],
+        ]:
+            with self.assertRaises(RuntimeError):
+                admin.verify_admin_guard_migrations(
+                    "isolated-database", lambda db, sql: (
+                        triggers if "sqlite_master" in sql else variant(rows)))
+        with self.assertRaises(RuntimeError):
+            admin.verify_admin_guard_migrations(
+                "isolated-database", lambda db, sql: (
+                    [] if "sqlite_master" in sql else rows))
+
     def test_unexpected_staff_response_never_passes(self):
         def fail_http(_origin, _path, method="GET", body=None, opener=None):
             if opener is None:

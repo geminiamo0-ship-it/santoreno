@@ -5,7 +5,7 @@ import { buildSyntheticLearnerLookup } from "../scripts/noor_staging_browser_loo
 test("signed synthetic learner lookup compiles and preserves Arabic/quoted labels", async () => {
   for (const name of [
     "طالب تجريبي ذو اسم عربي طويل لقياس العرض",
-    "Owner's child — اسم \"مركّب\"",
+    'Owner\'s child — اسم "مركّب"',
     "');globalThis.injected=true;//",
   ]) {
     const expression = buildSyntheticLearnerLookup(name);
@@ -13,7 +13,10 @@ test("signed synthetic learner lookup compiles and preserves Arabic/quoted label
     const mockFetch = async (url, options) => {
       assert.equal(url, "/v1/me/learners");
       assert.deepEqual(options, { cache: "no-store" });
-      const learners = [{ name: "Other", id: "other" }, { name, id: "expected" }];
+      const learners = [
+        { name: "Other", id: "other" },
+        { name, id: "expected" },
+      ];
       return { json: async () => ({ learners }) };
     };
     assert.equal(await execute(mockFetch), "expected");

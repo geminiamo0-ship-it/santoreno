@@ -333,10 +333,11 @@ export default {
           'if(nativeDpr>1.5) Object.defineProperty(window,"devicePixelRatio",{configurable:true,get:function(){return 1.5;}});' +
           'window.__med2LiteDpr={original:nativeDpr,used:window.devicePixelRatio};' +
           '}catch(e){}})();</script>';
-        if (!/<head\b[^>]*>/i.test(originalHTML)) return asset;
+        if (!/<head\b[^>]*>/i.test(originalHTML)) return new Response(originalHTML, {status:200, headers:{"Content-Type":"text/html; charset=utf-8", "Cache-Control":"no-store"}});
         const html = originalHTML.replace(/<head\b[^>]*>/i, match => match + inject);
         const headers = new Headers(asset.headers);
         headers.delete("Content-Length");
+        headers.delete("ETag");
         headers.set("Cache-Control","no-store");
         headers.set("X-Med2-Lite-Render","dpr-canary");
         return new Response(html,{status:200,headers});

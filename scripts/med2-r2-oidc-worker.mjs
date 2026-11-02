@@ -86,9 +86,12 @@ async function getGzipManifest(env) {
 }
 async function maybeGzipAsset(env, request, path) {
   if (!path.endsWith(".oex") && !path.endsWith(".xbin")) return null;
+  // Lossless gzip was verified byte-identical to the original R2 geometry and
+  // presentation assets. Make it the browser default, retain cookie opt-out
+  // and always use raw identity for Range or clients without gzip support.
   if (request.headers.has("Range") ||
       !/\bgzip\b/i.test(request.headers.get("Accept-Encoding") || "") ||
-      !/(?:^|;\s*)med2_mesh_gzip=1(?:;|$)/.test(request.headers.get("Cookie") || "")) return null;
+      /(?:^|;\s*)med2_mesh_gzip=0(?:;|$)/.test(request.headers.get("Cookie") || "")) return null;
   const manifest = await getGzipManifest(env);
   const spec = manifest[path];
   if (!spec || !Array.isArray(spec.pieces) || !spec.pieces.length) return null;
@@ -97,7 +100,7 @@ async function maybeGzipAsset(env, request, path) {
   const headers = new Headers(asset.headers);
   headers.set("Content-Encoding", "gzip");
   headers.set("Vary", "Accept-Encoding, Cookie");
-  headers.set("X-Med2-Encoded-Transport", "gzip-test");
+  headers.set("X-Med2-Encoded-Transport", "gzip-lossless");
   headers.delete("Accept-Ranges");
   return new Response(asset.body, {status:200, headers, encodeBody:"manual"});
 }
@@ -248,8 +251,8 @@ export default {
       const toggle = new URL(request.url).searchParams.get("fast_mesh");
       if (toggle !== "1" && toggle !== "0") return asset;
       const headers = new Headers(asset.headers);
-      headers.set("Set-Cookie", "med2_mesh_gzip=" + (toggle === "1" ? "1; Max-Age=3600" : "; Max-Age=0") +
-        "; Path=/; Secure; HttpOnly; SameSite=Lax");
+      headers.set("Set-Cookie", "med2_mesh_gzip=" + (toggle === "1" ? "1" : "0") +
+        "; Max-Age=3600; Path=/; Secure; HttpOnly; SameSite=Lax");
       headers.set("Cache-Control", "no-store");
       return new Response(asset.body, {status:asset.status, headers});
     } catch (error) {

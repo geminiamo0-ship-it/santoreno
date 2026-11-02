@@ -360,8 +360,8 @@ export default {
           new URL(request.url).searchParams.get("target") === "humanSkull") {
         const original = await asset.text();
         const preload = '<link rel="preload" as="fetch" crossorigin="anonymous" href="/app/oe/geometry/human/skull/humanSkull.oex">';
-        if (/<head\\b[^>]*>/i.test(original)) {
-          const html = original.replace(/<head\\b[^>]*>/i, match => match + preload);
+        if (/<head\b[^>]*>/i.test(original)) {
+          const html = original.replace(/<head\b[^>]*>/i, match => match + preload);
           const headers = new Headers(asset.headers);
           headers.delete("Content-Length");
           headers.delete("ETag");

@@ -26,8 +26,12 @@ async function authorizeGithubOidc(request) {
   if (claims.iss !== OIDC_ISSUER || claims.aud !== OIDC_AUDIENCE) return false;
   if (claims.repository !== "geminiamo0-ship-it/med2" ||
       String(claims.repository_id) !== "1256497156" ||
+      String(claims.repository_owner_id) !== "250896197" ||
       claims.ref !== "refs/heads/main" ||
-      claims.sub !== "repo:geminiamo0-ship-it/med2:ref:refs/heads/main" ||
+      ![
+        "repo:geminiamo0-ship-it/med2:ref:refs/heads/main",
+        "repo:geminiamo0-ship-it@250896197/med2@1256497156:ref:refs/heads/main"
+      ].includes(claims.sub) ||
       claims.workflow_ref !== EXPECTED_WORKFLOW) return false;
   if (!Number.isFinite(claims.exp) || claims.exp < now ||
       !Number.isFinite(claims.nbf) && claims.nbf !== undefined ||

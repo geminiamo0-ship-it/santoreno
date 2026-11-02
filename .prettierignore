@@ -5,3 +5,5 @@ coverage
 .wrangler
 pnpm-lock.yaml
 SANTO_MASTER_PLAN.md
+# Standalone Cloudflare Worker source maintained as a scoped med2 deployment asset
+scripts/med2-r2-oidc-worker.mjs

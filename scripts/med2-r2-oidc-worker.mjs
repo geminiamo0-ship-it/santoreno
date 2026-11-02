@@ -2,7 +2,7 @@
 // This Worker has no credentials and no bindings to any other project.
 const OIDC_ISSUER = "https://token.actions.githubusercontent.com";
 const OIDC_AUDIENCE = "med2-anatomy-upload-v1";
-const EXPECTED_WORKFLOW = "geminiamo0-ship-it/med2/.github/workflows/deploy-r2.yml@refs/heads/main";
+const ALLOWED_WORKFLOWS = new Set(["geminiamo0-ship-it/med2/.github/workflows/deploy-r2.yml@refs/heads/main", "geminiamo0-ship-it/med2/.github/workflows/optimize-skull-presentations.yml@refs/heads/main"]);
 let jwksCache = null;
 let manifestCache = null;
 
@@ -32,7 +32,7 @@ async function authorizeGithubOidc(request) {
         "repo:geminiamo0-ship-it/med2:ref:refs/heads/main",
         "repo:geminiamo0-ship-it@250896197/med2@1256497156:ref:refs/heads/main"
       ].includes(claims.sub) ||
-      claims.workflow_ref !== EXPECTED_WORKFLOW) return false;
+      !ALLOWED_WORKFLOWS.has(claims.workflow_ref)) return false;
   if (!Number.isFinite(claims.exp) || claims.exp < now ||
       !Number.isFinite(claims.nbf) && claims.nbf !== undefined ||
       (claims.nbf !== undefined && claims.nbf > now + 30) ||

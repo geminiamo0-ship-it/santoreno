@@ -87,8 +87,8 @@ async function getGzipManifest(env) {
 async function maybeGzipAsset(env, request, path) {
   if (!path.endsWith(".oex") && !path.endsWith(".xbin")) return null;
   if (request.headers.has("Range") ||
-      !/\\bgzip\\b/i.test(request.headers.get("Accept-Encoding") || "") ||
-      !/(?:^|;\\s*)med2_mesh_gzip=1(?:;|$)/.test(request.headers.get("Cookie") || "")) return null;
+      !/\bgzip\b/i.test(request.headers.get("Accept-Encoding") || "") ||
+      !/(?:^|;\s*)med2_mesh_gzip=1(?:;|$)/.test(request.headers.get("Cookie") || "")) return null;
   const manifest = await getGzipManifest(env);
   const spec = manifest[path];
   if (!spec || !Array.isArray(spec.pieces) || !spec.pieces.length) return null;

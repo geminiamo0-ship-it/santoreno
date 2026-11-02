@@ -350,38 +350,29 @@ export default {
       const asset = SPLIT[path]
         ? await chunked(env, request.method, path, SPLIT[path], request.headers.get("Range"))
         : await normal(env, request.method, path, request.headers.get("Range"));
-      if (path === "app/oe/index.html" && request.method === "GET" && asset.status === 200) {
-        const cookie = request.headers.get("Cookie") || "";
-        const liteEnabled = /(?:^|;\s*)med2_lite=1(?:;|$)/.test(cookie);
-        const smartEnabled = /(?:^|;\s*)med2_smart=1(?:;|$)/.test(cookie);
-        if (liteEnabled || smartEnabled) {
-          const originalHTML = await asset.text();
-          const additions = [];
-          if (liteEnabled) additions.push('<script>(function(){try{' +
-            'var nativeDpr=window.devicePixelRatio||1;' +
-            'if(nativeDpr>1.5) Object.defineProperty(window,"devicePixelRatio",{configurable:true,get:function(){return 1.5;}});' +
-            'window.__med2LiteDpr={original:nativeDpr,used:window.devicePixelRatio};' +
-            '}catch(e){}})();</script>');
-          if (smartEnabled) additions.push("<script>\n(function(){\n\"use strict\";\nvar state={started:0,finished:0,failures:0,bytes:0,done:false,firstRequestAt:0};\nwindow.__med2SmartWarm=state;\nvar timer=null;\nfunction geometryReady(){\n return performance.getEntriesByType(\"resource\").some(function(e){\n  return e.name.indexOf(\"/geometry/human/skull/humanSkull.oex\")!==-1&&e.responseEnd>0;\n });\n}\nasync function warm(){\n if(state.done)return;\n state.done=true;clearInterval(timer);\n try{\n  var resp=await fetch(\"/__gzip_files.json\",{cache:\"force-cache\"});\n  if(!resp.ok)return;\n  var json=await resp.json();\n  var keys=Object.keys(json).filter(function(k){\n   return /^app\\/oe\\/predefPres\\/human\\/skull\\/[^/]+\\.xbin$/.test(k);\n  });\n  var cursor=0;\n  async function consumer(){\n   while(cursor<keys.length){\n    var key=keys[cursor++];\n    try{\n     state.started++;\n     if(!state.firstRequestAt)state.firstRequestAt=Math.round(performance.now());\n     var res=await fetch(\"/\"+key,{cache:\"force-cache\",credentials:\"same-origin\"});\n     if(res.ok){state.bytes+=(await res.arrayBuffer()).byteLength;state.finished++;}\n     else state.failures++;\n    }catch(_){state.failures++;}\n   }\n  }\n  await Promise.all([consumer(),consumer(),consumer(),consumer()]);\n }catch(_){state.failures++;}\n}\nfunction check(){if(geometryReady())warm();}\ntimer=setInterval(check,750);\nsetTimeout(function(){clearInterval(timer);if(!state.done)warm();},45000);\n})();\n</script>");
-          if (/<head\b[^>]*>/i.test(originalHTML)) {
-            const html = originalHTML.replace(/<head\b[^>]*>/i, match => match + additions.join(""));
-            const headers = new Headers(asset.headers);
-            headers.delete("Content-Length");
-            headers.delete("ETag");
-            headers.set("Cache-Control","no-store");
-            headers.set("X-Med2-Render-Trial",smartEnabled?"same-frame-xbin-prefetch":"lite-dpr");
-            return new Response(html,{status:200,headers});
-          }
-          return new Response(originalHTML,{status:200,headers:{"Content-Type":"text/html; charset=utf-8","Cache-Control":"no-store"}});
-        }
+      if (path === "app/oe/index.html" && request.method === "GET" && asset.status === 200 &&
+          /(?:^|;\s*)med2_lite=1(?:;|$)/.test(request.headers.get("Cookie") || "")) {
+        // Explicit, reversible Lite DPR canary. Never rewrite 3D geometry.
+        const originalHTML = await asset.text();
+        const inject = '<script>(function(){try{' +
+          'var nativeDpr=window.devicePixelRatio||1;' +
+          'if(nativeDpr>1.5) Object.defineProperty(window,"devicePixelRatio",{configurable:true,get:function(){return 1.5;}});' +
+          'window.__med2LiteDpr={original:nativeDpr,used:window.devicePixelRatio};' +
+          '}catch(e){}})();</script>';
+        if (!/<head\b[^>]*>/i.test(originalHTML)) return new Response(originalHTML, {status:200, headers:{"Content-Type":"text/html; charset=utf-8", "Cache-Control":"no-store"}});
+        const html = originalHTML.replace(/<head\b[^>]*>/i, match => match + inject);
+        const headers = new Headers(asset.headers);
+        headers.delete("Content-Length");
+        headers.delete("ETag");
+        headers.set("Cache-Control","no-store");
+        headers.set("X-Med2-Lite-Render","dpr-canary");
+        return new Response(html,{status:200,headers});
       }
       if (path !== "index.html") return asset;
       const opts = new URL(request.url).searchParams;
       const toggle = opts.get("fast_mesh");
       const lite = opts.get("lite");
-      const smart = opts.get("smart");
-      if ((toggle !== "1" && toggle !== "0") && (lite !== "1" && lite !== "0") &&
-          (smart !== "1" && smart !== "0")) return asset;
+      if ((toggle !== "1" && toggle !== "0") && (lite !== "1" && lite !== "0")) return asset;
       const headers = new Headers(asset.headers);
       if (toggle === "0" || toggle === "1") {
         headers.append("Set-Cookie", "med2_mesh_gzip=" + toggle +
@@ -389,10 +380,6 @@ export default {
       }
       if (lite === "0" || lite === "1") {
         headers.append("Set-Cookie", "med2_lite=" + lite +
-          "; Max-Age=3600; Path=/; Secure; HttpOnly; SameSite=Lax");
-      }
-      if (smart === "0" || smart === "1") {
-        headers.append("Set-Cookie", "med2_smart=" + smart +
           "; Max-Age=3600; Path=/; Secure; HttpOnly; SameSite=Lax");
       }
       headers.set("Cache-Control", "no-store");

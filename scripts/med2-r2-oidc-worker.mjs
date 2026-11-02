@@ -277,7 +277,7 @@ function allFrames(w,result,seen,meta){
  try{
   if(w.location.pathname==='/app/oe/index.html')meta.engineDPR=w.devicePixelRatio;
   const entries=w.performance.getEntriesByType('resource');
-  for(const x of entries)result.push({bytes:x.encodedBodySize||0,status:x.responseStatus||0,url:x.name});
+  for(const x of entries)result.push({bytes:x.encodedBodySize||0,status:x.responseStatus||0,url:x.name,startSec:Math.round((x.startTime||0)/100)/10,endSec:Math.round((x.responseEnd||0)/100)/10,durationSec:Math.round((x.duration||0)/100)/10});
   for(let i=0;i<w.frames.length;i++)allFrames(w.frames[i],result,seen,meta);
  }catch(_){}
 }
@@ -286,7 +286,10 @@ function sample(){
  const encoded=entries.reduce((x,y)=>x+y.bytes,0);
  const errors=entries.filter(x=>x.status>=400).length;
  const seconds=Math.round((performance.now()-started)/1000);
- latest={seconds,encodedMB:mb(encoded),resources:entries.length,httpErrors:errors,
+ const big=entries.filter(x=>x.bytes>262144).sort((a,b)=>b.bytes-a.bytes).slice(0,6);
+ const slow=entries.filter(x=>x.durationSec>0.5).sort((a,b)=>b.durationSec-a.durationSec).slice(0,6);
+ const simple=x=>({asset:x.url.split('/').slice(-3).join('/').slice(-90),sizeMB:mb(x.bytes),startSec:x.startSec,endSec:x.endSec,durationSec:x.durationSec,status:x.status});
+ latest={seconds,encodedMB:mb(encoded),resources:entries.length,httpErrors:errors,topBytes:big.map(simple),slowest:slow.map(simple),
   firstVisibleSec:visibleAt,deviceDPR:window.devicePixelRatio,
   engineDPR:meta.engineDPR,mode:lite?'lite':'normal',
   screen:screen.width+'x'+screen.height,

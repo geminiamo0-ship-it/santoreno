@@ -2,7 +2,7 @@
 // This Worker has no credentials and no bindings to any other project.
 const OIDC_ISSUER = "https://token.actions.githubusercontent.com";
 const OIDC_AUDIENCE = "med2-anatomy-upload-v1";
-const ALLOWED_WORKFLOWS = new Set(["geminiamo0-ship-it/med2/.github/workflows/deploy-r2.yml@refs/heads/main", "geminiamo0-ship-it/med2/.github/workflows/optimize-skull-presentations.yml@refs/heads/main", "geminiamo0-ship-it/med2/.github/workflows/optimize-brotli-skull.yml@refs/heads/main", "geminiamo0-ship-it/med2/.github/workflows/build-fast-preview.yml@refs/heads/main", "geminiamo0-ship-it/med2/.github/workflows/deploy-fast-atlas.yml@refs/heads/main"]);
+const ALLOWED_WORKFLOWS = new Set(["geminiamo0-ship-it/med2/.github/workflows/deploy-r2.yml@refs/heads/main", "geminiamo0-ship-it/med2/.github/workflows/optimize-skull-presentations.yml@refs/heads/main", "geminiamo0-ship-it/med2/.github/workflows/optimize-brotli-skull.yml@refs/heads/main", ]);
 let jwksCache = null;
 let manifestCache = null;
 
@@ -145,12 +145,27 @@ function parseRange(value, size) {
   if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start >= size || end < start) return null;
   return {start, end: Math.min(end, size - 1), partial: true};
 }
+function cachePolicy(path) {
+  // Keep the anatomy engine documents and release manifests revalidatable.
+  // The original 3D dataset and engine binary files are immutable within
+  // the currently deployed mirror release. One year is the HTTP maximum
+  // typically honored by browsers; browsers may still evict cache for space.
+  if (path.endsWith(".html") || path === "sw.js" ||
+      path === "__large_files.json" || path === "__br_files.json" ||
+      path === "__gzip_files.json" || path.startsWith("__")) return "no-store";
+  if (/\.(?:oex|xbin|wasm|data|dat|glb|dds|ktx|png|jpg|jpeg|webp|svg|woff2?|ttf)(?:\.chunk\d+)?$/i.test(path)) {
+    return "public, max-age=31536000, immutable";
+  }
+  // JS/CSS can receive compatibility fixes without keeping a stale UI a year.
+  if (/\.(?:js|css)$/i.test(path)) return "public, max-age=2592000";
+  return "public, max-age=604800";
+}
 function baseHeaders(path, length) {
   const html = path.endsWith(".html");
   return {
     "Content-Type": typeOf(path),
     "Content-Length": String(length),
-    "Cache-Control": html ? "no-store" : "public, max-age=604800",
+    "Cache-Control": cachePolicy(path),
     "X-Content-Type-Options": "nosniff",
     "X-Robots-Tag": "noindex, nofollow",
     "Accept-Ranges": "bytes"
@@ -335,25 +350,19 @@ export default {
       }
     }
     if (!["GET", "HEAD"].includes(request.method)) return new Response("Method not allowed", {status: 405});
-    // Med2-only quick launch; served from its dedicated R2 namespace.
-    // The normal 3D viewer and its URL remain completely unchanged.
-    if (request.method === "GET" && new URL(request.url).pathname === "/quick") {
-      return await normal(env, "GET", "previews/quick.html", null);
+    const pathname = new URL(request.url).pathname;
+    // Revert all experimental alternate-viewer entry points to the original
+    // Effigos anatomy atlas. Its root and all original asset routes stay intact.
+    if (pathname === "/fast" || pathname.startsWith("/fast/") ||
+        pathname === "/quick" || pathname.startsWith("/previews/")) {
+      return Response.redirect(new URL("/?target=humanSkull&flags=english", request.url), 302);
     }
-    if (request.method === "GET" && new URL(request.url).pathname === "/__med2_diagnostics") {
+    if (request.method === "GET" && pathname === "/__med2_diagnostics") {
       return new Response(MED2_PROFILE_PAGE, {headers:{
         "Content-Type":"text/html; charset=utf-8", "Cache-Control":"no-store",
         "X-Content-Type-Options":"nosniff", "X-Robots-Tag":"noindex, nofollow"
       }});
     }
-    // Fast alternate atlas has its own versioned namespace and public attribution.
-    // The existing Effigos viewer at / is untouched.
-    const pathname = new URL(request.url).pathname;
-    if (pathname === "/fast") return new Response(null,{
-      status:307,headers:{"Location":new URL("/fast/",request.url).toString()}
-    });
-    if (pathname === "/fast/") return await normal(env,request.method,"fast/index.html",
-      request.headers.get("Range"));
     const path = filePath(request);
     if (!path) return new Response("Bad path", {status: 400});
     try {

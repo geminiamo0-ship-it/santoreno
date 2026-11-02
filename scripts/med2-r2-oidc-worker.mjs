@@ -258,38 +258,46 @@ button{border:0;border-radius:9px;background:#247a77;color:white;padding:10px 15
 b{color:#b5f2de}iframe{border:0;display:block;width:100%;height:calc(100dvh - 95px);background:#080808}
 footer{position:fixed;bottom:0;left:0;right:0;background:#16283be8;text-align:center;padding:6px;font-size:11px}
 </style></head><body>
-<header><strong>Med2 3D — قياس التحميل</strong><span id="stats">بدء الاختبار...</span>
-<button id="mark">ظهر المجسم عندي</button><button id="copy">نسخ التقرير</button></header>
+<header><strong>Med2 3D — قياس التحميل</strong><span id="mode">الوضع العادي</span><span id="stats">بدء الاختبار...</span>
+<button id="toggle">تجربة وضع Lite</button><button id="mark">ظهر المجسم عندي</button><button id="copy">نسخ التقرير</button></header>
 <iframe title="Med2 3D Skull" id="viewer" src="/?target=humanSkull&amp;flags=english"></iframe>
 <footer>الاختبار داخل نفس موقع Med2 فقط؛ لا يتم إرسال القياسات إلى أي خادم.</footer>
 <script>
 (()=>{"use strict";
 const started=performance.now(),stats=document.getElementById('stats'),iframe=document.getElementById('viewer');
+const lite=new URLSearchParams(location.search).get('lite')==='1';
+document.getElementById('mode').textContent=lite?'وضع Lite — اختبار':'الوضع العادي';
+document.getElementById('toggle').textContent=lite?'العودة للوضع العادي':'تجربة وضع Lite';
+document.getElementById('toggle').onclick=()=>{location.href='/__med2_diagnostics?lite='+(lite?'0':'1')};
+iframe.src='/?target=humanSkull&flags=english&lite='+(lite?'1':'0');
 let visibleAt=null,latest=null;
 const mb=x=>(x/1048576).toFixed(1);
-function allFrames(w,result,seen){
+function allFrames(w,result,seen,meta){
  if(!w||seen.has(w))return; seen.add(w);
  try{
+  if(w.location.pathname==='/app/oe/index.html')meta.engineDPR=w.devicePixelRatio;
   const entries=w.performance.getEntriesByType('resource');
   for(const x of entries)result.push({bytes:x.encodedBodySize||0,status:x.responseStatus||0,url:x.name});
-  for(let i=0;i<w.frames.length;i++)allFrames(w.frames[i],result,seen);
+  for(let i=0;i<w.frames.length;i++)allFrames(w.frames[i],result,seen,meta);
  }catch(_){}
 }
 function sample(){
- const entries=[];allFrames(iframe.contentWindow,entries,new Set());
+ const entries=[],meta={engineDPR:null};allFrames(iframe.contentWindow,entries,new Set(),meta);
  const encoded=entries.reduce((x,y)=>x+y.bytes,0);
  const errors=entries.filter(x=>x.status>=400).length;
  const seconds=Math.round((performance.now()-started)/1000);
  latest={seconds,encodedMB:mb(encoded),resources:entries.length,httpErrors:errors,
   firstVisibleSec:visibleAt,deviceDPR:window.devicePixelRatio,
+  engineDPR:meta.engineDPR,mode:lite?'lite':'normal',
   screen:screen.width+'x'+screen.height,
   connection:navigator.connection?.effectiveType||'unknown'};
  stats.innerHTML='<span>الوقت: <b>'+seconds+' ث</b></span>'+
  '<span>التنزيل: <b>'+latest.encodedMB+' MB</b></span>'+
  '<span>الملفات: <b>'+entries.length+'</b></span>'+
- '<span>الأخطاء: <b>'+errors+'</b></span>';
+ '<span>الأخطاء: <b>'+errors+'</b></span>'+
+ '<span>DPR المحرك: <b>'+(meta.engineDPR??'...')+'</b></span>';
 }
-document.getElementById('mark').onclick=()=>{visibleAt=Math.round((performance.now()-started)/1000);sample();};
+document.getElementById('mark').onclick=()=>{visibleAt=Math.round((performance.now()-started)/1000);sample();document.getElementById('mark').textContent='تم تسجيل الظهور: '+visibleAt+' ث';};
 document.getElementById('copy').onclick=async()=>{
  sample(); const data='Med2 3D performance: '+JSON.stringify(latest);
  try{await navigator.clipboard.writeText(data);document.getElementById('copy').textContent='تم نسخ التقرير';}

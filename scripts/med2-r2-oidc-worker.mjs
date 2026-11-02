@@ -99,7 +99,7 @@ async function maybeGzipAsset(env, request, path) {
   headers.set("Vary", "Accept-Encoding, Cookie");
   headers.set("X-Med2-Encoded-Transport", "gzip-test");
   headers.delete("Accept-Ranges");
-  return new Response(asset.body, {status:200, headers});
+  return new Response(asset.body, {status:200, headers, encodeBody:"manual"});
 }
 
 

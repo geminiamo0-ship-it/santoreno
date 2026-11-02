@@ -213,24 +213,34 @@ async function chunked(env, method, path, pieces, rangeHeader) {
   });
   return new Response(stream, {status: r.partial ? 206 : 200, headers: h});
 }
+function missingAsset() {
+  // Negative-cache only versioned med2 assets, briefly, to prevent
+  // repeated missing thumbnail / optional texture re-fetches on reload.
+  // Newly uploaded licensed files become visible after this short TTL.
+  return new Response(null, {status:404, headers:{
+    "Cache-Control":"public, max-age=120",
+    "X-Content-Type-Options":"nosniff",
+    "X-Robots-Tag":"noindex, nofollow"
+  }});
+}
 async function normal(env, method, path, rangeHeader) {
   const key = BUCKET_PREFIX + path;
   let r = null;
   if (rangeHeader) {
     const meta = await env.ASSETS.head(key);
-    if (!meta) return new Response("Not found", {status: 404});
+    if (!meta) return missingAsset();
     r = parseRange(rangeHeader, meta.size);
     if (!r) return new Response(null, {status: 416, headers: {"Content-Range": "bytes */" + meta.size}});
   }
   if (method === "HEAD") {
     const obj = await env.ASSETS.head(key);
-    if (!obj) return new Response("Not found", {status: 404});
+    if (!obj) return missingAsset();
     const h = baseHeaders(path, r ? r.end - r.start + 1 : obj.size);
     if (r && r.partial) h["Content-Range"] = "bytes " + r.start + "-" + r.end + "/" + obj.size;
     return new Response(null, {status: r && r.partial ? 206 : 200, headers: h});
   }
   const obj = await env.ASSETS.get(key, r ? {range: {offset:r.start, length:r.end-r.start+1}} : undefined);
-  if (!obj) return new Response("Not found", {status: 404});
+  if (!obj) return missingAsset();
   const h = baseHeaders(path, r ? r.end - r.start + 1 : obj.size);
   if (r && r.partial) h["Content-Range"] = "bytes " + r.start + "-" + r.end + "/" + obj.size;
   if (obj.httpEtag) h["ETag"] = obj.httpEtag;

@@ -353,6 +353,24 @@ export default {
         headers.set("X-Med2-Lite-Render","dpr-canary");
         return new Response(html,{status:200,headers});
       }
+      // Experimental early fetch of the exact licensed Skull geometry while JS
+      // initializes. Query-flag only; never change regular users automatically.
+      if (path === "index.html" && request.method === "GET" && asset.status === 200 &&
+          new URL(request.url).searchParams.get("early") === "1" &&
+          new URL(request.url).searchParams.get("target") === "humanSkull") {
+        const original = await asset.text();
+        const preload = '<link rel="preload" as="fetch" crossorigin="anonymous" href="/app/oe/geometry/human/skull/humanSkull.oex">';
+        if (/<head\\b[^>]*>/i.test(original)) {
+          const html = original.replace(/<head\\b[^>]*>/i, match => match + preload);
+          const headers = new Headers(asset.headers);
+          headers.delete("Content-Length");
+          headers.delete("ETag");
+          headers.set("Cache-Control","no-store");
+          headers.set("X-Med2-Early-Geometry","trial");
+          return new Response(html,{status:200,headers});
+        }
+        return new Response(original,{status:200,headers:{"Content-Type":"text/html; charset=utf-8","Cache-Control":"no-store"}});
+      }
       if (path !== "index.html") return asset;
       const opts = new URL(request.url).searchParams;
       const toggle = opts.get("fast_mesh");

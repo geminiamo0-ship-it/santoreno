@@ -53,13 +53,19 @@ jobs:
           printf '%s\n' 'med2-anatomy-20261102-owned-by-this-workflow' > "$RUNNER_TEMP/med2-owner.txt"
           if wrangler r2 bucket info "$BUCKET" --json > /dev/null 2>&1; then
             echo "Dedicated bucket exists; verifying marker before touching it"
-            wrangler r2 object get "$BUCKET/__med2_owner.txt" --file "$RUNNER_TEMP/existing-med2-owner.txt"
-            cmp -s "$RUNNER_TEMP/med2-owner.txt" "$RUNNER_TEMP/existing-med2-owner.txt" || {
-              echo "Ownership marker mismatch; refusing to access pre-existing bucket"; exit 1;
-            }
+            if wrangler r2 object get "$BUCKET/__med2_owner.txt" --remote --file "$RUNNER_TEMP/existing-med2-owner.txt"; then
+              cmp -s "$RUNNER_TEMP/med2-owner.txt" "$RUNNER_TEMP/existing-med2-owner.txt" || {
+                echo "Ownership marker mismatch; refusing to access pre-existing bucket"; exit 1;
+              }
+            else
+              # Exact bucket created by med2 CI run 41398990636; its ownership marker
+              # was accidentally written to runner-local R2, so repair only this key.
+              test "$BUCKET" = "med2-anatomy-assets-20261102"
+              wrangler r2 object put "$BUCKET/__med2_owner.txt" --remote --file "$RUNNER_TEMP/med2-owner.txt"
+            fi
           else
             wrangler r2 bucket create "$BUCKET"
-            wrangler r2 object put "$BUCKET/__med2_owner.txt" --file "$RUNNER_TEMP/med2-owner.txt"
+            wrangler r2 object put "$BUCKET/__med2_owner.txt" --remote --file "$RUNNER_TEMP/med2-owner.txt"
           fi
 
       - name: Deploy only new med2 Worker with ONLY new R2 binding

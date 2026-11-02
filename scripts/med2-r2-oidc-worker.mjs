@@ -75,6 +75,34 @@ async function loadSplitManifest(env) {
 }
 
 
+let gzipManifestCache = null;
+async function getGzipManifest(env) {
+  if (gzipManifestCache && gzipManifestCache.expires > Date.now()) return gzipManifestCache.data;
+  const obj = await env.ASSETS.get("202510141308/__gzip_files.json");
+  if (!obj) return {};
+  const data = JSON.parse(await obj.text());
+  gzipManifestCache = {data, expires:Date.now()+60000};
+  return data;
+}
+async function maybeGzipAsset(env, request, path) {
+  if (!path.endsWith(".oex") && !path.endsWith(".xbin")) return null;
+  if (request.headers.has("Range") ||
+      !/\\bgzip\\b/i.test(request.headers.get("Accept-Encoding") || "") ||
+      !/(?:^|;\\s*)med2_mesh_gzip=1(?:;|$)/.test(request.headers.get("Cookie") || "")) return null;
+  const manifest = await getGzipManifest(env);
+  const spec = manifest[path];
+  if (!spec || !Array.isArray(spec.pieces) || !spec.pieces.length) return null;
+  const asset = await chunked(env, request.method, path, spec.pieces, null);
+  if (asset.status !== 200) return asset;
+  const headers = new Headers(asset.headers);
+  headers.set("Content-Encoding", "gzip");
+  headers.set("Vary", "Accept-Encoding, Cookie");
+  headers.set("X-Med2-Encoded-Transport", "gzip-test");
+  headers.delete("Accept-Ranges");
+  return new Response(asset.body, {status:200, headers});
+}
+
+
 const VERSION = "202510141308";
 const BUCKET_PREFIX = VERSION + "/";
 const MIME = {
@@ -210,9 +238,20 @@ export default {
     const path = filePath(request);
     if (!path) return new Response("Bad path", {status: 400});
     try {
+      const compressed = await maybeGzipAsset(env, request, path);
+      if (compressed) return compressed;
       const SPLIT = await loadSplitManifest(env);
-      if (SPLIT[path]) return await chunked(env, request.method, path, SPLIT[path], request.headers.get("Range"));
-      return await normal(env, request.method, path, request.headers.get("Range"));
+      const asset = SPLIT[path]
+        ? await chunked(env, request.method, path, SPLIT[path], request.headers.get("Range"))
+        : await normal(env, request.method, path, request.headers.get("Range"));
+      if (path !== "index.html") return asset;
+      const toggle = new URL(request.url).searchParams.get("fast_mesh");
+      if (toggle !== "1" && toggle !== "0") return asset;
+      const headers = new Headers(asset.headers);
+      headers.set("Set-Cookie", "med2_mesh_gzip=" + (toggle === "1" ? "1; Max-Age=3600" : "; Max-Age=0") +
+        "; Path=/; Secure; HttpOnly; SameSite=Lax");
+      headers.set("Cache-Control", "no-store");
+      return new Response(asset.body, {status:asset.status, headers});
     } catch (error) {
       console.error("med2 asset error", String(error));
       return new Response("Asset unavailable", {status: 503});

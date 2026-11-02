@@ -2,7 +2,7 @@
 // This Worker has no credentials and no bindings to any other project.
 const OIDC_ISSUER = "https://token.actions.githubusercontent.com";
 const OIDC_AUDIENCE = "med2-anatomy-upload-v1";
-const ALLOWED_WORKFLOWS = new Set(["geminiamo0-ship-it/med2/.github/workflows/deploy-r2.yml@refs/heads/main", "geminiamo0-ship-it/med2/.github/workflows/optimize-skull-presentations.yml@refs/heads/main", "geminiamo0-ship-it/med2/.github/workflows/optimize-brotli-skull.yml@refs/heads/main"]);
+const ALLOWED_WORKFLOWS = new Set(["geminiamo0-ship-it/med2/.github/workflows/deploy-r2.yml@refs/heads/main", "geminiamo0-ship-it/med2/.github/workflows/optimize-skull-presentations.yml@refs/heads/main", "geminiamo0-ship-it/med2/.github/workflows/optimize-brotli-skull.yml@refs/heads/main", "geminiamo0-ship-it/med2/.github/workflows/build-fast-preview.yml@refs/heads/main"]);
 let jwksCache = null;
 let manifestCache = null;
 

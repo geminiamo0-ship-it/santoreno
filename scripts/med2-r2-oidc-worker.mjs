@@ -259,7 +259,7 @@ b{color:#b5f2de}iframe{border:0;display:block;width:100%;height:calc(100dvh - 95
 footer{position:fixed;bottom:0;left:0;right:0;background:#16283be8;text-align:center;padding:6px;font-size:11px}
 </style></head><body>
 <header><strong>Med2 3D — قياس التحميل</strong><span id="mode">الوضع العادي</span><span id="stats">بدء الاختبار...</span>
-<button id="toggle">تجربة وضع Lite</button><button id="mark">ظهر المجسم عندي</button><button id="copy">نسخ التقرير</button></header>
+<button id="toggle">تجربة وضع Lite</button><button id="mark">ظهر المجسم عندي</button><button id="copy">نسخ التقرير</button><button id="speed">سرعة Cloudflare</button></header>
 <iframe title="Med2 3D Skull" id="viewer" src="/?target=humanSkull&amp;flags=english"></iframe>
 <footer>الاختبار داخل نفس موقع Med2 فقط؛ لا يتم إرسال القياسات إلى أي خادم.</footer>
 <script>
@@ -270,7 +270,7 @@ document.getElementById('mode').textContent=lite?'وضع Lite — اختبار':
 document.getElementById('toggle').textContent=lite?'العودة للوضع العادي':'تجربة وضع Lite';
 document.getElementById('toggle').onclick=()=>{location.href='/__med2_diagnostics?lite='+(lite?'0':'1')};
 iframe.src='/?target=humanSkull&flags=english&lite='+(lite?'1':'0');
-let visibleAt=null,latest=null;
+let visibleAt=null,latest=null,edgeMbps=null;
 const mb=x=>(x/1048576).toFixed(1);
 function allFrames(w,result,seen,meta){
  if(!w||seen.has(w))return; seen.add(w);
@@ -289,7 +289,7 @@ function sample(){
  const big=entries.filter(x=>x.bytes>262144).sort((a,b)=>b.bytes-a.bytes).slice(0,6);
  const slow=entries.filter(x=>x.durationSec>0.5).sort((a,b)=>b.durationSec-a.durationSec).slice(0,6);
  const simple=x=>({asset:x.url.split('/').slice(-3).join('/').slice(-90),sizeMB:mb(x.bytes),startSec:x.startSec,endSec:x.endSec,durationSec:x.durationSec,status:x.status});
- latest={seconds,encodedMB:mb(encoded),resources:entries.length,httpErrors:errors,topBytes:big.map(simple),slowest:slow.map(simple),
+ latest={seconds,encodedMB:mb(encoded),resources:entries.length,httpErrors:errors,topBytes:big.map(simple),slowest:slow.map(simple),edgeMbps,
   firstVisibleSec:visibleAt,deviceDPR:window.devicePixelRatio,
   engineDPR:meta.engineDPR,mode:lite?'lite':'normal',
   screen:screen.width+'x'+screen.height,
@@ -301,6 +301,22 @@ function sample(){
  '<span>DPR المحرك: <b>'+(meta.engineDPR??'...')+'</b></span>';
 }
 document.getElementById('mark').onclick=()=>{visibleAt=Math.round((performance.now()-started)/1000);sample();document.getElementById('mark').textContent='تم تسجيل الظهور: '+visibleAt+' ث';};
+document.getElementById('speed').onclick=async()=>{
+ const el=document.getElementById('speed'); el.disabled=true;el.textContent='جار قياس Cloudflare...';
+ try{
+  const start=performance.now();
+  // Uncached 4MiB R2 HTTP-Range read on this Med2-only domain. Nothing is uploaded.
+  const resp=await fetch('/app/oe/index.data?med2_speed='+Date.now(),
+   {headers:{'Range':'bytes=0-4194303'},cache:'no-store'});
+  if(resp.status!==206)throw Error('HTTP '+resp.status);
+  const content=await resp.arrayBuffer();
+  if(content.byteLength!==4194304)throw Error('Incomplete range');
+  const elapsed=Math.max(0.001,(performance.now()-start)/1000);
+  edgeMbps=Math.round(content.byteLength*8/elapsed/1e5)/10;
+  el.textContent='Cloudflare: '+edgeMbps+' Mbps';sample();
+ }catch(_){el.textContent='فشل قياس سرعة Cloudflare'}
+ finally{el.disabled=false;}
+};
 document.getElementById('copy').onclick=async()=>{
  sample(); const data='Med2 3D performance: '+JSON.stringify(latest);
  try{await navigator.clipboard.writeText(data);document.getElementById('copy').textContent='تم نسخ التقرير';}

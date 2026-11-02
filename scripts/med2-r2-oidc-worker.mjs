@@ -323,12 +323,38 @@ export default {
       const asset = SPLIT[path]
         ? await chunked(env, request.method, path, SPLIT[path], request.headers.get("Range"))
         : await normal(env, request.method, path, request.headers.get("Range"));
+      if (path === "app/oe/index.html" && request.method === "GET" && asset.status === 200 &&
+          /(?:^|;\s*)med2_lite=1(?:;|$)/.test(request.headers.get("Cookie") || "")) {
+        // Explicit, reversible *canary* for mobile GPU fill-rate. Keep anatomical
+        // geometry and textures unchanged; affect render resolution only.
+        const originalHTML = await asset.text();
+        const inject = '<script>(function(){try{' +
+          'var nativeDpr=window.devicePixelRatio||1;' +
+          'if(nativeDpr>1.5) Object.defineProperty(window,"devicePixelRatio",{configurable:true,get:function(){return 1.5;}});' +
+          'window.__med2LiteDpr={original:nativeDpr,used:window.devicePixelRatio};' +
+          '}catch(e){}})();</script>';
+        if (!/<head\b[^>]*>/i.test(originalHTML)) return asset;
+        const html = originalHTML.replace(/<head\b[^>]*>/i, match => match + inject);
+        const headers = new Headers(asset.headers);
+        headers.delete("Content-Length");
+        headers.set("Cache-Control","no-store");
+        headers.set("X-Med2-Lite-Render","dpr-canary");
+        return new Response(html,{status:200,headers});
+      }
       if (path !== "index.html") return asset;
-      const toggle = new URL(request.url).searchParams.get("fast_mesh");
-      if (toggle !== "1" && toggle !== "0") return asset;
+      const opts = new URL(request.url).searchParams;
+      const toggle = opts.get("fast_mesh");
+      const lite = opts.get("lite");
+      if ((toggle !== "1" && toggle !== "0") && (lite !== "1" && lite !== "0")) return asset;
       const headers = new Headers(asset.headers);
-      headers.set("Set-Cookie", "med2_mesh_gzip=" + (toggle === "1" ? "1" : "0") +
-        "; Max-Age=3600; Path=/; Secure; HttpOnly; SameSite=Lax");
+      if (toggle === "0" || toggle === "1") {
+        headers.append("Set-Cookie", "med2_mesh_gzip=" + toggle +
+          "; Max-Age=3600; Path=/; Secure; HttpOnly; SameSite=Lax");
+      }
+      if (lite === "0" || lite === "1") {
+        headers.append("Set-Cookie", "med2_lite=" + lite +
+          "; Max-Age=3600; Path=/; Secure; HttpOnly; SameSite=Lax");
+      }
       headers.set("Cache-Control", "no-store");
       return new Response(asset.body, {status:asset.status, headers});
     } catch (error) {

@@ -137,31 +137,41 @@ async function chunked(env, method, path, pieces, rangeHeader) {
   const h = baseHeaders(path, r.end - r.start + 1);
   if (r.partial) h["Content-Range"] = "bytes " + r.start + "-" + r.end + "/" + size;
   if (method === "HEAD") return new Response(null, {status: r.partial ? 206 : 200, headers: h});
-  const stream = new ReadableStream({
-    async start(controller) {
-      try {
-        let pos = 0;
-        for (const piece of pieces) {
-          const left = Math.max(r.start, pos);
-          const right = Math.min(r.end, pos + piece.size - 1);
-          if (left <= right) {
-            const object = await env.ASSETS.get(piece.key, {
-              range: {offset: left - pos, length: right - left + 1}
-            });
-            if (!object) throw new Error("Missing owned R2 piece: " + piece.key);
-            const reader = object.body.getReader();
-            while (true) {
-              const result = await reader.read();
-              if (result.done) break;
-              controller.enqueue(result.value);
-            }
+  // Pull-based streaming: never buffer a whole geometry/data file in Worker memory.
+  // An async start() that eagerly enqueues every chunk would delay first byte and risk OOM.
+  async function* readPieces() {
+    let pos = 0;
+    for (const piece of pieces) {
+      const left = Math.max(r.start, pos);
+      const right = Math.min(r.end, pos + piece.size - 1);
+      if (left <= right) {
+        const object = await env.ASSETS.get(piece.key, {
+          range: {offset: left - pos, length: right - left + 1}
+        });
+        if (!object) throw new Error("Missing owned R2 piece: " + piece.key);
+        const reader = object.body.getReader();
+        try {
+          while (true) {
+            const result = await reader.read();
+            if (result.done) break;
+            yield result.value;
           }
-          pos += piece.size;
-          if (pos > r.end) break;
-        }
-        controller.close();
-      } catch (error) { controller.error(error); }
+        } finally { reader.releaseLock(); }
+      }
+      pos += piece.size;
+      if (pos > r.end) break;
     }
+  }
+  const iterator = readPieces();
+  const stream = new ReadableStream({
+    async pull(controller) {
+      try {
+        const result = await iterator.next();
+        if (result.done) controller.close();
+        else controller.enqueue(result.value);
+      } catch (error) { controller.error(error); }
+    },
+    async cancel() { await iterator.return(); }
   });
   return new Response(stream, {status: r.partial ? 206 : 200, headers: h});
 }

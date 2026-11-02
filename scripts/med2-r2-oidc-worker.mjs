@@ -335,6 +335,11 @@ export default {
       }
     }
     if (!["GET", "HEAD"].includes(request.method)) return new Response("Method not allowed", {status: 405});
+    // Med2-only quick launch; served from its dedicated R2 namespace.
+    // The normal 3D viewer and its URL remain completely unchanged.
+    if (request.method === "GET" && new URL(request.url).pathname === "/quick") {
+      return await normal(env, "GET", "previews/quick.html", null);
+    }
     if (request.method === "GET" && new URL(request.url).pathname === "/__med2_diagnostics") {
       return new Response(MED2_PROFILE_PAGE, {headers:{
         "Content-Type":"text/html; charset=utf-8", "Cache-Control":"no-store",

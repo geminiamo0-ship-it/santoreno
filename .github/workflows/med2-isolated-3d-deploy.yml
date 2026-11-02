@@ -4,111 +4,71 @@ on:
   push:
     paths:
       - ".github/workflows/med2-isolated-3d-deploy.yml"
+      - "scripts/med2-r2-oidc-worker.mjs"
+      - "wrangler.med2-3d.toml"
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: med2-anatomy-isolated-deploy
+  group: med2-anatomy-isolated-provision
   cancel-in-progress: false
 
 jobs:
-  deploy-med2-only:
-    name: Build med2 assets, upload to dedicated R2, and deploy dedicated Worker
+  provision:
+    name: Provision isolated R2 and OIDC-authenticated asset Worker
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 20
     environment: santo-medical-ingest-staging
     env:
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      MED2_REPO_TOKEN: ${{ secrets.SANTO_LIBRARY_SOURCE_READ_TOKEN }}
       WRANGLER_SEND_METRICS: "false"
       BUCKET: med2-anatomy-assets-20261102
       WORKER: med2-anatomy-viewer-v1
-
     steps:
-      - name: Verify required secrets exist (never log secret values)
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -n "$CLOUDFLARE_ACCOUNT_ID" || { echo "Missing Cloudflare account id"; exit 1; }
-          test -n "$CLOUDFLARE_API_TOKEN" || { echo "Missing Cloudflare token"; exit 1; }
-          test -n "$MED2_REPO_TOKEN" || { echo "Missing cross-repository read token for private med2"; exit 1; }
-          test "$BUCKET" = "med2-anatomy-assets-20261102"
-          test "$WORKER" = "med2-anatomy-viewer-v1"
-
-      - name: Checkout only approved private med2 repository (fixed commit)
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
-          repository: geminiamo0-ship-it/med2
-          ref: 3ddf7e1a85c4cd110f20411f5af6e08875c8874d
-          path: med2
-          token: ${{ secrets.SANTO_LIBRARY_SOURCE_READ_TOKEN }}
           persist-credentials: false
 
-      - name: Validate exact source revision and build scripts
+      - name: Verify dedicated scope and Cloudflare secret presence
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git -C med2 rev-parse HEAD)" = "3ddf7e1a85c4cd110f20411f5af6e08875c8874d"
-          test -f med2/r2-deploy/worker.js
-          test -f med2/r2-deploy/prepare_assets.py
-          test -f med2/r2-deploy/upload_assets.py
-          python3 -m py_compile med2/build.py med2/r2-deploy/prepare_assets.py med2/r2-deploy/upload_assets.py
+          test -n "$CLOUDFLARE_ACCOUNT_ID" || { echo "Missing Cloudflare account secret"; exit 1; }
+          test -n "$CLOUDFLARE_API_TOKEN" || { echo "Missing Cloudflare API secret"; exit 1; }
+          test "$BUCKET" = "med2-anatomy-assets-20261102"
+          test "$WORKER" = "med2-anatomy-viewer-v1"
+          test -s scripts/med2-r2-oidc-worker.mjs
+          test -s wrangler.med2-3d.toml
 
-      - name: Install standalone Wrangler (no other project code or resources)
-        shell: bash
+      - name: Install pinned Wrangler
         run: npm install --global wrangler@4.46.0
 
-      - name: Build existing approved anatomy assets (verified HTTPS only)
-        working-directory: med2
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 build.py
-
-      - name: Generate R2 streaming manifest and remove client-side stitching
-        working-directory: med2
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 r2-deploy/prepare_assets.py
-          test -s r2-deploy/large-files.json
-          test -s 202510141308/index.html
-
-      - name: Provision or verify ownership of dedicated med2 R2 bucket
+      - name: Provision only dedicated med2 bucket and confirm ownership
         shell: bash
         run: |
           set -euo pipefail
           printf '%s\n' 'med2-anatomy-20261102-owned-by-this-workflow' > "$RUNNER_TEMP/med2-owner.txt"
           if wrangler r2 bucket info "$BUCKET" --json > /dev/null 2>&1; then
-            echo "The dedicated bucket exists. Checking ownership marker."
+            echo "Dedicated bucket exists; verifying marker before touching it"
             wrangler r2 object get "$BUCKET/__med2_owner.txt" --file "$RUNNER_TEMP/existing-med2-owner.txt"
             cmp -s "$RUNNER_TEMP/med2-owner.txt" "$RUNNER_TEMP/existing-med2-owner.txt" || {
-              echo "Ownership marker mismatch; refusing to touch existing R2 bucket"; exit 1;
+              echo "Ownership marker mismatch; refusing to access pre-existing bucket"; exit 1;
             }
           else
-            echo "Creating only bucket $BUCKET"
             wrangler r2 bucket create "$BUCKET"
             wrangler r2 object put "$BUCKET/__med2_owner.txt" --file "$RUNNER_TEMP/med2-owner.txt"
           fi
 
-      - name: Upload only med2 files to the dedicated R2 bucket
-        working-directory: med2
+      - name: Deploy only new med2 Worker with ONLY new R2 binding
         shell: bash
         run: |
           set -euo pipefail
-          python3 r2-deploy/upload_assets.py
+          wrangler deploy --config wrangler.med2-3d.toml
 
-      - name: Deploy only the isolated med2 Worker
-        working-directory: med2
-        shell: bash
-        run: |
-          set -euo pipefail
-          wrangler deploy --config r2-deploy/wrangler.toml
-
-      - name: End-to-end smoke test over real workers.dev URL
+      - name: Verify live Worker access control and publish its URL
         shell: bash
         run: |
           set -euo pipefail
@@ -116,26 +76,19 @@ jobs:
             -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
             "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/subdomain" \
             | python3 -c 'import json,sys; print(json.load(sys.stdin)["result"]["subdomain"])')"
-          URL="https://$WORKER.$SUBDOMAIN.workers.dev"
           test -n "$SUBDOMAIN"
-          curl --retry 3 --retry-all-errors --fail --silent --show-error "$URL/" \
-            -o "$RUNNER_TEMP/med2-index.html"
-          grep -q 'MedPark 3D Explorer' "$RUNNER_TEMP/med2-index.html"
-          curl --retry 3 --retry-all-errors --fail --silent --show-error -I "$URL/bundle.js" \
-            | grep -iq 'content-type:.*javascript'
-          curl --retry 3 --retry-all-errors --fail --silent --show-error -I "$URL/app/oe/index.data" \
-            | grep -iq 'accept-ranges: bytes'
-          RESULT="$(curl --retry 3 --retry-all-errors --silent --show-error \
-            -H 'Range: bytes=0-31' -o "$RUNNER_TEMP/med2-range.bin" \
-            -w '%{http_code}' "$URL/app/oe/index.data")"
-          test "$RESULT" = "206"
-          test "$(wc -c < "$RUNNER_TEMP/med2-range.bin")" -eq 32
-          echo "Validated med2 only: $URL"
+          URL="https://$WORKER.$SUBDOMAIN.workers.dev"
+          UNAUTH="$(curl --silent --show-error -X PUT -H 'Content-Type: application/octet-stream' \
+            --data-binary 'test' -o /dev/null -w '%{http_code}' \
+            "$URL/__upload/202510141308/test.dat")"
+          test "$UNAUTH" = "401" || { echo "Refusing insecure Worker deployment (upload not protected)"; exit 1; }
+          echo "Dedicated med2 Worker: $URL"
           {
-            echo "### med2 3D isolated Cloudflare deployment"
-            echo "- Worker URL: $URL"
+            echo "### med2 Cloudflare infrastructure"
+            echo "- Worker: $URL"
             echo "- Dedicated R2 bucket: $BUCKET"
-            echo "- Browser memory stitching: removed; R2 streams data with real Content-Length"
-            echo "- Smoke: index, JS, large binary HEAD and 206 Range all passed"
-            echo "- No other repository or Cloudflare resource was deployed, modified, or deleted"
+            echo "- No cross-project secrets copied; uploads require signed GitHub Actions OIDC for the private med2 repo"
+            echo "- Unauthorized PUT rejected with HTTP 401"
+            echo "- No other Cloudflare resources touched"
+            echo "- Static assets are uploaded by the separate med2 Actions workflow"
           } >> "$GITHUB_STEP_SUMMARY"

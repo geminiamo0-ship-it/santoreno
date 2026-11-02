@@ -2,7 +2,7 @@
 // This Worker has no credentials and no bindings to any other project.
 const OIDC_ISSUER = "https://token.actions.githubusercontent.com";
 const OIDC_AUDIENCE = "med2-anatomy-upload-v1";
-const ALLOWED_WORKFLOWS = new Set(["geminiamo0-ship-it/med2/.github/workflows/deploy-r2.yml@refs/heads/main", "geminiamo0-ship-it/med2/.github/workflows/optimize-skull-presentations.yml@refs/heads/main", "geminiamo0-ship-it/med2/.github/workflows/optimize-brotli-skull.yml@refs/heads/main", "geminiamo0-ship-it/med2/.github/workflows/build-fast-preview.yml@refs/heads/main"]);
+const ALLOWED_WORKFLOWS = new Set(["geminiamo0-ship-it/med2/.github/workflows/deploy-r2.yml@refs/heads/main", "geminiamo0-ship-it/med2/.github/workflows/optimize-skull-presentations.yml@refs/heads/main", "geminiamo0-ship-it/med2/.github/workflows/optimize-brotli-skull.yml@refs/heads/main", "geminiamo0-ship-it/med2/.github/workflows/build-fast-preview.yml@refs/heads/main", "geminiamo0-ship-it/med2/.github/workflows/deploy-fast-atlas.yml@refs/heads/main"]);
 let jwksCache = null;
 let manifestCache = null;
 
@@ -124,7 +124,7 @@ const MIME = {
   ".txt": "text/plain; charset=utf-8", ".svg": "image/svg+xml",
   ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
   ".webp": "image/webp", ".woff2": "font/woff2", ".woff": "font/woff",
-  ".ttf": "font/ttf", ".mp4": "video/mp4", ".ico": "image/x-icon",
+  ".ttf": "font/ttf", ".glb": "model/gltf-binary", ".gltf": "model/gltf+json", ".mp4": "video/mp4", ".ico": "image/x-icon",
 };
 function typeOf(path) {
   const ext = path.match(/(\.[a-z0-9]+)$/i);
@@ -346,6 +346,14 @@ export default {
         "X-Content-Type-Options":"nosniff", "X-Robots-Tag":"noindex, nofollow"
       }});
     }
+    // Fast alternate atlas has its own versioned namespace and public attribution.
+    // The existing Effigos viewer at / is untouched.
+    const pathname = new URL(request.url).pathname;
+    if (pathname === "/fast") return new Response(null,{
+      status:307,headers:{"Location":new URL("/fast/",request.url).toString()}
+    });
+    if (pathname === "/fast/") return await normal(env,request.method,"fast/index.html",
+      request.headers.get("Range"));
     const path = filePath(request);
     if (!path) return new Response("Bad path", {status: 400});
     try {

@@ -1,0 +1,8 @@
+name = "med2-anatomy-viewer-v1"
+main = "scripts/med2-r2-oidc-worker.mjs"
+compatibility_date = "2026-10-25"
+workers_dev = true
+
+[[r2_buckets]]
+binding = "ASSETS"
+bucket_name = "med2-anatomy-assets-20261102"

@@ -2,7 +2,7 @@
 // This Worker has no credentials and no bindings to any other project.
 const OIDC_ISSUER = "https://token.actions.githubusercontent.com";
 const OIDC_AUDIENCE = "med2-anatomy-upload-v1";
-const ALLOWED_WORKFLOWS = new Set(["geminiamo0-ship-it/med2/.github/workflows/deploy-r2.yml@refs/heads/main", "geminiamo0-ship-it/med2/.github/workflows/optimize-skull-presentations.yml@refs/heads/main"]);
+const ALLOWED_WORKFLOWS = new Set(["geminiamo0-ship-it/med2/.github/workflows/deploy-r2.yml@refs/heads/main", "geminiamo0-ship-it/med2/.github/workflows/optimize-skull-presentations.yml@refs/heads/main", "geminiamo0-ship-it/med2/.github/workflows/optimize-brotli-skull.yml@refs/heads/main"]);
 let jwksCache = null;
 let manifestCache = null;
 
@@ -75,36 +75,43 @@ async function loadSplitManifest(env) {
 }
 
 
-let gzipManifestCache = null;
-async function getGzipManifest(env) {
-  if (gzipManifestCache && gzipManifestCache.expires > Date.now()) return gzipManifestCache.data;
-  const obj = await env.ASSETS.get("202510141308/__gzip_files.json");
+const encodedManifests = new Map();
+async function getEncodedManifest(env, suffix) {
+  const now = Date.now();
+  const cached = encodedManifests.get(suffix);
+  if (cached && cached.expires > now) return cached.data;
+  const obj = await env.ASSETS.get("202510141308/" + suffix);
   if (!obj) return {};
   const data = JSON.parse(await obj.text());
-  gzipManifestCache = {data, expires:Date.now()+60000};
+  encodedManifests.set(suffix, {data, expires:now+60000});
   return data;
 }
-async function maybeGzipAsset(env, request, path) {
+async function maybeEncodedAsset(env, request, path) {
   if (!path.endsWith(".oex") && !path.endsWith(".xbin")) return null;
-  // Lossless gzip was verified byte-identical to the original R2 geometry and
-  // presentation assets. Make it the browser default, retain cookie opt-out
-  // and always use raw identity for Range or clients without gzip support.
+  const accepts = request.headers.get("Accept-Encoding") || "";
+  // Preserve identity for ranges, explicit opt-outs and unsupported clients.
   if (request.headers.has("Range") ||
-      !/\bgzip\b/i.test(request.headers.get("Accept-Encoding") || "") ||
       /(?:^|;\s*)med2_mesh_gzip=0(?:;|$)/.test(request.headers.get("Cookie") || "")) return null;
-  const manifest = await getGzipManifest(env);
-  const spec = manifest[path];
-  if (!spec || !Array.isArray(spec.pieces) || !spec.pieces.length) return null;
-  const asset = await chunked(env, request.method, path, spec.pieces, null);
-  if (asset.status !== 200) return asset;
-  const headers = new Headers(asset.headers);
-  headers.set("Content-Encoding", "gzip");
-  headers.set("Vary", "Accept-Encoding, Cookie");
-  headers.set("X-Med2-Encoded-Transport", "gzip-lossless");
-  headers.delete("Accept-Ranges");
-  return new Response(asset.body, {status:200, headers, encodeBody:"manual"});
+  const candidates = [
+    {encoding:"br", manifest:"__br_files.json"},
+    {encoding:"gzip", manifest:"__gzip_files.json"}
+  ];
+  for (const candidate of candidates) {
+    if (!(new RegExp("(?:^|[,\\s])" + candidate.encoding + "(?:[,;\\s]|$)", "i")).test(accepts)) continue;
+    const manifest = await getEncodedManifest(env, candidate.manifest);
+    const spec = manifest[path];
+    if (!spec || !Array.isArray(spec.pieces) || spec.pieces.length < 1) continue;
+    const asset = await chunked(env, request.method, path, spec.pieces, null);
+    if (asset.status !== 200) return asset;
+    const headers = new Headers(asset.headers);
+    headers.set("Content-Encoding", candidate.encoding);
+    headers.set("Vary", "Accept-Encoding, Cookie");
+    headers.set("X-Med2-Encoded-Transport", candidate.encoding + "-lossless");
+    headers.delete("Accept-Ranges");
+    return new Response(asset.body, {status:200, headers, encodeBody:"manual"});
+  }
+  return null;
 }
-
 
 const VERSION = "202510141308";
 const BUCKET_PREFIX = VERSION + "/";
@@ -241,7 +248,7 @@ export default {
     const path = filePath(request);
     if (!path) return new Response("Bad path", {status: 400});
     try {
-      const compressed = await maybeGzipAsset(env, request, path);
+      const compressed = await maybeEncodedAsset(env, request, path);
       if (compressed) return compressed;
       const SPLIT = await loadSplitManifest(env);
       const asset = SPLIT[path]

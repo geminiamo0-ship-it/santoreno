@@ -87,6 +87,48 @@ jobs:
           if accessible == 0: raise SystemExit("No instance metadata was readable")
           PY
 
+      - name: Probe actual AI Search REST retrieval contract (metadata only)
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, os
+          from urllib.request import Request, urlopen
+          from urllib.error import HTTPError, URLError
+          api = ("https://api.cloudflare.com/client/v4/accounts/" +
+                 os.environ["CLOUDFLARE_ACCOUNT_ID"] + "/ai-search/namespaces/default/search")
+          payload = {"messages":[{"role":"user","content":"What causes aortic valve stenosis?"}],
+                     "ai_search_options":{
+                       "instance_ids":["amboss","usmle"],
+                       "retrieval":{"retrieval_type":"hybrid","match_threshold":0.4,
+                                    "max_num_results":4,"return_on_failure":True},
+                       "query_rewrite":{"enabled":False}}}
+          req = Request(api, data=json.dumps(payload).encode("utf8"), method="POST",
+                        headers={"Authorization":"Bearer "+os.environ["CLOUDFLARE_API_TOKEN"],
+                                 "Content-Type":"application/json"})
+          try:
+              with urlopen(req, timeout=45) as response:
+                  data = json.load(response)
+              outer = data.get("result") if isinstance(data, dict) else None
+              chunks = outer.get("chunks") if isinstance(outer, dict) else None
+              print("LIVE_SEARCH_SHAPE", json.dumps({
+                  "status":"ok", "success":data.get("success"),
+                  "resultKeys":list(outer.keys())[:16] if isinstance(outer,dict) else [],
+                  "chunksAreArray":isinstance(chunks,list),
+                  "chunkCount":len(chunks) if isinstance(chunks,list) else None,
+                  "firstChunkKeys":list(chunks[0].keys())[:18] if isinstance(chunks,list) and
+                                   chunks and isinstance(chunks[0],dict) else [],
+                  "firstItemKeys":list(chunks[0].get("item",{}).keys())[:12]
+                    if isinstance(chunks,list) and chunks and isinstance(chunks[0],dict)
+                    and isinstance(chunks[0].get("item"),dict) else [],
+                  "instanceTypes":sorted(set(type(c.get("instance_id")).__name__
+                       for c in chunks[:4] if isinstance(c,dict))) if isinstance(chunks,list) else [],
+              }))
+          except HTTPError as e:
+              print("LIVE_SEARCH_SHAPE",json.dumps({"status":"http_"+str(e.code)}))
+          except (URLError, ValueError, TimeoutError):
+              print("LIVE_SEARCH_SHAPE",json.dumps({"status":"unavailable"}))
+          PY
+
       - uses: actions/checkout@v4
         with:
           persist-credentials: false

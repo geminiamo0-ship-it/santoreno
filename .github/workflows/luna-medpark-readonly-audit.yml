@@ -1,0 +1,140 @@
+name: MedPark Luna — Read-only Cloudflare Library Audit
+on:
+  push:
+    branches:
+      - audit/luna-cloudflare-20261106
+    paths:
+      - ".github/workflows/luna-medpark-readonly-audit.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  library-audit:
+    name: AI Search + private R2 article metadata (read-only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CLOUDFLARE_ACCOUNT_ID: \${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: \${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - name: Check authorization without revealing credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test "$GITHUB_REF" = "refs/heads/audit/luna-cloudflare-20261106"
+
+      - name: Inspect five live AI Search instances and canonical source paths
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, os, re
+          from pathlib import Path
+          from urllib.request import Request, urlopen
+          from urllib.error import HTTPError, URLError
+          base = "https://api.cloudflare.com/client/v4/accounts/" + os.environ["CLOUDFLARE_ACCOUNT_ID"]
+          headers = {"Authorization": "Bearer " + os.environ["CLOUDFLARE_API_TOKEN"]}
+          libs = {"amboss":"amboss", "usmle":"usmle", "passmedicine":"passmedicine",
+                  "pastest":"pastest", "one-examination-isolated":"one-examination"}
+          targets = []
+          accessible = 0
+          def get(path):
+              try:
+                  with urlopen(Request(base + path, headers=headers), timeout=25) as response:
+                      data = json.load(response)
+                  return (data.get("result") if data.get("success") else None, "ok" if data.get("success") else "api_rejected")
+              except HTTPError as exc:
+                  return (None, "http_" + str(exc.code))
+              except (URLError, TimeoutError, ValueError):
+                  return (None, "unavailable")
+          for instance, library in libs.items():
+              root = "/ai-search/namespaces/default/instances/" + instance
+              details, detailStatus = get(root)
+              stats, statStatus = get(root + "/stats")
+              items, itemStatus = get(root + "/items?per_page=25&page=1")
+              if detailStatus == "ok": accessible += 1
+              source = details.get("source") if isinstance(details, dict) else None
+              if isinstance(source, dict):
+                  source = source.get("bucket_name") or source.get("bucket") or "structured"
+              if not isinstance(source, str): source = "unknown"
+              source = re.sub("[^A-Za-z0-9._-]", "", source)[:90] or "unknown"
+              counts = {}
+              if isinstance(stats, dict):
+                  for k in ("completed","queued","running","error","skipped"):
+                      if isinstance(stats.get(k), int): counts[k] = stats[k]
+              expected = re.compile(r"^medical-search/v1/" + re.escape(library) + r"/([a-z0-9][a-z0-9-]{0,90})/(s-[0-9]{4})[.]md$")
+              sampleKeys = [i.get("key") for i in items if isinstance(i, dict)] if isinstance(items, list) else []
+              matched = [expected.fullmatch(key) for key in sampleKeys if isinstance(key, str)]
+              matched = [m for m in matched if m]
+              if matched:
+                  m = matched[0]
+                  targets.append({"library":library, "article":m.group(1), "section":m.group(2)})
+              print("AI_SEARCH", json.dumps({"instance":instance, "sourceBucket":source,
+                  "detail":detailStatus, "stats":statStatus, "items":itemStatus,
+                  "counts":counts, "sampled":len(sampleKeys), "canonicalSampleMatches":len(matched),
+                  "sampleArticleAvailable":bool(matched)}, sort_keys=True))
+          buckets, status = get("/r2/buckets?per_page=100")
+          names = []
+          if isinstance(buckets, dict): buckets = buckets.get("buckets")
+          if isinstance(buckets, list):
+              names = sorted(b.get("name","") for b in buckets if isinstance(b, dict) and
+                             str(b.get("name","")).startswith("santo-"))
+          print("R2_BUCKET_INVENTORY",json.dumps({"status":status,"santoBucketNames":names}))
+          Path(os.environ["RUNNER_TEMP"]).joinpath("luna-audit-targets.json").write_text(json.dumps(targets))
+          print("AUDIT",json.dumps({"accessibleInstances":accessible,"canonicalExampleArticles":len(targets)}))
+          if accessible == 0: raise SystemExit("No instance metadata was readable")
+          PY
+
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install pinned Wrangler (only for read-only object GET)
+        shell: bash
+        run: |
+          set -euo pipefail
+          corepack enable
+          pnpm install --frozen-lockfile
+
+      - name: Inspect a matching private R2 article per indexed library without printing content
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, os, subprocess, tempfile
+          from pathlib import Path
+          targets = json.loads((Path(os.environ["RUNNER_TEMP"]) / "luna-audit-targets.json").read_text())
+          bucket = "santo-content-staging"
+          for t in targets:
+              key = "medical-articles/v1/{}/{}.json".format(t["library"],t["article"])
+              with tempfile.TemporaryDirectory() as tmp:
+                  dest = Path(tmp) / "article.json"
+                  command = ["pnpm", "exec", "wrangler", "r2", "object", "get",
+                             bucket + "/" + key, "--remote", "--file", str(dest)]
+                  try:
+                      run = subprocess.run(command, cwd="workers/api",
+                          capture_output=True, text=True, timeout=50, check=False)
+                      if run.returncode != 0 or not dest.is_file():
+                          print("R2_ARTICLE",json.dumps({"library":t["library"],"status":"not_readable",
+                              "indexSection":t["section"]}))
+                          continue
+                      data = json.loads(dest.read_text(encoding="utf-8"))
+                      sections = data.get("sections") if isinstance(data,dict) else None
+                      if not isinstance(sections,list): sections=[]
+                      matching = any(isinstance(s,dict) and s.get("id") == t["section"] for s in sections)
+                      images = sum(len(s.get("images",[])) for s in sections if isinstance(s,dict) and
+                                  isinstance(s.get("images"),list))
+                      print("R2_ARTICLE",json.dumps({"library":t["library"],"status":"read",
+                          "identityMatches":data.get("articleId")==t["article"] and
+                            data.get("libraryId")==t["library"],
+                          "sectionExists":matching, "schema":data.get("schemaVersion"),
+                          "sections":len(sections),"images":images,
+                          "hasOriginalHtml":any(isinstance(data.get(k),str) and bool(data[k])
+                                                 for k in ("contentHtml","content_html","html"))}))
+                  except (subprocess.TimeoutExpired, OSError, ValueError, TypeError):
+                      print("R2_ARTICLE",json.dumps({"library":t["library"],"status":"not_readable"}))
+          PY

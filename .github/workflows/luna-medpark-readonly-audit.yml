@@ -203,6 +203,16 @@ jobs:
                       matching = any(isinstance(s,dict) and s.get("id") == t["section"] for s in sections)
                       images = sum(len(s.get("images",[])) for s in sections if isinstance(s,dict) and
                                   isinstance(s.get("images"),list))
+                      from urllib.parse import urlparse
+                      image_entries=[im for sec in sections if isinstance(sec,dict)
+                                     for im in sec.get("images",[]) if isinstance(im,dict)]
+                      safe_media = sum(1 for im in image_entries
+                          if isinstance(im.get("src"),str) and
+                             urlparse(im["src"]).hostname==
+                             "pub-2a81f2cb19cc4473a3d076e657af6121.r2.dev" and
+                             urlparse(im["src"]).path.startswith("/offline_media/"))
+                      print("R2_SECTION_IMAGE_SOURCES",json.dumps({"library":t["library"],
+                             "images":len(image_entries),"approvedOriginAndPrefix":safe_media}))
                       import re
                       html_fields = {k: len(data[k]) for k in ("contentHtml","content_html","html")
                                      if isinstance(data.get(k),str) and data[k]}

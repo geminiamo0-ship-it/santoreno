@@ -1,4 +1,4 @@
-name: MedPark Luna — isolated preview capability check
+name: MedPark Luna — read-only Cloudflare Pages preview lookup
 on:
   push:
     branches: [audit/luna-cloudflare-20261106]
@@ -6,21 +6,54 @@ on:
 permissions:
   contents: read
 jobs:
-  probe-private-frontend:
+  look-up-preview:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 6
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
     steps:
-      - name: Check out ONLY MedPark Luna review branch with existing private-source read token
-        uses: actions/checkout@v4
-        with:
-          repository: geminiamo0-ship-it/medpark-web
-          ref: feat/luna-home-ai-composer-review
-          token: ${{ secrets.SANTO_LIBRARY_SOURCE_READ_TOKEN }}
-          persist-credentials: false
-      - name: Verify strict source and no production branch operations
+      - name: Look for only the requested MedPark Luna review branch (no mutation)
         shell: bash
         run: |
-          set -euo pipefail
-          test "$(git branch --show-current)" = "feat/luna-home-ai-composer-review"
-          test -f apps/app/src/features/home/LunaExperience.tsx
-          echo "LUNA_FRONTEND_PRIVATE_SOURCE_READ_OK=true"
+          python3 - <<'PY'
+          import os,json
+          from urllib.request import Request,urlopen
+          from urllib.error import HTTPError
+          account=os.environ.get("CLOUDFLARE_ACCOUNT_ID","")
+          token=os.environ.get("CLOUDFLARE_API_TOKEN","")
+          if not account or not token:
+              print("PAGES_PREVIEW_STATUS=missing_credentials"); raise SystemExit(0)
+          base="https://api.cloudflare.com/client/v4/accounts/"+account+"/pages/projects"
+          head={"Authorization":"Bearer "+token}
+          def get(url):
+              try:
+                  with urlopen(Request(url,headers=head),timeout=20) as response:
+                      body=json.load(response)
+                  return body.get("result") if body.get("success") else None
+              except (HTTPError,TimeoutError,ValueError):
+                  return None
+          projects=get(base+"?per_page=100")
+          if not isinstance(projects,list):
+              print("PAGES_PREVIEW_STATUS=unavailable")
+              raise SystemExit(0)
+          relevant=[p for p in projects if isinstance(p,dict) and any(
+              term in str(p.get("name","")).lower() for term in ("medpark","luna")
+          )]
+          previews=[]
+          for project in relevant[:10]:
+              name=project.get("name","")
+              if not name or not all(c.isalnum() or c=="-" for c in name): continue
+              deployments=get(base+"/"+name+"/deployments?per_page=30")
+              if not isinstance(deployments,list): continue
+              for d in deployments:
+                  if not isinstance(d,dict): continue
+                  trigger=d.get("deployment_trigger") or {}
+                  metadata=trigger.get("metadata") or {}
+                  branch=metadata.get("branch")
+                  if branch!="feat/luna-home-ai-composer-review":continue
+                  urls=[d.get("url"), d.get("aliases")]
+                  previews.append({"project":name,"branch":branch,"url":urls[0],"aliases":urls[1]})
+          print("PAGES_REVIEW_PROJECT_COUNT="+str(len(relevant)))
+          print("PAGES_REVIEW_PREVIEWS="+json.dumps(previews[:4]))
+          PY

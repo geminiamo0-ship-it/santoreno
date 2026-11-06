@@ -1,0 +1,26 @@
+name: MedPark Luna — isolated preview capability check
+on:
+  push:
+    branches: [audit/luna-cloudflare-20261106]
+    paths: ['.github/workflows/luna-dev-cloudflare-preview.yml']
+permissions:
+  contents: read
+jobs:
+  probe-private-frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Check out ONLY MedPark Luna review branch with existing private-source read token
+        uses: actions/checkout@v4
+        with:
+          repository: geminiamo0-ship-it/medpark-web
+          ref: feat/luna-home-ai-composer-review
+          token: ${{ secrets.SANTO_LIBRARY_SOURCE_READ_TOKEN }}
+          persist-credentials: false
+      - name: Verify strict source and no production branch operations
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git branch --show-current)" = "feat/luna-home-ai-composer-review"
+          test -f apps/app/src/features/home/LunaExperience.tsx
+          echo "LUNA_FRONTEND_PRIVATE_SOURCE_READ_OK=true"

@@ -137,6 +137,42 @@ jobs:
                         re.escape(t["section"]) + r"""["']""", html_value, re.IGNORECASE)
                       heading_tags = len(re.findall(r"<h[1-6]\b", html_value, re.IGNORECASE))
                       scripts = len(re.findall(r"<script\b", html_value, re.IGNORECASE))
+                      from html.parser import HTMLParser
+                      class ArticleText(HTMLParser):
+                          def __init__(self):
+                              super().__init__(convert_charrefs=True)
+                              self.text_parts = []
+                              self.heading_depth = 0
+                              self.heading_parts = []
+                              self.headings = []
+                          def handle_starttag(self, tag, attrs):
+                              if re.fullmatch(r"h[1-6]", tag):
+                                  self.heading_depth += 1
+                                  self.heading_parts = []
+                          def handle_data(self, data):
+                              self.text_parts.append(data)
+                              if self.heading_depth: self.heading_parts.append(data)
+                          def handle_endtag(self, tag):
+                              if re.fullmatch(r"h[1-6]", tag) and self.heading_depth:
+                                  self.heading_depth -= 1
+                                  self.headings.append(" ".join("".join(self.heading_parts).split()).casefold())
+                      parser = ArticleText()
+                      parser.feed(html_value)
+                      normalize = lambda txt: " ".join(str(txt).split()).casefold()
+                      heading_unique = sum(1 for sec in sections if isinstance(sec,dict) and
+                          normalize(sec.get("heading","")) and
+                          parser.headings.count(normalize(sec.get("heading",""))) == 1)
+                      plain_text = normalize("".join(parser.text_parts))
+                      prefix_uniques = 0
+                      for sec in sections:
+                          if not isinstance(sec,dict): continue
+                          prefix = normalize(sec.get("text",""))[:75].strip()
+                          if len(prefix) >= 35 and plain_text.count(prefix) == 1:
+                              prefix_uniques += 1
+                      print("R2_SECTION_MATCH",json.dumps({"library":t["library"],
+                          "sectionCount":len(sections),"uniqueExactHeadingMatches":heading_unique,
+                          "uniqueTextPrefixMatches":prefix_uniques,
+                          "htmlHeadingsParsed":len(parser.headings)}))
                       print("R2_HTML",json.dumps({"library":t["library"],"fields":html_fields,
                            "htmlHeadingCount":heading_tags,"anchorForIndexedSection":bool(named_anchor),
                            "scriptTags":scripts}))

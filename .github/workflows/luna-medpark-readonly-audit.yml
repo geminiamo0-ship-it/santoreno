@@ -129,6 +129,39 @@ jobs:
               print("LIVE_SEARCH_SHAPE",json.dumps({"status":"unavailable"}))
           PY
 
+      - name: Verify Cloudflare API Bearer can GET existing private R2 article (no content logging)
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os, json
+          from pathlib import Path
+          from urllib.request import Request, urlopen
+          from urllib.error import HTTPError, URLError
+          targets = json.loads((Path(os.environ["RUNNER_TEMP"]) / "luna-audit-targets.json").read_text())
+          if not targets:
+              print("R2_REST_READER",json.dumps({"status":"no_index_target"}))
+              raise SystemExit(0)
+          article = targets[0]
+          key = "medical-articles/v1/{}/{}.json".format(article["library"],article["article"])
+          endpoint = ("https://api.cloudflare.com/client/v4/accounts/" +
+                      os.environ["CLOUDFLARE_ACCOUNT_ID"] +
+                      "/r2/buckets/santo-content-staging/objects/" + key)
+          try:
+              with urlopen(Request(endpoint,headers={
+                  "Authorization":"Bearer " + os.environ["CLOUDFLARE_API_TOKEN"],
+              }),timeout=25) as response:
+                  data=json.load(response)
+              print("R2_REST_READER",json.dumps({"status":"ok",
+                  "validIdentity":data.get("articleId")==article["article"] and
+                                  data.get("libraryId")==article["library"],
+                  "hasOriginalHtml":isinstance(data.get("contentHtml"),str) and
+                                    len(data.get("contentHtml"))>100}))
+          except HTTPError as e:
+              print("R2_REST_READER",json.dumps({"status":"http_"+str(e.code)}))
+          except (URLError,ValueError,TimeoutError):
+              print("R2_REST_READER",json.dumps({"status":"unavailable"}))
+          PY
+
       - uses: actions/checkout@v4
         with:
           persist-credentials: false

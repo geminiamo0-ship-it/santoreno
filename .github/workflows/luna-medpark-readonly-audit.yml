@@ -248,6 +248,11 @@ jobs:
                           "sectionCount":len(sections),"uniqueExactHeadingMatches":heading_unique,
                           "uniqueTextPrefixMatches":prefix_uniques,
                           "htmlHeadingsParsed":len(parser.headings)}))
+                      print("R2_MEDIA_MARKUP",json.dumps({"library":t["library"],
+                          "htmlImgTags":len(re.findall(r"<img\\b",html_value,re.IGNORECASE)),
+                          "htmlFigures":len(re.findall(r"<figure\\b",html_value,re.IGNORECASE)),
+                          "htmlTableTags":len(re.findall(r"<table\\b",html_value,re.IGNORECASE)),
+                          "lazyImageAttributes":len(re.findall(r"\\bdata-(?:src|original|lazy-src)\\s*=",html_value,re.IGNORECASE))}))
                       print("R2_HTML",json.dumps({"library":t["library"],"fields":html_fields,
                            "htmlHeadingCount":heading_tags,"anchorForIndexedSection":bool(named_anchor),
                            "scriptTags":scripts}))

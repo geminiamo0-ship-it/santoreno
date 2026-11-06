@@ -128,6 +128,18 @@ jobs:
                       matching = any(isinstance(s,dict) and s.get("id") == t["section"] for s in sections)
                       images = sum(len(s.get("images",[])) for s in sections if isinstance(s,dict) and
                                   isinstance(s.get("images"),list))
+                      import re
+                      html_fields = {k: len(data[k]) for k in ("contentHtml","content_html","html")
+                                     if isinstance(data.get(k),str) and data[k]}
+                      html_value = next((data[k] for k in ("contentHtml","content_html","html")
+                                         if isinstance(data.get(k),str) and data[k]), "")
+                      named_anchor = re.search(r"""(?:id|name)\s*=\s*["']""" +
+                        re.escape(t["section"]) + r"""["']""", html_value, re.IGNORECASE)
+                      heading_tags = len(re.findall(r"<h[1-6]\b", html_value, re.IGNORECASE))
+                      scripts = len(re.findall(r"<script\b", html_value, re.IGNORECASE))
+                      print("R2_HTML",json.dumps({"library":t["library"],"fields":html_fields,
+                           "htmlHeadingCount":heading_tags,"anchorForIndexedSection":bool(named_anchor),
+                           "scriptTags":scripts}))
                       print("R2_ARTICLE",json.dumps({"library":t["library"],"status":"read",
                           "identityMatches":data.get("articleId")==t["article"] and
                             data.get("libraryId")==t["library"],

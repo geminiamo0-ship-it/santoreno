@@ -1,0 +1,88 @@
+name: AMBOSS Hierarchical V2 — Isolated Full Reindex
+
+on:
+  push:
+    branches:
+      - feature/amboss-hierarchical-v2-staging
+    paths:
+      - ".github/workflows/amboss-hierarchical-v2-reindex.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: santo-amboss-hierarchical-v2-only
+  cancel-in-progress: false
+
+jobs:
+  rebuild-index:
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      SOURCE_BUCKET: santo-content-staging
+      TARGET_BUCKET: santo-amboss-hierarchical-v2
+      TARGET_INSTANCE: amboss-hierarchical-v2
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Validate isolated targets and credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test "$SOURCE_BUCKET" = "santo-content-staging"
+          test "$TARGET_BUCKET" = "santo-amboss-hierarchical-v2"
+          test "$TARGET_INSTANCE" = "amboss-hierarchical-v2"
+          python -m py_compile scripts/build_amboss_hierarchical_v2.py
+      - name: Rebuild from all 1,481 original AMBOSS articles
+        run: python scripts/build_amboss_hierarchical_v2.py
+      - name: Verify isolated source and trigger AI Search sync
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,os,urllib.request,urllib.error
+          root=f"https://api.cloudflare.com/client/v4/accounts/{os.environ['CLOUDFLARE_ACCOUNT_ID']}/ai-search/instances/{os.environ['TARGET_INSTANCE']}"
+          hdr={"Authorization":"Bearer "+os.environ["CLOUDFLARE_API_TOKEN"],"Content-Type":"application/json"}
+          def call(method,path,body=None):
+              req=urllib.request.Request(root+path,method=method,headers=hdr,data=body)
+              with urllib.request.urlopen(req,timeout=70) as resp: obj=json.load(resp)
+              if not obj.get("success"): raise RuntimeError("Cloudflare API success=false")
+              return obj["result"]
+          current=call("GET","")
+          if current.get("source")!=os.environ["TARGET_BUCKET"] or current.get("type")!="r2":
+              raise RuntimeError("Index isolation mismatch")
+          jobs=call("GET","/jobs")
+          if any(not j.get("ended_at") for j in jobs):
+              print("Existing indexing job active")
+          else:
+              try:
+                  started=call("POST","/jobs",b"{}")
+                  print("Index sync started:",started.get("id"))
+              except urllib.error.HTTPError as e:
+                  if e.code!=429: raise
+                  print("Sync request rate limited; scheduled sync required")
+          stats=call("GET","/stats")
+          print("Indexing stats:",{k:stats.get(k) for k in ("completed","queued","running","error","skipped")})
+          print("Full indexing and clinical retrieval acceptance remain unverified")
+          PY
+      - name: Upload audit manifest
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: amboss-hierarchical-v2-report
+          path: amboss-hierarchical-v2-report.json
+          if-no-files-found: ignore
+      - name: Summarize isolation
+        if: success()
+        shell: bash
+        run: |
+          echo "AMBOSS V2 source: 1,481 original Santo staging articles" >> "$GITHUB_STEP_SUMMARY"
+          echo "Only santo-amboss-hierarchical-v2 was written; no production changes" >> "$GITHUB_STEP_SUMMARY"
+          echo "Full AI Search sync and search quality still require validation" >> "$GITHUB_STEP_SUMMARY"

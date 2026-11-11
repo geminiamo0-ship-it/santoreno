@@ -1,0 +1,75 @@
+name: AMBOSS V2 — Retry Only 24 Rate-Limited Articles
+
+on:
+  push:
+    branches:
+      - feature/amboss-hierarchical-v2-staging
+    paths:
+      - ".github/workflows/amboss-v2-repair.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: santo-amboss-hierarchical-v2-only
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Validate secrets and original article importer
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+          test -n "$CLOUDFLARE_API_TOKEN"
+          python -m py_compile scripts/build_amboss_hierarchical_v2.py scripts/retry_amboss_v2_failed.py
+      - name: Repair only 24 HTTP 429 failed AMBOSS articles
+        shell: bash
+        run: python scripts/retry_amboss_v2_failed.py
+      - name: Verify V2 instance unchanged and trigger isolated resync
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json,os,urllib.request,urllib.error
+          root=f"https://api.cloudflare.com/client/v4/accounts/{os.environ['CLOUDFLARE_ACCOUNT_ID']}/ai-search/instances/amboss-hierarchical-v2"
+          headers={"Authorization":"Bearer "+os.environ["CLOUDFLARE_API_TOKEN"],"Content-Type":"application/json"}
+          def call(method,path,body=None):
+              req=urllib.request.Request(root+path,headers=headers,method=method,data=body)
+              with urllib.request.urlopen(req,timeout=90) as r: data=json.load(r)
+              if not data.get("success"): raise RuntimeError("Cloudflare AI Search API failed")
+              return data["result"]
+          cfg=call("GET","")
+          if cfg.get("source")!="santo-amboss-hierarchical-v2":
+              raise RuntimeError("Refusing to sync index with unexpected R2 source")
+          jobs=call("GET","/jobs")
+          if not any(not x.get("ended_at") for x in jobs):
+              try:
+                  job=call("POST","/jobs",b"{}")
+                  print("Isolated V2 resync started:",job.get("id"))
+              except urllib.error.HTTPError as e:
+                  if e.code!=429: raise
+                  print("Resync rate limited; scheduled sync still available")
+          else:
+              print("V2 job already active")
+          stats=call("GET","/stats")
+          print("V2 stats:",{k:stats.get(k) for k in ("completed","queued","running","error","skipped")})
+          print("Original AMBOSS instance and production unchanged")
+          PY
+      - name: Preserve repair report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: amboss-v2-repair-report
+          path: amboss-v2-repair-report.json
+          if-no-files-found: ignore
